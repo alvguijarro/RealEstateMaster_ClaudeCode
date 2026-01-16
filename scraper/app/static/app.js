@@ -310,47 +310,122 @@ async function loadDefaultConfig() {
 }
 
 function initializeSocket() {
-    socket = io();
+    // Try WebSocket first
+    let socketConnected = false;
+    let useHttpPolling = false;
+    let httpPollInterval = null;
+    let lastLogIndex = 0;
 
-    socket.on('connect', () => {
-        addLog('INFO', 'Conectado al servidor');
-    });
+    try {
+        socket = io();
 
-    socket.on('disconnect', () => {
-        addLog('WARN', 'Desconectado del servidor');
-    });
+        socket.on('connect', () => {
+            socketConnected = true;
+            addLog('INFO', 'Conectado al servidor');
+            // Stop HTTP polling if it was running
+            if (httpPollInterval) {
+                clearInterval(httpPollInterval);
+                httpPollInterval = null;
+            }
+        });
 
-    socket.on('log', (data) => {
-        addLog(data.level, data.message);
-    });
+        socket.on('disconnect', () => {
+            socketConnected = false;
+            addLog('WARN', 'Desconectado del servidor');
+            // Start HTTP polling as fallback
+            startHttpPolling();
+        });
 
-    socket.on('property_scraped', (data) => {
-        addProperty(data);
-    });
+        socket.on('connect_error', () => {
+            if (!useHttpPolling) {
+                console.log('WebSocket unavailable, switching to HTTP polling');
+                useHttpPolling = true;
+                startHttpPolling();
+            }
+        });
 
-    socket.on('status_change', (data) => {
-        handleStatusChange(data);
-    });
+        socket.on('log', (data) => {
+            addLog(data.level, data.message);
+        });
 
-    socket.on('history_update', (entry) => {
-        addHistoryRow(entry);
-        historyEmptyState.style.display = 'none';
-    });
+        socket.on('property_scraped', (data) => {
+            addProperty(data);
+        });
 
-    socket.on('progress_update', (data) => {
-        // Update page progress (e.g., "02 / 68")
-        statCurrentPage.textContent = String(data.current_page || 0).padStart(2, '0');
-        statTotalPages.textContent = String(data.total_pages || 0).padStart(2, '0');
+        socket.on('status_change', (data) => {
+            handleStatusChange(data);
+        });
 
-        // Update property progress (e.g., "980 / 2055")
-        statCurrentProps.textContent = data.current_properties || 0;
-        statTotalProps.textContent = data.total_properties || 0;
-    });
+        socket.on('history_update', (entry) => {
+            addHistoryRow(entry);
+            historyEmptyState.style.display = 'none';
+        });
 
-    socket.on('browser_closed', (data) => {
-        addLog('WARN', 'El navegador fue cerrado. Scraping pausado.');
-        showBrowserClosedModal();
-    });
+        socket.on('progress_update', (data) => {
+            statCurrentPage.textContent = String(data.current_page || 0).padStart(2, '0');
+            statTotalPages.textContent = String(data.total_pages || 0).padStart(2, '0');
+            statCurrentProps.textContent = data.current_properties || 0;
+            statTotalProps.textContent = data.total_properties || 0;
+        });
+
+        socket.on('browser_closed', (data) => {
+            addLog('WARN', 'El navegador fue cerrado. Scraping pausado.');
+            showBrowserClosedModal();
+        });
+
+        // Start HTTP polling after a delay if socket hasn't connected
+        setTimeout(() => {
+            if (!socketConnected && !useHttpPolling) {
+                console.log('WebSocket connection timeout, switching to HTTP polling');
+                useHttpPolling = true;
+                startHttpPolling();
+            }
+        }, 3000);
+
+    } catch (e) {
+        console.log('Socket.IO not available, using HTTP polling');
+        useHttpPolling = true;
+        startHttpPolling();
+    }
+
+    function startHttpPolling() {
+        if (httpPollInterval) return; // Already polling
+
+        addLog('INFO', 'Usando modo HTTP (polling)...');
+
+        httpPollInterval = setInterval(async () => {
+            try {
+                const res = await fetch(`api/stream?since=${lastLogIndex}`);
+                const data = await res.json();
+
+                if (data.logs && data.logs.length > 0) {
+                    data.logs.forEach(log => {
+                        addLog(log.level, log.message);
+                    });
+                    lastLogIndex = data.total;
+                }
+
+                // Handle status changes
+                if (data.status) {
+                    const badge = statusBadge;
+                    if (badge && data.status.status) {
+                        badge.className = `status-badge ${data.status.status}`;
+                        const statusTexts = {
+                            'idle': 'Inactivo',
+                            'running': 'Ejecutando',
+                            'paused': 'Pausado',
+                            'completed': 'Completado',
+                            'error': 'Error'
+                        };
+                        const textEl = badge.querySelector('.status-text');
+                        if (textEl) textEl.textContent = statusTexts[data.status.status] || data.status.status;
+                    }
+                }
+            } catch (e) {
+                // Silently fail - server might be temporarily unavailable
+            }
+        }, 1000);
+    }
 }
 
 // Browser closed modal

@@ -47,6 +47,10 @@ update_process = None
 HISTORY_FILE = Path(__file__).parent.parent / "scrape_history.json"
 scrape_history: list = []
 
+# HTTP Log buffer for polling fallback (when WebSocket unavailable)
+log_buffer: list = []
+MAX_LOG_BUFFER = 500
+
 
 def load_history():
     """Load scrape history from file."""
@@ -91,7 +95,13 @@ load_history()
 
 
 def emit_log(level: str, message: str):
-    """Send log message to all connected clients."""
+    """Send log message to all connected clients and buffer for HTTP polling."""
+    global log_buffer
+    log_entry = {'level': level, 'message': message, 'time': datetime.now().strftime('%H:%M:%S')}
+    log_buffer.append(log_entry)
+    # Trim buffer if too large
+    if len(log_buffer) > MAX_LOG_BUFFER:
+        log_buffer = log_buffer[-MAX_LOG_BUFFER:]
     socketio.emit('log', {'level': level, 'message': message})
 
 
@@ -139,6 +149,33 @@ def get_config():
     """Get default configuration values."""
     return jsonify({
         'default_output_dir': DEFAULT_OUTPUT_DIR
+    })
+
+
+@app.route('/api/stream', methods=['GET'])
+def stream_logs():
+    """HTTP fallback for log streaming when WebSocket unavailable."""
+    global log_buffer
+    since = request.args.get('since', 0, type=int)
+    
+    # Return logs since the given index
+    logs = log_buffer[since:] if since < len(log_buffer) else []
+    
+    # Also include status info
+    status_info = {
+        'status': 'idle',
+        'properties_count': 0
+    }
+    if scraper_controller:
+        status_info = {
+            'status': scraper_controller.status,
+            'properties_count': len(scraper_controller.scraped_properties)
+        }
+    
+    return jsonify({
+        'logs': logs,
+        'total': len(log_buffer),
+        'status': status_info
     })
 
 
