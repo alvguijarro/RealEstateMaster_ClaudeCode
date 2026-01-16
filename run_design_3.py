@@ -149,8 +149,8 @@ def proxy(service_name, path):
 def index():
     # Pass proxy base URLs instead of ports
     return render_template('design_sidebar.html', 
-                          scraper_proxy='/proxy/scraper', 
-                          analyzer_proxy='/proxy/analyzer')
+                          scraper_proxy='/proxy/scraper/', 
+                          analyzer_proxy='/proxy/analyzer/')
 
 @app.route('/api/start/<service>', methods=['POST'])
 def api_start_service(service):
