@@ -1,0 +1,40 @@
+# Embedded Python (for local Windows use, not needed in Docker)
+scraper/python/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Output files (user data)
+scraper/salidas/
+*.xlsx
+
+# State files
+scrape_history.json
+resume_state.json
+update_paused.flag
+
+# Playwright cache (installed in Docker via Dockerfile)
+.cache/
