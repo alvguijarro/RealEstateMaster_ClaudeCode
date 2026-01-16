@@ -58,7 +58,7 @@ def start_service(service_name):
     env['NO_BROWSER_OPEN'] = '1'
     env['FLASK_USE_RELOADER'] = 'False'  # Prevent double processes
     
-    Platform-specific startup info
+    # Platform-specific startup info
     startupinfo = None
     creationflags = 0
     
