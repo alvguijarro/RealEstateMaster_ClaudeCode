@@ -4,24 +4,35 @@ import subprocess
 import webbrowser
 import threading
 import time
+import platform
 from flask import Flask, render_template, jsonify, request
 
 app = Flask(__name__)
 
 # Configuration
+IS_WINDOWS = sys.platform == 'win32'
 SCRAPER_PORT = 5003
 ANALYZER_PORT = 5001
-DASHBOARD_PORT = 5004
+# On cloud, we must bind to the port provided by the environment variable
+DASHBOARD_PORT = int(os.environ.get('PORT', 5004))
 
 # Heartbeat state
 LAST_HEARTBEAT_TIME = time.time() + 15
 
 def kill_by_port(port):
-    try:
-        cmd = f'powershell -Command "Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }}"'
-        subprocess.run(cmd, shell=True, capture_output=True)
-    except:
-        pass
+    if IS_WINDOWS:
+        try:
+            cmd = f'powershell -Command "Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }}"'
+            subprocess.run(cmd, shell=True, capture_output=True)
+        except:
+            pass
+    else:
+        # Linux/Unix way to kill process on port
+        try:
+            cmd = f"lsof -ti:{port} | xargs kill -9"
+            subprocess.run(cmd, shell=True, capture_output=True)
+        except:
+            pass
 
 def kill_processes():
     kill_by_port(SCRAPER_PORT)
@@ -36,12 +47,18 @@ def start_service(service_name):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     env = os.environ.copy()
     env['NO_BROWSER_OPEN'] = '1'
-    env['FLASK_USE_RELOADER'] = 'False'  # Prevent double processes (parents not killed by STOP_ALL)
+    env['FLASK_USE_RELOADER'] = 'False'  # Prevent double processes
     
-    # Minimize child windows
-    startupinfo = subprocess.STARTUPINFO()
-    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startupinfo.wShowWindow = 6 # SW_MINIMIZE
+    # Platform-specific startup info
+    startupinfo = None
+    creationflags = 0
+    
+    if IS_WINDOWS:
+        # Minimize child windows on Windows
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = 6 # SW_MINIMIZE
+        creationflags = subprocess.CREATE_NEW_CONSOLE
     
     if service_name == 'scraper':
         if is_port_in_use(SCRAPER_PORT):
@@ -49,7 +66,7 @@ def start_service(service_name):
         scraper_dir = os.path.join(base_dir, 'scraper')
         script = os.path.join(scraper_dir, 'start.py')
         subprocess.Popen([sys.executable, script], cwd=scraper_dir, env=env, 
-                        creationflags=subprocess.CREATE_NEW_CONSOLE,
+                        creationflags=creationflags,
                         startupinfo=startupinfo)
         return True
         
@@ -59,7 +76,7 @@ def start_service(service_name):
         analyzer_dir = os.path.join(base_dir, 'analyzer')
         script = os.path.join(analyzer_dir, 'app.py')
         subprocess.Popen([sys.executable, script], cwd=analyzer_dir, env=env,
-                        creationflags=subprocess.CREATE_NEW_CONSOLE,
+                        creationflags=creationflags,
                         startupinfo=startupinfo)
         return True
     
@@ -95,6 +112,11 @@ def monitor_activity():
     global LAST_HEARTBEAT_TIME
     print("Heartbeat monitor started...")
     while True:
+        # Disable auto-shutdown on cloud/headless environments
+        if not IS_WINDOWS or os.environ.get('HEADLESS'):
+            time.sleep(60)
+            continue
+            
         if time.time() - LAST_HEARTBEAT_TIME > 70:
             print("Dashboard closed. Shutting down services...")
             kill_processes()
@@ -102,9 +124,15 @@ def monitor_activity():
         time.sleep(1)
 
 if __name__ == '__main__':
-    url = f"http://127.0.0.1:{DASHBOARD_PORT}"
-    threading.Timer(1.5, lambda: webbrowser.open(url)).start()
-    threading.Thread(target=monitor_activity, daemon=True).start()
+    # Only open browser on Windows and if not in headless mode
+    if IS_WINDOWS and not os.environ.get('HEADLESS'):
+        url = f"http://127.0.0.1:{DASHBOARD_PORT}"
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
     
-    print(f"Starting Sidebar View Dashboard at {url}")
-    app.run(port=DASHBOARD_PORT, debug=False, use_reloader=False)
+    print(f"Starting Sidebar View Dashboard on port {DASHBOARD_PORT}")
+    
+    # On Cloud (Linux), bind to 0.0.0.0 to be accessible externally
+    host = '127.0.0.1' if IS_WINDOWS else '0.0.0.0'
+    
+    threading.Thread(target=monitor_activity, daemon=True).start()
+    app.run(host=host, port=DASHBOARD_PORT, debug=False, use_reloader=False)

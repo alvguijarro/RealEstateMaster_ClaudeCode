@@ -1,0 +1,14 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.git/
+.gitignore
+.vscode/
+scraper/salidas/*.xlsx
+scraper/salidas/backup/
+scraper/python/
