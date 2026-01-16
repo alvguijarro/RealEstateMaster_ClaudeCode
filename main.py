@@ -8,7 +8,7 @@ import requests
 from flask import Flask, render_template, jsonify, redirect
 
 app = Flask(__name__)
-#
+
 # Configuration
 SCRAPER_PORT = 5003
 ANALYZER_PORT = 5001
