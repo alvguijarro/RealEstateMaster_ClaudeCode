@@ -29,7 +29,6 @@ APP_DIR = Path(__file__).parent.absolute()
 PYTHON_DIR = APP_DIR / "python"
 PYTHON_EXE = PYTHON_DIR / "python.exe"
 PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
-# Determine host based on environment or default to localhost for proxy
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 5003
 
@@ -221,21 +220,14 @@ def run_server():
     try:
         # DETACHED_PROCESS = 0x00000008
         # CREATE_NO_WINDOW = 0x08000000
-        if sys.platform == 'win32':
-            creationflags = 0x08000000 
-            subprocess.Popen(
-                [str(PYTHON_EXE), "-m", "app.server"],
-                cwd=str(APP_DIR),
-                env=env,
-                creationflags=creationflags
-            )
-        else:
-            # Linux/Cloud: No special creation flags
-            subprocess.Popen(
-                [str(PYTHON_EXE), "-m", "app.server"],
-                cwd=str(APP_DIR),
-                env=env
-            )
+        creationflags = 0x08000000 if sys.platform == 'win32' else 0
+        
+        subprocess.Popen(
+            [str(PYTHON_EXE), "-m", "app.server"],
+            cwd=str(APP_DIR),
+            env=env,
+            creationflags=creationflags
+        )
         print("[OK] Server started in background.")
         # Keep window open briefly to show success
         time.sleep(2)
@@ -294,12 +286,6 @@ def main():
         print("   Or close the existing server and try again.")
         sys.exit(1)
     
-    # Check for forced system python (e.g. Docker/Cloud)
-    if os.environ.get('SKIP_EMBEDDED_PYTHON'):
-        print("[CONFIG] Skipping embedded Python setup (SKIP_EMBEDDED_PYTHON set)")
-        run_with_system_python()
-        return
-
     # Try embedded Python first
     try:
         if setup_embedded_python() and setup_pip() and install_dependencies():

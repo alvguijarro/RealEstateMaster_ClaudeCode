@@ -8,14 +8,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function startHeartbeat() {
     setInterval(() => {
-        fetch('heartbeat', { method: 'POST' })
+        fetch('/heartbeat', { method: 'POST' })
             .catch(e => console.log('Heartbeat failed', e));
     }, 3000); // Send every 3 seconds
 }
 
 async function loadFiles() {
     try {
-        const response = await fetch('list-files');
+        const response = await fetch('/list-files');
         const files = await response.json();
 
         const ventaSelect = document.getElementById('ventaFile');
@@ -210,7 +210,7 @@ async function setupAnalyze() {
         terminal.innerHTML = '<div class="log-line log-info">> Starting analysis...</div>';
 
         try {
-            const res = await fetch('analyze', {
+            const res = await fetch('/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -233,7 +233,7 @@ async function pollLogs() {
 
     const interval = setInterval(async () => {
         try {
-            const res = await fetch(`stream?since=${lastIndex}`);
+            const res = await fetch(`/stream?since=${lastIndex}`);
             const data = await res.json();
 
             if (data.logs && data.logs.length > 0) {
@@ -270,7 +270,7 @@ let currentSort = { col: 'Puntuación', dir: -1 }; // -1: descending
 
 async function loadResults() {
     try {
-        const res = await fetch('api/results');
+        const res = await fetch('/api/results');
         const response = await res.json();
 
         if (response.error) {
@@ -404,7 +404,7 @@ function updateSortHeaders() {
     const dlBtn = document.getElementById('btnDownload');
     if (dlBtn) {
         dlBtn.addEventListener('click', () => {
-            window.location.href = 'download-results';
+            window.location.href = '/download-results';
         });
     }
 }
@@ -584,7 +584,7 @@ generateBtn.onclick = async () => {
             // Combine User Prompt + District Context
             const fullPrompt = `${userPrompt}\n\n[CONTEXTO]\nDistrito: ${dist}\nProvincia: Madrid\nComunidad Autónoma: Madrid`;
 
-            const res = await fetch('api/generate-report', {
+            const res = await fetch('/api/generate-report', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt: fullPrompt })
@@ -630,7 +630,7 @@ async function executeDeepResearch(distrito) {
     section.scrollIntoView({ behavior: 'smooth' });
 
     try {
-        const res = await fetch('api/deep-research', {
+        const res = await fetch('/api/deep-research', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ distrito: distrito })

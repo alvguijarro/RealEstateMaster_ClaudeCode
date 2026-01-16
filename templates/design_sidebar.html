@@ -274,90 +274,10 @@
                 transform: rotate(360deg);
             }
         }
-
-        /* Mobile Responsiveness */
-        .mobile-toggle {
-            display: none;
-            position: fixed;
-            top: 15px;
-            left: 20px;
-            z-index: 200;
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid var(--border);
-            color: white;
-            padding: 10px;
-            border-radius: 8px;
-            cursor: pointer;
-            backdrop-filter: blur(5px);
-        }
-
-        .sidebar-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 90;
-            backdrop-filter: blur(3px);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        @media (max-width: 768px) {
-            aside {
-                position: absolute;
-                left: -100%;
-                /* Fully hidden */
-                height: 100vh;
-                width: 250px;
-                box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
-            }
-
-            aside.mobile-open {
-                left: 0;
-            }
-
-            aside.collapsed {
-                width: 250px;
-                /* Disable collapsing logic on mobile */
-            }
-
-            .mobile-toggle {
-                display: block;
-            }
-
-            .view-container {
-                left: 10px;
-                right: 10px;
-                top: 70px;
-                /* Space for toggle */
-                bottom: 15px;
-            }
-
-            .sidebar-overlay.active {
-                display: block;
-                opacity: 1;
-            }
-
-            /* Hide the internal toggle btn on mobile as we use the external one */
-            .toggle-btn {
-                display: none;
-            }
-        }
     </style>
 </head>
 
 <body>
-
-    <!-- Mobile Toggle -->
-    <div class="mobile-toggle" onclick="toggleMobileSidebar()">
-        ☰
-    </div>
-
-    <!-- Overlay -->
-    <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
     <aside id="sidebar">
         <div class="logo">
@@ -420,57 +340,45 @@
     </main>
 
     <script>
-        // Use proxy paths passed from backend
-        const PROXIES = {
-            'scraper': "{{ scraper_proxy|default('/proxy/scraper') }}",
-            'analyzer': "{{ analyzer_proxy|default('/proxy/analyzer') }}"
+        const PORTS = {
+            'scraper': parseInt("{{ scraper_port|default(5003) }}"),
+            'analyzer': parseInt("{{ analyzer_port|default(5001) }}")
         };
 
         function toggleSidebar() {
-            // Desktop toggle
-            if (window.innerWidth > 768) {
-                document.getElementById('sidebar').classList.toggle('collapsed');
-                const btn = document.querySelector('.toggle-btn .icon');
-                if (document.getElementById('sidebar').classList.contains('collapsed')) {
-                    btn.innerText = "➡️";
-                } else {
-                    btn.innerText = "⬅️";
-                }
+            document.getElementById('sidebar').classList.toggle('collapsed');
+            const btn = document.querySelector('.toggle-btn .icon');
+            if (document.getElementById('sidebar').classList.contains('collapsed')) {
+                btn.innerText = "➡️";
+            } else {
+                btn.innerText = "⬅️";
             }
-        }
-
-        function toggleMobileSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.querySelector('.sidebar-overlay');
-            sidebar.classList.toggle('mobile-open');
-            overlay.classList.toggle('active');
         }
 
         let servicesReady = 0;
 
-        async function waitForService(proxyUrl, maxAttempts = 30, intervalMs = 500) {
+        async function waitForService(port, maxAttempts = 30, intervalMs = 500) {
             // Use an Image-based approach which properly fails on connection refused
             for (let i = 0; i < maxAttempts; i++) {
                 const isUp = await new Promise((resolve) => {
-                    // Try to load the health endpoint via the proxy
+                    // Try to load the favicon or any resource from the target port
+                    // If server is up, it will either load or return 404 (both indicate server is running)
+                    // If server is down, it will fail to connect
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 1000);
 
-                    // Ensure trailing slash for health check if needed
-                    const healthUrl = proxyUrl.endsWith('/') ? `${proxyUrl}health` : `${proxyUrl}/health`;
-
-                    fetch(healthUrl, {
+                    fetch(`http://127.0.0.1:${port}/health`, {
                         method: 'GET',
                         signal: controller.signal
                     })
-                        .then(resp => {
+                        .then(() => {
                             clearTimeout(timeoutId);
-                            // If proxy returns 502/504, the upstream service is down
-                            if (resp.status >= 500) resolve(false);
-                            else resolve(true);
+                            resolve(true);
                         })
                         .catch(err => {
                             clearTimeout(timeoutId);
+                            // TypeError: Failed to fetch = connection refused
+                            // AbortError = timeout
                             resolve(false);
                         });
                 });
@@ -484,14 +392,13 @@
         async function initService(service) {
             const loading = document.getElementById(`loading-${service}`);
             const frame = document.getElementById(`frame-${service}`);
-            const proxyBase = PROXIES[service];
 
             try {
                 // 1. Request backend to start the service
                 await fetch(`/api/start/${service}`, { method: 'POST' });
 
                 // 2. Wait until the service is actually ready (poll up to 15 seconds)
-                const isReady = await waitForService(proxyBase, 30, 500);
+                const isReady = await waitForService(PORTS[service], 30, 500);
 
                 if (!isReady) {
                     if (loading) loading.innerHTML = `<div style="color:#ef4444">Service timeout - please refresh</div>`;
@@ -509,9 +416,7 @@
                 }
 
                 // 3. Service is ready, set iframe src with cache-busting
-                // Ensure correct slash handling
-                const sep = proxyBase.includes('?') ? '&' : '?';
-                const url = `${proxyBase}${sep}_t=${Date.now()}`;
+                const url = `http://127.0.0.1:${PORTS[service]}?_t=${Date.now()}`;
                 frame.src = url;
 
                 // 4. Hide loading after iframe content loads
@@ -540,7 +445,6 @@
             if (viewName === 'scraper' || viewName === 'analyzer') {
                 const frame = document.getElementById(`frame-${viewName}`);
                 const loading = document.getElementById(`loading-${viewName}`);
-                const proxyBase = PROXIES[viewName];
 
                 // Show loading overlay
                 if (loading) {
@@ -553,7 +457,7 @@
                 }
 
                 // Wait for service to be ready (poll up to 10 seconds)
-                const isReady = await waitForService(proxyBase, 20, 500);
+                const isReady = await waitForService(PORTS[viewName], 20, 500);
 
                 if (!isReady) {
                     if (loading) loading.innerHTML = `<div style="color:#ef4444">Service unavailable - please restart</div>`;
@@ -561,8 +465,7 @@
                 }
 
                 // Service is ready, reload with new timestamp
-                const sep = proxyBase.includes('?') ? '&' : '?';
-                const url = `${proxyBase}${sep}_t=${Date.now()}`;
+                const url = `http://127.0.0.1:${PORTS[viewName]}?_t=${Date.now()}`;
                 frame.src = url;
 
                 // Hide loading after iframe loads

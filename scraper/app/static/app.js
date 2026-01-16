@@ -81,7 +81,7 @@ let selectedWorksheets = new Set();
 
 async function loadExcelFiles() {
     try {
-        const response = await fetch('api/excel-files');
+        const response = await fetch('/api/excel-files');
         const data = await response.json();
 
         if (updateExcelSelect) {
@@ -111,7 +111,7 @@ async function loadWorksheets(filePath) {
     if (!filePath || !worksheetList || !worksheetSelectorGroup) return;
 
     try {
-        const response = await fetch(`api/excel-worksheets?file=${encodeURIComponent(filePath)}`);
+        const response = await fetch(`/api/excel-worksheets?file=${encodeURIComponent(filePath)}`);
         const data = await response.json();
 
         if (data.sheets && data.sheets.length > 0) {
@@ -272,7 +272,7 @@ async function startUrlUpdate() {
     if (resumeBtn) resumeBtn.style.display = 'none';
 
     try {
-        const response = await fetch('api/update-urls', {
+        const response = await fetch('/api/update-urls', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ excel_file: excelFile, sheets: selectedSheets })
@@ -299,7 +299,7 @@ if (updateUrlsBtn) {
 
 async function loadDefaultConfig() {
     try {
-        const response = await fetch('api/config');
+        const response = await fetch('/api/config');
         const data = await response.json();
         if (data.default_output_dir && outputDirDisplay) {
             outputDirDisplay.textContent = data.default_output_dir;
@@ -310,122 +310,47 @@ async function loadDefaultConfig() {
 }
 
 function initializeSocket() {
-    // Try WebSocket first
-    let socketConnected = false;
-    let useHttpPolling = false;
-    let httpPollInterval = null;
-    let lastLogIndex = 0;
+    socket = io();
 
-    try {
-        socket = io();
+    socket.on('connect', () => {
+        addLog('INFO', 'Conectado al servidor');
+    });
 
-        socket.on('connect', () => {
-            socketConnected = true;
-            addLog('INFO', 'Conectado al servidor');
-            // Stop HTTP polling if it was running
-            if (httpPollInterval) {
-                clearInterval(httpPollInterval);
-                httpPollInterval = null;
-            }
-        });
+    socket.on('disconnect', () => {
+        addLog('WARN', 'Desconectado del servidor');
+    });
 
-        socket.on('disconnect', () => {
-            socketConnected = false;
-            addLog('WARN', 'Desconectado del servidor');
-            // Start HTTP polling as fallback
-            startHttpPolling();
-        });
+    socket.on('log', (data) => {
+        addLog(data.level, data.message);
+    });
 
-        socket.on('connect_error', () => {
-            if (!useHttpPolling) {
-                console.log('WebSocket unavailable, switching to HTTP polling');
-                useHttpPolling = true;
-                startHttpPolling();
-            }
-        });
+    socket.on('property_scraped', (data) => {
+        addProperty(data);
+    });
 
-        socket.on('log', (data) => {
-            addLog(data.level, data.message);
-        });
+    socket.on('status_change', (data) => {
+        handleStatusChange(data);
+    });
 
-        socket.on('property_scraped', (data) => {
-            addProperty(data);
-        });
+    socket.on('history_update', (entry) => {
+        addHistoryRow(entry);
+        historyEmptyState.style.display = 'none';
+    });
 
-        socket.on('status_change', (data) => {
-            handleStatusChange(data);
-        });
+    socket.on('progress_update', (data) => {
+        // Update page progress (e.g., "02 / 68")
+        statCurrentPage.textContent = String(data.current_page || 0).padStart(2, '0');
+        statTotalPages.textContent = String(data.total_pages || 0).padStart(2, '0');
 
-        socket.on('history_update', (entry) => {
-            addHistoryRow(entry);
-            historyEmptyState.style.display = 'none';
-        });
+        // Update property progress (e.g., "980 / 2055")
+        statCurrentProps.textContent = data.current_properties || 0;
+        statTotalProps.textContent = data.total_properties || 0;
+    });
 
-        socket.on('progress_update', (data) => {
-            statCurrentPage.textContent = String(data.current_page || 0).padStart(2, '0');
-            statTotalPages.textContent = String(data.total_pages || 0).padStart(2, '0');
-            statCurrentProps.textContent = data.current_properties || 0;
-            statTotalProps.textContent = data.total_properties || 0;
-        });
-
-        socket.on('browser_closed', (data) => {
-            addLog('WARN', 'El navegador fue cerrado. Scraping pausado.');
-            showBrowserClosedModal();
-        });
-
-        // Start HTTP polling after a delay if socket hasn't connected
-        setTimeout(() => {
-            if (!socketConnected && !useHttpPolling) {
-                console.log('WebSocket connection timeout, switching to HTTP polling');
-                useHttpPolling = true;
-                startHttpPolling();
-            }
-        }, 3000);
-
-    } catch (e) {
-        console.log('Socket.IO not available, using HTTP polling');
-        useHttpPolling = true;
-        startHttpPolling();
-    }
-
-    function startHttpPolling() {
-        if (httpPollInterval) return; // Already polling
-
-        addLog('INFO', 'Usando modo HTTP (polling)...');
-
-        httpPollInterval = setInterval(async () => {
-            try {
-                const res = await fetch(`api/stream?since=${lastLogIndex}`);
-                const data = await res.json();
-
-                if (data.logs && data.logs.length > 0) {
-                    data.logs.forEach(log => {
-                        addLog(log.level, log.message);
-                    });
-                    lastLogIndex = data.total;
-                }
-
-                // Handle status changes
-                if (data.status) {
-                    const badge = statusBadge;
-                    if (badge && data.status.status) {
-                        badge.className = `status-badge ${data.status.status}`;
-                        const statusTexts = {
-                            'idle': 'Inactivo',
-                            'running': 'Ejecutando',
-                            'paused': 'Pausado',
-                            'completed': 'Completado',
-                            'error': 'Error'
-                        };
-                        const textEl = badge.querySelector('.status-text');
-                        if (textEl) textEl.textContent = statusTexts[data.status.status] || data.status.status;
-                    }
-                }
-            } catch (e) {
-                // Silently fail - server might be temporarily unavailable
-            }
-        }, 1000);
-    }
+    socket.on('browser_closed', (data) => {
+        addLog('WARN', 'El navegador fue cerrado. Scraping pausado.');
+        showBrowserClosedModal();
+    });
 }
 
 // Browser closed modal
@@ -447,7 +372,7 @@ if (modalResumeBtn) {
         hideBrowserClosedModal();
         addLog('INFO', 'Reanudando scraping...');
         try {
-            await fetch('api/resume', { method: 'POST' });
+            await fetch('/api/resume', { method: 'POST' });
         } catch (error) {
             addLog('ERR', 'Error al reanudar: ' + error.message);
         }
@@ -459,7 +384,7 @@ if (modalStopBtn) {
         hideBrowserClosedModal();
         addLog('INFO', 'Deteniendo y guardando datos...');
         try {
-            await fetch('api/stop', { method: 'POST' });
+            await fetch('/api/stop', { method: 'POST' });
         } catch (error) {
             addLog('ERR', 'Error al detener: ' + error.message);
         }
@@ -688,7 +613,7 @@ async function startScraping() {
     addLog('INFO', `Iniciando scraping en modo ${currentMode.toUpperCase()}...`);
 
     try {
-        const response = await fetch('api/start', {
+        const response = await fetch('/api/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -719,9 +644,9 @@ async function startScraping() {
 async function togglePause() {
     let endpoint;
     if (isUpdateMode) {
-        endpoint = isPaused ? 'api/update/resume' : 'api/update/pause';
+        endpoint = isPaused ? '/api/update/resume' : '/api/update/pause';
     } else {
-        endpoint = isPaused ? 'api/resume' : 'api/pause';
+        endpoint = isPaused ? '/api/resume' : '/api/pause';
     }
 
     try {
@@ -738,7 +663,7 @@ async function togglePause() {
 
 async function stopScraping() {
     addLog('INFO', 'Deteniendo...');
-    const endpoint = isUpdateMode ? 'api/update/stop' : 'api/stop';
+    const endpoint = isUpdateMode ? '/api/update/stop' : '/api/stop';
 
     try {
         const response = await fetch(endpoint, { method: 'POST' });
@@ -811,7 +736,7 @@ function escapeHtml(text) {
 // History Functions
 async function loadHistory() {
     try {
-        const response = await fetch('api/history');
+        const response = await fetch('/api/history');
         const data = await response.json();
 
         if (data.history && data.history.length > 0) {
@@ -875,7 +800,7 @@ async function clearHistory() {
     if (!confirm('¿Borrar todo el historial de scrapes?')) return;
 
     try {
-        await fetch('api/history/clear', { method: 'POST' });
+        await fetch('/api/history/clear', { method: 'POST' });
         historyBody.innerHTML = '';
         historyEmptyState.style.display = 'block';
         addLog('INFO', 'Historial limpiado');
@@ -890,7 +815,7 @@ const resumeBtn = document.getElementById('resumeBtn');
 
 async function checkResumeState() {
     try {
-        const response = await fetch('api/resume-state');
+        const response = await fetch('/api/resume-state');
         const data = await response.json();
 
         if (data.has_state && data.state) {
@@ -954,7 +879,7 @@ async function resumeScraping() {
     addLog('INFO', `Reanudando desde página ${pageNum}...`);
 
     try {
-        const response = await fetch('api/start', {
+        const response = await fetch('/api/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -971,7 +896,7 @@ async function resumeScraping() {
         }
 
         // Clear saved state after successful resume start
-        await fetch('api/clear-state', { method: 'POST' });
+        await fetch('/api/clear-state', { method: 'POST' });
         if (resumeBtn) resumeBtn.style.display = 'none';
         savedResumeState = null;
 
