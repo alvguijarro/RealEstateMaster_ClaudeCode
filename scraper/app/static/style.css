@@ -95,7 +95,6 @@ h1 {
 }
 
 /* Panels & Grid */
-/* Panels & Grid */
 .controls-grid {
     display: flex;
     flex-wrap: wrap;
@@ -116,17 +115,14 @@ h1 {
 }
 
 /* Specific Panel Heights/Alignments if needed */
-/* Specific Panel Heights/Alignments if needed */
 .control-panel-main {
     flex: 1;
     min-width: 300px;
-    /* height: fit-content; Default flex behavior is fine */
 }
 
 .url-update-panel {
     width: 400px;
     flex-shrink: 0;
-    /* height: fit-content; Default flex behavior is fine */
 }
 
 .input-group {
@@ -360,7 +356,6 @@ select:focus {
 
 .log-ok .log-message {
     color: #86efac;
-    /* Green for success/OK */
 }
 
 .log-success .log-message {
@@ -369,13 +364,11 @@ select:focus {
 
 .log-warn .log-message {
     color: #fb923c;
-    /* Orange for warnings */
 }
 
 .log-err .log-message,
 .log-error .log-message {
     color: #fca5a5;
-    /* Red for errors */
 }
 
 /* Table */
@@ -440,9 +433,6 @@ select:focus {
     margin-bottom: 10px;
 }
 
-/* URL Update Section */
-
-
 /* History Panel */
 .history-panel {
     margin-top: 20px;
@@ -490,16 +480,13 @@ select:focus {
     text-align: center;
 }
 
-/* Improved hyperlink contrast for history table Excel files */
 .history-table a {
     color: #7dd3fc !important;
-    /* Light sky blue for better contrast */
     text-decoration: none;
 }
 
 .history-table a:hover {
     color: #fb923c !important;
-    /* Accent orange on hover */
     text-decoration: underline;
 }
 
@@ -530,7 +517,6 @@ select:focus {
     font-size: 0.8rem;
 }
 
-/* Helper classes */
 .btn-icon-only {
     background: transparent;
     border: none;
@@ -543,4 +529,97 @@ select:focus {
 .btn-icon-only:hover {
     opacity: 1;
     transform: scale(1.1);
+}
+
+/* =========================================
+   MOBILE RESPONSIVENESS
+   ========================================= */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+
+    .app-container {
+        gap: 15px;
+    }
+
+    header {
+        padding: 10px 15px;
+    }
+
+    h1 {
+        font-size: 1.2rem;
+    }
+
+    .logo-icon {
+        font-size: 1.2rem;
+    }
+    
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 4px 10px;
+    }
+
+    /* Stack Panels */
+    .controls-grid {
+        flex-direction: column;
+    }
+
+    .control-panel-main {
+        width: 100%;
+        min-width: 0;
+    }
+    
+    .url-update-panel {
+        width: 100%;
+    }
+
+    /* Stats Grid 2x2 */
+    .stats-bar {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .stat-value {
+        font-size: 1.2rem;
+    }
+
+    /* Main Content Stack */
+    .content-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .logs-panel {
+        height: 300px;
+        order: 2; /* Move logs below results on mobile if preferred, or keep as is */
+    }
+
+    .results-panel {
+        height: auto;
+        min-height: 400px;
+        order: 1;
+    }
+
+    /* Adjust Toggles */
+    .toggle-buttons {
+        gap: 10px;
+    }
+
+    .toggle-btn {
+        padding: 12px;
+    }
+
+    /* Buttons */
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .panel {
+        padding: 15px;
+    }
 }
