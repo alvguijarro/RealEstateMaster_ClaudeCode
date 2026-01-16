@@ -20,6 +20,8 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --no-cache-dir \
     flask \
     Flask-BasicAuth \
+    flask-socketio \
+    google-generativeai \
     playwright \
     pandas \
     numpy \
