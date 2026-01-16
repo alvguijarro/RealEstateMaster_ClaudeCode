@@ -58,7 +58,7 @@ def start_service(service_name):
     env['NO_BROWSER_OPEN'] = '1'
     env['FLASK_USE_RELOADER'] = 'False'  # Prevent double processes
     
-    # Platform-specific startup info
+    Platform-specific startup info
     startupinfo = None
     creationflags = 0
     
@@ -68,6 +68,9 @@ def start_service(service_name):
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = 6 # SW_MINIMIZE
         creationflags = subprocess.CREATE_NEW_CONSOLE
+    else:
+        # On Linux/Cloud, force using system python and skip embedded setup
+        env['SKIP_EMBEDDED_PYTHON'] = '1'
     
     if service_name == 'scraper':
         if is_port_in_use(SCRAPER_PORT):
