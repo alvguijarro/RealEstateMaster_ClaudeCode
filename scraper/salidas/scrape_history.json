@@ -1,0 +1,16 @@
+{
+  "https://www.idealista.com/areas/venta-viviendas?shape=%28%28uozxFxgwXihWs%7BZlePonM~gT~aOceMbhY%29%29": {
+    "output_file": "idealista_Segovia_venta.xlsx",
+    "last_scraped": "2026-01-15T17:39:54.478472",
+    "properties_count": 739,
+    "pages_scraped": 14,
+    "original_url": "https://www.idealista.com/areas/venta-viviendas/?shape=%28%28uozxFxgwXihWs%7BZlePonM%7EgT%7EaOceMbhY%29%29"
+  },
+  "https://www.idealista.com/areas/alquiler-viviendas?shape=%28%28uozxFxgwXihWs%7BZlePonM~gT~aOceMbhY%29%29": {
+    "output_file": "idealista_Segovia_alquiler.xlsx",
+    "last_scraped": "2026-01-15T18:40:26.853443",
+    "properties_count": 523,
+    "pages_scraped": 10,
+    "original_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28uozxFxgwXihWs%7BZlePonM%7EgT%7EaOceMbhY%29%29"
+  }
+}

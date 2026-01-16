@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real Estate Master - Sidebar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --sidebar-collapsed-width: 80px;
+            --bg-dark: #0f172a;
+            --sidebar-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.5);
+            --border: rgba(255, 255, 255, 0.05);
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-hover: rgba(255, 255, 255, 0.08);
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            background-image: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
+        }
+
+        /* Sidebar */
+        aside {
+            width: var(--sidebar-width);
+            background: var(--sidebar-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            position: relative;
+        }
+
+        aside.collapsed {
+            width: var(--sidebar-collapsed-width);
+        }
+
+        .logo {
+            padding: 30px 25px;
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            letter-spacing: -0.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 10px;
+        }
+
+        .logo-icon {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 10px var(--accent-glow));
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 20px 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .nav-item {
+            padding: 14px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.3s ease;
+            color: var(--text-muted);
+            border: 1px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: var(--glass-hover);
+            color: var(--text-main);
+            transform: translateX(4px);
+        }
+
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.15), transparent);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
+        }
+
+        .icon {
+            font-size: 1.3rem;
+            width: 24px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .label {
+            font-weight: 400;
+            white-space: nowrap;
+            opacity: 1;
+            transition: opacity 0.2s;
+        }
+
+        aside.collapsed .label {
+            opacity: 0;
+            pointer-events: none;
+            display: none;
+        }
+
+        aside.collapsed .logo span {
+            display: none;
+        }
+
+        aside.collapsed .nav-item {
+            justify-content: center;
+            padding: 14px 0;
+        }
+
+        aside.collapsed .nav-item:hover {
+            transform: none;
+            background: var(--glass-hover);
+        }
+
+        /* Toggle Button */
+        .toggle-btn {
+            margin: 20px;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.3s;
+        }
+
+        .toggle-btn:hover {
+            background: var(--glass-hover);
+            color: var(--text-main);
+        }
+
+        /* Main Content */
+        main {
+            flex: 1;
+            position: relative;
+            background: transparent;
+            overflow: hidden;
+        }
+
+        .view-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            bottom: 20px;
+            display: none;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .view-container.active {
+            display: block;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #fff;
+        }
+
+        /* Home View */
+        #home-view {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: white;
+            text-align: center;
+        }
+
+        .welcome-content {
+            max-width: 500px;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #60a5fa, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* Loaders */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #0f172a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(59, 130, 246, 0.3);
+            border-radius: 50%;
+            border-top-color: #3b82f6;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <aside id="sidebar">
+        <div class="logo">
+            <span class="logo-icon">🏢</span>
+            <span>Real Estate Master</span>
+        </div>
+
+        <div class="nav-menu">
+            <div class="nav-item active" data-view="home" onclick="switchView('home')">
+                <div class="icon">🏠</div>
+                <span class="label">Inicio</span>
+            </div>
+            <div class="nav-item" data-view="scraper" onclick="switchView('scraper')">
+                <div class="icon">🕷️</div>
+                <span class="label">Scraper Module</span>
+            </div>
+            <div class="nav-item" data-view="analyzer" onclick="switchView('analyzer')">
+                <div class="icon">📊</div>
+                <span class="label">Analytics Pro</span>
+            </div>
+        </div>
+
+        <div style="margin-top: auto;">
+            <div class="toggle-btn" onclick="toggleSidebar()">
+                <span class="icon">⬅️</span>
+            </div>
+        </div>
+    </aside>
+
+    <main>
+        <div id="view-home" class="view-container active">
+            <div id="home-view">
+                <div class="welcome-content">
+                    <h1>Bienvenido de nuevo</h1>
+                    <p class="subtitle">Tu centro de comando inmobiliario está listo.</p>
+                    <div id="services-status"
+                        style="margin-top: 30px; display: flex; gap: 10px; justify-content: center; transition: opacity 0.5s;">
+                        <span class="spinner" style="width:20px; height:20px; border-width:2px; margin:0;"></span>
+                        <span style="font-size: 0.9rem; color: #64748b;">Iniciando servicios...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-scraper" class="view-container">
+            <div class="loading-overlay" id="loading-scraper">
+                <div class="spinner"></div>
+                <div>Cargando Scraper Engine...</div>
+            </div>
+            <iframe id="frame-scraper" src=""></iframe>
+        </div>
+
+        <div id="view-analyzer" class="view-container">
+            <div class="loading-overlay" id="loading-analyzer">
+                <div class="spinner"></div>
+                <div>Preparando Analytics Dashboard...</div>
+            </div>
+            <iframe id="frame-analyzer" src=""></iframe>
+        </div>
+    </main>
+
+    <script>
+        const PORTS = {
+            'scraper': parseInt("{{ scraper_port|default(5003) }}"),
+            'analyzer': parseInt("{{ analyzer_port|default(5001) }}")
+        };
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+            const btn = document.querySelector('.toggle-btn .icon');
+            if (document.getElementById('sidebar').classList.contains('collapsed')) {
+                btn.innerText = "➡️";
+            } else {
+                btn.innerText = "⬅️";
+            }
+        }
+
+        let servicesReady = 0;
+
+        async function waitForService(port, maxAttempts = 30, intervalMs = 500) {
+            // Use an Image-based approach which properly fails on connection refused
+            for (let i = 0; i < maxAttempts; i++) {
+                const isUp = await new Promise((resolve) => {
+                    // Try to load the favicon or any resource from the target port
+                    // If server is up, it will either load or return 404 (both indicate server is running)
+                    // If server is down, it will fail to connect
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 1000);
+
+                    fetch(`http://127.0.0.1:${port}/health`, {
+                        method: 'GET',
+                        signal: controller.signal
+                    })
+                        .then(() => {
+                            clearTimeout(timeoutId);
+                            resolve(true);
+                        })
+                        .catch(err => {
+                            clearTimeout(timeoutId);
+                            // TypeError: Failed to fetch = connection refused
+                            // AbortError = timeout
+                            resolve(false);
+                        });
+                });
+
+                if (isUp) return true;
+                await new Promise(resolve => setTimeout(resolve, intervalMs));
+            }
+            return false;
+        }
+
+        async function initService(service) {
+            const loading = document.getElementById(`loading-${service}`);
+            const frame = document.getElementById(`frame-${service}`);
+
+            try {
+                // 1. Request backend to start the service
+                await fetch(`/api/start/${service}`, { method: 'POST' });
+
+                // 2. Wait until the service is actually ready (poll up to 15 seconds)
+                const isReady = await waitForService(PORTS[service], 30, 500);
+
+                if (!isReady) {
+                    if (loading) loading.innerHTML = `<div style="color:#ef4444">Service timeout - please refresh</div>`;
+                    return;
+                }
+
+                // Service is ready - increment counter and hide home spinner
+                servicesReady++;
+                if (servicesReady >= 2) {
+                    const status = document.getElementById('services-status');
+                    if (status) {
+                        status.style.opacity = '0';
+                        setTimeout(() => status.style.visibility = 'hidden', 500);
+                    }
+                }
+
+                // 3. Service is ready, set iframe src with cache-busting
+                const url = `http://127.0.0.1:${PORTS[service]}?_t=${Date.now()}`;
+                frame.src = url;
+
+                // 4. Hide loading after iframe content loads
+                frame.onload = () => {
+                    if (loading) {
+                        loading.style.opacity = '0';
+                        setTimeout(() => loading.style.display = 'none', 500);
+                    }
+                };
+
+            } catch (e) {
+                if (loading) loading.innerHTML = `<div style="color:#ef4444">Error: ${e.message}</div>`;
+            }
+        }
+
+        async function switchView(viewName) {
+            // Update menu highlighting
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.querySelector(`.nav-item[data-view="${viewName}"]`).classList.add('active');
+
+            // Show selected view
+            document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
+            document.getElementById('view-' + viewName).classList.add('active');
+
+            // For scraper/analyzer views, ensure service is ready before loading iframe
+            if (viewName === 'scraper' || viewName === 'analyzer') {
+                const frame = document.getElementById(`frame-${viewName}`);
+                const loading = document.getElementById(`loading-${viewName}`);
+
+                // Show loading overlay
+                if (loading) {
+                    loading.style.display = 'flex';
+                    loading.style.opacity = '1';
+                    loading.innerHTML = `
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text">Connecting to service...</div>
+                    `;
+                }
+
+                // Wait for service to be ready (poll up to 10 seconds)
+                const isReady = await waitForService(PORTS[viewName], 20, 500);
+
+                if (!isReady) {
+                    if (loading) loading.innerHTML = `<div style="color:#ef4444">Service unavailable - please restart</div>`;
+                    return;
+                }
+
+                // Service is ready, reload with new timestamp
+                const url = `http://127.0.0.1:${PORTS[viewName]}?_t=${Date.now()}`;
+                frame.src = url;
+
+                // Hide loading after iframe loads
+                frame.onload = () => {
+                    if (loading) {
+                        loading.style.opacity = '0';
+                        setTimeout(() => loading.style.display = 'none', 500);
+                    }
+                };
+            }
+        }
+
+        // Auto-start both services on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            Promise.all([
+                initService('scraper'),
+                initService('analyzer')
+            ]);
+        });
+
+        // Heartbeat for auto-shutdown
+        setInterval(() => {
+            fetch('/api/heartbeat', { method: 'POST' }).catch(() => { });
+        }, 2000);
+    </script>
+</body>
+
+</html>

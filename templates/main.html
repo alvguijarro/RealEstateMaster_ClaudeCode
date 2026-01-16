@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real Estate Master - Dashboard</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #e74c3c;
+            --accent: #3498db;
+            --bg: #f5f6fa;
+            --text: #2d3436;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Navbar */
+        nav {
+            background-color: var(--primary);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .brand {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            padding: 0.5rem 1rem;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-decoration: none;
+        }
+
+        .nav-btn:hover,
+        .nav-btn.active {
+            background: var(--accent);
+        }
+
+        /* Main Content */
+        main {
+            flex: 1;
+            padding: 2rem;
+            height: calc(100vh - 80px);
+            box-sizing: border-box;
+            display: flex;
+            gap: 20px;
+        }
+
+        /* Iframes */
+        .app-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            display: none;
+            /* hidden by default */
+        }
+
+        .app-frame.active {
+            display: block;
+        }
+
+        /* Welcome Screen */
+        #welcome-screen {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 40px;
+        }
+
+        .card-container {
+            display: flex;
+            gap: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            text-align: center;
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            color: var(--primary);
+        }
+
+        .card p {
+            color: #666;
+        }
+
+        .btn-launch {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            margin-top: 15px;
+            cursor: pointer;
+            font-size: 1rem;
+            width: 100%;
+        }
+
+        .btn-launch.scraper {
+            background: #e67e22;
+        }
+
+        .btn-launch.analyzer {
+            background: #27ae60;
+        }
+
+        /* Loading overlay */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav>
+        <div class="brand">🏬 Real Estate Master</div>
+        <div class="nav-links">
+            <button class="nav-btn" onclick="showHome()">🏠 Inicio</button>
+            <button class="nav-btn" onclick="launchService('scraper')">🕷️ Scraper (Idealista)</button>
+            <button class="nav-btn" onclick="launchService('analyzer')">📊 Analizador (Inversión)</button>
+        </div>
+    </nav>
+
+    <main>
+        <!-- Welcome Screen -->
+        <div id="welcome-screen" class="active">
+            <h1>Bienvenido a tu Centro de Mando Inmobiliario</h1>
+            <p>Selecciona una herramienta para comenzar:</p>
+
+            <div class="card-container">
+                <div class="card" onclick="launchService('scraper')">
+                    <h2>🕷️ Scraper</h2>
+                    <p>Busca propiedades en Idealista Automáticamente.</p>
+                    <button class="btn-launch scraper">Iniciar Scraper</button>
+                </div>
+
+                <div class="card" onclick="launchService('analyzer')">
+                    <h2>📊 Analizador</h2>
+                    <p>Calcula rentabilidad, filtra y genera informes con IA.</p>
+                    <button class="btn-launch analyzer">Iniciar Analizador</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Iframes -->
+        <iframe id="frame-scraper" class="app-frame" src=""></iframe>
+        <iframe id="frame-analyzer" class="app-frame" src=""></iframe>
+    </main>
+
+    <div id="loading">Iniciando servicio... por favor espera.</div>
+
+    <script>
+        const PORTS = {
+            'scraper': parseInt("{{ scraper_port }}"),
+            'analyzer': parseInt("{{ analyzer_port }}")
+        };
+
+        console.log("Ports configured:", PORTS);
+
+        function showHome() {
+            document.querySelectorAll('main > *').forEach(el => el.style.display = 'none');
+            document.getElementById('welcome-screen').style.display = 'flex';
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        }
+
+        async function launchService(service) {
+            console.log("Button clicked for:", service);
+            const loading = document.getElementById('loading');
+            loading.style.display = 'flex';
+
+            try {
+                // Call API to ensure service is started
+                console.log("Calling API start...");
+                const res = await fetch(`/api/start/${service}`, { method: 'POST' });
+                if (!res.ok) throw new Error('Failed to start service');
+
+                const port = PORTS[service];
+                const url = `http://127.0.0.1:${port}`;
+                console.log("Loading URL:", url);
+
+                // Show iframe
+                document.querySelectorAll('main > *').forEach(el => el.style.display = 'none');
+
+                const frameId = `frame-${service}`;
+                const frame = document.getElementById(frameId);
+
+                // Only set src if not already set (to preserve state)
+                if (!frame.src || frame.src === 'about:blank') {
+                    frame.src = url;
+                }
+
+                frame.style.display = 'block';
+
+                // Highlight nav
+                document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+            } catch (e) {
+                console.error(e);
+                alert("Error starting service: " + e.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+    </script>
+
+</body>
+
+</html>
