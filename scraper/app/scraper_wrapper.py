@@ -674,10 +674,22 @@ class ScraperController:
         
         async with async_playwright() as pw:
             self.log("INFO", "Launching browser...")
+            
+            # Check if we should run headless (cloud/Docker environment)
+            is_headless = os.environ.get('HEADLESS', '').lower() in ('1', 'true', 'yes')
+            if is_headless:
+                self.log("INFO", "Running in headless mode (cloud environment)")
+            
             try:
                 browser = await pw.chromium.launch(
-                    headless=False,
-                    args=["--start-minimized", "--window-size=1280,900", "--disable-blink-features=AutomationControlled"]
+                    headless=is_headless,
+                    args=[
+                        "--start-minimized", 
+                        "--window-size=1280,900", 
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",  # Required for Docker
+                        "--disable-dev-shm-usage",  # Required for Docker
+                    ]
                 )
                 self.log("OK", "Browser launched successfully!")
             except Exception as e:
