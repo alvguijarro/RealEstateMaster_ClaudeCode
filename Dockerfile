@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
 # or copy the internal ones. For now, we'll install the known core deps.
 RUN pip install --no-cache-dir \
     flask \
+    Flask-BasicAuth \
     playwright \
     pandas \
     numpy \

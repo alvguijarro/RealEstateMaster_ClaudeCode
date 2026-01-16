@@ -340,9 +340,10 @@
     </main>
 
     <script>
-        const PORTS = {
-            'scraper': parseInt("{{ scraper_port|default(5003) }}"),
-            'analyzer': parseInt("{{ analyzer_port|default(5001) }}")
+        // Use proxy paths passed from backend
+        const PROXIES = {
+            'scraper': "{{ scraper_proxy|default('/proxy/scraper') }}",
+            'analyzer': "{{ analyzer_proxy|default('/proxy/analyzer') }}"
         };
 
         function toggleSidebar() {
@@ -357,28 +358,29 @@
 
         let servicesReady = 0;
 
-        async function waitForService(port, maxAttempts = 30, intervalMs = 500) {
+        async function waitForService(proxyUrl, maxAttempts = 30, intervalMs = 500) {
             // Use an Image-based approach which properly fails on connection refused
             for (let i = 0; i < maxAttempts; i++) {
                 const isUp = await new Promise((resolve) => {
-                    // Try to load the favicon or any resource from the target port
-                    // If server is up, it will either load or return 404 (both indicate server is running)
-                    // If server is down, it will fail to connect
+                    // Try to load the health endpoint via the proxy
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 1000);
 
-                    fetch(`http://127.0.0.1:${port}/health`, {
+                    // Ensure trailing slash for health check if needed
+                    const healthUrl = proxyUrl.endsWith('/') ? `${proxyUrl}health` : `${proxyUrl}/health`;
+
+                    fetch(healthUrl, {
                         method: 'GET',
                         signal: controller.signal
                     })
-                        .then(() => {
+                        .then(resp => {
                             clearTimeout(timeoutId);
-                            resolve(true);
+                            // If proxy returns 502/504, the upstream service is down
+                            if (resp.status >= 500) resolve(false);
+                            else resolve(true);
                         })
                         .catch(err => {
                             clearTimeout(timeoutId);
-                            // TypeError: Failed to fetch = connection refused
-                            // AbortError = timeout
                             resolve(false);
                         });
                 });
@@ -392,13 +394,14 @@
         async function initService(service) {
             const loading = document.getElementById(`loading-${service}`);
             const frame = document.getElementById(`frame-${service}`);
+            const proxyBase = PROXIES[service];
 
             try {
                 // 1. Request backend to start the service
                 await fetch(`/api/start/${service}`, { method: 'POST' });
 
                 // 2. Wait until the service is actually ready (poll up to 15 seconds)
-                const isReady = await waitForService(PORTS[service], 30, 500);
+                const isReady = await waitForService(proxyBase, 30, 500);
 
                 if (!isReady) {
                     if (loading) loading.innerHTML = `<div style="color:#ef4444">Service timeout - please refresh</div>`;
@@ -416,7 +419,9 @@
                 }
 
                 // 3. Service is ready, set iframe src with cache-busting
-                const url = `http://127.0.0.1:${PORTS[service]}?_t=${Date.now()}`;
+                // Ensure correct slash handling
+                const sep = proxyBase.includes('?') ? '&' : '?';
+                const url = `${proxyBase}${sep}_t=${Date.now()}`;
                 frame.src = url;
 
                 // 4. Hide loading after iframe content loads
@@ -445,6 +450,7 @@
             if (viewName === 'scraper' || viewName === 'analyzer') {
                 const frame = document.getElementById(`frame-${viewName}`);
                 const loading = document.getElementById(`loading-${viewName}`);
+                const proxyBase = PROXIES[viewName];
 
                 // Show loading overlay
                 if (loading) {
@@ -457,7 +463,7 @@
                 }
 
                 // Wait for service to be ready (poll up to 10 seconds)
-                const isReady = await waitForService(PORTS[viewName], 20, 500);
+                const isReady = await waitForService(proxyBase, 20, 500);
 
                 if (!isReady) {
                     if (loading) loading.innerHTML = `<div style="color:#ef4444">Service unavailable - please restart</div>`;
@@ -465,7 +471,8 @@
                 }
 
                 // Service is ready, reload with new timestamp
-                const url = `http://127.0.0.1:${PORTS[viewName]}?_t=${Date.now()}`;
+                const sep = proxyBase.includes('?') ? '&' : '?';
+                const url = `${proxyBase}${sep}_t=${Date.now()}`;
                 frame.src = url;
 
                 // Hide loading after iframe loads

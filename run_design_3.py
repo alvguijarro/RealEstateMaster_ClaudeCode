@@ -5,7 +5,9 @@ import webbrowser
 import threading
 import time
 import platform
-from flask import Flask, render_template, jsonify, request
+import requests
+from flask import Flask, render_template, jsonify, request, Response, stream_with_context
+from flask_basicauth import BasicAuth
 
 app = Flask(__name__)
 
@@ -15,6 +17,13 @@ SCRAPER_PORT = 5003
 ANALYZER_PORT = 5001
 # On cloud, we must bind to the port provided by the environment variable
 DASHBOARD_PORT = int(os.environ.get('PORT', 5004))
+
+# Basic Auth Configuration
+app.config['BASIC_AUTH_USERNAME'] = os.environ.get('BASIC_AUTH_USERNAME', 'admin')
+app.config['BASIC_AUTH_PASSWORD'] = os.environ.get('BASIC_AUTH_PASSWORD', 'admin')
+app.config['BASIC_AUTH_FORCE'] = True  # Protect entire app
+
+basic_auth = BasicAuth(app)
 
 # Heartbeat state
 LAST_HEARTBEAT_TIME = time.time() + 15
@@ -82,9 +91,63 @@ def start_service(service_name):
     
     return False
 
+# =============================================================================
+# REVERSE PROXY LOGIC
+# =============================================================================
+@app.route('/proxy/<service_name>/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
+@app.route('/proxy/<service_name>/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
+def proxy(service_name, path):
+    """
+    Forward requests to internal services (scraper/analyzer).
+    This allows the frontend to access them via the main exposed port.
+    """
+    if service_name == 'scraper':
+        target_port = SCRAPER_PORT
+    elif service_name == 'analyzer':
+        target_port = ANALYZER_PORT
+    else:
+        return jsonify({'error': 'Unknown service'}), 404
+
+    target_url = f'http://127.0.0.1:{target_port}/{path}'
+    
+    # Forward query parameters
+    params = request.args.copy()
+    # Forward content
+    data = request.get_data()
+    # Forward headers (excluding Host to avoid confusion)
+    headers = {key: value for (key, value) in request.headers if key != 'Host'}
+
+    try:
+        resp = requests.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            data=data,
+            params=params,
+            cookies=request.cookies,
+            allow_redirects=False,
+            stream=True  # Important for streaming logs
+        )
+
+        # Exclude hop-by-hop headers
+        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+        headers = [(name, value) for (name, value) in resp.raw.headers.items()
+                   if name.lower() not in excluded_headers]
+
+        return Response(stream_with_context(resp.iter_content(chunk_size=1024)),
+                        status=resp.status_code,
+                        headers=headers,
+                        content_type=resp.headers['content-type'])
+    except Exception as e:
+        return jsonify({'error': f'Proxy error: {str(e)}'}), 502
+
+
 @app.route('/')
 def index():
-    return render_template('design_sidebar.html', scraper_port=SCRAPER_PORT, analyzer_port=ANALYZER_PORT)
+    # Pass proxy base URLs instead of ports
+    return render_template('design_sidebar.html', 
+                          scraper_proxy='/proxy/scraper', 
+                          analyzer_proxy='/proxy/analyzer')
 
 @app.route('/api/start/<service>', methods=['POST'])
 def api_start_service(service):
