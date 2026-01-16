@@ -301,18 +301,27 @@ class ScraperSession:
         async with async_playwright() as pw:
             # Launch a fresh browser instance (not connected to existing Chrome)
             log("INFO", "Launching new browser window...")
+            
+            # Check if we should run headless (cloud/Docker environment)
+            import os
+            is_headless = os.environ.get('HEADLESS', '').lower() in ('1', 'true', 'yes')
+            if is_headless:
+                log("INFO", "Running in headless mode (cloud environment)")
+            
             try:
                 browser = await pw.chromium.launch(
-                    headless=False,  # Show the browser window
+                    headless=is_headless,  # Headless in cloud, visible locally
                     args=[
                         "--start-maximized",
                         "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",  # Required for Docker
+                        "--disable-dev-shm-usage",  # Required for Docker
                     ]
                 )
                 log("INFO", "Browser launched successfully!")
             except Exception as e:
                 log("ERR", f"Could not launch browser: {e}")
-                log("ERR", "Make sure Playwright browsers are installed: python -m playwright install chromium")
+                log("ERR", "Run: python -m playwright install chromium")
                 return
             
             # Create a new context and page

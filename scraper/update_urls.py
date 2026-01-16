@@ -148,17 +148,22 @@ async def update_urls(excel_file: str, selected_sheets: list = None):
     error_count = 0
     
     async with async_playwright() as pw:
-        # emit_to_ui('INFO', 'Launching browser...')
+        # Check if we should run headless (cloud/Docker environment)
+        is_headless = os.environ.get('HEADLESS', '').lower() in ('1', 'true', 'yes')
+        
         browser = await pw.chromium.launch(
-            headless=False, 
-            args=["--start-maximized", "--disable-blink-features=AutomationControlled"]
+            headless=is_headless, 
+            args=[
+                "--start-maximized", 
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",  # Required for Docker
+                "--disable-dev-shm-usage",  # Required for Docker
+            ]
         )
         context = await browser.new_context(
             viewport={"width": 1920, "height": 1080},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         )
-        page = await context.new_page()
-        
         page = await context.new_page()
         
         for i, url in enumerate(urls, 1):
