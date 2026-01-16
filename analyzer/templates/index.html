@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real Estate Investment Analysis</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ cache_bust }}">
+    <link rel="stylesheet" href="static/style.css?v={{ cache_bust }}">
     <!-- Inter Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -210,7 +210,8 @@
                                     <th data-sort="m2" style="cursor: pointer;">m²</th>
                                     <th data-sort="Precio" style="cursor: pointer;">Precio</th>
                                     <th data-sort="Renta_Rango" style="cursor: pointer;">Rango Renta</th>
-                                    <th data-sort="Rentabilidad_Bruta_%" style="cursor: pointer;">Rentabilidad Bruta</th>
+                                    <th data-sort="Rentabilidad_Bruta_%" style="cursor: pointer;">Rentabilidad Bruta
+                                    </th>
                                     <th data-sort="Precision" style="cursor: pointer;">Precisión estim. renta</th>
                                     <th data-sort="Puntuación" style="cursor: pointer;">Puntuación</th>
                                     <th>Referencias cálculo renta</th>
@@ -292,7 +293,7 @@
         </main>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="static/script.js"></script>
 </body>
 
 </html>
