@@ -992,17 +992,26 @@ class ScraperController:
                                 if self.on_status:
                                     self.on_status("captcha")
                                 
-                                # Pause and wait indefinitely for user to solve CAPTCHA and resume
+                                # Pause and wait for user to solve CAPTCHA, with repeating alarm
                                 self._pause_evt.clear()  # Pause the scraper
                                 wait_start = asyncio.get_running_loop().time()
                                 
                                 while not self._stop_evt.is_set():
-                                    # Wait for resume signal
-                                    await self._wait_for_pause()
+                                    # Play alarm
+                                    play_captcha_alert()
+                                    
+                                    # Wait up to 10 seconds for resume signal
+                                    for _ in range(100):  # 100 x 0.1s = 10 seconds
+                                        if self._pause_evt.is_set() or self._stop_evt.is_set():
+                                            break
+                                        await asyncio.sleep(0.1)
                                     
                                     if self._stop_evt.is_set():
                                         self.save_state(page_num, target_file)
                                         break
+                                    
+                                    if not self._pause_evt.is_set():
+                                        continue  # Still paused, loop to play alarm again
                                     
                                     # User resumed - retry extraction
                                     d = await extract_detail_fields(page, debug_items=False)
@@ -1099,17 +1108,26 @@ class ScraperController:
                             if self.on_status:
                                 self.on_status("captcha")
                             
-                            # Pause and wait indefinitely for user to solve CAPTCHA and resume
+                            # Pause and wait for user to solve CAPTCHA, with repeating alarm
                             self._pause_evt.clear()  # Pause the scraper
                             wait_start = asyncio.get_running_loop().time()
                             
                             while not self._stop_evt.is_set():
-                                # Wait for resume signal
-                                await self._wait_for_pause()
+                                # Play alarm
+                                play_captcha_alert()
+                                
+                                # Wait up to 10 seconds for resume signal
+                                for _ in range(100):  # 100 x 0.1s = 10 seconds
+                                    if self._pause_evt.is_set() or self._stop_evt.is_set():
+                                        break
+                                    await asyncio.sleep(0.1)
                                 
                                 if self._stop_evt.is_set():
                                     self.save_state(page_num, target_file)
                                     break
+                                
+                                if not self._pause_evt.is_set():
+                                    continue  # Still paused, loop to play alarm again
                                 
                                 # User resumed - retry extraction
                                 d = await extract_detail_fields(page, debug_items=False)
