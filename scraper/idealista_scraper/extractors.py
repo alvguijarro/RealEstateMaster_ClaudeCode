@@ -674,23 +674,43 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
              if m: num_habitaciones_total = int(m.group(1))
 
     if is_room_mode:
-        # Return simplified dictionary for rooms
+        # Return column set specific to room rentals
         return {
-            "URL": data.get("url") or "", # Wrapper adds URL later usually, but just in case
-            "price": price,
-            "habitacion_m2": habitacion_m2,
-            "piso_m2": piso_m2,
-            "num_habitaciones_total": num_habitaciones_total,
-            "estado": estado,
-            "gastos_incluidos": gastos_incluidos,
-            "amueblada": amueblada,
             "Titulo": title,
+            "price": price,
+            "old price": old_price,
+            "price change %": price_change_decimal,
             "Ubicacion": ubic,
-            "Provincia": provincia,
-            "Calle": calle, "Barrio": barrio, "Distrito": distrito, "Ciudad": ciudad,
             "actualizado hace": actualizado_hace,
-            "Anuncio activo": "No" if (data.get("lowDate") or data.get("isExpired")) else "Sí"
+            "habs": num_habitaciones_total or habs,  # Total rooms in the flat
+            "m2_habs": habitacion_m2,  # Room size in m2
+            "banos": banos,
+            "Terraza": terraza,
+            "Garaje": garaje,
+            "Armarios": armarios,
+            "Trastero": trastero,
+            "Calefaccion": calefaccion,
+            "ascensor": ascensor,
+            "orientacion": orientacion,
+            "altura": altura,
+            "jardin": jardin,
+            "piscina": piscina,
+            "aire acond": aa,
+            "Calle": calle,
+            "Barrio": barrio,
+            "Distrito": distrito,
+            "Zona": zona,
+            "Ciudad": ciudad,
+            "Provincia": provincia,
+            "Comunidad Autonoma": comunidad_autonoma,
+            "estado": estado,
+            "tipo anunciante": data.get("advertiserType"),
+            "nombre anunciante": data.get("advertiserName"),
+            "Descripcion": descripcion,
+            "Anuncio activo": "No" if (data.get("lowDate") or data.get("isExpired")) else "Sí",
+            "Baja anuncio": data.get("lowDate"),
         }
+
 
     return {
         "price": price,

@@ -1,0 +1,92 @@
+Columnas alquiler tradicional
+---------------------
+Titulo
+price
+old price
+price change %
+Ubicacion
+actualizado hace
+m2 construidos
+m2 utiles
+precio por m2
+Num plantas
+habs
+banos
+Terraza
+Garaje
+Armarios
+Trastero
+Calefaccion
+tipo
+parcela
+ascensor
+orientacion
+altura
+construido en
+jardin
+piscina
+aire acond
+Calle
+Barrio
+Distrito
+Zona
+Ciudad
+Provincia
+Consumo 1
+Consumo 2
+Emisiones 1
+Emisiones 2
+estado
+gastos comunidad
+okupado
+Copropiedad
+con inquilino
+nuda propiedad
+tipo anunciante
+nombre anunciante
+Descripcion
+Fecha Scraping
+URL
+Anuncio activo
+Baja anuncio
+Comunidad Autonoma
+
+
+
+Columnas alquiler habitaciones
+---------------------
+Titulo
+price
+old price
+price change %
+Ubicacion
+actualizado hace
+habs
+m2_habs
+banos
+Terraza
+Garaje
+Armarios
+Trastero
+Calefaccion
+ascensor
+orientacion
+altura
+jardin
+piscina
+aire acond
+Calle
+Barrio
+Distrito
+Zona
+Ciudad
+Provincia
+estado
+tipo anunciante
+nombre anunciante
+Descripcion
+Fecha Scraping
+URL
+Anuncio activo
+Baja anuncio
+Comunidad Autonoma

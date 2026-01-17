@@ -41,7 +41,7 @@ let isUpdateMode = false;
 let audioCtx = null;
 
 // Column definitions (matches ORDERED_BASE in Python for consistency)
-const COLUMNS = [
+const COLUMNS_STANDARD = [
     'Titulo', 'price', 'old price', 'price change %', 'Ubicacion',
     'actualizado hace',
     'm2 construidos', 'm2 utiles', 'precio por m2', 'Num plantas', 'habs', 'banos',
@@ -52,9 +52,28 @@ const COLUMNS = [
     'Consumo 1', 'Consumo 2', 'Emisiones 1', 'Emisiones 2',
     'estado', 'gastos comunidad',
     'okupado', 'Copropiedad', 'con inquilino', 'nuda propiedad',
-    'Descripción',
+    'Descripcion',
     'URL'
 ];
+
+// Column definitions for room rentals (habitaciones)
+const COLUMNS_HABITACIONES = [
+    'Titulo', 'price', 'old price', 'price change %', 'Ubicacion',
+    'actualizado hace',
+    'habs', 'm2_habs', 'banos',
+    'Terraza', 'Garaje', 'Armarios', 'Trastero', 'Calefaccion',
+    'ascensor', 'orientacion', 'altura',
+    'jardin', 'piscina', 'aire acond',
+    'Calle', 'Barrio', 'Distrito', 'Zona', 'Ciudad', 'Provincia',
+    'estado',
+    'tipo anunciante', 'nombre anunciante',
+    'Descripcion',
+    'URL'
+];
+
+// Current active columns (will be set based on seed URL)
+let currentColumns = COLUMNS_STANDARD;
+
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -427,7 +446,7 @@ function selectMode(mode) {
 }
 
 function buildTableHeader() {
-    tableHeader.innerHTML = COLUMNS.map(col =>
+    tableHeader.innerHTML = currentColumns.map(col =>
         `<th>${escapeHtml(col)}</th>`
     ).join('');
 }
@@ -468,7 +487,7 @@ function addProperty(data) {
 
     // Add table row
     const row = document.createElement('tr');
-    row.innerHTML = COLUMNS.map(col => {
+    row.innerHTML = currentColumns.map(col => {
         let value = data[col];
         if (value === null || value === undefined) {
             value = '';
@@ -609,6 +628,15 @@ async function startScraping() {
 
     // Disable Update controls
     if (updateUrlsBtn) updateUrlsBtn.disabled = true;
+
+    // Detect habitacion mode and switch columns
+    if (seedUrl.toLowerCase().includes('habitacion')) {
+        currentColumns = COLUMNS_HABITACIONES;
+        addLog('INFO', 'Modo habitaciones detectado - usando columnas específicas');
+    } else {
+        currentColumns = COLUMNS_STANDARD;
+    }
+    buildTableHeader();
 
     addLog('INFO', `Iniciando scraping en modo ${currentMode.toUpperCase()}...`);
 

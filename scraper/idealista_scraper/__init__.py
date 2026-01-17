@@ -1,5 +1,5 @@
 """Public API + column schema (trimmed)."""
-__all__ = ["ORDERED_BASE", "log", "ScraperSession"]
+__all__ = ["ORDERED_BASE", "ORDERED_HABITACIONES", "log", "ScraperSession"]
 __version__ = "5.0.0"
 ORDERED_BASE = (
     # Primary identification
@@ -32,7 +32,28 @@ ORDERED_BASE = (
     "Fecha Scraping",
 
     # URL last as requested
-    "URL"
+    "URL",
+    
+    "Anuncio activo", "Baja anuncio", "Comunidad Autonoma"
 )
+
+# Column schema for room rentals (habitaciones)
+ORDERED_HABITACIONES = (
+    "Titulo", "price", "old price", "price change %", "Ubicacion",
+    "actualizado hace",
+    "habs", "m2_habs", "banos",
+    "Terraza", "Garaje", "Armarios", "Trastero", "Calefaccion",
+    "ascensor", "orientacion", "altura",
+    "jardin", "piscina", "aire acond",
+    "Calle", "Barrio", "Distrito", "Zona", "Ciudad", "Provincia",
+    "Comunidad Autonoma",
+    "estado",
+    "tipo anunciante", "nombre anunciante",
+    "Descripcion",
+    "Fecha Scraping",
+    "URL",
+    "Anuncio activo", "Baja anuncio"
+)
+
 from .utils import log
 from .scraper import ScraperSession

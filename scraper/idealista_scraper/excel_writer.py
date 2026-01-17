@@ -16,7 +16,7 @@ from typing import List, Set
 import pandas as pd
 from openpyxl.utils import get_column_letter
 
-from . import ORDERED_BASE
+from . import ORDERED_BASE, ORDERED_HABITACIONES
 from .utils import log
 
 RENAME_COMPAT = {"plantas":"Num plantas","m2":"Num plantas","description":"Descripción","consumo":"Consumo 1","emisiones":"Emisiones 1"}
@@ -246,7 +246,12 @@ def export_single_sheet(existing_df: pd.DataFrame,
     extra_cols = set(carry_cols)
     for r in additions:
         extra_cols.update(r.keys())
-    ordered = list(ORDERED_BASE) + [c for c in sorted(extra_cols) if c not in ORDERED_BASE]
+    
+    # Detect room mode: if m2_habs column is present, use ORDERED_HABITACIONES
+    is_room_mode = any('m2_habs' in r for r in additions) or (not existing_df.empty and 'm2_habs' in existing_df.columns)
+    base_columns = ORDERED_HABITACIONES if is_room_mode else ORDERED_BASE
+    
+    ordered = list(base_columns) + [c for c in sorted(extra_cols) if c not in base_columns]
 
     add_df = pd.DataFrame(additions)
 
