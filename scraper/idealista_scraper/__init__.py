@@ -38,6 +38,7 @@ ORDERED_BASE = (
 )
 
 # Column schema for room rentals (habitaciones)
+# Order matches user specification exactly
 ORDERED_HABITACIONES = (
     "Titulo", "price", "old price", "price change %", "Ubicacion",
     "actualizado hace",
@@ -46,13 +47,12 @@ ORDERED_HABITACIONES = (
     "ascensor", "orientacion", "altura",
     "jardin", "piscina", "aire acond",
     "Calle", "Barrio", "Distrito", "Zona", "Ciudad", "Provincia",
-    "Comunidad Autonoma",
     "estado",
     "tipo anunciante", "nombre anunciante",
     "Descripcion",
     "Fecha Scraping",
     "URL",
-    "Anuncio activo", "Baja anuncio"
+    "Anuncio activo", "Baja anuncio", "Comunidad Autonoma"
 )
 
 from .utils import log

@@ -68,7 +68,9 @@ const COLUMNS_HABITACIONES = [
     'estado',
     'tipo anunciante', 'nombre anunciante',
     'Descripcion',
-    'URL'
+    'Fecha Scraping',
+    'URL',
+    'Anuncio activo', 'Baja anuncio', 'Comunidad Autonoma'
 ];
 
 // Current active columns (will be set based on seed URL)

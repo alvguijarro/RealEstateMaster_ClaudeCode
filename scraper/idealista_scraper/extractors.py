@@ -697,7 +697,8 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
              if m: num_habitaciones_total = int(m.group(1))
 
     if is_room_mode:
-        # Return column set specific to room rentals
+        # Return column set specific to room rentals (habitaciones)
+        # Order matches user specification exactly
         return {
             "Titulo": title,
             "price": price,
@@ -725,13 +726,15 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
             "Zona": zona,
             "Ciudad": ciudad,
             "Provincia": provincia,
-            "Comunidad Autonoma": comunidad_autonoma,
             "estado": estado,
             "tipo anunciante": data.get("advertiserType"),
             "nombre anunciante": data.get("advertiserName"),
             "Descripcion": descripcion,
+            "Fecha Scraping": None,  # Will be set by scraper_wrapper
+            "URL": None,  # Will be set by scraper_wrapper
             "Anuncio activo": "No" if (data.get("lowDate") or data.get("isExpired")) else "Sí",
             "Baja anuncio": data.get("lowDate"),
+            "Comunidad Autonoma": comunidad_autonoma,
         }
 
 
