@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# Editor
+.vscode/
+.idea/
+
+# Project Outputs
+*.xlsx
+scraper/salidas/
+scraper/scrape_history.json
+
+# Logs
+*.log

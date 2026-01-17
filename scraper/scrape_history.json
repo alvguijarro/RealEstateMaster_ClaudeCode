@@ -1,93 +1,18 @@
-{
-  "https://www.idealista.com/areas/venta-viviendas?shape=%28%28qv_uFpndWi_DejMkoFqjOnmAseWghOshPcjFgz%5ErvVzrBj%7BTnrn%40s%40fvk%40yzJrbG%29%29": {
-    "output_file": "idealista_Arroyomolinos_venta.xlsx",
-    "last_scraped": "2026-01-14T09:09:15.598926",
-    "properties_count": 1970,
-    "pages_scraped": 75,
-    "original_url": "https://www.idealista.com/areas/venta-viviendas/?shape=%28%28qv_uFpndWi_DejMkoFqjOnmAseWghOshPcjFgz%5ErvVzrBj%7BTnrn%40s%40fvk%40yzJrbG%29%29"
+[
+  {
+    "timestamp": "2026-01-17T13:18:13.169435",
+    "seed_url": "https://www.idealista.com/areas/alquiler-habitacion/?shape=%28%28%7B_buFjacWclMg%7Bo%40ktImvUhqBgfO%60eHszItp%5E%60ek%40_lAn%7Cj%40qyO%7EqI%29%29",
+    "properties_count": 113,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_alquiler.xlsx",
+    "filename": "idealista_alquiler.xlsx"
   },
-  "https://www.idealista.com/areas/alquiler-viviendas?shape=%28%28qv_uFpndWi_DejMkoFqjOnmAseWghOshPcjFgz%5ErvVzrBj%7BTnrn%40s%40fvk%40yzJrbG%29%29": {
-    "output_file": "idealista_Madrid_alquiler.xlsx",
-    "last_scraped": "2026-01-15T09:41:13.772634",
-    "properties_count": 1225,
-    "pages_scraped": 22,
-    "original_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28qv_uFpndWi_DejMkoFqjOnmAseWghOshPcjFgz%5ErvVzrBj%7BTnrn%40s%40fvk%40yzJrbG%29%29"
-  },
-  "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000?shape=%28%28qv_uFpndWi_DejMkoFqjOnmAseWghOshPcjFgz%5ErvVzrBj%7BTnrn%40s%40fvk%40yzJrbG%29%29": {
-    "output_file": "idealista_Fuenlabrada_venta.xlsx",
-    "last_scraped": "2026-01-12T00:53:51.586016",
-    "properties_count": 1994,
-    "pages_scraped": 0,
-    "original_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/?shape=%28%28qv_uFpndWi_DejMkoFqjOnmAseWghOshPcjFgz%5ErvVzrBj%7BTnrn%40s%40fvk%40yzJrbG%29%29"
-  },
-  "https://www.idealista.com/venta-viviendas/madrid-madrid/con-precio-hasta_300000,sin-inquilinos": {
-    "output_file": "idealista_Madrid_venta.xlsx",
-    "last_scraped": "2026-01-09T22:13:16.218933",
-    "properties_count": 3,
-    "pages_scraped": 0,
-    "original_url": "https://www.idealista.com/venta-viviendas/madrid-madrid/con-precio-hasta_300000,sin-inquilinos/"
-  },
-  "https://www.idealista.com/areas/venta-viviendas?shape=%28%28gv%7DwFjj%60YaxRexShkYiwe%40rsYvbS%7Bf%60%40vlf%40%29%29": {
-    "output_file": "idealista_venta.xlsx",
-    "last_scraped": "2026-01-09T18:18:26.949517",
-    "properties_count": 70,
-    "pages_scraped": 0,
-    "original_url": "https://www.idealista.com/areas/venta-viviendas/?shape=%28%28gv%7DwFjj%60YaxRexShkYiwe%40rsYvbS%7Bf%60%40vlf%40%29%29"
-  },
-  "https://www.idealista.com/venta-viviendas/boadilla-del-monte-madrid": {
-    "output_file": "idealista_Madrid_venta.xlsx",
-    "last_scraped": "2026-01-07T15:36:13.764117",
-    "properties_count": 157,
-    "pages_scraped": 0,
-    "original_url": "https://www.idealista.com/venta-viviendas/boadilla-del-monte-madrid/"
-  },
-  "https://www.idealista.com/areas/alquiler-viviendas?shape=%28%28%7DtbuFxxcWia%40erJbjLcmQapRkno%40_%7DGaiG%7CsA_cIthk%40~pf%40exFp_p%40e~UdkG%29%29": {
-    "output_file": "idealista_Avenida_de_Andalucía_alquiler.xlsx",
-    "last_scraped": "2026-01-07T10:19:24.385193",
-    "properties_count": 155,
-    "pages_scraped": 0,
-    "original_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28%7DtbuFxxcWia%40erJbjLcmQapRkno%40_%7DGaiG%7CsA_cIthk%40%7Epf%40exFp_p%40e%7EUdkG%29%29"
-  },
-  "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_280000?shape=%28%28%7DtbuFxxcWia%40erJbjLcmQapRkno%40_%7DGaiG%7CsA_cIthk%40~pf%40exFp_p%40e~UdkG%29%29": {
-    "output_file": "idealista_Parla_venta.xlsx",
-    "last_scraped": "2026-01-07T09:49:39.988976",
-    "properties_count": 533,
-    "pages_scraped": 0,
-    "original_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_280000/?shape=%28%28%7DtbuFxxcWia%40erJbjLcmQapRkno%40_%7DGaiG%7CsA_cIthk%40%7Epf%40exFp_p%40e%7EUdkG%29%29"
-  },
-  "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_280000,de-un-dormitorio,de-dos-dormitorios?shape=%28%28ikeuFtgxVetMio%5Dxy%40kcb%40hoFj_Ab%7DRnkk%40asMxfR%29%29": {
-    "output_file": "idealista_Madrid_venta.xlsx",
-    "last_scraped": "2026-01-06T23:21:39.343547",
-    "properties_count": 1167,
-    "pages_scraped": 0,
-    "original_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_280000,de-un-dormitorio,de-dos-dormitorios/?shape=%28%28ikeuFtgxVetMio%5Dxy%40kcb%40hoFj_Ab%7DRnkk%40asMxfR%29%29"
-  },
-  "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_280000,de-tres-dormitorios,de-cuatro-cinco-habitaciones-o-mas?shape=%28%28ikeuFtgxVetMio%5Dxy%40kcb%40hoFj_Ab%7DRnkk%40asMxfR%29%29": {
-    "output_file": "idealista_Madrid_venta.xlsx",
-    "last_scraped": "2026-01-04T00:16:52.155369",
-    "properties_count": 13,
-    "pages_scraped": 0,
-    "original_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_280000,de-tres-dormitorios,de-cuatro-cinco-habitaciones-o-mas/?shape=%28%28ikeuFtgxVetMio%5Dxy%40kcb%40hoFj_Ab%7DRnkk%40asMxfR%29%29"
-  },
-  "https://www.idealista.com/areas/alquiler-viviendas/con-de-tres-dormitorios,de-cuatro-cinco-habitaciones-o-mas?shape=%28%28ikeuFtgxVetMio%5Dxy%40kcb%40hoFj_Ab%7DRnkk%40asMxfR%29%29": {
-    "output_file": "Madrid_Latina - idealista.xlsx",
-    "last_scraped": "2026-01-03T22:32:47.482201",
-    "properties_count": 159,
-    "pages_scraped": 0,
-    "original_url": "https://www.idealista.com/areas/alquiler-viviendas/con-de-tres-dormitorios,de-cuatro-cinco-habitaciones-o-mas/?shape=%28%28ikeuFtgxVetMio%5Dxy%40kcb%40hoFj_Ab%7DRnkk%40asMxfR%29%29"
-  },
-  "https://www.idealista.com/areas/alquiler-viviendas?shape=%28%28ikeuFtgxVetMio%5Dxy%40kcb%40hoFj_Ab%7DRnkk%40asMxfR%29%29": {
-    "output_file": "Madrid_Carabanchel - idealista.xlsx",
-    "last_scraped": "2026-01-03T22:04:49.471289",
-    "properties_count": 34,
-    "pages_scraped": 0,
-    "original_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28ikeuFtgxVetMio%5Dxy%40kcb%40hoFj_Ab%7DRnkk%40asMxfR%29%29"
-  },
-  "https://www.idealista.com/areas/venta-viviendas?shape=%28%28qv_uFphttps%3A%2F%2Fwww.idealista.com%2Fareas%2Fventa-viviendas%2F%3Fshape%3D%28%28qv_uFpndWi_DejMkoFqjOnmAseWghOshPcjFgz%5ErvVzrBj%7BTnrn%40s%40fvk%40yzJrbG%29%29ndWi_DejMkoFqjOnmAseWghOshPcjFgz%5ErvVzrBj%7BTnrn%40s%40fvk%40yzJrbG%29%29": {
-    "output_file": "idealista_Arroyomolinos_venta.xlsx",
-    "last_scraped": "2026-01-14T01:10:29.577957",
-    "properties_count": 1661,
-    "pages_scraped": 1,
-    "original_url": "https://www.idealista.com/areas/venta-viviendas/?shape=%28%28qv_uFphttps://www.idealista.com/areas/venta-viviendas/?shape=%28%28qv_uFpndWi_DejMkoFqjOnmAseWghOshPcjFgz%5ErvVzrBj%7BTnrn%40s%40fvk%40yzJrbG%29%29ndWi_DejMkoFqjOnmAseWghOshPcjFgz%5ErvVzrBj%7BTnrn%40s%40fvk%40yzJrbG%29%29"
+  {
+    "timestamp": "2026-01-17T13:03:01.515840",
+    "seed_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28uozxFxgwXihWs%7BZlePonM%7EgT%7EaOceMbhY%29%29",
+    "properties_count": 1,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Segovia_alquiler.xlsx",
+    "filename": "idealista_Segovia_alquiler.xlsx"
   }
-}
+]

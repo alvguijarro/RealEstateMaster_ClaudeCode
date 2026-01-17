@@ -10,7 +10,8 @@ from .regex_patterns import (
     HABS_FALLBACK_RE, BANOS_FALLBACK_RE, PLANTAS_FALLBACK_RE, CONSTRUIDO_ANO_FALLBACK_RE,
     CONSUMO_KWH_RE, EMISIONES_KG_RE, ALT_PB_RE, ALT_PB_SIG_RE, ALT_PRAL_RE, ALT_PRAL_SIG_RE,
     ALT_ENTRE_RE, ALT_ATICO_RE, ALT_NUM_ORD_RE, ALT_NUM_FORM_RE, ALT_NUM_AFTER_RE,
-    ALT_WORDS_RE, ALT_SNUM_RE, ALT_NEGNUM_RE, ALT_SEM_SOT_RE, ALT_SOT_RE
+    ALT_WORDS_RE, ALT_SNUM_RE, ALT_NEGNUM_RE, ALT_SEM_SOT_RE, ALT_SOT_RE,
+    RX_ROOM_SIZE, RX_FLAT_SIZE_CONTEXT, RX_NUM_HAB_TOTAL, RX_GASTOS_INCLUIDOS, RX_AMUEBLADA, RX_PURE_M2
 )
 
 def find_altura(raw: str) -> Optional[str]:
@@ -34,19 +35,15 @@ def find_altura(raw: str) -> Optional[str]:
     if m:
         n = int(m.group(1))
         if 0 < n <= 30:
-            suf = m.group(2)
-            suf = "ª" if str(suf).lower() in ("ª", "a") else "º"
-            return f"{n}{suf}"
+            return f"{n}º"
     m = ALT_NUM_FORM_RE.search(s)
     if m:
         n = int(m.group(1))
         if 0 < n <= 30:
-            suf = m.group(2) or "ª"
-            suf = "ª" if str(suf).lower() in ("ª", "a") else "º"
-            return f"{n}{suf}"
+            return f"{n}ª"
     m = ALT_NUM_AFTER_RE.search(s)
     if m:
-        n = int(m.group(2))
+        n = int(m.group(1))
         if 0 < n <= 30:
             return f"{n}ª"
     words = {
@@ -143,7 +140,7 @@ def extract_location_details(map_lis: List[str]):
 
     return calle, barrio, distrito, ciudad, zona, provincia
 
-async def extract_detail_fields(page, debug_items: bool = False) -> dict:
+async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: bool = False) -> dict:
     """Main orchestrator for detail page field extraction using Page.evaluate + Python fallbacks."""
     data = await page.evaluate(r"""
       () => {
@@ -156,7 +153,7 @@ async def extract_detail_fields(page, debug_items: bool = False) -> dict:
         const ubicFull = getText('.main-info__title-minor, .main-info__title-minor--bold, [data-test="address"]');
 
         let price = getText('.info-data-price, [itemprop="price"], .price-features, .info-price');
-        if (!price) {
+        if (!price && document.body) {
           const m = (document.body.innerText.match(/\d[\d\.,\s]*\s*€/)||[])[0]||null;
           price = m;
         }
@@ -169,7 +166,7 @@ async def extract_detail_fields(page, debug_items: bool = False) -> dict:
         }
         let actualizadoRaw = getText('.date-update-text, span.date-update-text, [data-test="lastUpdate"]');
         let actualizado = stripActualizado(actualizadoRaw);
-        if (!actualizado) {
+        if (!actualizado && document.body) {
           const t = document.body.innerText;
           const m = t.match(/Anuncio actualizado hace[^\n]*/i);
           actualizado = stripActualizado(m ? m[0] : null);
@@ -189,7 +186,7 @@ async def extract_detail_fields(page, debug_items: bool = False) -> dict:
         }
         if (!ppm2_raw) {
           const pf = document.querySelector('.price-features__container');
-          const t = pf ? pf.innerText : document.body.innerText;
+          const t = pf ? pf.innerText : (document.body ? document.body.innerText : '');
           const m = (t.match(/([\d\.,\s]+)\s*€\s*\/\s*m(?:²|2)/i) || [])[1];
           ppm2_raw = m ? m : null;
         }
@@ -291,7 +288,7 @@ async def extract_detail_fields(page, debug_items: bool = False) -> dict:
           }
         }
 
-        const fullText = document.body.innerText || '';
+        const fullText = (document.body && document.body.innerText) ? document.body.innerText : '';
 
         // Extract advertiser type (Agency vs Particular)
         let advertiserType = null;
@@ -400,6 +397,13 @@ async def extract_detail_fields(page, debug_items: bool = False) -> dict:
     aa = "no"
     jardin = "no"
     construido_en: Optional[int] = None
+    
+    # Room specific
+    habitacion_m2: Optional[int] = None
+    piso_m2: Optional[int] = None
+    num_habitaciones_total: Optional[int] = None
+    gastos_incluidos: Optional[str] = "No"
+    amueblada: Optional[str] = "No"
 
     calle, barrio, distrito, ciudad, zona, provincia_extracted = extract_location_details(map_lis)
     
@@ -421,8 +425,44 @@ async def extract_detail_fields(page, debug_items: bool = False) -> dict:
 
         if ("m2" in txt or "m²" in txt or " m " in txt) and ("construid" in txt or "const." in txt):
             n = re.search(r"\d[\d\.\s,]*", raw)
-            m2_construidos = normalize_price(n.group(0)) if n else m2_construidos
+            # Standard mode: this is the property size. Room mode: this might be flat size.
+            val = normalize_price(n.group(0)) if n else None
+            
+            if is_room_mode:
+                 # In room mode, "construidos" usually refers to the flat
+                 piso_m2 = val if val else piso_m2
+            else:
+                 m2_construidos = val if val else m2_construidos
             continue
+
+        if is_room_mode:
+            # Try to find specific room size patterns
+            m_room = RX_ROOM_SIZE.search(raw)
+            if m_room:
+                 habitacion_m2 = normalize_price(m_room.group(1))
+                 continue
+            m_pure = RX_PURE_M2.search(txt)
+            if m_pure:
+                 # If we see just "12 m2" in a list, likely room size
+                 habitacion_m2 = normalize_price(m_pure.group(1))
+                 continue
+            
+            # Try to find context for flat size e.g. "en piso de 100 m2"
+            m_flat = RX_FLAT_SIZE_CONTEXT.search(raw) or RX_FLAT_SIZE_CONTEXT.search(title)
+            if m_flat:
+                 piso_m2 = normalize_price(m_flat.group(1))
+            
+            # Total rooms in flat
+            m_habs = RX_NUM_HAB_TOTAL.search(raw)
+            if m_habs:
+                 num_habitaciones_total = int(m_habs.group(1))
+                 continue
+                 
+            # Furnished
+            if RX_AMUEBLADA.search(raw):
+                 amueblada = "Sí"
+                 continue
+        
         if ("m2" in txt or "m²" in txt or " m " in txt) and ("util" in txt):
             n = re.search(r"\d[\d\.\s,]*", raw)
             m2_utiles = normalize_price(n.group(0)) if n else m2_utiles
@@ -612,12 +652,50 @@ async def extract_detail_fields(page, debug_items: bool = False) -> dict:
         if m:
             emisiones2 = sanitize_units(m.group(0))
 
+    # Post-processing for rooms
+    if is_room_mode:
+        # Check gastos in description
+        if RX_GASTOS_INCLUIDOS.search(vt_full_fold):
+            gastos_incluidos = "Sí"
+        
+        # Fallback for room size if not found in list but description says "habitacion de X m2"
+        if not habitacion_m2:
+             m = RX_ROOM_SIZE.search(descripcion or "")
+             if m: habitacion_m2 = normalize_price(m.group(1))
+             
+        # Fallback for flat size
+        if not piso_m2:
+             # Sometimes m2_construidos caught it if text was "100 m2 construidos"
+             piso_m2 = m2_construidos
+             
+        # Fallback for num rooms
+        if not num_habitaciones_total:
+             m = RX_NUM_HAB_TOTAL.search(vt_full)
+             if m: num_habitaciones_total = int(m.group(1))
+
+    if is_room_mode:
+        # Return simplified dictionary for rooms
+        return {
+            "URL": data.get("url") or "", # Wrapper adds URL later usually, but just in case
+            "price": price,
+            "habitacion_m2": habitacion_m2,
+            "piso_m2": piso_m2,
+            "num_habitaciones_total": num_habitaciones_total,
+            "estado": estado,
+            "gastos_incluidos": gastos_incluidos,
+            "amueblada": amueblada,
+            "Titulo": title,
+            "Ubicacion": ubic,
+            "Provincia": provincia,
+            "Calle": calle, "Barrio": barrio, "Distrito": distrito, "Ciudad": ciudad,
+            "actualizado hace": actualizado_hace,
+            "Anuncio activo": "No" if (data.get("lowDate") or data.get("isExpired")) else "Sí"
+        }
+
     return {
         "price": price,
         "old price": old_price,
         "price change %": price_change_decimal,
-        "Titulo": title,
-        "Ubicacion": ubic,
         "Titulo": title,
         "Ubicacion": ubic,
         "Provincia": provincia,
@@ -635,7 +713,6 @@ async def extract_detail_fields(page, debug_items: bool = False) -> dict:
         "estado": estado, "gastos comunidad": gastos_comunidad,
         "okupado": okupado, "Copropiedad": copropiedad, "con inquilino": con_inquilino, "nuda propiedad": nuda_propiedad,
         "tipo anunciante": data.get("advertiserType"),
-        "nombre anunciante": data.get("advertiserName"),
         "nombre anunciante": data.get("advertiserName"),
         "Anuncio activo": "No" if (data.get("lowDate") or data.get("isExpired")) else "Sí",
         "Baja anuncio": data.get("lowDate"),

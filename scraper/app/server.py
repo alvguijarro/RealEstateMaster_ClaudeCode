@@ -54,7 +54,12 @@ def load_history():
     if HISTORY_FILE.exists():
         try:
             with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
-                scrape_history = json.load(f)
+                data = json.load(f)
+                # Ensure data is a list, not a dict or other type
+                if isinstance(data, list):
+                    scrape_history = data
+                else:
+                    scrape_history = []
         except Exception:
             scrape_history = []
     return scrape_history

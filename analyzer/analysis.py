@@ -362,6 +362,12 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
     log_calidad.append({'phase': 'load', 'dataset': 'VENTA', 'rows': len(df_venta), 'note': 'initial'})
     log_calidad.append({'phase': 'load', 'dataset': 'ALQUILER', 'rows': len(df_alquiler), 'note': 'initial'})
     
+    # Detect Room Mode
+    is_room_mode = 'habitacion_m2' in df_alquiler.columns
+    if is_room_mode:
+        config['is_room_mode'] = True
+        print("  [INFO] ROOM MODE DETECTED: Analyzing Room Rentals")
+    
     # Helper functions
     def clean_numeric(s):
         if s.dtype == 'object':
@@ -383,6 +389,11 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
             df_venta[col] = clean_numeric(df_venta[col])
         if col in df_alquiler.columns:
             df_alquiler[col] = clean_numeric(df_alquiler[col])
+            
+    if is_room_mode:
+        for col in ['habitacion_m2', 'piso_m2', 'num_habitaciones_total']:
+             if col in df_alquiler.columns:
+                 df_alquiler[col] = clean_numeric(df_alquiler[col])
     
     # Clean boolean columns
     print("  Cleaning boolean columns...")
@@ -674,12 +685,25 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
     # Drop missing critical values
     print("  Dropping rows with missing critical values...")
     df_venta = df_venta.dropna(subset=['price', 'm2 construidos', 'Distrito'])
-    df_alquiler = df_alquiler.dropna(subset=['price', 'm2 construidos', 'Distrito'])
+    
+    if is_room_mode:
+        # Room cleaning
+        df_alquiler = df_alquiler.dropna(subset=['price', 'Distrito'])
+        # Aliasing for compatibility
+        if 'habitacion_m2' in df_alquiler.columns:
+             df_alquiler['m2'] = df_alquiler['habitacion_m2']
+    else:
+        df_alquiler = df_alquiler.dropna(subset=['price', 'm2 construidos', 'Distrito'])
     
     # Calculate derived fields
     print("  Calculating derived fields...")
     df_venta['precio_m2'] = df_venta['price'] / df_venta['m2 construidos']
-    df_alquiler['precio_m2'] = df_alquiler['price'] / df_alquiler['m2 construidos']
+    
+    if is_room_mode:
+        # Use absolute price for rooms statistics (Average Rent per Room)
+        df_alquiler['precio_m2'] = df_alquiler['price']
+    else:
+        df_alquiler['precio_m2'] = df_alquiler['price'] / df_alquiler['m2 construidos']
     df_venta['rebajado'] = df_venta['old price'].notna()
     
     log_calidad.append({'phase': 'clean', 'dataset': 'VENTA', 'rows': len(df_venta), 'note': 'final'})
@@ -1006,6 +1030,16 @@ def phase_yields(config, df_venta, df_alquiler, zona_stats, use_cache=True):
             ml_success = True
             print("  [ML] ML prediction successful!")
             
+            if config.get('is_room_mode'):
+                 # ML model predicted Room Price (since we trained on 'price' = room rent)
+                 # We need to scale to Total Flat Rent = RoomPrice * NumRooms
+                 print("  [ML] Room Mode: Scaling predicted Room Price by number of rooms...")
+                 df_venta['renta_estimada'] = df_venta['renta_estimada'] * df_venta['habs'].fillna(3) # assume 3 if missing
+                 
+                 if 'renta_p05' in df_venta.columns:
+                      df_venta['renta_p05'] *= df_venta['habs'].fillna(3)
+                      df_venta['renta_p95'] *= df_venta['habs'].fillna(3)
+            
         except Exception as e:
             print(f"  [ML] ML prediction failed: {e}")
             print("  [ML] Falling back to comparable-based estimation...")
@@ -1050,8 +1084,16 @@ def phase_yields(config, df_venta, df_alquiler, zona_stats, use_cache=True):
         
         if len(comps) > 0:
             # Calculate rent from comparables
-            mean_rent_m2 = comps['precio_m2'].mean()
-            comp_renta = mean_rent_m2 * row['m2 construidos']
+            mean_val = comps['precio_m2'].mean()
+            
+            if config.get('is_room_mode'):
+                # mean_val is Mean Room Price (since precio_m2 was aliased to price)
+                n_rooms = row.get('habs', 3)
+                if pd.isna(n_rooms) or n_rooms == 0: n_rooms = 3
+                comp_renta = mean_val * n_rooms
+            else:
+                 # Standard: mean_val is Price/m2
+                 comp_renta = mean_val * row['m2 construidos']
             
             # Round to 10€
             comp_renta = int(10 * round(comp_renta / 10))
@@ -1068,8 +1110,8 @@ def phase_yields(config, df_venta, df_alquiler, zona_stats, use_cache=True):
                 sem = std_price_m2 / math.sqrt(n_comps)
                 
                 # Margin of Error (%) at 95% confidence (z=1.96)
-                if mean_rent_m2 > 0:
-                    margin_pct = (1.96 * sem / mean_rent_m2) * 100
+                if mean_val > 0:
+                    margin_pct = (1.96 * sem / mean_val) * 100
                 else:
                     margin_pct = 20.0  # Default max if mean is 0
                 
@@ -1128,7 +1170,17 @@ def phase_yields(config, df_venta, df_alquiler, zona_stats, use_cache=True):
         else:
             # No comparables found, fall back to zone median
             n_fallback += 1
-            comp_renta = row.get('mediana_alquiler_m2', 10) * row['m2 construidos']
+            
+            if config.get('is_room_mode'):
+                # Room mode: use median room price * num rooms
+                median_room_price = row.get('mediana_alquiler_m2', 400)  # mediana_alquiler_m2 holds room price in room mode
+                n_rooms = row.get('habs', 3)
+                if pd.isna(n_rooms) or n_rooms == 0: n_rooms = 3
+                comp_renta = median_room_price * n_rooms
+            else:
+                # Standard mode: use price/m2 * flat size
+                comp_renta = row.get('mediana_alquiler_m2', 10) * row['m2 construidos']
+            
             comp_renta = int(10 * round(comp_renta / 10))
             comp_p05 = int(comp_renta * 0.80)  # ±20% for fallback (max uncertainty)
             comp_p95 = int(comp_renta * 1.20)
@@ -1326,15 +1378,15 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
     
     # Show top 20 on screen
     print("\nTOP 20 MEJORES OPORTUNIDADES:\n")
-    print(f"{'Distrito':<25} {'m2':>5} {'Precio':>10} {'Renta':>8} {'Rentab%':>7} {'Desc%':>6} {'Punt.':>6}")
-    print("-" * 100)
+    print(f"{'Distrito':<25} {'m2':>5} {'Habs':>5} {'Precio':>10} {'Renta':>8} {'Rentab%':>7} {'Desc%':>6} {'Punt.':>6}")
+    print("-" * 105)
     
     for idx, row in opps_output.head(20).iterrows():
         distrito = row['Distrito'][:24]
         # Get URL from original opps DF using index
         url = opps.loc[idx, 'URL']
         # Values are decimals, multiply by 100 for screen
-        print(f"{distrito:<25} {row['m2']:>5} {row['Precio']:>10,} {row['Renta_estimada/mes']:>8,} {(row['Rentabilidad_Bruta_%']*100):>7.1f} {(row['Descuento_%']*100):>6.1f} {row['Puntuación']:>6.1f}")
+        print(f"{distrito:<25} {row['m2']:>5} {row['habs']:>5} {row['Precio']:>10,} {row['Renta_estimada/mes']:>8,} {(row['Rentabilidad_Bruta_%']*100):>7.1f} {(row['Descuento_%']*100):>6.1f} {row['Puntuación']:>6.1f}")
         print(f"  -> {url}")
     
     print(f"\n... y {len(opps_output) - 20} oportunidades mas en el Excel.\n")

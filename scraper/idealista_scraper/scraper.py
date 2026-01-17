@@ -115,6 +115,7 @@ class ScraperSession:
     recent: Dict[str, float] = field(default_factory=dict)
     index_map: Dict[str, Tuple[int, int]] = field(default_factory=dict)
     detected_sheet: Optional[str] = None
+    is_room_mode: bool = False
 
     async def auto_browse_seed(self, page, stop_evt: asyncio.Event) -> None:
         visited_cards: Set[str] = set()
@@ -270,7 +271,7 @@ class ScraperSession:
                         log("INFO", f"[date changed - updating] {key}")
 
                 await page.wait_for_timeout(PAGE_WAIT_MS)
-                d = await extract_detail_fields(page, debug_items=self.debug_items)
+                d = await extract_detail_fields(page, debug_items=self.debug_items, is_room_mode=self.is_room_mode)
 
                 row = {"URL": key, **d}
                 miss = missing_fields(row)
@@ -322,6 +323,11 @@ class ScraperSession:
             )
             page = await ctx.new_page()
             
+            # Detect Room Mode
+            if "alquiler-habitacion" in (self.seed_url or "") or "alquiler-habitaciones" in (self.seed_url or ""):
+                self.is_room_mode = True
+                log("INFO", ">>> ROOM MODE DETECTED: Extracting specific room data <<<")
+
             # Navigate to the seed URL
             try:
                 if self.seed_url and same_domain(self.seed_url):
@@ -347,7 +353,7 @@ class ScraperSession:
             if self.detected_sheet:
                 log("INFO", f"Detected worksheet: '{self.detected_sheet}' from h1-container.")
             else:
-                self.detected_sheet = self.sheet_name
+                self.detected_sheet = "Habitaciones" if self.is_room_mode else self.detected_sheet or self.sheet_name
 
             stop_evt = asyncio.Event()
 

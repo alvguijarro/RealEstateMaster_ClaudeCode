@@ -230,12 +230,22 @@ async def update_urls(excel_file: str, selected_sheets: list = None):
         emit_to_ui('WARN', 'No rows updated. Exiting.')
         return
     
-    # 5. Save to Excel
+    # 5. Save to Excel (with retry if file is open)
     new_df = pd.DataFrame(updated_rows)
     output_xlsx = excel_file.replace('.xlsx', '_status_updated.xlsx')
     
     emit_to_ui('INFO', f'Saving to: {os.path.basename(output_xlsx)}')
-    new_df.to_excel(output_xlsx, sheet_name='oportunidades', index=False)
+    
+    # Retry loop for PermissionError (file open in Excel)
+    while True:
+        try:
+            new_df.to_excel(output_xlsx, sheet_name='oportunidades', index=False)
+            break
+        except PermissionError:
+            emit_to_ui('WARN', f'⚠️ No se puede escribir en "{os.path.basename(output_xlsx)}". El archivo parece estar abierto en Excel.')
+            emit_to_ui('WARN', 'Cierra el archivo Excel y espera 10 segundos para reintentar...')
+            await asyncio.sleep(10)
+            emit_to_ui('INFO', 'Reintentando guardado...')
     
     emit_to_ui('OK', 'URL status update complete!')
     

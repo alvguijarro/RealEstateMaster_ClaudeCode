@@ -753,8 +753,8 @@ class ScraperController:
             
             # Extract count from h1 text
             if h1txt:
-                # Look for patterns like "2.055 viviendas"
-                match = re.search(r'(\d{1,3}(?:\.\d{3})*)\s*(?:vivienda|pisos?|casas?|inmuebles?|anuncios?)', h1txt, re.IGNORECASE)
+                # Look for patterns like "2.055 viviendas" or "3.123 habitaciones"
+                match = re.search(r'(\d{1,3}(?:\.\d{3})*)\s*(?:vivienda|pisos?|casas?|inmuebles?|anuncios?|habitaci[oó]n|habitaciones)', h1txt, re.IGNORECASE)
                 if match:
                     total_count = int(match.group(1).replace('.', ''))
                     self.log("INFO", f"Extracted count from h1: {total_count}")
@@ -765,7 +765,9 @@ class ScraperController:
             
             # Detect alquiler/venta from h1 text
             h1_lower = h1txt.lower()
-            if "alquiler" in h1_lower:
+            if "habitaci" in h1_lower and "alquiler" in h1_lower:
+                self._detected_sheet = "alquiler-habitaciones"
+            elif "alquiler" in h1_lower:
                 self._detected_sheet = "alquiler"
             elif "venta" in h1_lower:
                 self._detected_sheet = "venta"
@@ -791,7 +793,10 @@ class ScraperController:
             else:
                 # Try to detect from seed URL
                 url_lower = self.seed_url.lower()
-                if "alquiler" in url_lower:
+                if "alquiler-habitacion" in url_lower:
+                    self._detected_sheet = "alquiler-habitaciones"
+                    self.log("INFO", "Detected category from URL: 'alquiler-habitaciones'")
+                elif "alquiler" in url_lower:
                     self._detected_sheet = "alquiler"
                     self.log("INFO", "Detected category from URL: 'alquiler'")
                 elif "venta" in url_lower:
@@ -893,7 +898,7 @@ class ScraperController:
                             
                             # Check for CAPTCHA indicators
                             captcha_check = await page.evaluate(r"""() => {
-                                const body = document.body.innerText.toLowerCase();
+                                const body = (document.body && document.body.innerText) ? document.body.innerText.toLowerCase() : '';
                                 const hasCaptcha = body.includes('captcha') || 
                                                    body.includes('robot') || 
                                                    body.includes('verificar') ||
@@ -1071,7 +1076,7 @@ class ScraperController:
                         
                         # Check if this is a "listing not found" page (not a CAPTCHA)
                         if miss:
-                            page_text = await page.evaluate("() => document.body.innerText || ''")
+                            page_text = await page.evaluate("() => (document.body && document.body.innerText) ? document.body.innerText : ''")
                             is_not_found = (
                                 "no encontramos" in page_text.lower() or
                                 "anuncio no disponible" in page_text.lower() or
@@ -1162,7 +1167,7 @@ class ScraperController:
                         if self.on_property:
                             self.on_property(row)
                         
-                        self.current_property_count = len(self.scraped_properties)
+                        self.current_property_count = property_idx
                         self.emit_progress()
                         
                     except BrowserClosedException:
