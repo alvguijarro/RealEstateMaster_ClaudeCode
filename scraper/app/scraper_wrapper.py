@@ -241,6 +241,7 @@ class ScraperController:
     _index_map: Dict[str, Tuple[int, int]] = field(default_factory=dict)
     _detected_sheet: Optional[str] = None
     _detected_city: Optional[str] = None  # City extracted from listing h1 header
+    _is_room_mode: bool = False  # True if scraping habitaciones (room rentals)
     _browser_closed: bool = False
     
     # Extra Stealth state
@@ -652,6 +653,12 @@ class ScraperController:
         self.log("INFO", f"Starting scraper in {self.mode.upper()} mode")
         self.log("INFO", f"Seed URL: {self.seed_url}")
         
+        # Detect room mode based on seed URL
+        self._is_room_mode = "habitacion" in self.seed_url.lower()
+        if self._is_room_mode:
+            self.log("INFO", "Modo habitaciones detectado - usando columnas específicas para alquiler de habitaciones")
+
+        
         scroll_pause, card_delay, post_card_delay = self.get_delays()
         
         # Log delay configuration for Extra Stealth
@@ -996,7 +1003,7 @@ class ScraperController:
                         # If this is the first property, determine target file
                         if target_file is None:
                             await page.wait_for_timeout(PAGE_WAIT_MS)
-                            d = await extract_detail_fields(page, debug_items=False)
+                            d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                             row = {"URL": key, **d}
                             
                             # Build target filename: idealista_[Ciudad]_[venta/alquiler].xlsx
@@ -1047,7 +1054,7 @@ class ScraperController:
                                         continue  # Still paused, loop to play alarm again
                                     
                                     # User resumed - retry extraction
-                                    d = await extract_detail_fields(page, debug_items=False)
+                                    d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                                     row = {"URL": key, **d}
                                     miss = missing_fields(row)
                                     
@@ -1088,7 +1095,7 @@ class ScraperController:
                         if key in url_dates:
                             # Still need to visit to check if listing is expired
                             await page.wait_for_timeout(PAGE_WAIT_MS)
-                            d = await extract_detail_fields(page, debug_items=False)
+                            d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                             
                             # Check if listing is expired
                             if d.get("_isExpired"):
@@ -1111,7 +1118,7 @@ class ScraperController:
                         
                         # Scrape the property
                         await page.wait_for_timeout(PAGE_WAIT_MS)
-                        d = await extract_detail_fields(page, debug_items=False)
+                        d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                         
                         row = {"URL": key, **d}
                         miss = missing_fields(row)
@@ -1163,7 +1170,7 @@ class ScraperController:
                                     continue  # Still paused, loop to play alarm again
                                 
                                 # User resumed - retry extraction
-                                d = await extract_detail_fields(page, debug_items=False)
+                                d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                                 row = {"URL": key, **d}
                                 miss = missing_fields(row)
                                 
