@@ -1027,6 +1027,8 @@ class ScraperController:
                             # Process first property - check for missing fields (CAPTCHA)
                             miss = missing_fields(row, is_room_mode=self._is_room_mode)
                             if miss:
+                                self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Campos faltantes: {miss}")
+                                self.log("WARN", f"Datos extraidos: Titulo='{row.get('Titulo')}', price='{row.get('price')}', URL='{row.get('URL')}'")
                                 self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado. Resuelve el CAPTCHA y pulsa Resume.")
                                 
                                 if self.on_status:
@@ -1143,6 +1145,8 @@ class ScraperController:
                         
                         # If missing fields and not a "not found" page, might be CAPTCHA
                         if miss:
+                            self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Campos faltantes: {miss}")
+                            self.log("WARN", f"Datos extraidos: Titulo='{row.get('Titulo')}', price='{row.get('price')}', URL='{row.get('URL')}'")
                             self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado. Resuelve el CAPTCHA y pulsa Resume.")
                             
                             if self.on_status:

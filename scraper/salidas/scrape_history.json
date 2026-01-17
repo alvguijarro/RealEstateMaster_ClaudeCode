@@ -8,14 +8,14 @@
   },
   "https://www.idealista.com/areas/alquiler-viviendas?shape=%28%28uozxFxgwXihWs%7BZlePonM~gT~aOceMbhY%29%29": {
     "output_file": "idealista_Segovia_alquiler.xlsx",
-    "last_scraped": "2026-01-17T17:48:56.961742",
-    "properties_count": 28,
+    "last_scraped": "2026-01-17T22:46:23.940718",
+    "properties_count": 0,
     "pages_scraped": 1,
     "original_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28uozxFxgwXihWs%7BZlePonM%7EgT%7EaOceMbhY%29%29"
   },
   "https://www.idealista.com/areas/alquiler-habitacion?shape=%28%28%7B_buFjacWclMg%7Bo%40ktImvUhqBgfO%60eHszItp%5E%60ek%40_lAn%7Cj%40qyO~qI%29%29": {
     "output_file": "idealista_alquiler-habitaciones.xlsx",
-    "last_scraped": "2026-01-17T22:40:34.714989",
+    "last_scraped": "2026-01-17T22:47:12.712391",
     "properties_count": 30,
     "pages_scraped": 1,
     "original_url": "https://www.idealista.com/areas/alquiler-habitacion/?shape=%28%28%7B_buFjacWclMg%7Bo%40ktImvUhqBgfO%60eHszItp%5E%60ek%40_lAn%7Cj%40qyO%7EqI%29%29"
