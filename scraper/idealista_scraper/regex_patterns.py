@@ -39,11 +39,15 @@ ALT_SOT_RE = re.compile(r"^sótano|^sotano", re.IGNORECASE)
 
 # --- NEW: Room Rental Patterns ---
 RX_ROOM_SIZE = re.compile(r"(?:habitaci[oó]n|hab\.|dormitorio)\s*(?:de)?\s*(\d+(?:[\.,]\d+)?)\s*(?:m²|m2)", re.IGNORECASE)
+# Matches "Tamaño de la habitación: 9 m²" pattern from details_property_features
+RX_TAMANO_HABITACION = re.compile(r"tama[ñn]o\s*(?:de\s*la)?\s*habitaci[oó]n[:.\s]*(\d+(?:[\.,]\d+)?)\s*(?:m²|m2)?", re.IGNORECASE)
 # Matches pure size in features list often just "12 m²"
 RX_PURE_M2 = re.compile(r"^(\d+(?:[\.,]\d+)?)\s*(?:m²|m2)$", re.IGNORECASE)
 
 RX_FLAT_SIZE_CONTEXT = re.compile(r"(?:en|de)\s*piso\s*(?:de)?\s*(\d+(?:[\.,]\d+)?)", re.IGNORECASE)
+# Matches "4 hab." from info-features span
 RX_NUM_HAB_TOTAL = re.compile(r"(\d+)\s*hab", re.IGNORECASE)
 
 RX_GASTOS_INCLUIDOS = re.compile(r"(gastos\s*incluidos|facturas\s*incluidas)", re.IGNORECASE)
 RX_AMUEBLADA = re.compile(r"(amueblada|con\s*muebles|armario\s*empotrado)", re.IGNORECASE)
+

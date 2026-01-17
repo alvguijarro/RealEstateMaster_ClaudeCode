@@ -11,7 +11,8 @@ from .regex_patterns import (
     CONSUMO_KWH_RE, EMISIONES_KG_RE, ALT_PB_RE, ALT_PB_SIG_RE, ALT_PRAL_RE, ALT_PRAL_SIG_RE,
     ALT_ENTRE_RE, ALT_ATICO_RE, ALT_NUM_ORD_RE, ALT_NUM_FORM_RE, ALT_NUM_AFTER_RE,
     ALT_WORDS_RE, ALT_SNUM_RE, ALT_NEGNUM_RE, ALT_SEM_SOT_RE, ALT_SOT_RE,
-    RX_ROOM_SIZE, RX_FLAT_SIZE_CONTEXT, RX_NUM_HAB_TOTAL, RX_GASTOS_INCLUIDOS, RX_AMUEBLADA, RX_PURE_M2
+    RX_ROOM_SIZE, RX_FLAT_SIZE_CONTEXT, RX_NUM_HAB_TOTAL, RX_GASTOS_INCLUIDOS, RX_AMUEBLADA, RX_PURE_M2,
+    RX_TAMANO_HABITACION
 )
 
 def find_altura(raw: str) -> Optional[str]:
@@ -436,7 +437,13 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
             continue
 
         if is_room_mode:
-            # Try to find specific room size patterns
+            # Try to find room size from "Tamaño de la habitación: X m²" (highest priority)
+            m_tamano = RX_TAMANO_HABITACION.search(raw)
+            if m_tamano:
+                 habitacion_m2 = normalize_price(m_tamano.group(1))
+                 continue
+            
+            # Alternative: room size patterns like "habitación de X m²"
             m_room = RX_ROOM_SIZE.search(raw)
             if m_room:
                  habitacion_m2 = normalize_price(m_room.group(1))
@@ -452,7 +459,7 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
             if m_flat:
                  piso_m2 = normalize_price(m_flat.group(1))
             
-            # Total rooms in flat
+            # Total rooms in flat from info-features "4 hab."
             m_habs = RX_NUM_HAB_TOTAL.search(raw)
             if m_habs:
                  num_habitaciones_total = int(m_habs.group(1))
