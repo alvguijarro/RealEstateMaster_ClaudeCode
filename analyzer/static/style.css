@@ -196,10 +196,13 @@ input:focus {
 .results-table th {
     text-align: left;
     padding: 15px;
-    background: rgba(0, 0, 0, 0.3);
+    background: #1e293b; /* Solid background matching card-bg to prevent transparency issues */
     color: var(--text-muted);
     font-weight: 600;
     border-bottom: 2px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
 .results-table td {
