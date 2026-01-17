@@ -108,12 +108,12 @@ def extract_location_details(map_lis: List[str]):
             barrio = txt
             continue
         if re.match(r"\s*distrito\b", txt, flags=re.I) and distrito is None:
-             # User wants full text, e.g. "Distrito Centro"
-            distrito = txt
+            # Remove "Distrito " prefix - e.g., "Distrito Arganzuela" -> "Arganzuela"
+            distrito = re.sub(r"(?i)^distrito\s+", "", txt).strip()
             continue
         if (not re.match(r"\s*(calle|barrio|distrito)\b", txt, flags=re.I)) and ("," not in txt) and ciudad is None:
-            # Validation: Block street names being assigned to Ciudad
-            if not re.match(r"(?i)^(cl|calle|traves[ií]a|avenida|ronda|paseo|camino|plaza|glorieta)\b", txt):
+            # Validation: Block street names and urbanization names from being assigned to Ciudad
+            if not re.match(r"(?i)^(cl|calle|traves[ií]a|avenida|ronda|paseo|camino|plaza|glorieta|urb\.?|urbanizaci[oó]n)\b", txt):
                 ciudad = txt
             
     # 2. Logic Inference / Dictionary Lookup
@@ -125,14 +125,14 @@ def extract_location_details(map_lis: List[str]):
             # Let's clean standard prefixes
             clean_b = re.sub(r"(?i)^barrio\s+(de\s+)?", "", barrio).strip()
             if clean_b in BARRIO_TO_DISTRITO:
-                distrito = "Distrito " + BARRIO_TO_DISTRITO[clean_b]
+                distrito = BARRIO_TO_DISTRITO[clean_b]  # No longer adding "Distrito " prefix
                 
         # Strategy B: Clean "Zona X" breadcrumbs
         # Sometimes district is just "Centro" in the breadcrumbs but identified as a zone or generic text
         if not distrito and zona:
             # If 'Zona Centro' -> Distrito Centro
             if "centro" in zona.lower():
-                distrito = "Distrito Centro"
+                distrito = "Centro"
 
     # 3. Ultimate Fallback: Small Villages/Towns
     # If it's a small town (no administrative districts), the "Distrito" is effectively the town itself.
@@ -140,6 +140,7 @@ def extract_location_details(map_lis: List[str]):
         distrito = ciudad
 
     return calle, barrio, distrito, ciudad, zona, provincia
+
 
 async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: bool = False) -> dict:
     """Main orchestrator for detail page field extraction using Page.evaluate + Python fallbacks."""
