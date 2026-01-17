@@ -837,6 +837,8 @@ class ScraperController:
                 # Check if registered file uses a different category
                 if f"_{expected_category}." not in target_file:
                     # Rebuild target_file with correct category
+                    # Note: At this point, no property scraped yet, so use H1-detected city
+                    # The filename may be updated after first property if Ciudad differs
                     ciudad = self._detected_city
                     if ciudad:
                         ciudad_clean = sanitize_filename_part(ciudad)
@@ -1007,8 +1009,8 @@ class ScraperController:
                             row = {"URL": key, **d}
                             
                             # Build target filename: idealista_[Ciudad]_[venta/alquiler].xlsx
-                            # Prefer city from listing h1 header, fall back to property's Ciudad
-                            ciudad = self._detected_city or row.get("Ciudad")
+                            # Prioritize city from first scraped property's Ciudad field
+                            ciudad = row.get("Ciudad") or self._detected_city
                             category = self._detected_sheet or "unknown"
                             
                             if ciudad:
