@@ -764,7 +764,16 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
         "Baja anuncio": data.get("lowDate"),
     }
 
-def missing_fields(row: dict):
-    """Validation helper for required output fields."""
-    required = ["URL", "price", "Titulo", "Ubicacion", "Provincia"]
+def missing_fields(row: dict, is_room_mode: bool = False):
+    """Validation helper for required output fields.
+    
+    For room mode, we're less strict since habitaciones listings often have
+    different data availability (e.g., Provincia may not be easily extractable).
+    """
+    if is_room_mode:
+        # For rooms, only require the absolute essentials
+        required = ["URL", "price", "Titulo"]
+    else:
+        required = ["URL", "price", "Titulo", "Ubicacion", "Provincia"]
     return [k for k in required if row.get(k) in (None, "", float("nan"))]
+

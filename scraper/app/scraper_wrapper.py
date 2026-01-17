@@ -1025,7 +1025,7 @@ class ScraperController:
                             self.log("INFO", f"Loaded {len(url_dates)} existing URLs from file")
                             
                             # Process first property - check for missing fields (CAPTCHA)
-                            miss = missing_fields(row)
+                            miss = missing_fields(row, is_room_mode=self._is_room_mode)
                             if miss:
                                 self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado. Resuelve el CAPTCHA y pulsa Resume.")
                                 
@@ -1056,7 +1056,7 @@ class ScraperController:
                                     # User resumed - retry extraction
                                     d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                                     row = {"URL": key, **d}
-                                    miss = missing_fields(row)
+                                    miss = missing_fields(row, is_room_mode=self._is_room_mode)
                                     
                                     if not miss:
                                         elapsed = int(asyncio.get_running_loop().time() - wait_start)
@@ -1121,7 +1121,7 @@ class ScraperController:
                         d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                         
                         row = {"URL": key, **d}
-                        miss = missing_fields(row)
+                        miss = missing_fields(row, is_room_mode=self._is_room_mode)
                         
                         # Check if this is a "listing not found" page (not a CAPTCHA)
                         if miss:
@@ -1172,7 +1172,7 @@ class ScraperController:
                                 # User resumed - retry extraction
                                 d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                                 row = {"URL": key, **d}
-                                miss = missing_fields(row)
+                                miss = missing_fields(row, is_room_mode=self._is_room_mode)
                                 
                                 if not miss:
                                     elapsed = int(asyncio.get_running_loop().time() - wait_start)
