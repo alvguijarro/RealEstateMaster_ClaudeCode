@@ -57,6 +57,18 @@ def play_captcha_alert():
         print("\a")  # ASCII Bell
 
 
+def play_blocked_alert():
+    """Play an alarming descending tone to indicate scraper has been blocked."""
+    try:
+        import winsound
+        # Play an urgent descending alert (indicates failure/stop)
+        winsound.Beep(880, 400)   # A5 - 400ms
+        winsound.Beep(659, 400)   # E5 - 400ms
+        winsound.Beep(440, 600)   # A4 - 600ms (held longer, lower)
+    except ImportError:
+        print("\a\a\a")  # Triple ASCII Bell
+
+
 # =============================================================================
 
 def fold_text(s: Optional[str]) -> str:

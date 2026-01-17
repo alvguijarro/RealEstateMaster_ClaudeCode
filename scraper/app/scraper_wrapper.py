@@ -34,7 +34,7 @@ from idealista_scraper.config import (
     EXTRA_STEALTH_COFFEE_BREAK_RANGE, EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY,
     EXTRA_STEALTH_READING_TIME_PER_100_CHARS, USER_AGENTS, VIEWPORT_SIZES
 )
-from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert
+from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
@@ -560,6 +560,19 @@ class ScraperController:
                 try:
                     title = await page.title()
                     t_lower = title.lower()
+                    
+                    # Check for permanent block (uso indebido)
+                    page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+                    page_text_lower = page_text.lower() if page_text else ""
+                    
+                    if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower:
+                        self.log("ERR", "Se ha detectado un uso indebido El acceso se ha bloqueado")
+                        play_blocked_alert()
+                        if self.on_status:
+                            self.on_status("blocked")
+                        self._stop_evt.set()
+                        raise Exception("Acceso bloqueado por uso indebido")
+                    
                     # Common indicators for Idealista/Cloudflare blockage
                     is_captcha = (
             "attention" in t_lower or 
@@ -599,6 +612,7 @@ class ScraperController:
                                 pass
                 except Exception:
                     pass
+
 
                 await asyncio.sleep(3.0)
                 return
