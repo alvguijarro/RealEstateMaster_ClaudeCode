@@ -117,8 +117,8 @@ def extract_location_details(map_lis: List[str]):
             calle = (m.group(1).strip() if m else txt)
             continue
         if re.match(r"\s*barrio\b", txt, flags=re.I) and barrio is None:
-            # User wants full text, e.g. "Barrio de las Letras"
-            barrio = txt
+            # Remove "Barrio " prefix - e.g., "Barrio Delicias" -> "Delicias"
+            barrio = re.sub(r"(?i)^barrio\s+(de\s+)?", "", txt).strip()
             continue
         if re.match(r"\s*distrito\b", txt, flags=re.I) and distrito is None:
             # Remove "Distrito " prefix - e.g., "Distrito Arganzuela" -> "Arganzuela"
