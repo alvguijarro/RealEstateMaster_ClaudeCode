@@ -81,12 +81,25 @@ def extract_location_details(map_lis: List[str]):
     """Parse Calle, Barrio, Distrito, Ciudad, Zona, Provincia from header map list items."""
     calle = barrio = distrito = ciudad = zona = provincia = None
     
+    # First pass: Extract Ciudad from the last line with a comma (e.g., "Madrid capital, Madrid" -> "Madrid")
+    # The last item in map_lis with a comma typically has format "Zone/Area, City"
+    for raw in reversed(map_lis or []):
+        txt = (raw or "").strip()
+        if "," in txt:
+            parts = txt.split(",")
+            candidate_city = parts[-1].strip()
+            # Validate: must be a valid province (which works for major cities like Madrid, Barcelona, etc.)
+            if get_comunidad(candidate_city):
+                ciudad = candidate_city
+                provincia = candidate_city  # In Spain, major cities often match province name
+                break
+    
     # 1. Standard Extraction
     for raw in (map_lis or []):
         txt = (raw or "").strip()
         
-        # Try to find valid province using our lookup
-        if "," in txt:
+        # Try to find valid province using our lookup (fallback if not found above)
+        if "," in txt and provincia is None:
             parts = txt.split(",")
             candidate = parts[-1].strip()
             # If this candidate maps to a community, it's a valid province
@@ -111,7 +124,8 @@ def extract_location_details(map_lis: List[str]):
             # Remove "Distrito " prefix - e.g., "Distrito Arganzuela" -> "Arganzuela"
             distrito = re.sub(r"(?i)^distrito\s+", "", txt).strip()
             continue
-        if (not re.match(r"\s*(calle|barrio|distrito)\b", txt, flags=re.I)) and ("," not in txt) and ciudad is None:
+        # Fallback ciudad extraction for simple entries (only if not already set)
+        if ciudad is None and (not re.match(r"\s*(calle|barrio|distrito)\b", txt, flags=re.I)) and ("," not in txt):
             # Validation: Block street names and urbanization names from being assigned to Ciudad
             if not re.match(r"(?i)^(cl|calle|traves[ií]a|avenida|ronda|paseo|camino|plaza|glorieta|urb\.?|urbanizaci[oó]n)\b", txt):
                 ciudad = txt
@@ -140,6 +154,7 @@ def extract_location_details(map_lis: List[str]):
         distrito = ciudad
 
     return calle, barrio, distrito, ciudad, zona, provincia
+
 
 
 async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: bool = False) -> dict:
