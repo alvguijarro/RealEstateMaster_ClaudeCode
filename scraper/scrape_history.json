@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-01-17T22:59:55.301278",
+    "seed_url": "https://www.idealista.com/areas/alquiler-habitacion/?shape=%28%28%7B_buFjacWclMg%7Bo%40ktImvUhqBgfO%60eHszItp%5E%60ek%40_lAn%7Cj%40qyO%7EqI%29%29",
+    "properties_count": 6,
+    "category": "alquiler-habitaciones",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_alquiler-habitaciones.xlsx",
+    "filename": "idealista_alquiler-habitaciones.xlsx"
+  },
+  {
     "timestamp": "2026-01-17T22:33:48.598070",
     "seed_url": "https://www.idealista.com/areas/alquiler-habitacion/pagina-37?shape=%28%28%7B_buFjacWclMg%7Bo%40ktImvUhqBgfO%60eHszItp%5E%60ek%40_lAn%7Cj%40qyO~qI%29%29",
     "properties_count": 30,

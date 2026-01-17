@@ -28,7 +28,7 @@ EXTRA_STEALTH_POST_CARD_DELAY_RANGE: Tuple[float, float] = (6.0, 18.0)
 
 # Extra Stealth: Session limits and rest periods
 EXTRA_STEALTH_SESSION_LIMIT: int = 50  # Properties before mandatory rest
-EXTRA_STEALTH_REST_DURATION_RANGE: Tuple[float, float] = (300, 600)  # 5-10 minutes in seconds
+EXTRA_STEALTH_REST_DURATION_RANGE: Tuple[float, float] = (600, 900)  # 10-15 minutes in seconds
 EXTRA_STEALTH_COFFEE_BREAK_RANGE: Tuple[float, float] = (30, 90)  # Random pause every N properties
 EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY: Tuple[int, int] = (10, 18)  # Every 10-18 properties
 
