@@ -823,8 +823,27 @@ class ScraperController:
             # ===== SINGLE-PASS SCRAPING: Page by page, scrape immediately =====
             self.log("INFO", "Starting page-by-page scraping...")
             
-            # target_file and url_dates already set from registry lookup above
-            # Only load url_dates if not already preloaded and target_file exists
+            # Override target_file if category detection differs from registry
+            # This ensures 'alquiler-habitaciones' URLs get the correct filename
+            if self._detected_sheet and target_file:
+                expected_category = self._detected_sheet
+                # Check if registered file uses a different category
+                if f"_{expected_category}." not in target_file:
+                    # Rebuild target_file with correct category
+                    ciudad = self._detected_city
+                    if ciudad:
+                        ciudad_clean = sanitize_filename_part(ciudad)
+                        new_target_file = f"idealista_{ciudad_clean}_{expected_category}.xlsx"
+                    else:
+                        new_target_file = f"idealista_{expected_category}.xlsx"
+                    self.log("INFO", f"Updating target file: {target_file} -> {new_target_file}")
+                    target_file = new_target_file
+                    # Reset url_dates since we're using a different file
+                    url_dates = {}
+                    preloaded_urls = set()
+                    self._processed.clear()
+            
+            # target_file and url_dates already set from registry lookup above (or overridden)
             
             # Extract starting page from seed URL (e.g., /pagina-5 starts at page 5)
             page_num = extract_page_from_url(self.seed_url)
