@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real Estate Master - Sidebar</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -298,6 +299,10 @@
                 <div class="icon">📊</div>
                 <span class="label">Analytics Pro</span>
             </div>
+            <div class="nav-item" data-view="metrics" onclick="switchView('metrics')">
+                <div class="icon">📈</div>
+                <span class="label">Market Metrics</span>
+            </div>
         </div>
 
         <div style="margin-top: auto;">
@@ -337,12 +342,21 @@
             </div>
             <iframe id="frame-analyzer" src=""></iframe>
         </div>
+
+        <div id="view-metrics" class="view-container">
+            <div class="loading-overlay" id="loading-metrics">
+                <div class="spinner"></div>
+                <div>Cargando Market Metrics...</div>
+            </div>
+            <iframe id="frame-metrics" src=""></iframe>
+        </div>
     </main>
 
     <script>
         const PORTS = {
             'scraper': parseInt("{{ scraper_port|default(5003) }}"),
-            'analyzer': parseInt("{{ analyzer_port|default(5001) }}")
+            'analyzer': parseInt("{{ analyzer_port|default(5001) }}"),
+            'metrics': parseInt("{{ metrics_port|default(5004) }}")
         };
 
         function toggleSidebar() {
@@ -407,7 +421,7 @@
 
                 // Service is ready - increment counter and hide home spinner
                 servicesReady++;
-                if (servicesReady >= 2) {
+                if (servicesReady >= 3) {
                     const status = document.getElementById('services-status');
                     if (status) {
                         status.style.opacity = '0';
@@ -441,8 +455,8 @@
             document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
             document.getElementById('view-' + viewName).classList.add('active');
 
-            // For scraper/analyzer views, ensure service is ready before loading iframe
-            if (viewName === 'scraper' || viewName === 'analyzer') {
+            // For scraper/analyzer/metrics views, ensure service is ready before loading iframe
+            if (viewName === 'scraper' || viewName === 'analyzer' || viewName === 'metrics') {
                 const frame = document.getElementById(`frame-${viewName}`);
                 const loading = document.getElementById(`loading-${viewName}`);
 
@@ -478,11 +492,12 @@
             }
         }
 
-        // Auto-start both services on page load
+        // Auto-start all services on page load
         window.addEventListener('DOMContentLoaded', () => {
             Promise.all([
                 initService('scraper'),
-                initService('analyzer')
+                initService('analyzer'),
+                initService('metrics')
             ]);
         });
 

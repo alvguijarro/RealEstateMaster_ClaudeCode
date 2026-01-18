@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Metrics Dashboard</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/style.css?v={{ cache_bust }}">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">📊</span>
+                    <h1>Market Metrics</h1>
+                </div>
+                <div class="status-badge" id="statusBadge">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Ready</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Filters Section -->
+            <section class="panel filters-panel">
+                <h3 class="panel-title">
+                    <span class="icon">⚙️</span> Configuration
+                </h3>
+
+                <div class="filters-grid">
+                    <div class="input-group">
+                        <label for="fileSelect">VENTA Excel File</label>
+                        <select id="fileSelect">
+                            <option value="">Loading files...</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group" id="districtGroup" style="display: none;">
+                        <label for="districtSearch">Filter by Districts (optional)</label>
+                        <div class="district-dropdown">
+                            <input type="text" id="districtSearch" placeholder="Search districts...">
+                            <div id="districtList" class="checkbox-list"></div>
+                        </div>
+                        <small id="districtInfo" class="info-text">Selected: All</small>
+                    </div>
+
+                    <button class="btn btn-primary" id="loadBtn" disabled>
+                        <span class="btn-icon">📈</span>
+                        Load Analytics
+                    </button>
+                </div>
+            </section>
+
+            <!-- Stats Summary -->
+            <section class="stats-bar" id="statsBar" style="display: none;">
+                <div class="stat-item">
+                    <span class="stat-value" id="statTotal">0</span>
+                    <span class="stat-label">Total Properties</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="statDistricts">0</span>
+                    <span class="stat-label">Districts</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="statPriceAvg">-</span>
+                    <span class="stat-label">Avg €/m²</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="statPriceMedian">-</span>
+                    <span class="stat-label">Median €/m²</span>
+                </div>
+            </section>
+
+            <!-- Filter Indicator (shown when cross-filtering is active) -->
+            <div class="filter-indicator" id="filterIndicator" style="display: none;">
+                <span class="filter-icon">🔍</span>
+                <div class="filter-tags-container" id="filterTagsContainer"></div>
+                <button class="filter-clear-all" onclick="clearAllFilters()">Clear All</button>
+            </div>
+
+            <!-- Charts Grid -->
+            <div class="charts-grid" id="chartsGrid" style="display: none;">
+                <!-- District Table -->
+                <section class="panel chart-panel table-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">🏘️</span> Properties by District
+                    </h3>
+                    <div class="table-container">
+                        <table class="data-table" id="districtTable">
+                            <thead>
+                                <tr>
+                                    <th>District</th>
+                                    <th>Count</th>
+                                    <th>% of Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="districtTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Room Distribution Pie Chart -->
+                <section class="panel chart-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">🛏️</span> Room Distribution
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="roomChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Size Histogram -->
+                <section class="panel chart-panel wide">
+                    <h3 class="panel-title">
+                        <span class="icon">📏</span> Size Distribution (m²)
+                    </h3>
+                    <div class="chart-container histogram">
+                        <canvas id="sizeChart"></canvas>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState">
+                <span class="empty-icon">📊</span>
+                <p>Select a VENTA Excel file to view market metrics</p>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Market Metrics Dashboard v1.0</p>
+        </footer>
+    </div>
+
+    <script src="/static/script.js?v={{ cache_bust }}"></script>
+</body>
+
+</html>
