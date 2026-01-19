@@ -454,6 +454,15 @@ class ScraperController:
         self.log("INFO", "Stopping scraper...")
         if self.on_status:
             self.on_status("stopping")
+
+    def set_mode(self, mode: str):
+        """Update scraping mode dynamically."""
+        if mode not in ["fast", "stealth"]:
+            return
+        
+        old_mode = self.mode
+        self.mode = mode
+        self.log("INFO", f"Switched mode: {old_mode} -> {mode}")
     
     def save_state(self, current_page: int, target_file: Optional[str] = None):
         """Save current scraping state for resume functionality."""
@@ -780,9 +789,11 @@ class ScraperController:
                     total_count = int(match.group(1).replace('.', ''))
                     self.log("INFO", f"Extracted count from h1: {total_count}")
             
-            # If still no count, log warning
+            # If still no count, log error and STOP
             if total_count == 0:
-                self.log("WARN", "Could not extract count from h1, using 0")
+                self.log("ERR", "Deteniendo scraping. URL no válida (0 inmuebles encontrados)")
+                self.stop()
+                return
             
             # Detect alquiler/venta from h1 text
             h1_lower = h1txt.lower()

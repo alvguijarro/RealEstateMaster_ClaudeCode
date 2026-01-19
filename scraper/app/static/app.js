@@ -482,6 +482,21 @@ function selectMode(mode) {
         'stealth': 'Stealth'
     };
     statMode.textContent = modeNames[mode] || mode;
+
+    // Hot-swap: Notify server if scraper exists
+    if (isRunning || isPaused) {
+        fetch('/api/set_mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: mode })
+        }).then(response => {
+            if (response.ok) {
+                addLog('INFO', `Modo cambiado dinámicamente a: ${modeNames[mode]}`);
+            } else {
+                addLog('ERR', 'Error al cambiar modo');
+            }
+        });
+    }
 }
 
 function buildTableHeader() {
@@ -589,13 +604,30 @@ function handleStatusChange(data) {
         isRunning = true;
         isPaused = false;
         startBtn.disabled = true;
+        if (dualModeBtn) dualModeBtn.disabled = true;
         pauseBtn.disabled = false;
         stopBtn.disabled = false;
         pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
         seedUrlInput.disabled = true;
+
+        // Disable mode switching while running (must pause first)
+        fastBtn.style.pointerEvents = 'none';
+        fastBtn.style.opacity = '0.5';
+        if (stealthBtn) {
+            stealthBtn.style.pointerEvents = 'none';
+            stealthBtn.style.opacity = '0.5';
+        }
     } else if (status === 'paused') {
         isPaused = true;
         pauseBtn.innerHTML = '<span class="btn-icon">▶</span> Reanudar';
+
+        // Enable mode switching when paused
+        fastBtn.style.pointerEvents = 'auto';
+        fastBtn.style.opacity = '1';
+        if (stealthBtn) {
+            stealthBtn.style.pointerEvents = 'auto';
+            stealthBtn.style.opacity = '1';
+        }
     } else if (status === 'captcha') {
         isPaused = true;
         pauseBtn.disabled = false;
@@ -619,6 +651,14 @@ function handleStatusChange(data) {
             seedUrlInput.disabled = false;
             if (typeof validateDualMode === 'function') validateDualMode();
             stopTimer();
+
+            // Re-enable mode switching
+            fastBtn.style.pointerEvents = 'auto';
+            fastBtn.style.opacity = '1';
+            if (stealthBtn) {
+                stealthBtn.style.pointerEvents = 'auto';
+                stealthBtn.style.opacity = '1';
+            }
 
             // Show download button
             if (data.file) {

@@ -226,6 +226,22 @@ def start_scraping():
     return jsonify({'status': 'started', 'mode': mode, 'dual_mode': dual_mode})
 
 
+@app.route('/api/set_mode', methods=['POST'])
+def set_mode():
+    """Update scraping mode dynamically."""
+    data = request.get_json()
+    mode = data.get('mode')
+    
+    if mode not in ['fast', 'stealth']:
+        return jsonify({'error': 'Invalid mode'}), 400
+    
+    if scraper_controller:
+        scraper_controller.set_mode(mode)
+        return jsonify({'status': 'mode_updated', 'mode': mode})
+    
+    return jsonify({'error': 'Scraper not running'}), 400
+
+
 @app.route('/api/pause', methods=['POST'])
 def pause_scraping():
     """Pause the current scraping session."""
