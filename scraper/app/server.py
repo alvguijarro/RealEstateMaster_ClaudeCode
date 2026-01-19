@@ -155,6 +155,7 @@ def start_scraping():
     data = request.get_json()
     seed_url = data.get('seed_url', '').strip()
     mode = data.get('mode', 'stealth')  # 'stealth' or 'fast'
+    dual_mode = data.get('dual_mode', False)
     output_dir = data.get('output_dir', '').strip() or DEFAULT_OUTPUT_DIR
     
     if not seed_url:
@@ -170,31 +171,59 @@ def start_scraping():
     if scraper_controller and scraper_controller.is_running:
         scraper_controller.stop()
     
-    # Create new controller with callbacks
-    scraper_controller = ScraperController(
-        seed_url=seed_url,
-        output_dir=output_dir,
-        mode=mode,
-        on_log=emit_log,
-        on_property=emit_property,
-        on_status=emit_status,
-        on_progress=emit_progress,
-        on_browser_closed=emit_browser_closed,
-    )
+    def create_controller(url):
+        return ScraperController(
+            seed_url=url,
+            output_dir=output_dir,
+            mode=mode,
+            on_log=emit_log,
+            on_property=emit_property,
+            on_status=emit_status,
+            on_progress=emit_progress,
+            on_browser_closed=emit_browser_closed,
+        )
+
+    # Create initial controller
+    scraper_controller = create_controller(seed_url)
     
     # Start scraping in background thread
     def run_scraper():
+        global scraper_controller
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        
         try:
+            # Run first scrape
             loop.run_until_complete(scraper_controller.run())
+            
+            # Check if we should run second leg (Dual Mode)
+            # Only proceed if not stopped manually and browser wasn't closed by user
+            if dual_mode and scraper_controller.status == 'completed':
+                emit_log('INFO', '=== DUAL MODE: Starting second phase ===')
+                
+                # Swap URL category
+                new_url = None
+                if '/alquiler-viviendas/' in seed_url:
+                    new_url = seed_url.replace('/alquiler-viviendas/', '/venta-viviendas/')
+                elif '/venta-viviendas/' in seed_url:
+                    new_url = seed_url.replace('/venta-viviendas/', '/alquiler-viviendas/')
+                
+                if new_url:
+                    emit_log('INFO', f'Switching to: {new_url}')
+                    # Create new controller for second leg
+                    scraper_controller = create_controller(new_url)
+                    # Run second scrape
+                    loop.run_until_complete(scraper_controller.run())
+                else:
+                    emit_log('WARN', 'Could not determine swapped URL for Dual Mode')
+                    
         finally:
             loop.close()
     
     thread = threading.Thread(target=run_scraper, daemon=True)
     thread.start()
     
-    return jsonify({'status': 'started', 'mode': mode})
+    return jsonify({'status': 'started', 'mode': mode, 'dual_mode': dual_mode})
 
 
 @app.route('/api/pause', methods=['POST'])

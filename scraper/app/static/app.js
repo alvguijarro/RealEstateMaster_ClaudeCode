@@ -9,6 +9,7 @@ const outputDirDisplay = document.getElementById('outputDirDisplay');
 const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const stopBtn = document.getElementById('stopBtn');
+const dualModeBtn = document.getElementById('dualModeBtn');
 const fastBtn = document.getElementById('fastBtn');
 const stealthBtn = document.getElementById('stealthBtn');
 const statusBadge = document.getElementById('statusBadge');
@@ -421,7 +422,10 @@ function initializeUI() {
     }
 
     // Action buttons
-    startBtn.addEventListener('click', startScraping);
+    startBtn.addEventListener('click', () => startScraping(false));
+    if (dualModeBtn) {
+        dualModeBtn.addEventListener('click', () => startScraping(true));
+    }
     pauseBtn.addEventListener('click', togglePause);
     stopBtn.addEventListener('click', stopScraping);
     clearLogsBtn.addEventListener('click', clearLogs);
@@ -436,9 +440,35 @@ function initializeUI() {
     // Enter key to start
     seedUrlInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !isRunning) {
-            startScraping();
+            startScraping(false);
         }
     });
+
+    // URL validation for Dual Mode
+    seedUrlInput.addEventListener('input', validateDualMode);
+}
+
+function validateDualMode() {
+    if (!dualModeBtn) return;
+
+    const url = seedUrlInput.value.trim();
+    const hasPagina = url.includes('/pagina-');
+    const isIdealista = url.includes('idealista.com');
+
+    // Enable only if it's idealista URL AND does NOT have /pagina-
+    if (isIdealista && !hasPagina && url.length > 0) {
+        dualModeBtn.disabled = false;
+        dualModeBtn.style.cursor = 'pointer';
+        dualModeBtn.title = "Iniciar scraping secuencial (Alquiler + Venta)";
+    } else {
+        dualModeBtn.disabled = true;
+        dualModeBtn.style.cursor = 'not-allowed';
+        if (hasPagina) {
+            dualModeBtn.title = "No disponible para URLs paginadas específico (contiene /pagina-X)";
+        } else {
+            dualModeBtn.title = "Introduce una URL válida de Idealista";
+        }
+    }
 }
 
 function selectMode(mode) {
@@ -587,6 +617,7 @@ function handleStatusChange(data) {
             stopBtn.disabled = true;
             pauseBtn.classList.remove('btn-warning');
             seedUrlInput.disabled = false;
+            if (typeof validateDualMode === 'function') validateDualMode();
             stopTimer();
 
             // Show download button
@@ -614,7 +645,7 @@ function handleStatusChange(data) {
     }
 }
 
-async function startScraping() {
+async function startScraping(isDualMode = false) {
     // Initialize Audio Context on user gesture to prevent blocking
     if (!audioCtx) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -675,7 +706,8 @@ async function startScraping() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 seed_url: seedUrl,
-                mode: currentMode
+                mode: currentMode,
+                dual_mode: isDualMode
             })
         });
 
