@@ -288,6 +288,9 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
         }
 
         const mapLis = Array.from(document.querySelectorAll('li.header-map-list')).map(el => (el.textContent || '').trim());
+        
+        // Extract info-features (header summary: e.g. "105 m²", "3 hab.", "Bajo exterior con ascensor")
+        const infoFeatures = Array.from(document.querySelectorAll('.info-features span')).map(el => (el.textContent || '').trim()).filter(Boolean);
 
         let description = null;
         const descEl = document.querySelector('.adCommentsLanguage.expandable.is-expandable.with-expander-button');
@@ -370,7 +373,7 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
         }
 
         return {
-          title, ubicFull, price, items,
+          title, ubicFull, price, items, infoFeatures,
           actualizado, ppm2_raw, description, oldPriceRaw, mapLis,
           energy: { c1, c2, e1, e2 },
           gastosComunidad,
@@ -386,7 +389,12 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
     ubic, provincia = split_location(data.get("ubicFull"))
     title = data.get("title")
     price = normalize_price(data.get("price"))
-    raw_items: List[str] = data.get("items") or []
+    
+    # Prepend infoFeatures to items so they are processed FIRST.
+    # This ensures "Bajo exterior" from the header is found before any confused "segunda mano" text.
+    info_features = data.get("infoFeatures") or []
+    raw_items: List[str] = info_features + (data.get("items") or [])
+    
     map_lis: List[str] = data.get("mapLis") or []
     actualizado_hace = data.get("actualizado")
     ppm2_raw = data.get("ppm2_raw")
@@ -662,6 +670,12 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
     if descripcion and re.search(r"\bcopropiedad\b", descripcion, re.I):
         copropiedad = "Sí"
 
+    # Cesión de remate detection - check description for variants
+    # Handles: "cesión de remate", "cesion de remate", "cesión remate", "cesion remate"
+    ces_remate = None
+    if descripcion and re.search(r"\bcesi[oó]n\s*(de\s*)?remate\b", descripcion, re.I):
+        ces_remate = "Sí"
+
     consumo1 = energy.get("c1")
     consumo2 = sanitize_units(energy.get("c2"))
     emisiones1 = energy.get("e1")
@@ -756,7 +770,7 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
         "Consumo 1": consumo1, "Consumo 2": consumo2,
         "Emisiones 1": emisiones1, "Emisiones 2": emisiones2,
         "estado": estado, "gastos comunidad": gastos_comunidad,
-        "okupado": okupado, "Copropiedad": copropiedad, "con inquilino": con_inquilino, "nuda propiedad": nuda_propiedad,
+        "okupado": okupado, "Copropiedad": copropiedad, "con inquilino": con_inquilino, "nuda propiedad": nuda_propiedad, "ces. remate": ces_remate,
         "tipo anunciante": data.get("advertiserType"),
         "nombre anunciante": data.get("advertiserName"),
         "Anuncio activo": "No" if (data.get("lowDate") or data.get("isExpired")) else "Sí",

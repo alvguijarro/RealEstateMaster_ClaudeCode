@@ -23,7 +23,7 @@ ORDERED_BASE = (
 
     "estado", "gastos comunidad",
 
-    "okupado", "Copropiedad", "con inquilino", "nuda propiedad",
+    "okupado", "Copropiedad", "con inquilino", "nuda propiedad", "ces. remate",
 
     "tipo anunciante", "nombre anunciante",
 

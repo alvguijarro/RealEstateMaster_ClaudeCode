@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- MAIN_SIDEBAR_TEMPLATE_PORT_5000 -->
 <html lang="es">
 
 <head>
@@ -354,10 +355,12 @@
 
     <script>
         const PORTS = {
-            'scraper': parseInt("{{ scraper_port|default(5003) }}"),
-            'analyzer': parseInt("{{ analyzer_port|default(5001) }}"),
-            'metrics': parseInt("{{ metrics_port|default(5004) }}")
+            'scraper': 5003,
+            'analyzer': 5001,
+            'metrics': 5004
         };
+
+        console.log("Service Ports Configured:", PORTS);
 
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('collapsed');
@@ -403,6 +406,9 @@
             return false;
         }
 
+        // Track which frames have been loaded to avoid reloading
+        let frameLoaded = { scraper: false, analyzer: false, metrics: false };
+
         async function initService(service) {
             const loading = document.getElementById(`loading-${service}`);
             const frame = document.getElementById(`frame-${service}`);
@@ -432,6 +438,7 @@
                 // 3. Service is ready, set iframe src with cache-busting
                 const url = `http://127.0.0.1:${PORTS[service]}?_t=${Date.now()}`;
                 frame.src = url;
+                frameLoaded[service] = true;  // Mark as loaded
 
                 // 4. Hide loading after iframe content loads
                 frame.onload = () => {
@@ -455,8 +462,13 @@
             document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
             document.getElementById('view-' + viewName).classList.add('active');
 
-            // For scraper/analyzer/metrics views, ensure service is ready before loading iframe
+            // For scraper/analyzer/metrics views, only load iframe if not already loaded
             if (viewName === 'scraper' || viewName === 'analyzer' || viewName === 'metrics') {
+                // If frame already loaded, don't reload - just show it
+                if (frameLoaded[viewName]) {
+                    return; // Already loaded, just show it (done above)
+                }
+
                 const frame = document.getElementById(`frame-${viewName}`);
                 const loading = document.getElementById(`loading-${viewName}`);
 
@@ -465,8 +477,8 @@
                     loading.style.display = 'flex';
                     loading.style.opacity = '1';
                     loading.innerHTML = `
-                        <div class="loading-spinner"></div>
-                        <div class="loading-text">Connecting to service...</div>
+                        <div class="spinner"></div>
+                        <div>Connecting to service...</div>
                     `;
                 }
 
@@ -478,9 +490,10 @@
                     return;
                 }
 
-                // Service is ready, reload with new timestamp
+                // Service is ready, load with timestamp (only first time)
                 const url = `http://127.0.0.1:${PORTS[viewName]}?_t=${Date.now()}`;
                 frame.src = url;
+                frameLoaded[viewName] = true;
 
                 // Hide loading after iframe loads
                 frame.onload = () => {

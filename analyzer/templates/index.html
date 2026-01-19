@@ -159,11 +159,13 @@
                         <div class="filter-pill" data-value="1">Okupas / Ilegal</div>
                         <div class="filter-pill" data-value="2">Nuda Propiedad</div>
                         <div class="filter-pill" data-value="3">Copropiedad</div>
+                        <div class="filter-pill" data-value="4">Con Inquilino</div>
+                        <div class="filter-pill" data-value="5">Cesión Remate</div>
                     </div>
                     <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
-                        Por defecto se excluyen las propiedades okupadas, en nuda propiedad o en copropiedad. Seleccione
-                        para
-                        INCLUIRLAS.
+                        Por defecto se excluyen las propiedades okupadas, en nuda propiedad, copropiedad, con inquilino
+                        o cesión de remate.
+                        Seleccione para INCLUIRLAS.
                     </small>
                 </div>
             </section>
@@ -211,9 +213,11 @@
                                     <th data-sort="m2" style="cursor: pointer;">m²</th>
                                     <th data-sort="Precio" style="cursor: pointer;">Precio</th>
                                     <th data-sort="Renta_Rango" style="cursor: pointer;">Rango Renta</th>
-                                    <th data-sort="Rentabilidad_Bruta_%" style="cursor: pointer;">Rentabilidad Bruta
+                                    <th data-sort="Rentabilidad_Bruta_%" style="cursor: pointer;">
+                                        Rentabilidad Bruta
                                     </th>
-                                    <th data-sort="Precision" style="cursor: pointer;">Precisión estim. renta</th>
+                                    <th data-sort="Precision" style="cursor: pointer;">Precisión estim.
+                                        renta</th>
                                     <th data-sort="Puntuación" style="cursor: pointer;">Puntuación</th>
                                     <th>Referencias cálculo renta</th>
                                 </tr>
@@ -230,10 +234,12 @@
                 <section class="card hidden" id="districtReportSection"
                     style="margin-top: 1.5rem; border: 1px solid var(--accent-color);">
                     <div class="card-header">
-                        <h2 class="card-title" style="color: var(--accent-color);">Informe de inversión por distrito
+                        <h2 class="card-title" style="color: var(--accent-color);">Informe de inversión por
+                            distrito
                             (IA)</h2>
                         <div style="display: flex; gap: 1rem; align-items: center;">
-                            <label for="districtSelect" style="color: white; margin: 0;">Ver distrito:</label>
+                            <label for="districtSelect" style="color: white; margin: 0;">Ver
+                                distrito:</label>
                             <select id="districtSelect"
                                 style="width: 250px; background: rgba(0,0,0,0.3); color: white; border: 1px solid var(--border-color); padding: 5px;">
                                 <!-- Options populated via JS -->

@@ -220,7 +220,7 @@ def get_user_filters():
     # 2. INCLUIR ESPECIALES
     # Special logic: Default is None (exclude all). Selecting means INCLUDE.
     print(f"\n2. INCLUIR VIVIENDAS ESPECIALES (Por defecto se EXCLUYEN):")
-    opts_esp = {1: 'Okupas/Ilegal', 2: 'Nuda Propiedad', 3: 'Copropiedad'}
+    opts_esp = {1: 'Okupas/Ilegal', 2: 'Nuda Propiedad', 3: 'Copropiedad', 4: 'Con Inquilino', 5: 'Cesión Remate'}
     for k, v in opts_esp.items():
         print(f"  {k}. {v}")
     sel = input(f"  > Seleccion (ej: 1) [Ninguna]: ").strip()
@@ -502,6 +502,48 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
         print(f"    -> Excluded {n_coprop} copropiedad")
     else:
         print("    -> [FILTER] Including Copropiedad")
+    
+    # Recalculate search text after filtering
+    df_venta['_search_text'] = ''
+    if desc_col:
+        df_venta['_search_text'] += df_venta[desc_col].fillna('').astype(str).str.lower()
+    if titulo_col:
+        df_venta['_search_text'] += ' ' + df_venta[titulo_col].fillna('').astype(str).str.lower()
+    
+    # CON INQUILINO exclusion (properties with existing tenants)
+    include_inquilino = 'Con Inquilino' in filters.get('include_especial', [])
+    if not include_inquilino:
+        # Check string column for "Sí" values
+        inquilino_col = pd.Series(False, index=df_venta.index)
+        if 'con inquilino' in df_venta.columns:
+            inquilino_col = df_venta['con inquilino'].fillna('').astype(str).str.lower().isin(['sí', 'si', 'yes', 'true', '1'])
+        
+        # Check text fields for "con inquilino" or "inquilino"
+        inquilino_text = df_venta['_search_text'].str.contains('con inquilino|alquilado|arrendado|con arrendatario', regex=True, na=False)
+        
+        # Combine both conditions
+        inquilino_mask = inquilino_col | inquilino_text
+        n_inquilino = inquilino_mask.sum()
+        df_venta = df_venta[~inquilino_mask].copy()
+        log_calidad.append({'phase': 'clean', 'dataset': 'VENTA', 'rows': n_inquilino, 'note': 'excluded con inquilino (col + text)'})
+        print(f"    -> Excluded {n_inquilino} con inquilino")
+    else:
+        print("    -> [FILTER] Including Con Inquilino")
+    
+    # CESIÓN REMATE exclusion (assignment of auction)
+    include_cesion = 'Cesión Remate' in filters.get('include_especial', [])
+    if not include_cesion:
+        # Check 'ces. remate' column for "Sí" values
+        cesion_mask = pd.Series(False, index=df_venta.index)
+        if 'ces. remate' in df_venta.columns:
+            cesion_mask = df_venta['ces. remate'].fillna('').astype(str).str.lower().isin(['sí', 'si', 'yes', 'true', '1'])
+        
+        n_cesion = cesion_mask.sum()
+        df_venta = df_venta[~cesion_mask].copy()
+        log_calidad.append({'phase': 'clean', 'dataset': 'VENTA', 'rows': n_cesion, 'note': 'excluded cesión remate'})
+        print(f"    -> Excluded {n_cesion} cesión de remate")
+    else:
+        print("    -> [FILTER] Including Cesión Remate")
     
     # Clean up temporary column
     df_venta = df_venta.drop(columns=['_search_text'])
@@ -1349,8 +1391,8 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
         'Precio': opps['price'].astype(int),
         'habs': safe_col(opps, 'habs', 0, int),
         'banos': safe_col(opps, 'banos', 0, int),
-        'garaje': safe_col(opps, 'garaje', False, bool),
-        'terraza': safe_col(opps, 'terraza', False, bool),
+        'garaje': safe_col(opps, 'Garaje', False, bool).apply(lambda x: 'Sí' if x else 'No'),
+        'terraza': safe_col(opps, 'Terraza', False, bool).apply(lambda x: 'Sí' if x else 'No'),
         'Renta_estimada/mes': opps['renta_estimada'].round(0).astype(int),
         'Renta_Rango': opps.get('renta_rango', opps['renta_estimada'].apply(lambda x: f"{int(x)}€" if pd.notnull(x) else "-")),
         'Rentabilidad_Bruta_%': opps['yield_bruta'], # Decimal for % formatting
@@ -1450,9 +1492,12 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
             workbook = writer.book
             
             # Formats
-            currency_fmt = workbook.add_format({'num_format': '#,##0 "€"'})
+            currency_fmt = workbook.add_format({'num_format': '#,##0 €'})
+            currency_no_dec_fmt = workbook.add_format({'num_format': '#,##0 €'})
             pct_fmt = workbook.add_format({'num_format': '0.00%'})
+            int_fmt = workbook.add_format({'num_format': '0'})
             link_fmt = workbook.add_format({'font_color': 'blue', 'underline': 1})
+            header_fmt = workbook.add_format({'bold': True})
             
             # --- Sheet 1: Oportunidades ---
             # Remove URL and comparables columns for Excel (URL embedded in hyperlinks)
@@ -1465,8 +1510,8 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
             opps_without_propiedad.to_excel(writer, sheet_name='oportunidades', index=False, startcol=1)
             ws_opps = writer.sheets['oportunidades']
             
-            # Write header for Propiedad
-            ws_opps.write(0, 0, 'Propiedad')
+            # Write header for Propiedad with same format as other headers (bold)
+            ws_opps.write(0, 0, 'Propiedad', header_fmt)
             
             # Write hyperlinks for Propiedad column (column A) using Excel formula
             for row_num, (idx, row) in enumerate(opps_output.iterrows(), start=1):
@@ -1476,13 +1521,38 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
                 formula = f'=HYPERLINK("{url}", "{text}")'
                 ws_opps.write_formula(row_num, 0, formula, link_fmt)
             
-            # Apply formats to other columns
-            # A: Propiedad (links), B: Distrito, C: m2, D: Precio, E: Renta, F: RentBruta, G: RentNeta, H: Desc, I: Punt, J+: Referencias
-            ws_opps.set_column('D:E', 15, currency_fmt) # Precio, Renta
-            ws_opps.set_column('F:H', 12, pct_fmt)      # % columns
-            ws_opps.set_column('A:A', 50)               # Propiedad width
-            ws_opps.set_column('B:B', 20)
-            ws_opps.set_column('I:I', 10)               # Puntuación
+            # Column mapping for opps_output (after dropping Propiedad for startcol=1):
+            # A: Propiedad (links) - column 0
+            # B: Distrito - column 1
+            # C: m2 - column 2 (integer)
+            # D: Precio - column 3 (currency)
+            # E: habs - column 4 (integer, NOT currency)
+            # F: banos - column 5 (integer, NOT percentage)
+            # G: garaje - column 6 (text Sí/No)
+            # H: terraza - column 7 (text Sí/No)
+            # I: Renta_estimada/mes - column 8 (currency no decimals)
+            # J: Renta_Rango - column 9 (text)
+            # K: Rentabilidad_Bruta_% - column 10 (percentage)
+            # L: Rentabilidad_Neta_% - column 11 (percentage)
+            # M: Precision - column 12 (decimal/number)
+            # N: Descuento_% - column 13 (percentage)
+            # O: Puntuación - column 14 (number)
+            # P+: Referencias 1-10 - columns 15+ (text/links)
+            
+            # Apply formats to columns
+            ws_opps.set_column('A:A', 50)                    # Propiedad width
+            ws_opps.set_column('B:B', 20)                    # Distrito
+            ws_opps.set_column('C:C', 8, int_fmt)            # m2 (integer)
+            ws_opps.set_column('D:D', 15, currency_no_dec_fmt)  # Precio (currency)
+            ws_opps.set_column('E:E', 8, int_fmt)            # habs (integer)
+            ws_opps.set_column('F:F', 8, int_fmt)            # banos (integer)
+            ws_opps.set_column('G:H', 10)                    # garaje, terraza (text)
+            ws_opps.set_column('I:I', 15, currency_no_dec_fmt)  # Renta_estimada/mes (currency)
+            ws_opps.set_column('J:J', 15)                    # Renta_Rango (text)
+            ws_opps.set_column('K:L', 12, pct_fmt)           # Rentabilidad_Bruta_%, Rentabilidad_Neta_% (percentage)
+            ws_opps.set_column('M:M', 10)                    # Precision
+            ws_opps.set_column('N:N', 12, pct_fmt)           # Descuento_% (percentage)
+            ws_opps.set_column('O:O', 10)
             
             # --- Sheet 2: Distritos ---
             zonas_excel.to_excel(writer, sheet_name='distritos_resumen', index=False)

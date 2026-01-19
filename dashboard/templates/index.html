@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- MARKET_METRICS_DASHBOARD_TEMPLATE -->
 <html lang="es">
 
 <head>
@@ -110,26 +111,155 @@
                     </div>
                 </section>
 
-                <!-- Room Distribution Pie Chart -->
+                <!-- Room Distribution Doughnut Chart -->
                 <section class="panel chart-panel">
                     <h3 class="panel-title">
-                        <span class="icon">🛏️</span> Room Distribution
+                        <span class="icon">🛏️</span> Habitaciones
                     </h3>
                     <div class="chart-container">
                         <canvas id="roomChart"></canvas>
                     </div>
                 </section>
 
+                <!-- Baños (Bathrooms) Doughnut Chart -->
+                <section class="panel chart-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">🚿</span> Baños
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="banosChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Tipo (Property Type) Doughnut Chart -->
+                <section class="panel chart-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">🏠</span> Tipo
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="tipoChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Barrio (Neighborhood) Doughnut Chart -->
+                <section class="panel chart-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">📍</span> Barrio
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="barrioChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Zona Doughnut Chart -->
+                <section class="panel chart-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">🗺️</span> Zona
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="zonaChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Special Status (Okupado/Copropiedad/Nuda) Doughnut Chart -->
+                <section class="panel chart-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">⚠️</span> Estado Especial
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="specialStatusChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Altura (Floor) Doughnut Chart -->
+                <section class="panel chart-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">🏢</span> Altura/Planta
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="alturaChart"></canvas>
+                    </div>
+                </section>
+
                 <!-- Size Histogram -->
                 <section class="panel chart-panel wide">
                     <h3 class="panel-title">
-                        <span class="icon">📏</span> Size Distribution (m²)
+                        <span class="icon">📏</span> Distribución por Tamaño (m²)
                     </h3>
                     <div class="chart-container histogram">
                         <canvas id="sizeChart"></canvas>
                     </div>
                 </section>
+
+                <!-- Terraza Bar Chart -->
+                <section class="panel chart-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">☀️</span> Terraza
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="terrazaChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Garaje Bar Chart -->
+                <section class="panel chart-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">🚗</span> Garaje
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="garajeChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Trastero Bar Chart -->
+                <section class="panel chart-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">📦</span> Trastero
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="trasteroChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Estado Column Chart -->
+                <section class="panel chart-panel wide">
+                    <h3 class="panel-title">
+                        <span class="icon">🔧</span> Estado de Conservación
+                    </h3>
+                    <div class="chart-container histogram">
+                        <canvas id="estadoChart"></canvas>
+                    </div>
+                </section>
             </div>
+
+            <!-- Filtered Properties Table -->
+            <section class="panel properties-table-panel" id="propertiesTablePanel" style="display: none;">
+                <h3 class="panel-title">
+                    <span class="icon">📋</span> Propiedades Filtradas
+                    <span class="properties-count" id="propertiesCount">(0)</span>
+                </h3>
+                <div class="table-scroll-container">
+                    <table class="properties-table" id="propertiesTable">
+                        <thead>
+                            <tr>
+                                <th>Titulo</th>
+                                <th>Habitaciones</th>
+                                <th>Baños</th>
+                                <th>Tamaño (m²)</th>
+                                <th>Precio</th>
+                                <th>Garaje</th>
+                                <th>Trastero</th>
+                                <th>Terraza</th>
+                            </tr>
+                        </thead>
+                        <tbody id="propertiesTableBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="table-footer">
+                    <span id="tableInfo">Mostrando 0 propiedades</span>
+                </div>
+            </section>
 
             <!-- Empty State -->
             <div class="empty-state" id="emptyState">

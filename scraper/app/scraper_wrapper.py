@@ -973,7 +973,27 @@ class ScraperController:
                         self.log("INFO", f"End of listings at page {page_num}.")
                         break
                 
-                self.log("INFO", f"Page {page_num}: Found {len(hrefs)} properties to scrape")
+                self.log("INFO", f"Page {page_num}: Found {len(hrefs)} properties to check")
+                
+                # === EFFICIENT SKIP: Filter out already-processed URLs BEFORE navigating ===
+                # This is the key optimization - we don't visit pages we've already scraped
+                original_count = len(hrefs)
+                hrefs = [h for h in hrefs if canonical_listing_url(h) not in self._processed]
+                filtered_count = original_count - len(hrefs)
+                
+                if filtered_count > 0:
+                    self.log("INFO", f"Page {page_num}: Filtered {filtered_count} already-scraped URLs, {len(hrefs)} new to scrape")
+                
+                # If ALL URLs on this page are already in our set, skip to next page
+                if not hrefs:
+                    self.log("OK", f"Page {page_num}: All {original_count} properties already scraped → skipping to next page")
+                    skipped += original_count
+                    property_idx += original_count  # Update counter for UI
+                    self.current_property_count = property_idx
+                    self.emit_progress()
+                    page_num += 1
+                    self.current_page = page_num
+                    continue
                 
                 skipped_on_page = 0
                 
@@ -981,7 +1001,7 @@ class ScraperController:
                 self.current_page = page_num
                 self.emit_progress()
                 
-                # Scrape each property on this page
+                # Scrape each property on this page (only NEW ones now)
                 for href in hrefs:
                     await self._wait_for_pause()
                     if self._stop_evt.is_set():
@@ -990,8 +1010,8 @@ class ScraperController:
                     property_idx += 1
                     key = canonical_listing_url(href)
                     
+                    # Double-check (should not happen after filtering, but safety net)
                     if key in self._processed:
-                        # Update counter for skipped properties too, so UI shows correct count
                         skipped_on_page += 1
                         self.current_property_count = property_idx
                         self.emit_progress()
@@ -1029,8 +1049,6 @@ class ScraperController:
                             # Process first property - check for missing fields (CAPTCHA)
                             miss = missing_fields(row, is_room_mode=self._is_room_mode)
                             if miss:
-                                self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Campos faltantes: {miss}")
-                                self.log("WARN", f"Datos extraidos: Titulo='{row.get('Titulo')}', price='{row.get('price')}', URL='{row.get('URL')}'")
                                 self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado. Resuelve el CAPTCHA y pulsa Resume.")
                                 
                                 if self.on_status:
@@ -1095,29 +1113,7 @@ class ScraperController:
                             self.emit_progress()
                             continue
                         
-                        # Check if URL already exists in Excel
-                        if key in url_dates:
-                            # Still need to visit to check if listing is expired
-                            await page.wait_for_timeout(PAGE_WAIT_MS)
-                            d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
-                            
-                            # Check if listing is expired
-                            if d.get("_isExpired"):
-                                self.log("WARN", f"({property_idx}/{self.total_properties_expected}) [EXPIRED] Anuncio eliminado: {key}")
-                                expired_urls.append(key)
-                                self._processed.add(key)
-                                self.current_property_count = property_idx
-                                self.emit_progress()
-                                continue
-                            
-                            # Normal skip - listing still exists
-                            self.log("INFO", f"({property_idx}/{self.total_properties_expected}) [SKIP] Ya existe: {key}")
-                            skipped += 1
-                            self._processed.add(key)
-                            self.current_property_count = property_idx
-                            self.emit_progress()
-                            continue
-                        
+                        # URLs reaching here are NEW - not in _processed (filtered above)
                         new_scraped += 1
                         
                         # Scrape the property
@@ -1147,8 +1143,6 @@ class ScraperController:
                         
                         # If missing fields and not a "not found" page, might be CAPTCHA
                         if miss:
-                            self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Campos faltantes: {miss}")
-                            self.log("WARN", f"Datos extraidos: Titulo='{row.get('Titulo')}', price='{row.get('price')}', URL='{row.get('URL')}'")
                             self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado. Resuelve el CAPTCHA y pulsa Resume.")
                             
                             if self.on_status:
@@ -1248,8 +1242,8 @@ class ScraperController:
                     self.save_state(page_num, target_file)
                     break
                     
-                if len(hrefs) < LISTING_LINKS_PER_PAGE_MAX:
-                    self.log("INFO", f"Last page reached (only {len(hrefs)} links).")
+                if original_count < LISTING_LINKS_PER_PAGE_MAX:
+                    self.log("INFO", f"Last page reached (found {original_count} links, {len(hrefs)} new).")
                     # Clear state on successful completion
                     self.clear_state()
                     break

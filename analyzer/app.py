@@ -430,4 +430,4 @@ if __name__ == '__main__':
         except:
             pass
         
-    app.run(port=port, debug=True, use_reloader=False)
+    app.run(port=port, debug=False, use_reloader=False)

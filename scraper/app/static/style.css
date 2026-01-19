@@ -67,6 +67,7 @@ h1 {
     font-weight: 600;
     background: linear-gradient(to right, #fb923c, #fdba74);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -328,6 +329,12 @@ select:focus {
     margin: 0;
     font-size: 1.1rem;
     color: var(--text-main);
+}
+
+.panel-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }
 
 /* Logs */

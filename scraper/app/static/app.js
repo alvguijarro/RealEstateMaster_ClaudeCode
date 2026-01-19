@@ -39,6 +39,7 @@ let properties = [];
 let socket = null;
 let isUpdateMode = false;
 let audioCtx = null;
+let autoScrollEnabled = true;  // Log auto-scroll toggle
 
 // Column definitions (matches ORDERED_BASE in Python for consistency)
 const COLUMNS_STANDARD = [
@@ -51,7 +52,7 @@ const COLUMNS_STANDARD = [
     'Calle', 'Barrio', 'Distrito', 'Zona', 'Ciudad', 'Provincia',
     'Consumo 1', 'Consumo 2', 'Emisiones 1', 'Emisiones 2',
     'estado', 'gastos comunidad',
-    'okupado', 'Copropiedad', 'con inquilino', 'nuda propiedad',
+    'okupado', 'Copropiedad', 'con inquilino', 'nuda propiedad', 'ces. remate',
     'Descripcion',
     'URL'
 ];
@@ -426,6 +427,12 @@ function initializeUI() {
     clearLogsBtn.addEventListener('click', clearLogs);
     clearHistoryBtn.addEventListener('click', clearHistory);
 
+    // Auto-scroll toggle for logs
+    const toggleAutoScrollBtn = document.getElementById('toggleAutoScrollBtn');
+    if (toggleAutoScrollBtn) {
+        toggleAutoScrollBtn.addEventListener('click', toggleAutoScroll);
+    }
+
     // Enter key to start
     seedUrlInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !isRunning) {
@@ -465,7 +472,11 @@ function addLog(level, message) {
     `;
 
     logsContainer.appendChild(entry);
-    logsContainer.scrollTop = logsContainer.scrollHeight;
+
+    // Only auto-scroll if enabled
+    if (autoScrollEnabled) {
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
 
     // Keep only last 500 entries
     while (logsContainer.children.length > 500) {
@@ -476,6 +487,22 @@ function addLog(level, message) {
 function clearLogs() {
     logsContainer.innerHTML = '';
     addLog('INFO', 'Logs limpiados');
+}
+
+function toggleAutoScroll() {
+    autoScrollEnabled = !autoScrollEnabled;
+    const btn = document.getElementById('toggleAutoScrollBtn');
+    if (btn) {
+        if (autoScrollEnabled) {
+            btn.textContent = '⏸️';
+            btn.title = 'Pausar auto-scroll';
+            // Jump to bottom when re-enabling
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        } else {
+            btn.textContent = '▶️';
+            btn.title = 'Reanudar auto-scroll';
+        }
+    }
 }
 
 function addProperty(data) {

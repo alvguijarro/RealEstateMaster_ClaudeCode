@@ -12,12 +12,34 @@ import time
 from pathlib import Path
 
 from flask import Flask, render_template, jsonify, request
+from flask.json.provider import DefaultJSONProvider
 import pandas as pd
+import numpy as np
+
+
+class NumpyJSONProvider(DefaultJSONProvider):
+    """Custom JSON provider that handles NumPy types."""
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif pd.isna(obj):
+            return None
+        return super().default(obj)
+
+# Get absolute paths based on this file's location
+_THIS_DIR = Path(__file__).parent.resolve()
+_STATIC_DIR = str(_THIS_DIR / 'static')
+_TEMPLATE_DIR = str(_THIS_DIR / 'templates')
 
 app = Flask(__name__, 
-            static_folder='static', 
-            template_folder='templates')
+            static_folder=_STATIC_DIR, 
+            template_folder=_TEMPLATE_DIR)
 app.config['SECRET_KEY'] = 'metrics-dashboard-secret'
+app.json = NumpyJSONProvider(app)  # Use custom provider for NumPy types
 
 # Default output directory (same as scraper)
 DEFAULT_OUTPUT_DIR = str(Path(__file__).parent.parent / 'scraper' / 'salidas')
@@ -25,11 +47,16 @@ DEFAULT_OUTPUT_DIR = str(Path(__file__).parent.parent / 'scraper' / 'salidas')
 
 @app.after_request
 def after_request(response):
-    """Allow embedding in iframes and add CORS headers."""
+    """Allow embedding in iframes, add CORS headers, and prevent caching."""
     response.headers.pop('X-Frame-Options', None)
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    # Aggressive anti-caching headers to prevent browser from caching wrong template
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    response.headers['X-Service-Identity'] = 'Market-Metrics-Dashboard-5004'
     return response
 
 
@@ -62,7 +89,7 @@ def get_files():
         if search_path.exists():
             for f in search_path.glob('*.xlsx'):
                 # Only include files with VENTA in name
-                if 'VENTA' in f.name.upper() and f.is_file():
+                if f.is_file():  # Allow all Excel files
                     files.append({
                         'name': f.name,
                         'path': str(f.resolve())
@@ -239,39 +266,175 @@ def get_analytics():
                         'median': round(price_per_m2.median(), 2)
                     }
         
-        # 5. Total count
+        # --- NEW CHART FIELDS ---
+        
+        # Helper: get value counts for a column (returns list of {label, value, raw})
+        def get_distribution(df, col_candidates, normalize_label=True):
+            col = find_column(df, col_candidates)
+            if not col:
+                return [], None
+            counts = df[col].fillna('N/A').value_counts()
+            result = []
+            for val, count in counts.items():
+                label = str(val).strip() if normalize_label else val
+                result.append({'label': label, 'value': int(count), 'raw': val if pd.notna(val) else None})
+            return result, col
+        
+        # 5. Baños distribution
+        banos_distribution, banos_col = get_distribution(combined, ['banos', 'baños', 'bathrooms', 'num_banos'])
+        
+        # 6. Tipo distribution
+        tipo_distribution, tipo_col = get_distribution(combined, ['tipo', 'type', 'tipologia'])
+        
+        # 7. Barrio distribution
+        barrio_distribution, barrio_col = get_distribution(combined, ['barrio', 'neighborhood', 'neighbourhood'])
+        
+        # 8. Zona distribution
+        zona_distribution, zona_col = get_distribution(combined, ['zona', 'zone', 'area'])
+        
+        # 9. Okupado/Copropiedad/Nuda Propiedad (combined)
+        okupado_col = find_column(combined, ['okupado', 'ocupado', 'occupied'])
+        coprop_col = find_column(combined, ['copropiedad', 'co-propiedad', 'co_propiedad'])
+        nuda_col = find_column(combined, ['nuda propiedad', 'nuda_propiedad', 'bare_ownership'])
+        
+        special_status_distribution = []
+        for label, col in [('Okupado', okupado_col), ('Copropiedad', coprop_col), ('Nuda Propiedad', nuda_col)]:
+            if col:
+                # Count entries where value indicates "yes" (Sí, Si, Yes, 1, True, etc.)
+                yes_vals = combined[col].astype(str).str.lower().isin(['sí', 'si', 'yes', '1', 'true', 's'])
+                count = yes_vals.sum()
+                if count > 0:
+                    special_status_distribution.append({'label': label, 'value': int(count), 'raw': label.lower()})
+        
+        # 10. Altura distribution
+        altura_distribution, altura_col = get_distribution(combined, ['altura', 'planta', 'floor', 'piso'])
+        
+        # 11. Terraza (Yes/No bar chart)
+        terraza_col = find_column(combined, ['terraza', 'terrace', 'balcon'])
+        terraza_distribution = []
+        if terraza_col:
+            vals = combined[terraza_col].astype(str).str.lower()
+            yes_count = vals.isin(['sí', 'si', 'yes', '1', 'true', 's']).sum()
+            no_count = vals.isin(['no', '0', 'false', 'n', '']).sum()
+            other_count = len(combined) - yes_count - no_count
+            terraza_distribution = [
+                {'label': 'Sí', 'value': int(yes_count), 'raw': True},
+                {'label': 'No', 'value': int(no_count + other_count), 'raw': False}
+            ]
+        
+        # 12. Garaje (Yes/No bar chart)
+        garaje_col = find_column(combined, ['garaje', 'garage', 'parking', 'plaza_garaje'])
+        garaje_distribution = []
+        if garaje_col:
+            vals = combined[garaje_col].astype(str).str.lower()
+            yes_count = vals.isin(['sí', 'si', 'yes', '1', 'true', 's']).sum()
+            no_count = vals.isin(['no', '0', 'false', 'n', '']).sum()
+            other_count = len(combined) - yes_count - no_count
+            garaje_distribution = [
+                {'label': 'Sí', 'value': int(yes_count), 'raw': True},
+                {'label': 'No', 'value': int(no_count + other_count), 'raw': False}
+            ]
+        
+        # 13. Trastero (Yes/No bar chart)
+        trastero_col = find_column(combined, ['trastero', 'storage', 'almacen'])
+        trastero_distribution = []
+        if trastero_col:
+            vals = combined[trastero_col].astype(str).str.lower()
+            yes_count = vals.isin(['sí', 'si', 'yes', '1', 'true', 's']).sum()
+            no_count = vals.isin(['no', '0', 'false', 'n', '']).sum()
+            other_count = len(combined) - yes_count - no_count
+            trastero_distribution = [
+                {'label': 'Sí', 'value': int(yes_count), 'raw': True},
+                {'label': 'No', 'value': int(no_count + other_count), 'raw': False}
+            ]
+        
+        # 14. Estado (Column chart)
+        estado_distribution, estado_col = get_distribution(combined, ['estado', 'condition', 'state', 'conservacion'])
+        
+        # 15. Total count
         total_properties = len(combined)
         
-        # 6. Prepare raw data for frontend filtering
-        # Include essential columns for each property
+        # 16. Prepare raw data for frontend filtering
+        # Include ALL detected columns for each property
+        
+        # Find new columns for property table
+        titulo_col = find_column(combined, ['titulo', 'title', 'nombre', 'name'])
+        url_col = find_column(combined, ['url', 'link', 'enlace', 'hyperlink'])
+        precio_col = find_column(combined, ['precio', 'price', 'coste', 'rent', 'alquiler'])
+        
         raw_properties = []
         for _, row in combined.iterrows():
             prop = {'district': row['_sheet']}
-            if room_col and pd.notna(row.get(room_col)):
-                prop['rooms'] = int(row[room_col])
-            if size_col and pd.notna(row.get(size_col)):
-                prop['size'] = float(row[size_col])
             
-            # Add price data if available
+            # Title and URL for hyperlink
+            if titulo_col and pd.notna(row.get(titulo_col)):
+                prop['titulo'] = str(row[titulo_col])
+            if url_col and pd.notna(row.get(url_col)):
+                prop['url'] = str(row[url_col])
+            
+            # Price (raw, not per m2)
+            if precio_col and pd.notna(row.get(precio_col)):
+                try:
+                    val = str(row[precio_col]).replace('€','').replace('.','').replace(',','.').strip()
+                    # Handle "/mes" suffix for rent
+                    val = val.split('/')[0].strip()
+                    prop['precio'] = float(val)
+                except: pass
+            
+            # Core fields
+            if room_col and pd.notna(row.get(room_col)):
+                try: prop['rooms'] = int(row[room_col])
+                except: pass
+            if size_col and pd.notna(row.get(size_col)):
+                try: prop['size'] = float(str(row[size_col]).replace('m²','').replace('m2','').strip())
+                except: pass
+            
+            # Price per m2
             p_m2 = None
             if price_per_m2_col and pd.notna(row.get(price_per_m2_col)):
                 try:
                     val = str(row[price_per_m2_col]).replace('€','').replace('.','').replace(',','.').strip()
                     p_m2 = float(val)
-                except:
-                    pass
+                except: pass
             elif precio_col and size_col:
                 try:
                     p_val = str(row[precio_col]).replace('€','').replace('.','').replace(',','.').strip()
                     precio = float(p_val)
-                    size = float(row[size_col])
-                    if size > 0:
-                        p_m2 = round(precio / size, 2)
-                except:
-                    pass
+                    size = float(str(row[size_col]).replace('m²','').replace('m2','').strip())
+                    if size > 0: p_m2 = round(precio / size, 2)
+                except: pass
+            if p_m2 is not None: prop['price_per_m2'] = p_m2
             
-            if p_m2 is not None:
-                prop['price_per_m2'] = p_m2
+            # New fields
+            if banos_col and pd.notna(row.get(banos_col)):
+                try: prop['banos'] = int(row[banos_col])
+                except: prop['banos'] = str(row[banos_col])
+            if tipo_col and pd.notna(row.get(tipo_col)):
+                prop['tipo'] = str(row[tipo_col])
+            if barrio_col and pd.notna(row.get(barrio_col)):
+                prop['barrio'] = str(row[barrio_col])
+            if zona_col and pd.notna(row.get(zona_col)):
+                prop['zona'] = str(row[zona_col])
+            if altura_col and pd.notna(row.get(altura_col)):
+                prop['altura'] = str(row[altura_col])
+            if estado_col and pd.notna(row.get(estado_col)):
+                prop['estado'] = str(row[estado_col])
+            
+            # Boolean fields
+            if terraza_col and pd.notna(row.get(terraza_col)):
+                prop['terraza'] = str(row[terraza_col]).lower() in ['sí', 'si', 'yes', '1', 'true', 's']
+            if garaje_col and pd.notna(row.get(garaje_col)):
+                prop['garaje'] = str(row[garaje_col]).lower() in ['sí', 'si', 'yes', '1', 'true', 's']
+            if trastero_col and pd.notna(row.get(trastero_col)):
+                prop['trastero'] = str(row[trastero_col]).lower() in ['sí', 'si', 'yes', '1', 'true', 's']
+            
+            # Special status
+            if okupado_col and pd.notna(row.get(okupado_col)):
+                prop['okupado'] = str(row[okupado_col]).lower() in ['sí', 'si', 'yes', '1', 'true', 's']
+            if coprop_col and pd.notna(row.get(coprop_col)):
+                prop['copropiedad'] = str(row[coprop_col]).lower() in ['sí', 'si', 'yes', '1', 'true', 's']
+            if nuda_col and pd.notna(row.get(nuda_col)):
+                prop['nuda_propiedad'] = str(row[nuda_col]).lower() in ['sí', 'si', 'yes', '1', 'true', 's']
                 
             raw_properties.append(prop)
         
@@ -281,6 +444,16 @@ def get_analytics():
             'room_distribution': room_distribution,
             'size_distribution': size_distribution,
             'price_stats': price_stats,
+            'banos_distribution': banos_distribution,
+            'tipo_distribution': tipo_distribution,
+            'barrio_distribution': barrio_distribution,
+            'zona_distribution': zona_distribution,
+            'special_status_distribution': special_status_distribution,
+            'altura_distribution': altura_distribution,
+            'terraza_distribution': terraza_distribution,
+            'garaje_distribution': garaje_distribution,
+            'trastero_distribution': trastero_distribution,
+            'estado_distribution': estado_distribution,
             'raw_properties': raw_properties
         })
         

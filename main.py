@@ -35,11 +35,13 @@ def start_service(service_name):
         if is_port_in_use(SCRAPER_PORT):
             return True # Already running
         
-        # Run start.py from scraper directory
+        # Run app.server module directly (not start.py which spawns more subprocesses)
         scraper_dir = os.path.join(base_dir, 'scraper')
-        script = os.path.join(scraper_dir, 'start.py')
-        cmd = [sys.executable, script]
-        SCRAPER_PROCESS = subprocess.Popen(cmd, cwd=scraper_dir, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        cmd = [sys.executable, '-m', 'app.server']
+        env = os.environ.copy()
+        env['PYTHONPATH'] = scraper_dir
+        env['NO_BROWSER_OPEN'] = '1'  # Don't open browser from subprocess
+        SCRAPER_PROCESS = subprocess.Popen(cmd, cwd=scraper_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
         return True
         
     elif service_name == 'analyzer':
@@ -50,7 +52,9 @@ def start_service(service_name):
         analyzer_dir = os.path.join(base_dir, 'analyzer')
         script = os.path.join(analyzer_dir, 'app.py')
         cmd = [sys.executable, script]
-        ANALYZER_PROCESS = subprocess.Popen(cmd, cwd=analyzer_dir, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        env = os.environ.copy()
+        env['NO_BROWSER_OPEN'] = '1'
+        ANALYZER_PROCESS = subprocess.Popen(cmd, cwd=analyzer_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
         return True
     
     elif service_name == 'metrics':
@@ -61,10 +65,23 @@ def start_service(service_name):
         metrics_dir = os.path.join(base_dir, 'dashboard')
         script = os.path.join(metrics_dir, 'app.py')
         cmd = [sys.executable, script]
-        METRICS_PROCESS = subprocess.Popen(cmd, cwd=metrics_dir, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        env = os.environ.copy()
+        env['NO_BROWSER_OPEN'] = '1'
+        METRICS_PROCESS = subprocess.Popen(cmd, cwd=metrics_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
         return True
         
     return False
+
+@app.after_request
+def after_request(response):
+    """Add anti-caching headers and prevent this dashboard from being embedded in iframes."""
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    # CRITICAL: Prevent this page from being embedded in iframes to stop recursive nesting
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Service-Identity'] = 'Real-Estate-Master-Main-5000'
+    return response
 
 @app.route('/')
 def index():
@@ -123,4 +140,4 @@ if __name__ == '__main__':
     threading.Timer(1.5, lambda: webbrowser.open(url)).start()
     
     print(f"Starting Unified Dashboard at {url}")
-    app.run(port=DASHBOARD_PORT, debug=True, use_reloader=False)
+    app.run(port=DASHBOARD_PORT, debug=False, use_reloader=False)

@@ -11,7 +11,7 @@ app = Flask(__name__)
 # Configuration
 SCRAPER_PORT = 5003
 ANALYZER_PORT = 5001
-DASHBOARD_PORT = 5004
+DASHBOARD_PORT = 5000
 
 # Heartbeat state
 LAST_HEARTBEAT_TIME = time.time() + 15
@@ -46,11 +46,12 @@ def start_service(service_name):
     if service_name == 'scraper':
         if is_port_in_use(SCRAPER_PORT):
             return True
+        # Run app.server module directly (not start.py which spawns more subprocesses)
         scraper_dir = os.path.join(base_dir, 'scraper')
-        script = os.path.join(scraper_dir, 'start.py')
-        subprocess.Popen([sys.executable, script], cwd=scraper_dir, env=env, 
-                        creationflags=subprocess.CREATE_NEW_CONSOLE,
-                        startupinfo=startupinfo)
+        cmd = [sys.executable, '-m', 'app.server']
+        env['PYTHONPATH'] = scraper_dir
+        subprocess.Popen(cmd, cwd=scraper_dir, env=env, 
+                        creationflags=subprocess.CREATE_NO_WINDOW)
         return True
         
     elif service_name == 'analyzer':
@@ -59,8 +60,22 @@ def start_service(service_name):
         analyzer_dir = os.path.join(base_dir, 'analyzer')
         script = os.path.join(analyzer_dir, 'app.py')
         subprocess.Popen([sys.executable, script], cwd=analyzer_dir, env=env,
-                        creationflags=subprocess.CREATE_NEW_CONSOLE,
-                        startupinfo=startupinfo)
+                        creationflags=subprocess.CREATE_NO_WINDOW)
+        return True
+    
+    elif service_name == 'metrics':
+        # Check port 5004 specifically for metrics
+        if is_port_in_use(5004): 
+            return True
+
+        metrics_dir = os.path.join(base_dir, 'dashboard')
+        script = os.path.join(metrics_dir, 'app.py')
+        
+        # Log output to file for debugging
+        with open(os.path.join(base_dir, 'metrics_debug.log'), 'w') as log_file:
+            subprocess.Popen([sys.executable, script], cwd=metrics_dir, env=env,
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                            stdout=log_file, stderr=log_file)
         return True
     
     return False
@@ -71,7 +86,7 @@ def index():
 
 @app.route('/api/start/<service>', methods=['POST'])
 def api_start_service(service):
-    if service not in ['scraper', 'analyzer']:
+    if service not in ['scraper', 'analyzer', 'metrics']:
         return jsonify({'error': 'Invalid service'}), 400
     try:
         start_service(service)
