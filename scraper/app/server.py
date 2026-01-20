@@ -9,6 +9,7 @@ import sys
 import asyncio
 import threading
 import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -171,20 +172,26 @@ def start_scraping():
     if scraper_controller and scraper_controller.is_running:
         scraper_controller.stop()
     
-    def create_controller(url):
-        return ScraperController(
-            seed_url=url,
-            output_dir=output_dir,
-            mode=mode,
-            on_log=emit_log,
-            on_property=emit_property,
-            on_status=emit_status,
-            on_progress=emit_progress,
-            on_browser_closed=emit_browser_closed,
-        )
-
-    # Create initial controller
-    scraper_controller = create_controller(seed_url)
+    # For DUAL MODE: Calculate the second URL now
+    dual_mode_url = None
+    if dual_mode:
+        if '/alquiler-viviendas/' in seed_url:
+            dual_mode_url = seed_url.replace('/alquiler-viviendas/', '/venta-viviendas/')
+        elif '/venta-viviendas/' in seed_url:
+            dual_mode_url = seed_url.replace('/venta-viviendas/', '/alquiler-viviendas/')
+    
+    # Create controller with dual_mode_url if applicable
+    scraper_controller = ScraperController(
+        seed_url=seed_url,
+        output_dir=output_dir,
+        mode=mode,
+        dual_mode_url=dual_mode_url,  # Pass second URL for same-browser execution
+        on_log=emit_log,
+        on_property=emit_property,
+        on_status=emit_status,
+        on_progress=emit_progress,
+        on_browser_closed=emit_browser_closed,
+    )
     
     # Start scraping in background thread
     def run_scraper():
@@ -193,30 +200,8 @@ def start_scraping():
         asyncio.set_event_loop(loop)
         
         try:
-            # Run first scrape
+            # Run scraper (handles both phases internally if dual_mode_url is set)
             loop.run_until_complete(scraper_controller.run())
-            
-            # Check if we should run second leg (Dual Mode)
-            # Only proceed if not stopped manually and browser wasn't closed by user
-            if dual_mode and scraper_controller.status == 'completed':
-                emit_log('INFO', '=== DUAL MODE: Starting second phase ===')
-                
-                # Swap URL category
-                new_url = None
-                if '/alquiler-viviendas/' in seed_url:
-                    new_url = seed_url.replace('/alquiler-viviendas/', '/venta-viviendas/')
-                elif '/venta-viviendas/' in seed_url:
-                    new_url = seed_url.replace('/venta-viviendas/', '/alquiler-viviendas/')
-                
-                if new_url:
-                    emit_log('INFO', f'Switching to: {new_url}')
-                    # Create new controller for second leg
-                    scraper_controller = create_controller(new_url)
-                    # Run second scrape
-                    loop.run_until_complete(scraper_controller.run())
-                else:
-                    emit_log('WARN', 'Could not determine swapped URL for Dual Mode')
-                    
         finally:
             loop.close()
     
@@ -240,6 +225,51 @@ def set_mode():
         return jsonify({'status': 'mode_updated', 'mode': mode})
     
     return jsonify({'error': 'Scraper not running'}), 400
+
+
+@app.route('/api/server/start', methods=['POST'])
+def start_server():
+    """Execute START_SILENT.bat to start all services (no browser)."""
+    try:
+        base_dir = Path(__file__).parent.parent.parent  # Go up to RealEstateMaster root
+        bat_file = base_dir / 'scripts' / 'START_SILENT.bat'
+        if bat_file.exists():
+            subprocess.Popen(['cmd', '/c', str(bat_file)], cwd=str(base_dir), 
+                           creationflags=subprocess.CREATE_NO_WINDOW)
+            return jsonify({'status': 'started', 'message': 'Server starting...'})
+        return jsonify({'error': 'START_SILENT.bat not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/server/stop', methods=['POST'])
+def stop_server():
+    """Execute STOP_SILENT.bat to stop all services (no browser)."""
+    try:
+        base_dir = Path(__file__).parent.parent.parent
+        bat_file = base_dir / 'scripts' / 'STOP_SILENT.bat'
+        if bat_file.exists():
+            subprocess.Popen(['cmd', '/c', str(bat_file)], cwd=str(base_dir),
+                           creationflags=subprocess.CREATE_NO_WINDOW)
+            return jsonify({'status': 'stopped', 'message': 'Server stopping...'})
+        return jsonify({'error': 'STOP_SILENT.bat not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/server/restart', methods=['POST'])
+def restart_server():
+    """Execute RESTART_SILENT.bat to restart all services (no browser)."""
+    try:
+        base_dir = Path(__file__).parent.parent.parent
+        bat_file = base_dir / 'scripts' / 'RESTART_SILENT.bat'
+        if bat_file.exists():
+            subprocess.Popen(['cmd', '/c', str(bat_file)], cwd=str(base_dir),
+                           creationflags=subprocess.CREATE_NO_WINDOW)
+            return jsonify({'status': 'restarting', 'message': 'Server restarting...'})
+        return jsonify({'error': 'RESTART_SILENT.bat not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/pause', methods=['POST'])

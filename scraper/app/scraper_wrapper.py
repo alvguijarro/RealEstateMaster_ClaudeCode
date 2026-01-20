@@ -21,6 +21,14 @@ from urllib.parse import urlsplit, urlunsplit
 
 from playwright.async_api import async_playwright
 
+# Optional playwright-stealth for enhanced anti-detection (Stealth mode only)
+try:
+    from playwright_stealth import stealth_async
+    HAS_STEALTH = True
+except ImportError:
+    HAS_STEALTH = False
+    stealth_async = None
+
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -80,6 +88,9 @@ RESUME_STATE_FILE = str(Path(__file__).parent / "resume_state.json")
 
 # Scrape history registry file path
 SCRAPE_HISTORY_FILE = str(Path(DEFAULT_OUTPUT_DIR) / "scrape_history.json")
+
+# Persistent browser profile for Stealth mode (stores cookies, localStorage, etc.)
+STEALTH_PROFILE_DIR = str(Path(__file__).parent.parent / "stealth_profile")
 
 
 def normalize_seed_url(url: str) -> str:
@@ -212,6 +223,7 @@ class ScraperController:
     out_xlsx: str = "idealista.xlsx"
     sheet_name: str = "idealista"
     output_dir: str = DEFAULT_OUTPUT_DIR  # Configurable output directory
+    dual_mode_url: Optional[str] = None  # Second URL for DUAL MODE (same browser session)
     
     # Callbacks
     on_log: Optional[Callable[[str, str], None]] = None
@@ -649,6 +661,62 @@ class ScraperController:
         while not self._pause_evt.is_set() and not self._stop_evt.is_set():
             await asyncio.sleep(0.1)
     
+    def _export_to_excel(self, additions: List[dict], target_file: Optional[str], expired_urls: List[str]):
+        """Export scraped data to Excel file."""
+        if not additions:
+            self.log("INFO", "No new properties to export.")
+            return
+        
+        self.log("INFO", "Exporting data to Excel...")
+        
+        # Use filename from registry if available, otherwise build it
+        if target_file:
+            out_effective = os.path.join(self.output_dir, target_file)
+        else:
+            ciudad = additions[0].get("Ciudad") if additions else None
+            category = self._detected_sheet or "unknown"
+            
+            if ciudad:
+                ciudad_clean = sanitize_filename_part(ciudad)
+                out_effective = f"idealista_{ciudad_clean}_{category}.xlsx"
+            else:
+                out_effective = f"idealista_{category}.xlsx"
+            out_effective = os.path.join(self.output_dir, out_effective)
+        
+        self.log("INFO", f"Output path: {out_effective}")
+        
+        # Ensure output directory exists
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Load existing data and export with split by Distrito
+        existing_df, _, _ = load_existing_single_sheet(out_effective, self._detected_sheet or self.sheet_name)
+        self.log("INFO", f"Loaded {len(existing_df)} existing rows from file")
+        
+        # Delete expired URLs from existing data
+        if expired_urls and not existing_df.empty and "URL" in existing_df.columns:
+            initial_count = len(existing_df)
+            existing_df = existing_df[~existing_df["URL"].isin(expired_urls)]
+            deleted_count = initial_count - len(existing_df)
+            if deleted_count > 0:
+                self.log("OK", f"Deleted {deleted_count} expired listings from Excel")
+        
+        export_split_by_distrito(existing_df, additions, out_effective, carry_cols=set())
+        
+        self.output_file = os.path.abspath(out_effective)
+        self.log("OK", f"Saved {len(additions)} new/updated rows to {self.output_file}")
+        
+        # Register this scrape in the history registry
+        page_num = self.current_page or 1
+        total_properties = len(existing_df) + len(additions) if existing_df is not None else len(additions)
+        register_scrape(
+            self.seed_url,
+            os.path.basename(out_effective),
+            total_properties,
+            page_num
+        )
+        self.log("INFO", f"Registered scrape: {os.path.basename(out_effective)} ({total_properties} properties)")
+        self.log("OK", f"Archivo guardado: {self.output_file}")
+    
     async def run(self):
         """Main scraping loop."""
         self.is_running = True
@@ -704,37 +772,116 @@ class ScraperController:
         
         async with async_playwright() as pw:
             self.log("INFO", "Launching browser...")
-            try:
-                browser = await pw.chromium.launch(
-                    headless=False,
-                    args=["--start-minimized", "--window-size=1280,900", "--disable-blink-features=AutomationControlled"]
-                )
-                self.log("OK", "Browser launched successfully!")
-            except Exception as e:
-                self.log("ERR", f"Could not launch browser: {e}")
-                self.log("ERR", "Run: python -m playwright install chromium")
-                self.is_running = False
-                self.status = "error"
-                if self.on_status:
-                    self.on_status("error", error=str(e))
-                return
             
-            # Use random user-agent and viewport for Extra Stealth mode
+            # Enhanced anti-detection for Stealth mode
             if self.mode == "stealth":
-                user_agent = self.get_random_user_agent()
-                viewport = self.get_random_viewport()
-                # Extract browser name from user agent for cleaner logging
-                ua_short = "Chrome" if "Chrome" in user_agent else "Firefox" if "Firefox" in user_agent else "Safari" if "Safari" in user_agent else "Unknown"
-                self.log("STEALTH", f"Browser fingerprint rotation: {viewport['width']}x{viewport['height']} viewport, {ua_short} user-agent")
+                # Use persistent browser profile to maintain cookies/session between runs
+                os.makedirs(STEALTH_PROFILE_DIR, exist_ok=True)
+                
+                # Enhanced browser args for stealth
+                browser_args = [
+                    "--start-minimized",
+                    "--window-size=1280,900",
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-dev-shm-usage",
+                    "--disable-infobars",
+                    "--disable-extensions",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-popup-blocking",
+                ]
+                
+                try:
+                    # Launch with persistent context for Stealth mode
+                    ctx = await pw.chromium.launch_persistent_context(
+                        user_data_dir=STEALTH_PROFILE_DIR,
+                        headless=False,
+                        args=browser_args,
+                        viewport={"width": 1280, "height": 900},
+                        user_agent=self.get_random_user_agent(),
+                    )
+                    browser = None  # No separate browser object with persistent context
+                    page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+                    self.log("OK", "Browser launched with persistent profile!")
+                    
+                    # Apply playwright-stealth if available
+                    if HAS_STEALTH and stealth_async:
+                        await stealth_async(page)
+                        self.log("STEALTH", "Playwright-stealth patches applied")
+                    else:
+                        self.log("STEALTH", "playwright-stealth not installed - using basic anti-detection")
+                    
+                    # Log stealth features
+                    viewport = self.get_random_viewport()
+                    ua_short = "Chrome"  # Persistent context uses Chrome
+                    self.log("STEALTH", f"Persistent profile: {os.path.basename(STEALTH_PROFILE_DIR)}")
+                    self.log("STEALTH", f"Browser fingerprint: {viewport['width']}x{viewport['height']} viewport")
+                    
+                    # Initial settling delay (10-20 seconds) to appear more human
+                    settling_delay = random.randint(10, 20)
+                    self.log("STEALTH", f"Initial settling delay: {settling_delay}s")
+                    await asyncio.sleep(settling_delay)
+                    
+                    # Warm-up: Navigate to Idealista homepage first
+                    self.log("STEALTH", "Warm-up: Navigating to Idealista homepage first...")
+                    try:
+                        await page.goto("https://www.idealista.com", wait_until="domcontentloaded", timeout=30000)
+                        await asyncio.sleep(random.uniform(3, 5))
+                        
+                        # Accept cookies on homepage
+                        await page.evaluate(r"""() => {
+                            const acceptBtns = document.querySelectorAll(
+                                '#didomi-notice-agree-button, [id*="accept"], .onetrust-accept-btn'
+                            );
+                            for (const btn of acceptBtns) {
+                                if (btn.offsetParent !== null) {
+                                    btn.click();
+                                    return true;
+                                }
+                            }
+                            return false;
+                        }""")
+                        await asyncio.sleep(random.uniform(2, 4))
+                        
+                        # Random scroll on homepage
+                        await page.evaluate("window.scrollTo(0, 300)")
+                        await asyncio.sleep(random.uniform(1, 2))
+                        
+                        self.log("OK", "Warm-up complete - cookies accepted")
+                    except Exception as e:
+                        self.log("WARN", f"Warm-up navigation failed (continuing anyway): {e}")
+                    
+                except Exception as e:
+                    self.log("ERR", f"Could not launch browser: {e}")
+                    self.log("ERR", "Run: python -m playwright install chromium")
+                    self.is_running = False
+                    self.status = "error"
+                    if self.on_status:
+                        self.on_status("error", error=str(e))
+                    return
             else:
+                # Fast mode: Standard browser launch
+                try:
+                    browser = await pw.chromium.launch(
+                        headless=False,
+                        args=["--start-minimized", "--window-size=1280,900", "--disable-blink-features=AutomationControlled"]
+                    )
+                    self.log("OK", "Browser launched successfully!")
+                except Exception as e:
+                    self.log("ERR", f"Could not launch browser: {e}")
+                    self.log("ERR", "Run: python -m playwright install chromium")
+                    self.is_running = False
+                    self.status = "error"
+                    if self.on_status:
+                        self.on_status("error", error=str(e))
+                    return
+                
                 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                viewport = {"width": 1920, "height": 1080}
-            
-            ctx = await browser.new_context(
-                no_viewport=True,  # Use window size instead of fixed viewport
-                user_agent=user_agent
-            )
-            page = await ctx.new_page()
+                ctx = await browser.new_context(
+                    no_viewport=True,
+                    user_agent=user_agent
+                )
+                page = await ctx.new_page()
             
             # Navigate to seed URL
             try:
@@ -745,22 +892,50 @@ class ScraperController:
             except Exception as e:
                 self.log("ERR", f"Could not open seed URL: {e}")
             
+            # Try to dismiss cookie consent banners that might block content
+            try:
+                await page.evaluate(r"""() => {
+                    // Click common accept buttons for cookie consent
+                    const acceptBtns = document.querySelectorAll(
+                        '[id*="accept"], [class*="accept"], [id*="cookie"] button, ' +
+                        '[class*="cookie"] button, [data-testid*="accept"], ' +
+                        '.didomi-continue-without-agreeing, #didomi-notice-agree-button, ' +
+                        '.onetrust-accept-btn, #onetrust-accept-btn-handler'
+                    );
+                    for (const btn of acceptBtns) {
+                        if (btn.offsetParent !== null) { // visible
+                            btn.click();
+                            return true;
+                        }
+                    }
+                    return false;
+                }""")
+                await asyncio.sleep(1.0)
+            except Exception:
+                pass
+            
             # Detect sheet name and total properties from page
             self.log("INFO", "Waiting for page to load property count...")
             h1txt = ""
             total_count = 0
             
-            # Retry h1 extraction up to 3 times (page may navigate/redirect)
-            for attempt in range(3):
+            # Retry h1 extraction up to 4 times (page may navigate/redirect)
+            # Wait 4 seconds per attempt to allow slow-loading pages
+            for attempt in range(4):
                 try:
-                    # Wait for page to stabilize
-                    await asyncio.sleep(2.0)
+                    # Wait for page to stabilize (increased from 2s to 4s)
+                    await asyncio.sleep(4.0)
                     
                     # Wait for network to be idle
                     try:
                         await page.wait_for_load_state("networkidle", timeout=5000)
                     except Exception:
                         pass
+                    
+                    # Debug: Log page title to see what page we're on
+                    page_title = await page.title()
+                    if attempt == 0:
+                        self.log("INFO", f"Page title: '{page_title[:80] if page_title else 'empty'}'")
                     
                     # Try to get h1 text
                     h1txt = await page.evaluate(r"""() => {
@@ -772,28 +947,39 @@ class ScraperController:
                     
                     if h1txt:
                         self.log("INFO", f"H1 text: '{h1txt[:100]}'")
-                        break  # Success, exit retry loop
+                        # Extract count immediately to check if we found properties
+                        match = re.search(r'(\d{1,3}(?:\.\d{3})*)\s*(?:vivienda|pisos?|casas?|inmuebles?|anuncios?|habitaci[oó]n|habitaciones)', h1txt, re.IGNORECASE)
+                        if match:
+                            total_count = int(match.group(1).replace('.', ''))
+                            self.log("INFO", f"Extracted count from h1: {total_count}")
+                            break  # Success, exit retry loop
+                        # H1 found but no count - continue retrying
+                    else:
+                        # Log what we see for debugging
+                        if attempt == 1:
+                            body_snippet = await page.evaluate(r"""() => {
+                                const body = document.body;
+                                return body ? body.innerText.substring(0, 200) : '';
+                            }""") or ""
+                            self.log("WARN", f"H1 empty, page content: '{body_snippet[:100]}...'")
                     
                 except Exception as e:
-                    if attempt < 2:
+                    if attempt < 3:
                         self.log("WARN", f"H1 extraction attempt {attempt+1} failed: {e}. Retrying...")
                         await asyncio.sleep(1.0)
                     else:
-                        self.log("WARN", f"H1 extraction failed after 3 attempts: {e}")
+                        self.log("WARN", f"H1 extraction failed after 4 attempts: {e}")
             
-            # Extract count from h1 text
-            if h1txt:
-                # Look for patterns like "2.055 viviendas" or "3.123 habitaciones"
-                match = re.search(r'(\d{1,3}(?:\.\d{3})*)\s*(?:vivienda|pisos?|casas?|inmuebles?|anuncios?|habitaci[oó]n|habitaciones)', h1txt, re.IGNORECASE)
-                if match:
-                    total_count = int(match.group(1).replace('.', ''))
-                    self.log("INFO", f"Extracted count from h1: {total_count}")
-            
-            # If still no count, log error and STOP
+            # If still no count after all retries, log error and exit cleanly
             if total_count == 0:
                 self.log("ERR", "Deteniendo scraping. URL no válida (0 inmuebles encontrados)")
-                self.stop()
+                await browser.close()
+                self.is_running = False
+                self.status = "error"
+                if self.on_status:
+                    self.on_status("error", error="0 inmuebles encontrados")
                 return
+
             
             # Detect alquiler/venta from h1 text
             h1_lower = h1txt.lower()
@@ -1274,60 +1460,244 @@ class ScraperController:
                 page_num += 1
             
             self.log("INFO", f"Summary: {new_scraped} new, {updated} updated, {skipped} skipped, {len(expired_urls)} expired")
-            self.log("INFO", "Scraping finished. Closing browser...")
-            await browser.close()
-        
-        # Export data
-        self.log("INFO", "Exporting data to Excel...")
-        
-        # Use filename from Phase 2 if available, otherwise build it
-        if target_file:
-            out_effective = os.path.join(self.output_dir, target_file)
-        elif additions:
-            # Build filename: idealista_[Ciudad]_[venta/alquiler].xlsx
-            ciudad = additions[0].get("Ciudad")
-            category = self._detected_sheet or "unknown"
             
-            if ciudad:
-                ciudad_clean = sanitize_filename_part(ciudad)
-                out_effective = f"idealista_{ciudad_clean}_{category}.xlsx"
+            # === EXPORT FIRST PHASE DATA ===
+            self._export_to_excel(additions, target_file, expired_urls)
+            
+            # === DUAL MODE: Run second phase in same browser ===
+            if self.dual_mode_url and not self._stop_evt.is_set():
+                self.log("INFO", "=== DUAL MODE: Starting second phase in same browser ===")
+                self.log("INFO", f"Switching to: {self.dual_mode_url}")
+                
+                # Cooldown period to appear more human-like
+                cooldown = random.randint(30, 60)
+                self.log("INFO", f"Cooldown pause: {cooldown} seconds before continuing...")
+                await asyncio.sleep(cooldown)
+                
+                # Reset state for second phase
+                self.seed_url = self.dual_mode_url
+                self.dual_mode_url = None  # Prevent infinite loop
+                self._processed.clear()
+                self._detected_sheet = None
+                self._detected_city = None
+                self.scraped_properties = []
+                self.current_page = 0
+                self.current_property_count = 0
+                additions = []
+                expired_urls = []
+                
+                # Detect new category
+                self._is_room_mode = "habitacion" in self.seed_url.lower()
+                
+                # Navigate to new seed URL
+                try:
+                    self.log("INFO", f"Navigating to second seed URL...")
+                    await page.goto(self.seed_url, wait_until="domcontentloaded", timeout=60000)
+                    await asyncio.sleep(3.0)
+                    self.log("OK", "Opened second seed URL")
+                except Exception as e:
+                    self.log("ERR", f"Could not open second seed URL: {e}")
+                    await browser.close()
+                    return
+                
+                # Re-detect properties count and category for phase 2
+                h1txt = ""
+                total_count = 0
+                
+                for attempt in range(4):
+                    try:
+                        await asyncio.sleep(4.0)
+                        try:
+                            await page.wait_for_load_state("networkidle", timeout=5000)
+                        except Exception:
+                            pass
+                        
+                        page_title = await page.title()
+                        if attempt == 0:
+                            self.log("INFO", f"Page title: '{page_title[:80] if page_title else 'empty'}'")
+                        
+                        h1txt = await page.evaluate(r"""() => {
+                            const el = document.querySelector('#h1-container__text') || 
+                                       document.querySelector('#h1-container') || 
+                                       document.querySelector('h1');
+                            return el ? el.textContent.trim() : '';
+                        }""") or ""
+                        
+                        if h1txt:
+                            self.log("INFO", f"H1 text: '{h1txt[:100]}'")
+                            match = re.search(r'(\d{1,3}(?:\.\d{3})*)\s*(?:vivienda|pisos?|casas?|inmuebles?|anuncios?|habitaci[oó]n|habitaciones)', h1txt, re.IGNORECASE)
+                            if match:
+                                total_count = int(match.group(1).replace('.', ''))
+                                self.log("INFO", f"Extracted count from h1: {total_count}")
+                                break
+                    except Exception as e:
+                        if attempt < 3:
+                            self.log("WARN", f"H1 extraction attempt {attempt+1} failed: {e}. Retrying...")
+                
+                if total_count == 0:
+                    self.log("ERR", "Could not detect properties on second URL. Skipping phase 2.")
+                    await browser.close()
+                    return
+                
+                # Detect category for phase 2
+                h1_lower = h1txt.lower()
+                if "habitaci" in h1_lower and "alquiler" in h1_lower:
+                    self._detected_sheet = "alquiler-habitaciones"
+                elif "alquiler" in h1_lower:
+                    self._detected_sheet = "alquiler"
+                elif "venta" in h1_lower:
+                    self._detected_sheet = "venta"
+                
+                if "," in h1txt:
+                    city_part = h1txt.split(",")[-1].strip()
+                    city_part = re.sub(r'\s+(capital|provincia|centro|norte|sur|este|oeste).*$', '', city_part, flags=re.IGNORECASE).strip()
+                    if city_part:
+                        self._detected_city = city_part
+                
+                self.total_properties_expected = total_count
+                self.total_pages_expected = (total_count + 29) // 30 if total_count > 0 else 0
+                self.log("INFO", f"Phase 2: {self.total_properties_expected} properties, {self.total_pages_expected} pages")
+                self.emit_progress()
+                
+                # Determine target file for phase 2
+                target_file = None
+                registry_entry = lookup_seed_url(self.seed_url)
+                if registry_entry:
+                    target_file = registry_entry.get("output_file")
+                    target_path = os.path.join(self.output_dir, target_file) if target_file else None
+                    if target_path and os.path.exists(target_path):
+                        url_dates = load_urls_with_dates(target_path)
+                        self._processed.update(url_dates.keys())
+                        self.log("INFO", f"Pre-loaded {len(url_dates)} existing URLs for phase 2")
+                
+                # Re-run the main scraping loop for phase 2
+                page_num = 1
+                new_scraped = 0
+                updated = 0
+                skipped = 0
+                
+                while not self._stop_evt.is_set():
+                    await self._wait_for_pause()
+                    if self._stop_evt.is_set():
+                        break
+                    
+                    list_url = build_paginated_url(self.seed_url, page_num)
+                    self.log("INFO", f"Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
+                    
+                    try:
+                        await self._goto_with_retry(page, list_url)
+                    except BrowserClosedException:
+                        break
+                    except Exception as e:
+                        self.log("ERR", f"Failed to open listing page: {e}")
+                        break
+                    
+                    try:
+                        await page.wait_for_selector("article, .item, [data-element-id]", timeout=10000, state="visible")
+                        await asyncio.sleep(2.0)
+                    except Exception:
+                        pass
+                    
+                    await self.variable_scroll(page)
+                    await asyncio.sleep(1.0)
+                    
+                    js_collect = r'''(() => {
+                        const A = [...document.querySelectorAll("a[href*='/inmueble']")];
+                        const U = A.map(a => new URL(a.getAttribute("href") || a.href, location.origin).href)
+                                  .filter(u => /\/inmueble[s]?\/\d+/.test(u));
+                        return [...new Set(U)].slice(0, %d);
+                    })()''' % LISTING_LINKS_PER_PAGE_MAX
+                    
+                    try:
+                        hrefs: List[str] = await page.evaluate(js_collect)
+                    except Exception as e:
+                        self.log("WARN", f"Error collecting links: {e}")
+                        hrefs = []
+                    
+                    if not hrefs:
+                        self.log("INFO", f"End of listings at page {page_num}.")
+                        break
+                    
+                    original_count = len(hrefs)
+                    hrefs = [h for h in hrefs if canonical_listing_url(h) not in self._processed]
+                    
+                    if not hrefs:
+                        self.log("OK", f"Page {page_num}: All {original_count} properties already scraped")
+                        page_num += 1
+                        continue
+                    
+                    self.log("INFO", f"Page {page_num}: {len(hrefs)} new properties to scrape")
+                    self.current_page = page_num
+                    self.emit_progress()
+                    
+                    for href in hrefs:
+                        await self._wait_for_pause()
+                        if self._stop_evt.is_set():
+                            break
+                        
+                        key = canonical_listing_url(href)
+                        if key in self._processed:
+                            continue
+                        
+                        try:
+                            await asyncio.sleep(random.uniform(*card_delay))
+                            await self._goto_with_retry(page, href)
+                            await asyncio.sleep(random.uniform(*post_card_delay))
+                            
+                            await page.wait_for_timeout(PAGE_WAIT_MS)
+                            d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
+                            row = {"URL": key, **d}
+                            
+                            miss = missing_fields(row, is_room_mode=self._is_room_mode)
+                            if miss:
+                                page_text = await page.evaluate("() => (document.body && document.body.innerText) ? document.body.innerText : ''")
+                                is_not_found = any(x in page_text.lower() for x in ["no encontramos", "anuncio no disponible", "este anuncio ya no está disponible"])
+                                if is_not_found:
+                                    self.log("WARN", f"Anuncio no disponible: {key}")
+                                    self._processed.add(key)
+                                    continue
+                            
+                            row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+                            additions.append(row)
+                            self.scraped_properties.append(row)
+                            self._processed.add(key)
+                            new_scraped += 1
+                            
+                            self.current_property_count += 1
+                            self.emit_progress()
+                            self.log("OK", f"({self.current_property_count}/{self.total_properties_expected}) Scraped: {key}")
+                            
+                            if self.on_property:
+                                self.on_property(row)
+                            
+                            await self.simulate_reading_time(row.get("Descripción"))
+                            await self.simulate_mouse_movement(page)
+                            
+                        except BrowserClosedException:
+                            break
+                        except Exception as e:
+                            self.log("ERR", f"Error scraping {key}: {e}")
+                            self._processed.add(key)
+                    
+                    if self._stop_evt.is_set():
+                        break
+                    if original_count < LISTING_LINKS_PER_PAGE_MAX:
+                        self.log("INFO", f"Last page reached.")
+                        break
+                    if page_num >= 60:
+                        self.log("INFO", f"Reached page limit (60).")
+                        break
+                    page_num += 1
+                
+                self.log("INFO", f"Phase 2 Summary: {new_scraped} new properties")
+                self._export_to_excel(additions, target_file, expired_urls)
+            
+            self.log("INFO", "Scraping finished. Closing browser...")
+            # Close browser/context properly based on mode
+            if browser is not None:
+                await browser.close()
             else:
-                out_effective = f"idealista_{category}.xlsx"
-            out_effective = os.path.join(self.output_dir, out_effective)
-        else:
-            out_effective = os.path.join(self.output_dir, f"idealista_{self._detected_sheet or 'unknown'}.xlsx")
-        
-        self.log("INFO", f"Output path: {out_effective}")
-        
-        # Ensure output directory exists
-        os.makedirs(self.output_dir, exist_ok=True)
-        
-        # Load ALL existing data from all sheets and export with split by Distrito
-        existing_df, _, _ = load_existing_single_sheet(out_effective, self._detected_sheet or self.sheet_name)
-        self.log("INFO", f"Loaded {len(existing_df)} existing rows from file")
-        
-        # Delete expired URLs from existing data
-        if expired_urls and not existing_df.empty and "URL" in existing_df.columns:
-            initial_count = len(existing_df)
-            existing_df = existing_df[~existing_df["URL"].isin(expired_urls)]
-            deleted_count = initial_count - len(existing_df)
-            if deleted_count > 0:
-                self.log("OK", f"Deleted {deleted_count} expired listings from Excel")
-        
-        export_split_by_distrito(existing_df, additions, out_effective, carry_cols=set())
-        
-        self.output_file = os.path.abspath(out_effective)
-        self.log("OK", f"Saved {len(additions)} new/updated rows to {self.output_file}")
-        
-        # Register this scrape in the history registry
-        total_properties = len(existing_df) + len(additions) if existing_df is not None else len(additions)
-        register_scrape(
-            self.seed_url,
-            os.path.basename(out_effective),
-            total_properties,
-            page_num
-        )
-        self.log("INFO", f"Registered scrape: {os.path.basename(out_effective)} ({total_properties} properties)")
+                await ctx.close()  # Persistent context in Stealth mode
         
         # Clear resume state file on successful completion
         self.clear_state()
@@ -1337,3 +1707,4 @@ class ScraperController:
         self.status = "completed"
         if self.on_status:
             self.on_status("completed", file=self.output_file, count=len(self.scraped_properties))
+

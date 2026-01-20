@@ -26,8 +26,8 @@ if sys.platform == 'win32':
     sys.stderr.reconfigure(encoding='utf-8')
 
 from idealista_scraper.scraper import _goto_with_retry
-from idealista_scraper.extractors import extract_detail_fields
-from idealista_scraper.utils import log
+from idealista_scraper.extractors import extract_detail_fields, missing_fields
+from idealista_scraper.utils import log, play_captcha_alert
 from idealista_scraper.config import FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE
 from playwright.async_api import async_playwright
 import random
@@ -80,6 +80,19 @@ def emit_progress(current, total):
             })
         except:
             pass
+
+
+async def detect_captcha(page) -> bool:
+    """Check if page shows CAPTCHA/bot protection based on page title."""
+    try:
+        title = (await page.title() or "").lower()
+        is_captcha = any(kw in title for kw in [
+            "attention", "moment", "challenge", "robot", "captcha",
+            "access denied", "security", "peticiones", "verificación", "verification"
+        ])
+        return is_captcha
+    except:
+        return False
 
 
 async def update_urls(excel_file: str, selected_sheets: list = None):
@@ -196,6 +209,28 @@ async def update_urls(excel_file: str, selected_sheets: list = None):
                             await asyncio.sleep(1)
                             continue
                         raise e
+                
+                # Check for CAPTCHA (missing critical fields or CAPTCHA page detected)
+                miss = missing_fields(d) if d else ["all"]
+                if miss or await detect_captcha(page):
+                    emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado. Resuelve el CAPTCHA manualmente en el navegador.')
+                    
+                    # Wait loop with repeating alarm until CAPTCHA is solved
+                    captcha_resolved = False
+                    while not captcha_resolved:
+                        play_captcha_alert()
+                        await asyncio.sleep(10)  # Wait 10 seconds before checking again
+                        
+                        # Check if CAPTCHA is solved
+                        if not await detect_captcha(page):
+                            # Re-extract data
+                            d = await extract_detail_fields(page, debug_items=False)
+                            miss = missing_fields(d) if d else ["all"]
+                            if not miss:
+                                emit_to_ui('OK', f'({i}/{len(urls)}) CAPTCHA resuelto! Continuando...')
+                                captcha_resolved = True
+                            else:
+                                emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA aún presente. Resuelve y espera...')
                 
                 # Check status
                 is_inactive = d.get('Anuncio activo') == 'No' or d.get('Baja anuncio')

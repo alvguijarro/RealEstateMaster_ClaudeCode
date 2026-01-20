@@ -1,25 +1,21 @@
 @echo off
-echo Stopping all RealEstateMaster services...
-echo.
+cd /d "%~dp0\.."
+
+REM Stop all services (same as STOP_ALL.bat)
 
 REM Kill processes on port 5003 (scraper)
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5003 ^| findstr LISTENING') do (
-    echo Killing process %%a on port 5003...
     taskkill /F /PID %%a 2>nul
 )
 
 REM Kill processes on port 5001 (analyzer)
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5001 ^| findstr LISTENING') do (
-    echo Killing process %%a on port 5001...
     taskkill /F /PID %%a 2>nul
 )
 
 REM Kill processes on port 5004 (metrics)
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5004 ^| findstr LISTENING') do (
-    echo Killing process %%a on port 5004...
     taskkill /F /PID %%a 2>nul
 )
 
-echo.
-echo All services stopped.
 timeout /t 1 >nul

@@ -37,6 +37,7 @@ DEPENDENCIES = [
     "flask>=3.0.0",
     "flask-socketio>=5.3.0",
     "playwright>=1.40.0",
+    "playwright-stealth>=1.0.0",  # Anti-detection for Stealth mode
     "pandas>=2.0.0",
     "openpyxl>=3.1.0",
     "python-engineio>=4.8.0",
