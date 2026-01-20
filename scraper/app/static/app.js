@@ -1089,3 +1089,73 @@ function playAlarm() {
     // Play a lower tone confirmation
     playBeep(440, 'sine', 0.4, now + 1.2);
 }
+
+// Server Control Buttons
+const startServerBtn = document.getElementById('startServerBtn');
+const stopServerBtn = document.getElementById('stopServerBtn');
+const restartServerBtn = document.getElementById('restartServerBtn');
+
+if (startServerBtn) {
+    startServerBtn.addEventListener('click', async () => {
+        try {
+            startServerBtn.disabled = true;
+            startServerBtn.innerHTML = '<span class="btn-icon">⏳</span> Iniciando...';
+            const response = await fetch('/api/server/start', { method: 'POST' });
+            const data = await response.json();
+            if (response.ok) {
+                addLog('INFO', 'Servidor iniciándose...');
+            } else {
+                addLog('ERR', data.error || 'Error al iniciar servidor');
+            }
+        } catch (err) {
+            addLog('ERR', 'Error de conexión al iniciar servidor');
+        } finally {
+            startServerBtn.disabled = false;
+            startServerBtn.innerHTML = '<span class="btn-icon">▶</span> Arrancar';
+        }
+    });
+}
+
+if (stopServerBtn) {
+    stopServerBtn.addEventListener('click', async () => {
+        if (!confirm('¿Seguro que quieres parar todos los servicios?')) return;
+        try {
+            stopServerBtn.disabled = true;
+            stopServerBtn.innerHTML = '<span class="btn-icon">⏳</span> Parando...';
+            const response = await fetch('/api/server/stop', { method: 'POST' });
+            const data = await response.json();
+            if (response.ok) {
+                addLog('INFO', 'Servidor parándose...');
+            } else {
+                addLog('ERR', data.error || 'Error al parar servidor');
+            }
+        } catch (err) {
+            addLog('ERR', 'Error de conexión al parar servidor');
+        } finally {
+            stopServerBtn.disabled = false;
+            stopServerBtn.innerHTML = '<span class="btn-icon">⏹</span> Parar';
+        }
+    });
+}
+
+if (restartServerBtn) {
+    restartServerBtn.addEventListener('click', async () => {
+        if (!confirm('¿Seguro que quieres reiniciar todos los servicios?')) return;
+        try {
+            restartServerBtn.disabled = true;
+            restartServerBtn.innerHTML = '<span class="btn-icon">⏳</span> Reiniciando...';
+            const response = await fetch('/api/server/restart', { method: 'POST' });
+            const data = await response.json();
+            if (response.ok) {
+                addLog('INFO', 'Servidor reiniciándose...');
+            } else {
+                addLog('ERR', data.error || 'Error al reiniciar servidor');
+            }
+        } catch (err) {
+            addLog('ERR', 'Error de conexión al reiniciar servidor');
+        } finally {
+            restartServerBtn.disabled = false;
+            restartServerBtn.innerHTML = '<span class="btn-icon">🔄</span> Reiniciar';
+        }
+    });
+}

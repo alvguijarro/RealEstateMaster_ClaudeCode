@@ -1,19 +1,19 @@
 /* Market Metrics Dashboard - Styles */
 :root {
-    --bg-main: #0f0f23;
-    --bg-panel: rgba(30, 30, 60, 0.6);
-    --bg-panel-solid: #1a1a3e;
-    --text-main: #ffffff;
-    --text-secondary: #a0a0c0;
-    --text-muted: #6a6a8a;
-    --accent-primary: #6366f1;
-    --accent-secondary: #8b5cf6;
-    --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    --bg-main: #0f172a;
+    --bg-panel: rgba(30, 41, 59, 0.6);
+    --bg-panel-solid: #1e293b;
+    --text-main: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-primary: #fb923c;
+    --accent-secondary: #ea580c;
+    --accent-gradient: linear-gradient(135deg, #fb923c 0%, #fdba74 100%);
     --success: #22c55e;
-    --warning: #f59e0b;
+    --warning: #eab308;
     --danger: #ef4444;
     --border: rgba(255, 255, 255, 0.08);
-    --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     --radius: 16px;
     --radius-sm: 8px;
 }
@@ -29,9 +29,7 @@ body {
     background: var(--bg-main);
     color: var(--text-main);
     min-height: 100vh;
-    background-image:
-        radial-gradient(ellipse at top right, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
-        radial-gradient(ellipse at bottom left, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+    background-image: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
 }
 
 .app-container {

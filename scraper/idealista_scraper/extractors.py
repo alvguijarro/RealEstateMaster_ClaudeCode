@@ -293,7 +293,13 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
         const infoFeatures = Array.from(document.querySelectorAll('.info-features span')).map(el => (el.textContent || '').trim()).filter(Boolean);
 
         let description = null;
-        const descEl = document.querySelector('.adCommentsLanguage.expandable.is-expandable.with-expander-button');
+        // Try multiple selectors for description - the class combination varies:
+        // - Long descriptions have: .adCommentsLanguage.expandable.is-expandable.with-expander-button
+        // - Short descriptions have: .adCommentsLanguage.expandable.is-expandable (no button needed)
+        // - Some pages may have different structures
+        const descEl = document.querySelector('.adCommentsLanguage.expandable.is-expandable') 
+                    || document.querySelector('.adCommentsLanguage')
+                    || document.querySelector('.comment-content');
         if (descEl) description = descEl.innerText.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
 
         let gastosComunidad = null;

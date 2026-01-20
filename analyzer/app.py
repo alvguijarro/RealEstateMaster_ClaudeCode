@@ -1,5 +1,9 @@
 import sys
 import os
+
+# Add current directory to sys.path for embedded Python compatibility
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import glob
 import json
 import threading

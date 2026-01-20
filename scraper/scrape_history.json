@@ -1,5 +1,45 @@
 [
   {
+    "timestamp": "2026-01-20T19:53:59.498986",
+    "seed_url": "https://www.idealista.com/venta-viviendas/talavera-de-la-reina-toledo/",
+    "properties_count": 487,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Toledo_venta.xlsx",
+    "filename": "idealista_Toledo_venta.xlsx"
+  },
+  {
+    "timestamp": "2026-01-20T11:08:30.659183",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/talavera-de-la-reina-toledo/",
+    "properties_count": 96,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Toledo_alquiler.xlsx",
+    "filename": "idealista_Toledo_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-01-20T07:15:54.443573",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/talavera-de-la-reina-toledo/",
+    "properties_count": 98,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Toledo_alquiler.xlsx",
+    "filename": "idealista_Toledo_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-01-20T03:49:49.449393",
+    "seed_url": "https://www.idealista.com/venta-viviendas/talavera-de-la-reina-toledo/",
+    "properties_count": 383,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Toledo_venta.xlsx",
+    "filename": "idealista_Toledo_venta.xlsx"
+  },
+  {
+    "timestamp": "2026-01-19T21:50:26.591171",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/madrid-madrid/",
+    "properties_count": 2,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_alquiler.xlsx",
+    "filename": "idealista_Madrid_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-01-19T21:04:55.575341",
     "seed_url": "https://www.idealista.com/venta-viviendas/talavera-de-la-reina-toledo/pagina-7.htm",
     "properties_count": 274,

@@ -470,13 +470,16 @@ function renderDoughnut(key, data, activeFilter, filterMap, hideLegendSmall = fa
     }
     if (panel) panel.style.display = 'block';
 
-    const baseColors = ['#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6'];
+    const baseColors = ['#fb923c', '#f97316', '#ea580c', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e'];
     const bgColors = data.map((d, i) => {
         // Highlight active
         if (activeFilter && d.raw === activeFilter.raw) return baseColors[i % baseColors.length];
         if (activeFilter) return baseColors[i % baseColors.length] + '40';
         return baseColors[i % baseColors.length];
     });
+
+    // Calculate total for percentage
+    const total = data.reduce((sum, d) => sum + d.value, 0);
 
     charts[key] = new Chart(ctx, {
         type: 'doughnut',
@@ -494,13 +497,27 @@ function renderDoughnut(key, data, activeFilter, filterMap, hideLegendSmall = fa
                 }
             },
             plugins: {
-                legend: {
-                    display: !hideLegendSmall || data.length < 10,
-                    position: 'top',
-                    labels: { color: '#a0a0c0', font: { family: 'Outfit', size: 12 }, boxWidth: 10 }
+                legend: { display: false },
+                datalabels: {
+                    color: '#fff',
+                    font: { family: 'Outfit', size: 18, weight: 700 },
+                    formatter: (value, context) => {
+                        const label = data[context.dataIndex].label;
+                        const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                        return `${label}: ${value} (${pct}%)`;
+                    },
+                    display: (context) => {
+                        const value = context.dataset.data[context.dataIndex];
+                        const pct = total > 0 ? (value / total) * 100 : 0;
+                        return pct >= 5; // Hide labels for segments < 5%
+                    },
+                    anchor: 'center',
+                    align: 'center',
+                    textAlign: 'center'
                 }
             }
-        }
+        },
+        plugins: [ChartDataLabels]
     });
 }
 
@@ -518,10 +535,13 @@ function renderBar(key, data, activeFilter, filterMap) {
     if (panel) panel.style.display = 'block';
 
     const bgColors = data.map(d => {
-        if (activeFilter && d.raw === activeFilter.raw) return '#6366f1';
-        if (activeFilter) return 'rgba(99, 102, 241, 0.3)';
-        return '#6366f1';
+        if (activeFilter && d.raw === activeFilter.raw) return '#fb923c';
+        if (activeFilter) return 'rgba(251, 146, 60, 0.3)';
+        return '#fb923c';
     });
+
+    // Calculate total for percentage
+    const total = data.reduce((sum, d) => sum + d.value, 0);
 
     charts[key] = new Chart(ctx, {
         type: 'bar',
@@ -538,9 +558,28 @@ function renderBar(key, data, activeFilter, filterMap) {
                     updateFilter();
                 }
             },
-            plugins: { legend: { display: false } },
-            scales: { x: { ticks: { color: '#6a6a8a' }, grid: { display: false } }, y: { ticks: { color: '#6a6a8a' }, grid: { color: 'rgba(255,255,255,0.05)' } } }
-        }
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    color: '#fff',
+                    font: { family: 'Outfit', size: 16, weight: 700 },
+                    formatter: (value, context) => {
+                        const label = data[context.dataIndex].label;
+                        const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                        return `${label}: ${value} (${pct}%)`;
+                    },
+                    display: (context) => {
+                        const value = context.dataset.data[context.dataIndex];
+                        const pct = total > 0 ? (value / total) * 100 : 0;
+                        return pct >= 5; // Hide labels < 5%
+                    },
+                    anchor: 'end',
+                    align: 'top'
+                }
+            },
+            scales: { x: { ticks: { color: '#64748b' }, grid: { display: false } }, y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } } }
+        },
+        plugins: [ChartDataLabels]
     });
 }
 
@@ -560,16 +599,19 @@ function renderHistogram(key, data, activeFilter, isCategorical = false) {
     const bgColors = data.map(d => {
         if (isCategorical) {
             // Filter by raw
-            if (activeFilter && d.raw === activeFilter.raw) return '#6366f1';
-            if (activeFilter) return 'rgba(99, 102, 241, 0.3)';
-            return '#6366f1';
+            if (activeFilter && d.raw === activeFilter.raw) return '#fb923c';
+            if (activeFilter) return 'rgba(251, 146, 60, 0.3)';
+            return '#fb923c';
         } else {
             // Filter by min/max
-            if (activeFilter && d.min === activeFilter.min && d.max === activeFilter.max) return '#6366f1';
-            if (activeFilter) return 'rgba(99, 102, 241, 0.3)';
-            return '#6366f1';
+            if (activeFilter && d.min === activeFilter.min && d.max === activeFilter.max) return '#fb923c';
+            if (activeFilter) return 'rgba(251, 146, 60, 0.3)';
+            return '#fb923c';
         }
     });
+
+    // Calculate total for percentage
+    const total = data.reduce((sum, d) => sum + d.value, 0);
 
     charts[key] = new Chart(ctx, {
         type: 'bar',
@@ -590,9 +632,27 @@ function renderHistogram(key, data, activeFilter, isCategorical = false) {
                     updateFilter();
                 }
             },
-            plugins: { legend: { display: false } },
-            scales: { x: { ticks: { color: '#6a6a8a' }, grid: { display: false } }, y: { ticks: { color: '#6a6a8a' }, grid: { color: 'rgba(255,255,255,0.05)' } } }
-        }
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    color: '#fff',
+                    font: { family: 'Outfit', size: 15, weight: 700 },
+                    formatter: (value, context) => {
+                        const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                        return `${value} (${pct}%)`;
+                    },
+                    display: (context) => {
+                        const value = context.dataset.data[context.dataIndex];
+                        const pct = total > 0 ? (value / total) * 100 : 0;
+                        return pct >= 5; // Hide labels < 5%
+                    },
+                    anchor: 'end',
+                    align: 'top'
+                }
+            },
+            scales: { x: { ticks: { color: '#64748b' }, grid: { display: false } }, y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } } }
+        },
+        plugins: [ChartDataLabels]
     });
 }
 

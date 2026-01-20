@@ -29,16 +29,30 @@
   },
   "https://www.idealista.com/venta-viviendas/talavera-de-la-reina-toledo": {
     "output_file": "idealista_Toledo_venta.xlsx",
-    "last_scraped": "2026-01-19T21:04:55.569257",
-    "properties_count": 733,
+    "last_scraped": "2026-01-20T19:53:59.493932",
+    "properties_count": 937,
     "pages_scraped": 17,
-    "original_url": "https://www.idealista.com/venta-viviendas/talavera-de-la-reina-toledo/pagina-7.htm"
+    "original_url": "https://www.idealista.com/venta-viviendas/talavera-de-la-reina-toledo/"
   },
   "https://www.idealista.com/alquiler-viviendas/talavera-de-la-reina-toledo": {
     "output_file": "idealista_Toledo_alquiler.xlsx",
-    "last_scraped": "2026-01-19T17:33:03.108665",
-    "properties_count": 200,
+    "last_scraped": "2026-01-20T11:08:30.655345",
+    "properties_count": 146,
     "pages_scraped": 4,
     "original_url": "https://www.idealista.com/alquiler-viviendas/talavera-de-la-reina-toledo/"
+  },
+  "https://www.idealista.com/alquiler-viviendas/madrid": {
+    "output_file": "idealista_alquiler.xlsx",
+    "last_scraped": "2026-01-19T21:40:55.681993",
+    "properties_count": 0,
+    "pages_scraped": 1,
+    "original_url": "https://www.idealista.com/alquiler-viviendas/madrid/"
+  },
+  "https://www.idealista.com/alquiler-viviendas/madrid-madrid": {
+    "output_file": "idealista_Madrid_alquiler.xlsx",
+    "last_scraped": "2026-01-19T21:50:26.582950",
+    "properties_count": 2,
+    "pages_scraped": 1,
+    "original_url": "https://www.idealista.com/alquiler-viviendas/madrid-madrid/"
   }
 }

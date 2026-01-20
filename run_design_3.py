@@ -38,17 +38,20 @@ def start_service(service_name):
     env['NO_BROWSER_OPEN'] = '1'
     env['FLASK_USE_RELOADER'] = 'False'  # Prevent double processes (parents not killed by STOP_ALL)
     
-    # Minimize child windows
-    startupinfo = subprocess.STARTUPINFO()
-    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startupinfo.wShowWindow = 6 # SW_MINIMIZE
+    # Determine Python executable path
+    # Use portable Python if available, otherwise fall back to sys.executable
+    portable_python = os.path.join(base_dir, 'python_portable', 'python.exe')
+    python_exe = portable_python if os.path.exists(portable_python) else sys.executable
     
     if service_name == 'scraper':
         if is_port_in_use(SCRAPER_PORT):
             return True
-        # Run app.server module directly (not start.py which spawns more subprocesses)
+        # Scraper has its own bundled Python in scraper/python
         scraper_dir = os.path.join(base_dir, 'scraper')
-        cmd = [sys.executable, '-m', 'app.server']
+        scraper_python = os.path.join(scraper_dir, 'python', 'python.exe')
+        if os.path.exists(scraper_python):
+            python_exe = scraper_python
+        cmd = [python_exe, '-m', 'app.server']
         env['PYTHONPATH'] = scraper_dir
         subprocess.Popen(cmd, cwd=scraper_dir, env=env, 
                         creationflags=subprocess.CREATE_NO_WINDOW)
@@ -59,7 +62,8 @@ def start_service(service_name):
             return True
         analyzer_dir = os.path.join(base_dir, 'analyzer')
         script = os.path.join(analyzer_dir, 'app.py')
-        subprocess.Popen([sys.executable, script], cwd=analyzer_dir, env=env,
+        env['PYTHONPATH'] = analyzer_dir
+        subprocess.Popen([python_exe, script], cwd=analyzer_dir, env=env,
                         creationflags=subprocess.CREATE_NO_WINDOW)
         return True
     
@@ -70,10 +74,11 @@ def start_service(service_name):
 
         metrics_dir = os.path.join(base_dir, 'dashboard')
         script = os.path.join(metrics_dir, 'app.py')
+        env['PYTHONPATH'] = metrics_dir
         
         # Log output to file for debugging
         with open(os.path.join(base_dir, 'metrics_debug.log'), 'w') as log_file:
-            subprocess.Popen([sys.executable, script], cwd=metrics_dir, env=env,
+            subprocess.Popen([python_exe, script], cwd=metrics_dir, env=env,
                             creationflags=subprocess.CREATE_NO_WINDOW,
                             stdout=log_file, stderr=log_file)
         return True

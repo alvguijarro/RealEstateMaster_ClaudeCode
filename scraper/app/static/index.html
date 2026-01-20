@@ -84,12 +84,33 @@
                             <span class="btn-icon">⏹</span>
                             Detener
                         </button>
-                        <button class="btn btn-primary" id="dualModeBtn" disabled
-                            style="width: 100%; margin-top: 10px; cursor: not-allowed;"
-                            title="Introduce una URL sin 'pagina-X' para activar">
-                            <span class="btn-icon">🔄</span>
-                            Scraping alquiler+venta
-                        </button>
+
+                        <!-- Row with Dual Mode and Server Controls -->
+                        <div class="dual-server-row" style="display: flex; gap: 10px; margin-top: 10px; width: 100%;">
+                            <button class="btn btn-primary" id="dualModeBtn" disabled
+                                style="flex: 1; cursor: not-allowed;"
+                                title="Introduce una URL sin 'pagina-X' para activar">
+                                <span class="btn-icon">🔄</span>
+                                Scraping alquiler+venta
+                            </button>
+                            <div class="server-buttons" style="display: flex; gap: 5px; flex: 1;">
+                                <button class="btn btn-success btn-sm" id="startServerBtn"
+                                    style="flex: 1; padding: 8px 10px; font-size: 12px;">
+                                    <span class="btn-icon">▶</span>
+                                    Arrancar
+                                </button>
+                                <button class="btn btn-danger btn-sm" id="stopServerBtn"
+                                    style="flex: 1; padding: 8px 10px; font-size: 12px;">
+                                    <span class="btn-icon">⏹</span>
+                                    Parar
+                                </button>
+                                <button class="btn btn-warning btn-sm" id="restartServerBtn"
+                                    style="flex: 1; padding: 8px 10px; font-size: 12px;">
+                                    <span class="btn-icon">🔄</span>
+                                    Reiniciar
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </section>
 

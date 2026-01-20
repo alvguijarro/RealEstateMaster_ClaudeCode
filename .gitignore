@@ -17,5 +17,20 @@ venv/
 scraper/salidas/
 scraper/scrape_history.json
 
+# Portable
+python_portable/*
+!python_portable/*.bat
+!python_portable/.gitignore
+python_portable/browsers/
+python_portable/Lib/
+python_portable/Scripts/
+python_portable/Include/
+python_portable/*.exe
+python_portable/*.dll
+python_portable/*.pyd
+python_portable/*.zip
+python_portable/.setup_complete
+python_portable/.deps_installed
+
 # Logs
 *.log
