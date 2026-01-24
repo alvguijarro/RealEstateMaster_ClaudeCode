@@ -14,6 +14,51 @@
         href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* Refresh Button Styles */
+        .btn-refresh {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color, #333);
+            color: var(--text-muted, #888);
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 500;
+        }
+
+        .btn-refresh:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--accent-color, #e91e63);
+            border-color: var(--accent-color, #e91e63);
+            transform: translateY(-1px);
+        }
+
+        .btn-refresh:active {
+            transform: translateY(0);
+        }
+
+        .refresh-icon {
+            font-size: 1rem;
+            display: inline-block;
+            transition: transform 0.5s ease;
+        }
+
+        .btn-refresh.loading .refresh-icon {
+            animation: spin 1s infinite linear;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
 </head>
 
 <body>
@@ -26,8 +71,11 @@
         <main>
             <!-- CONFIGURATION CARD -->
             <section class="card">
-                <div class="card-header">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <h2 class="card-title">Selección de archivos con viviendas en VENTA y en ALQUILER</h2>
+                    <button id="btnRefreshFiles" class="btn-refresh" title="Actualizar lista de archivos">
+                        <span class="refresh-icon">🔄</span> Actualizar
+                    </button>
                 </div>
                 <div class="settings-grid">
                     <div class="form-group">

@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Setup file refresh button
+    const refreshBtn = document.getElementById('btnRefreshFiles');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadFiles);
+    }
+
     loadFiles();
     setupFilters();
     setupAnalyze();
@@ -14,29 +20,51 @@ function startHeartbeat() {
 }
 
 async function loadFiles() {
+    const btnRefresh = document.getElementById('btnRefreshFiles');
+    if (btnRefresh) btnRefresh.classList.add('loading');
+
     try {
         const response = await fetch('/list-files');
         const files = await response.json();
 
+        // Sort by modified date (newest first)
+        files.sort((a, b) => new Date(b.last_modified) - new Date(a.last_modified));
+
         const ventaSelect = document.getElementById('ventaFile');
         const alquilerSelect = document.getElementById('alquilerFile');
 
-        ventaSelect.innerHTML = '';
-        alquilerSelect.innerHTML = '';
+        ventaSelect.innerHTML = '<option value="">-- Seleccionar archivo --</option>';
+        alquilerSelect.innerHTML = '<option value="">-- Seleccionar archivo --</option>';
+
+        let ventaSelected = false;
+        let alquilerSelected = false;
 
         files.forEach(file => {
+            const dateStr = `[${file.last_modified}]`;
+
+            // Venta Option
             const optV = document.createElement('option');
             optV.value = file.filename;
-            optV.textContent = file.filename;
-            // Only auto-select if it matches the type
-            if (file.type === 'venta') optV.selected = true;
+            optV.innerHTML = `${file.filename} &nbsp;&nbsp; ${dateStr}`;
             ventaSelect.appendChild(optV);
 
+            // Auto-select newest 'venta' file
+            if (!ventaSelected && file.type === 'venta') {
+                optV.selected = true;
+                ventaSelected = true;
+            }
+
+            // Alquiler Option
             const optA = document.createElement('option');
             optA.value = file.filename;
-            optA.textContent = file.filename;
-            if (file.type === 'alquiler') optA.selected = true;
+            optA.innerHTML = `${file.filename} &nbsp;&nbsp; ${dateStr}`;
             alquilerSelect.appendChild(optA);
+
+            // Auto-select newest 'alquiler' file
+            if (!alquilerSelected && file.type === 'alquiler') {
+                optA.selected = true;
+                alquilerSelected = true;
+            }
         });
 
         // Add event listeners for validation
@@ -48,6 +76,8 @@ async function loadFiles() {
 
     } catch (error) {
         console.error('Error loading files:', error);
+    } finally {
+        if (btnRefresh) btnRefresh.classList.remove('loading');
     }
 }
 

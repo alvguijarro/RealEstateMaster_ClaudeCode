@@ -1,0 +1,15 @@
+2026/01/24-13:02:53.109 b4c8 Reusing MANIFEST C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile\Default\Session Storage/MANIFEST-000001
+2026/01/24-13:02:53.110 b4c8 Recovering log #41
+2026/01/24-13:02:53.120 b4c8 Reusing old log C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile\Default\Session Storage/000041.log 
+2026/01/24-13:51:53.534 b078 Level-0 table #45: started
+2026/01/24-13:51:53.541 b078 Level-0 table #45: 8417 bytes OK
+2026/01/24-13:51:53.543 b078 Delete type=0 #41
+2026/01/24-13:51:53.544 b078 Compacting 4@0 + 1@1 files
+2026/01/24-13:51:53.693 b078 Generated table #46@0: 143 keys, 2916 bytes
+2026/01/24-13:51:53.693 b078 Compacted 4@0 + 1@1 files => 2916 bytes
+2026/01/24-13:51:53.695 b078 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/01/24-13:51:53.695 b078 Delete type=2 #36
+2026/01/24-13:51:53.696 b078 Delete type=2 #38
+2026/01/24-13:51:53.696 b078 Delete type=2 #40
+2026/01/24-13:51:53.696 b078 Delete type=2 #42
+2026/01/24-13:51:53.696 b078 Delete type=2 #45

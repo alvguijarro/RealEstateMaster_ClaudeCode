@@ -54,5 +54,61 @@
     "properties_count": 2,
     "pages_scraped": 1,
     "original_url": "https://www.idealista.com/alquiler-viviendas/madrid-madrid/"
+  },
+  "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000?shape=%28%28cmguFv~oVoha%40oq%5DpjG%7B~IvcP_pUh%7DW%60aa%40cdOh%60%5D%29%29": {
+    "output_file": "idealista_Madrid_venta.xlsx",
+    "last_scraped": "2026-01-22T11:48:54.351794",
+    "properties_count": 332,
+    "pages_scraped": 7,
+    "original_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/?shape=%28%28cmguFv%7EoVoha%40oq%5DpjG%7B%7EIvcP_pUh%7DW%60aa%40cdOh%60%5D%29%29"
+  },
+  "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ~gd%40%29%29": {
+    "output_file": "idealista_Madrid_venta.xlsx",
+    "last_scraped": "2026-01-22T22:53:19.121970",
+    "properties_count": 3047,
+    "pages_scraped": 54,
+    "original_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ%7Egd%40%29%29"
+  },
+  "https://www.idealista.com/areas/alquiler-viviendas/con-precio-hasta_300000?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ~gd%40%29%29": {
+    "output_file": "idealista_Madrid_alquiler.xlsx",
+    "last_scraped": "2026-01-23T00:23:12.318129",
+    "properties_count": 952,
+    "pages_scraped": 32,
+    "original_url": "https://www.idealista.com/areas/alquiler-viviendas/con-precio-hasta_300000/?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ%7Egd%40%29%29"
+  },
+  "https://www.idealista.com/areas/alquiler-viviendas?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ~gd%40%29%29": {
+    "output_file": "idealista_Madrid_alquiler.xlsx",
+    "last_scraped": "2026-01-23T14:25:44.387961",
+    "properties_count": 2364,
+    "pages_scraped": 60,
+    "original_url": "https://www.idealista.com/areas/alquiler-viviendas/pagina-33?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ~gd%40%29%29"
+  },
+  "https://www.idealista.com/areas/alquiler-viviendas?ordenado-por=precios-asc&shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ~gd%40%29%29": {
+    "output_file": "idealista_Madrid_alquiler.xlsx",
+    "last_scraped": "2026-01-23T22:56:20.109481",
+    "properties_count": 4578,
+    "pages_scraped": 60,
+    "original_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ%7Egd%40%29%29&ordenado-por=precios-asc"
+  },
+  "https://www.idealista.com/areas/alquiler-viviendas?shape=%28%28evwtFz~aWepp%40abr%40tkw%40ha%40ozEv_q%40%29%29": {
+    "output_file": "idealista_Madrid_alquiler.xlsx",
+    "last_scraped": "2026-01-24T00:08:11.720241",
+    "properties_count": 17,
+    "pages_scraped": 1,
+    "original_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28evwtFz%7EaWepp%40abr%40tkw%40ha%40ozEv_q%40%29%29"
+  },
+  "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000?shape=%28%28evwtFz~aWepp%40abr%40tkw%40ha%40ozEv_q%40%29%29": {
+    "output_file": "idealista_Madrid_venta.xlsx",
+    "last_scraped": "2026-01-24T12:56:00.963631",
+    "properties_count": 2216,
+    "pages_scraped": 60,
+    "original_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/pagina-42?shape=%28%28evwtFz~aWepp%40abr%40tkw%40ha%40ozEv_q%40%29%29"
+  },
+  "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000?ordenado-por=precios-asc&shape=%28%28evwtFz~aWepp%40abr%40tkw%40ha%40ozEv_q%40%29%29": {
+    "output_file": "idealista_Madrid_venta.xlsx",
+    "last_scraped": "2026-01-24T17:50:33.979526",
+    "properties_count": 1764,
+    "pages_scraped": 1,
+    "original_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/?shape=%28%28evwtFz%7EaWepp%40abr%40tkw%40ha%40ozEv_q%40%29%29&ordenado-por=precios-asc"
   }
 }

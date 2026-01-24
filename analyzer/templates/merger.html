@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Merger</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ cache_bust }}">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        .merge-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .status-box {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9em;
+            display: none;
+        }
+
+        .status-box.success {
+            border-color: var(--success-color);
+            color: var(--success-color);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .status-box.error {
+            border-color: #ef4444;
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .progress-wrapper {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            width: 0%;
+            border-radius: 4px;
+            transition: width 0.3s ease-in-out;
+            position: relative;
+        }
+
+        .progress-bar::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0) 100%);
+            transform: skewX(-20deg) translateX(-150%);
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            100% {
+                transform: skewX(-20deg) translateX(200%);
+            }
+        }
+
+        .progress-text {
+            font-size: 0.85em;
+            color: var(--text-muted);
+            margin-top: 5px;
+            text-align: right;
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Refresh Button Styles */
+        .btn-refresh {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 500;
+        }
+
+        .btn-refresh:hover {
+            background: var(--glass-hover);
+            color: var(--accent);
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        .btn-refresh:active {
+            transform: translateY(0);
+        }
+
+        .refresh-icon {
+            font-size: 1rem;
+            display: inline-block;
+            transition: transform 0.5s ease;
+        }
+
+        .btn-refresh.loading .refresh-icon {
+            animation: spin 1s infinite linear;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Styling Select Options (Limited support for alignment) */
+        select option {
+            background: var(--card-bg);
+            color: var(--text-main);
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container merge-container">
+        <header style="margin-bottom: 2rem;">
+            <h1>Excel Merger Tool</h1>
+            <p class="subtitle">Merge and deduplicate scraper output files</p>
+        </header>
+        <main>
+            <section class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="card-title">Select Files to Merge</h2>
+                    <button id="btnRefresh" class="btn-refresh" title="Actualizar lista de archivos">
+                        <span class="refresh-icon">🔄</span> Actualizar
+                    </button>
+                </div>
+                <div class="settings-grid">
+                    <div class="form-group">
+                        <label for="file1">File 1 (Primary)</label>
+                        <select id="file1">
+                            <option value="">Loading files...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="file2">File 2 (Secondary)</label>
+                        <select id="file2">
+                            <option value="">Loading files...</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <p style="font-size: 0.9em; color: var(--text-secondary);">
+                        <strong>Rules:</strong><br>
+                        1. Both files must contain "alquiler" or "venta" in the name.<br>
+                        2. Duplicates will be removed based on the "URL" column.<br>
+                        3. Output saved as <code>File1 - File2_MERGE.xlsx</code>.
+                    </p>
+                </div>
+            </section>
+            <button id="btnMerge" class="btn-analyze" disabled style="opacity: 0.5; cursor: not-allowed;">
+                <span>BEGIN MERGE</span>
+            </button>
+            <div id="progressArea" class="progress-wrapper">
+                <div class="progress-container">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+                <div id="progressText" class="progress-text">0%</div>
+            </div>
+            <div id="statusArea" class="status-box"></div>
+        </main>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const file1Select = document.getElementById('file1');
+            const file2Select = document.getElementById('file2');
+            const btnMerge = document.getElementById('btnMerge');
+            const statusArea = document.getElementById('statusArea');
+            const progressArea = document.getElementById('progressArea');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+
+            async function loadFiles() {
+                const btnRefresh = document.getElementById('btnRefresh');
+                btnRefresh.classList.add('loading');
+                
+                try {
+                    const res = await fetch('/list-files');
+                    const files = await res.json();
+                    
+                    // Sort by modified date (newest first)
+                    files.sort((a, b) => new Date(b.last_modified) - new Date(a.last_modified));
+                    
+                    const placeholder = '<option value="">-- Seleccionar archivo --</option>';
+                    
+                    const renderOptions = (target) => {
+                        const currentVal = target.value;
+                        target.innerHTML = placeholder + files.map(f => {
+                            // For standard select options, alignment is hard. 
+                            // We use a separator and a clear format to keep the name readable but include the date.
+                            return `<option value="${f.filename}">${f.filename} &nbsp;&nbsp; [${f.last_modified}]</option>`;
+                        }).join('');
+                        target.value = currentVal;
+                    };
+
+                    renderOptions(file1Select);
+                    renderOptions(file2Select);
+                    validateSelection();
+                } catch (err) {
+                    console.error('Error loading files:', err);
+                    const errorOpt = '<option>Error al cargar archivos</option>';
+                    file1Select.innerHTML = errorOpt;
+                    file2Select.innerHTML = errorOpt;
+                } finally {
+                    btnRefresh.classList.remove('loading');
+                }
+            }
+
+            document.getElementById('btnRefresh').addEventListener('click', loadFiles);
+            loadFiles();
+
+            function validateSelection() {
+                const f1 = file1Select.value;
+                const f2 = file2Select.value;
+                if (!f1 || !f2 || f1 === f2) { setButtonState(false); return; }
+                const isValidName = (name) => {
+                    const n = name.toLowerCase();
+                    return n.includes('alquiler') || n.includes('venta');
+                };
+                if (isValidName(f1) && isValidName(f2)) { setButtonState(true); } else { setButtonState(false); }
+            }
+
+            function setButtonState(enabled) {
+                if (enabled) {
+                    btnMerge.disabled = false; btnMerge.style.opacity = '1'; btnMerge.style.cursor = 'pointer';
+                } else {
+                    btnMerge.disabled = true; btnMerge.style.opacity = '0.5'; btnMerge.style.cursor = 'not-allowed';
+                }
+            }
+
+            file1Select.addEventListener('change', validateSelection);
+            file2Select.addEventListener('change', validateSelection);
+
+            btnMerge.addEventListener('click', async () => {
+                if (btnMerge.disabled) return;
+                const f1 = file1Select.value;
+                const f2 = file2Select.value;
+
+                btnMerge.disabled = true;
+                btnMerge.querySelector('span:first-child').innerText = "MERGING...";
+                statusArea.style.display = 'none';
+
+                progressArea.style.display = 'block';
+                progressBar.style.width = '0%';
+                progressText.innerText = '0% - Starting...';
+
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    if (progress < 90) {
+                        const increment = Math.max(0.5, (90 - progress) / 20);
+                        progress += increment;
+                        progressBar.style.width = `${progress}%`;
+                        progressText.innerText = `${Math.round(progress)}% - Processing records...`;
+                    }
+                }, 200);
+
+                try {
+                    const response = await fetch('/api/merge', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ file1: f1, file2: f2 })
+                    });
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        statusArea.className = 'status-box success';
+                        statusArea.innerHTML = `✅ Merge Complete!<br>Output: <strong>${result.output_file}</strong>`;
+                        statusArea.style.display = 'block';
+                    } else {
+                        throw new Error(result.error || 'Unknown error');
+                    }
+                } catch (error) {
+                    statusArea.className = 'status-box error';
+                    statusArea.innerText = `❌ Error: ${error.message}`;
+                    statusArea.style.display = 'block';
+                } finally {
+                    clearInterval(progressInterval);
+                    if (statusArea.className.includes('success')) {
+                        progressBar.style.width = '100%';
+                        progressText.innerText = '100% - Done!';
+                        setTimeout(() => { progressArea.style.display = 'none'; }, 2500);
+                    } else {
+                        progressArea.style.display = 'none';
+                    }
+                    btnMerge.querySelector('span:first-child').innerText = "BEGIN MERGE";
+                    validateSelection();
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

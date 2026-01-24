@@ -88,12 +88,16 @@ def index():
     return render_template('design_sidebar.html', scraper_port=SCRAPER_PORT, analyzer_port=ANALYZER_PORT, metrics_port=METRICS_PORT)
 
 @app.route('/api/start/<service>', methods=['POST'])
+@app.route('/api/start/<service>', methods=['POST'])
 def api_start_service(service):
-    if service not in ['scraper', 'analyzer', 'metrics']:
+    if service not in ['scraper', 'analyzer', 'metrics', 'merger']:
         return jsonify({'error': 'Invalid service'}), 400
         
     try:
-        success = start_service(service)
+        # 'merger' is hosted in the analyzer service
+        target_service = 'analyzer' if service == 'merger' else service
+        
+        success = start_service(target_service)
         if success:
             # Wait a bit for startup
             time.sleep(2)

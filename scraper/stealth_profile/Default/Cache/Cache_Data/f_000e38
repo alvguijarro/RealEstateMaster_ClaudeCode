@@ -1,0 +1,2221 @@
+//////////////
+// Settings
+//////////////
+
+var unhighlighted_opacity = 0.1;
+
+// Boundaries
+// Touch
+var touch_min_zoom = 5;
+var touch_max_zoom = -200;
+// wheel
+var wheel_min_zoom = 5;
+var wheel_max_zoom = -200;
+
+//////////////
+// Global var
+//////////////
+
+var obj_entities_list;
+var parent;
+var HSVVersion = "0.0.0"
+//var defaultDecoID = 0;
+
+////////////////////////////////////////////
+// check
+////////////////////////////////////////////
+
+function check() {
+
+    if (document.fullscreenElement) {
+        if (document.fullscreenElement.id == "krpanoSWFObject") {
+            document.exitFullscreen();
+            //document.documentElement.requestFullscreen();
+        }
+    }
+
+}
+
+document.addEventListener('webkitfullscreenchange', function (e) {
+
+    check();
+
+}, false);
+
+document.addEventListener('mozfullscreenchange', function (e) {
+
+    check();
+
+}, false);
+
+document.addEventListener('fullscreenchange', function (e) {
+
+    check();
+
+}, false);
+
+////////////////////////////////////////////
+// resetDollhousePosition
+////////////////////////////////////////////
+
+function resetDollhousePosition() {
+
+    var cameraParent = document.querySelector("#cameraparent");
+    var xParent = document.querySelector("#xparent");
+    var yParent = document.querySelector("#yparent");
+    var parent = document.querySelector("#parent");
+
+    // Set Position
+    //cameraParent.object3D.position.x = 0;
+    //cameraParent.object3D.position.y = 4;
+    //cameraParent.object3D.position.z = 8;
+
+    cameraParent.object3D.position.x = 0;
+    cameraParent.object3D.position.y = 8;
+    cameraParent.object3D.position.z = 8;
+
+    // If we have a dollhouse model (not overview), we reset the dollhouse position
+    //if (document.querySelector("#xparent")) {
+
+    if ((xParent != null) && (yParent != null)) {
+
+        //cameraParent.object3D.rotation.x = -0.55;
+        cameraParent.object3D.rotation.x = -0.785398;
+
+        parent.object3D.position.y = 0;
+
+        // Set rotation
+        //xParent.object3D.rotation.x = -3.14;
+        //xParent.object3D.rotation.y = -2.0;
+        //xParent.object3D.rotation.z = -3.14;
+        //yParent.object3D.rotation.x = 0.36;
+
+    }
+}
+
+///////////////////////////////////////////////////
+// aframeEntitiesLoad
+///////////////////////////////////////////////////
+
+AFRAME.registerComponent('obj-model-loaded', {
+    schema: { speed: { default: 1 } },
+    init: function () {
+
+        // Add event listener
+        document.addEventListener("model-loaded", this.OnObjModelLoaded.bind(this));
+
+    },
+    OnObjModelLoaded: function (event) {
+
+        // Did we get the event at zparent?
+        if (this.el.object3D.el.id == "zparent") {
+
+            // Let's load the next scene
+            loadNextEntity();
+
+        }
+
+    }
+});
+
+///////////////////////////////////////////////////
+// enableDeco
+///////////////////////////////////////////////////
+
+function enableDeco(decoToEnable, allDecos, decosNumber, destinationDeco, scenesNumber) {
+
+    //
+    fix_3d_thumb = true;
+
+    // We are using the new system
+    if (HSVVersion == "0.0.1") {
+        // Go to destinationDeco alternative panorama
+        goToAlternativePanorama(destinationDeco);
+
+        // update
+        fix_3d_thumb = false;
+
+    }
+    else
+    {
+        // Go to current panorama for new deco
+        goToPanoramaForNewDeco(decosNumber, destinationDeco, scenesNumber);
+    }
+
+    // Get all decos list
+    var allDecos_list = allDecos.split(";");
+
+    // Iterate all decos disabling them
+    for (var i = 0; i < allDecos_list.length; i++) {
+
+        // Disable current deco
+        toggleParentVisibility(allDecos_list[i], false);
+
+    }
+
+    // Make decoToEnable the visible/active deco
+    toggleParentVisibility(decoToEnable, true);
+
+    // Get krpano interface
+    var krpano = document.getElementById("krpanoSWFObject");
+
+    // Call ShowFloorButtonsContainerXML3D_Deco
+    krpano.call("ShowFloorButtonsContainerXML3D_Deco" + destinationDeco + "();");
+
+    // 3Dmodel enabled?
+    if (modelEnabled()) {
+        enter3D(fix_3d_thumb);
+    } else {
+        leave3D();
+    }
+
+}
+
+///////////////////////////////////////////////////
+// getCurrrentSceneNumber
+///////////////////////////////////////////////////
+
+function getCurrrentSceneNumber() {
+
+    // Get krpano interface
+    var krpano = document.getElementById("krpanoSWFObject");
+
+    // Get krpano current scene number
+    var krpano_current_scene_number = krpano.get("xml.scene");
+
+    // Make sure we have just a number
+    if (krpano_current_scene_number[0] == 'n') {
+
+        // Remove unwanted leading char
+        krpano_current_scene_number = krpano_current_scene_number.substring(1);
+
+    }
+
+    // Finally:
+    return parseInt(krpano_current_scene_number);
+
+}
+
+///////////////////////////////////////////////////
+// goToAlternativePanorama
+///////////////////////////////////////////////////
+
+function goToAlternativePanorama(destinationDeco) {
+
+    // Get krpano interface
+    var krpano = document.getElementById("krpanoSWFObject");
+
+    // Update keob.decoid
+    krpano.set("keob.decoid", destinationDeco);
+
+    // Get krpano current scene number
+    var current_scene_number = getCurrrentSceneNumber();
+
+    // Get current scene alternative scenes (if any)
+    var alternatives_info = krpano.get("scene[" + current_scene_number + "].alternatives");
+
+    // Init current_pano_deco
+    var current_pano_deco = 0
+
+    // Cast them into a json
+    var alternatives_json = eval(alternatives_info)
+
+    // Get currentOption index
+    current_pano_deco = alternatives_json[0]
+
+    // Get actual alternatives
+    var alternatives = alternatives_json[1]
+
+    // Get destination scene
+    var destination_scene = alternatives[destinationDeco]
+
+    // Do we have a destination_scene
+    if (destination_scene) {
+
+        // Get current hlookat, vlookat and fov
+        var vlookat = krpano.get("view.vlookat")
+        var hlookat = krpano.get("view.hlookat")
+        var fov = krpano.get("view.fov")
+
+        // Actually go to destionation_scene
+        krpano.call("loadscene(" + destination_scene + ", view.vlookat=" + vlookat + "&view.hlookat=" + hlookat + "&view.fov=" + fov + ", MERGE);");
+
+        // Show and enable thumbs button
+        krpano.set("layer[skin_btn_thumbs].crop", "0|128|64|64");
+        krpano.set("layer[skin_btn_thumbs].enabled", "true");
+
+        // Do we have model enabled?
+        if (modelEnabled()) {
+
+            // Show and enable 3D button
+            krpano.set("layer[skin_btn_3d].crop", "64|763|64|64");
+            krpano.set("layer[skin_btn_3d].enabled", "true");
+
+        }
+
+    }
+    else
+    {
+
+        //// Are we returning to current scene deco?
+        //if (destinationDeco == current_pano_deco) {
+
+        // Show and enable thumbs button
+        krpano.set("layer[skin_btn_thumbs].crop", "0|128|64|64");
+        krpano.set("layer[skin_btn_thumbs].enabled", "true");
+
+        // Hide and disable 3D button
+        krpano.set("layer[skin_btn_3d].crop", "64|763|64|64");
+        krpano.set("layer[skin_btn_3d].enabled", "true");
+
+        //}
+        //else
+        //{
+        //    // Hide and disable thumbs button
+        //    krpano.set("layer[skin_btn_thumbs].crop", "64|128|64|64");
+        //    krpano.set("layer[skin_btn_thumbs].enabled", "false");
+
+        //    // Hide and disable 3D button
+        //    krpano.set("layer[skin_btn_3d].crop", "64|703|64|64");
+        //    krpano.set("layer[skin_btn_3d].enabled", "false");
+
+        //}
+
+    }
+
+}
+
+///////////////////////////////////////////////////
+// goToPanoramaForNewDeco
+///////////////////////////////////////////////////
+
+function goToPanoramaForNewDeco(decosNumber, destinationDeco, scenesNumber) {
+
+    // Get krpano interface
+    var krpano = document.getElementById("krpanoSWFObject");
+
+    // Update keob.decoid
+    krpano.set("keob.decoid", destinationDeco);
+
+    // Get current scene name
+    var current_scene = getCurrrentSceneNumber();
+
+    // GEt scenes number per deco
+    var scenes_number_per_deco = scenesNumber / decosNumber;
+
+    // Reckon which scene number is the destination
+    var current_deco = decosNumber - 1;
+
+    // Actually find current active deco
+    while ((scenes_number_per_deco * current_deco) >= current_scene) {
+
+        // Inc current_deco
+        current_deco = current_deco - 1;
+
+    }
+
+    // Reckon destination scene
+    var destination_scene = (current_scene - (current_deco * scenes_number_per_deco)) + (destinationDeco * scenes_number_per_deco);
+
+    // Do we really have to change scene?
+    if (destination_scene != current_scene) {
+
+        // Get current hlookat, vlookat and fov
+        var vlookat = krpano.get("view.vlookat")
+        var hlookat = krpano.get("view.hlookat")
+        var fov = krpano.get("view.fov")
+
+        // Go to destionation_scene
+        krpano.call("loadscene(" + destination_scene + ", view.vlookat=" + vlookat + "&view.hlookat=" + hlookat + "&view.fov=" + fov + ", MERGE);");
+
+    }
+
+}
+
+///////////////////////////////////////////////////
+// toggleParentVisibility
+///////////////////////////////////////////////////
+
+function toggleParentVisibility(parent_entity, visiblity) {
+
+    // Find zparent
+    var parent_entity_obj = document.querySelector("#" + parent_entity);
+
+    // Hide it or show it
+    parent_entity_obj.setAttribute("visible", visiblity);
+
+    // Disable its whiteballs raycastability
+    for (var i = 0; i < parent_entity_obj.children.length; i++) {
+
+        // Get element
+        obj = parent_entity_obj.children[i];
+
+        // Set whiteball clickability
+        set_wb_clickable(obj, visiblity);
+
+        //// Destroy object TODO
+        //if (!visiblity) {
+
+        //    // Actually destroy object
+        //    freeObjectFromMemory(obj);
+
+        //}
+
+    }
+
+}
+
+function setObjsListAndParent(objs_list, toparent) {
+
+    // Set obj_entities_list
+    obj_entities_list = objs_list.split("\n");
+
+    // Set default parent
+    active_parent = document.querySelector("#" + toparent);
+
+}
+
+function loadNextEntity() {
+
+    // Only if we are in 3Denabled
+    if (modelEnabled()) {
+
+        // Find krpano to interact with it
+        var krpano = document.getElementById("krpanoSWFObject");
+
+        // Show force
+        // forceThumbsAndControlBarVisible();
+
+        // Insert first element
+        if (obj_entities_list.length) {
+
+            // If current list element is not empty, let's load it
+            if (obj_entities_list[0].length) {
+
+                // Get entity attributes
+                var entity_attributes = (obj_entities_list[0].split(";"));
+
+                // Get current entity future id
+                var id = entity_attributes[1].split("|")[1];
+
+                // Current obj
+                var current_obj = document.getElementById(id);
+
+                // Does current entity exist already?
+                if (current_obj != null) {
+
+                    // Remove first element from the list
+                    obj_entities_list.shift();
+
+                    // Read next!
+                    loadNextEntity();
+
+                    // Done!
+                    return;
+
+                }
+
+                // Create new empty entity
+                var entity = document.createElement('a-obj-model');
+
+                // Iterate all attributes
+                for (var i = 0; i < entity_attributes.length; i++) {
+
+                    // Get attribute/value pair
+                    var current_attribute_value_pair = entity_attributes[i].split('|');
+                    var attribute = current_attribute_value_pair[0];
+                    var value = current_attribute_value_pair[1];
+
+                    // Insert new attribute into the entity
+                    if (attribute.length) {
+
+                        // replace # with %23 in URLS
+                        if (value.includes("http")) {
+                            value = value.replaceAll("#", "%23");
+                        }
+
+                        // Actually set the attribute
+                        entity.setAttribute(attribute, value);
+                    }
+
+                }
+
+                // Insert the new entity
+                active_parent.appendChild(entity);
+
+                // Remove first element from the list
+                obj_entities_list.shift();
+
+            }
+            else {
+
+                // Remove first element from the list
+                obj_entities_list.shift();
+
+                // Read next!
+                loadNextEntity();
+
+            }
+
+        }
+
+    }
+
+}
+
+//function aframeLoad(dollhouse_scenes, whiteballs, assets) {
+function aframeLoad(scenes, whiteballs, modelURLEnabled, dest_parent) {
+
+    scenes_list = scenes.split("\n");
+    whiteballs_list = whiteballs.split("\n");
+
+    // Take E scene to the end of the array
+    if (scenes_list[0].includes("dollhouse-model-10000")) {
+        scenes_list.push(scenes_list.splice(0, 1)[0]);
+    }
+
+    // Split scenes in a list
+    obj_entities_list = scenes_list.concat(whiteballs_list)
+
+    // Set default parent
+    if (dest_parent == null || dest_parent.length == 0) {
+        active_parent = document.querySelector("#zparent");
+    }
+    else
+    {
+        active_parent = document.querySelector("#" + dest_parent);
+    }
+
+    // Start loading the first entity
+    if ((modelURLEnabled == 1) && (modelAvailable())) {
+        loadNextEntity();
+    }
+
+}
+
+///////////////////////////////////////////////////
+// setScene
+///////////////////////////////////////////////////
+
+function setScene() {
+
+    // If we have a 3DOV, we need to make some adjustments:
+    if (ov3dAvailable() && modelEnabled()) {
+
+        // What device?
+        var model = document.getElementById("model");
+        var krpano = document.getElementById("krpanoSWFObject");
+
+        // Desktop or mobile?
+        // Mobile
+        if (krpano.get("device.mobile")) {
+            //Extend the div vertically until reaching the control bar
+            // Get control_bar_layer
+            var control_bar_layer = krpano.get("layer[skin_control_bar]");
+            control_bar_layer.sprite.id = "control_bar_icons";
+            // Get control_bar_icons div
+            var control_bar_div = document.getElementById("control_bar_icons");
+            var control_bar_height = control_bar_div.clientHeight + 30;
+            // Reckon how much is that in terms of vertical %
+            // Get current screen height
+            var stageheight = document.getElementById("container").clientHeight;
+            // Reckon %
+            var control_bar_height_percentaje = control_bar_height * 100 / stageheight;
+            var ov3d_height_percentaje = 100 - control_bar_height_percentaje;
+
+            // Set div model size, location and zIndez
+            model.style.width = "100%";
+            model.style.height = ov3d_height_percentaje + "%";
+            model.style.top = "0%";
+            model.style.left = "0%";
+        }
+        // Desktop
+        else {
+            // Set div model size, location and zIndez
+            model.style.width = "25%";
+            model.style.height = "75%";
+            model.style.top = "12%";
+            model.style.left = "5%";
+        }
+
+        // Force model div to be on top
+        model.style.zIndex = "20";
+
+        // Set panorama div visibility
+        document.getElementById("panorama").style.visibility = "visible";
+
+    }
+
+}
+
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+///////////////////////////////////////////////////
+// highlight_single_material
+///////////////////////////////////////////////////
+
+function highlight_single_material(material) {
+
+    // Set current transparent to highlighted transparent
+    if (material.original_transparent != null) {
+
+        // Restore default transparent value
+        material.transparent = material.original_transparent;
+
+    } else {
+
+        // Backup default transparent value
+        material.original_transparent = material.transparent;
+
+    }
+
+    // Set current opacity to highlighted opacity
+    if (material.original_opacity != null) {
+
+        // Backup current opacity
+        material.opacity = material.original_opacity;
+
+    } else {
+
+        // Restore original opacity
+        material.original_opacity = material.opacity;
+
+    }
+
+}
+
+///////////////////////////////////////////////////
+// unhighlight_single_material
+///////////////////////////////////////////////////
+
+function unhighlight_single_material(material) {
+
+    // Set current transparent to unhighlighted transparent
+    if (material.original_transparent == null) {
+
+        // Backup default transparent value
+        material.original_transparent = material.transparent;
+
+    }
+
+    // Actually set transparent value
+    material.transparent = true;
+
+    // Set current opacity to unhighlighted opacity
+    if (material.original_opacity == null) {
+
+        // Backup original opacity
+        material.original_opacity = material.opacity;
+
+    }
+
+    // Backup current opacity
+    material.opacity = unhighlighted_opacity;
+
+}
+
+///////////////////////////////////////////////////
+// highlight_material/unhighlight_material
+///////////////////////////////////////////////////
+
+function highlight_material(material, flag) {
+
+    // Do we have a multi texture element?
+    if (material.length != null) {
+
+        // Iterate all materials and highlight them
+        for (var material_index = 0; material_index < material.length; material_index++) {
+
+            // Get current object's current material
+            var current_material = material[material_index];
+
+            if (flag) {
+
+                // Set current_material as highlighted
+                highlight_single_material(current_material);
+
+            }
+            else {
+
+                // Set current_material as unhighlighted
+                unhighlight_single_material(current_material);
+
+            }
+
+        }
+
+    } // Do we have a multi texture element?
+    else
+    // Single texture element
+    {
+
+        // Set material as highlighted
+        if (flag) {
+
+            // Set current_material as highlighted
+            highlight_single_material(material);
+
+        }
+        else {
+
+            // Set current_material as unhighlighted
+            unhighlight_single_material(material);
+
+        }
+
+    }
+
+}
+
+///////////////////////////////////////////////////
+// set_visibility
+///////////////////////////////////////////////////
+
+function set_visibility(objects_to_highlight, all_objects_in_deco) {
+
+    // Arg is string with the following syntax: obj-scene.1.002,obj-wb.2.002,obj-wb.3.002
+    var objects_to_highlight_list = objects_to_highlight.split(",");
+
+    // Arg is string with the following syntax: obj-scene.1.002,obj-wb.2.002,obj-wb.3.002
+    var all_objects_in_deco_list = all_objects_in_deco.split(",");
+
+    // Unhighlight all all_objects_in_deco
+    for (var i = 0; i < all_objects_in_deco_list.length; i++) {
+
+        // Current object to unhighligt
+        current_object_to_unhighlight = all_objects_in_deco_list[i];
+
+        // Actually unhighlight it
+        highlight_object(current_object_to_unhighlight, false);
+
+    }
+
+    // Then highlight all objects in objects_to_highlight
+    for (var i = 0; i < objects_to_highlight_list.length; i++) {
+
+        // Current object to highligt
+        current_object_to_highlight = objects_to_highlight_list[i];
+
+        // Actually unhighlight it
+        highlight_object(current_object_to_highlight, true);
+
+    }
+}
+
+///////////////////////////////////////////////////
+// isWhiteball
+///////////////////////////////////////////////////
+
+function isLegacyWhiteball(obj_id) {
+
+    // Do we have a legacy naming system whiteball?
+    return obj_id.includes("obj-wb");
+
+}
+
+function isCurrentVersionWhiteball(obj_id) {
+
+    // Do we have a current version system whiteball?
+    return obj_id.includes("Whiteball");
+
+}
+
+function isWhiteball(obj_id) {
+
+    // Is it?
+    return isCurrentVersionWhiteball(obj_id) || isLegacyWhiteball(obj_id);
+
+}
+
+///////////////////////////////////////////////////
+// set_wb_clickable
+///////////////////////////////////////////////////
+
+function set_wb_clickable(object, clickable) {
+
+    // Do we have a whiteball?
+    //if (object.id.includes("obj-wb") || object.id.includes("Whiteball")) {
+    if (isWhiteball(object.id)) {
+
+        // Do we have to enable or disable?
+        if (clickable) {
+
+            // Make it clickable
+            object.setAttribute('data-raycastable'); 
+
+        } else {
+
+            // Make it not clickable
+            object.removeAttribute('data-raycastable');
+
+        }
+
+    }
+
+}
+
+///////////////////////////////////////////////////
+// highlight_object
+///////////////////////////////////////////////////
+
+function highlight_object(object_id, highlight_option) {
+
+    // Get object
+    var object = document.getElementById(object_id);
+
+    // Just in case for buggy empty objects
+    if (object.object3DMap.mesh.children.length > 0) {
+
+        // Go find current object materials
+        var object_materials = object.object3DMap.mesh.children[0].material;
+
+        // actually highlight or un highlight material
+        highlight_material(object_materials, highlight_option);
+
+    }
+
+    // Disable clickability if obj is a whiteball
+    set_wb_clickable(object, highlight_option);
+
+}
+
+///////////////////////////////////////////////////
+// highlight_floors_and_whiteballs
+///////////////////////////////////////////////////
+
+function highlight_floors_and_whiteballs(objects_to_highlight, whiteballs_to_highlight) {
+
+    ///////////////////////////////////////////////////
+    // Highlight and unhighlight objects
+    ///////////////////////////////////////////////////
+
+    // Arg is string with the following syntax: 0;1;2;3;
+    var objects_to_highlight_list = objects_to_highlight.split(";");
+
+    // Make a list with all the objects
+    var all_objects_list = document.querySelectorAll('[id*="dollhouse-model-"]');
+
+    // Get all lists len
+    var all_objects_list_len = all_objects_list.length;
+
+    // objects_to_highlight_list.lenght = 0 hacemos highlight de todas
+    if (objects_to_highlight_list[0] == "" && objects_to_highlight_list.length == 1) {
+
+        // Iterate the list creating a list of 
+        for (var i = 0; i < all_objects_list_len; i++) {
+
+            // dollhouse-model-number and i want the number
+            objects_to_highlight_list[i] = all_objects_list[i].id.split('-')[2];
+
+        }
+
+    }
+
+    // Iterate all objects
+    for (var index = 0; index < all_objects_list_len; index++) {
+
+        // var to store if current object is to highlight or not
+        var current_object_highlighted = false;
+
+        // get current object
+        var current_object = all_objects_list[index];
+
+        // Go find current object materials
+        var current_object_materials = current_object.object3DMap.mesh.children[0].material
+
+        // Get current objects_to_highlight_list_len
+        var objects_to_highlight_list_len = objects_to_highlight_list.length;
+
+        // check if current floor is to highlight
+        for (var i = 0; i < objects_to_highlight_list_len; i++) {
+
+            // Get the current floor to highlight name
+            var current_object_to_process = "dollhouse-model-" + objects_to_highlight_list[i];
+
+            // Do we have to highlight current object?
+            if (current_object_to_process == current_object.id) {
+
+                // Set current_material as highlighted
+                highlight_material(current_object_materials, true);
+
+                // Set current object as highlighted
+                current_object_highlighted = true;
+
+                // if there is a match, we remove the element from the highlight list
+                objects_to_highlight_list.splice(i, 1);
+
+                // if we already know what to do, we exit the loop
+                break;
+
+            } // Do we have to highlight current object ?
+
+        } // for
+
+        // We have to unhighlight current object if object was not highlighted
+        if (current_object_highlighted == false) {
+
+            // Set current_material as unhighlighted
+            highlight_material(current_object_materials, false);
+
+        } // We have to unhighlight current object
+
+    } // for
+
+    ///////////////////////////////////////////////////
+    // Highlight and unhighlight whiteballs
+    ///////////////////////////////////////////////////
+
+    // Arg is string with the following syntax: 0;1;2;3;
+    var whiteballs_to_highlight_list = whiteballs_to_highlight.split(";");
+
+    // whiteballs_to_highlight_list.lenght = 0 hacemos highlight de todas
+    if (whiteballs_to_highlight_list[0] == "" && whiteballs_to_highlight_list.length == 1) {
+
+        // Make a list with all the floors dom objects
+        var all_whiteballs_obj = document.querySelectorAll('[id*="wb-model-"]');
+
+        // Iterate the list creating a list of 
+        for (var i = 0; i < all_whiteballs_obj.length; i++) {
+
+            // wb-model-number and i want the number
+            whiteballs_to_highlight_list[i] = all_whiteballs_obj[i].id.split('-')[2];
+
+        }
+
+    }
+
+    // Whiteballs lists
+    var all_whiteballs_list = document.querySelectorAll('[id*="wb-model-"]');
+
+    // Get all lists len
+    var all_whiteballs_list_len = all_whiteballs_list.length;
+
+    // Iterate all whiteballs
+    for (var index = 0; index < all_whiteballs_list_len; index++) {
+
+        // var to store if current whiteball is to highlight or not
+        var current_whiteball_highlighted = false;
+
+        // get current floor
+        var current_whiteball = all_whiteballs_list[index];
+
+        // Update whiteballs_to_highlight_list_len
+        var whiteballs_to_highlight_list_len = whiteballs_to_highlight_list.length;
+
+        // Go find current object
+        var current_whiteball_material = current_whiteball.object3DMap.mesh.children[0].material
+
+        // check if current whiteball is to highlight or unhighlight
+        for (var i = 0; i < whiteballs_to_highlight_list_len; i++) {
+
+            // Get the current whiteball to highlight name
+            var current_whiteball_to_highlight = "wb-model-" + whiteballs_to_highlight_list[i];
+
+            // does it match the current_object id?
+            if (current_whiteball_to_highlight == current_whiteball.id) {
+
+                // Set current_whiteball_material as highlighted
+                highlight_material(current_whiteball_material, true);
+
+                // if there is a match, we remove the element from the highlight list
+                whiteballs_to_highlight_list.splice(i, 1);
+
+                // Current ball was highlighted
+                current_whiteball_highlighted = true;
+
+                // Since we are done we can leave the loop
+                break;
+
+            }
+
+        }
+
+        // If current ball was not highlighted, the it have to be unhighlighted
+        if (current_whiteball_highlighted == false) {
+
+            // Set current_whiteball_material as unhighlighted
+            highlight_material(current_whiteball_material, false)
+
+        }
+
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
+
+}
+
+////////////////////////////////////////////
+// modelAvailable
+////////////////////////////////////////////
+
+function modelAvailable() {
+
+    // Let's try to find zparent
+    var zparent = document.querySelector("#zparent");
+
+    // if we have zparent, we have model
+    return zparent != null;
+
+}
+
+////////////////////////////////////////////
+// ov3dAvailable
+////////////////////////////////////////////
+
+function ov3dAvailable() {
+
+    if (modelAvailable() && document.getElementById("3dov") != null) {
+        return true
+    } else {
+        return false
+    }
+
+}
+
+////////////////////////////////////////////
+// string tolower
+////////////////////////////////////////////
+
+function ToLower(string1) {
+
+    return string1.toLowerCase()
+
+}
+
+////////////////////////////////////////////
+// string contains
+////////////////////////////////////////////
+
+function contains(string1, string2) {
+
+    return string1.includes(string2)
+    //return true
+
+}
+
+////////////////////////////////////////////
+// model3dAvailable
+////////////////////////////////////////////
+
+function model3dAvailable() {
+
+    if (modelAvailable() && !ov3dAvailable()) {
+        return true
+    } else {
+        return false
+    }
+
+}
+
+////////////////////////////////////////////
+// modelURLValueToDom
+////////////////////////////////////////////
+
+function modelURLValueToDom(modelURLEnabled) {
+
+    // Store model enabled value into the DOM
+    document.getElementById("model").modelenabled = modelURLEnabled;
+
+}
+
+////////////////////////////////////////////
+// krpanoonloadcomplete
+////////////////////////////////////////////
+
+function krpanoonloadcomplete() {
+
+    // Get krpano interface
+    var krpano = document.getElementById("krpanoSWFObject");
+
+    // Get HSVVersion
+    HSVVersion = krpano.get("hsv.version");
+
+    // First time loading
+    var counter = document.getElementById("model").counter
+
+    // First time?
+    if (counter == null) {
+        counter = 0
+        document.getElementById("model").counter = 0;
+    }
+
+    // inc counter
+    document.getElementById("model").counter += 1;
+
+    // Model Enabled
+    var modelURLEnabled = document.getElementById("model").modelenabled
+
+    // Do we have a model?
+    if (modelAvailable() && modelURLEnabled == 1) {
+
+        // if model is present and enabled in the URL we need
+        // to force thumbs and control bar to be visible
+        forceThumbsAndControlBarVisible();
+
+        // First time loading? counter == 0?
+        if (counter == 0) {
+            enter3D();
+        }
+
+    } else {
+
+        // First time loading? counter == 0? or we are on Oculus Browser
+        if (counter == 0 || navigator.userAgent.includes("Oculus")) {
+
+            //  Disable all 3D layers and enable all tour layers
+            leave3D();
+
+        }
+
+    }
+
+}
+
+function forceFloorDecoSelectorVisible() {
+
+    // If we have 3D model and it is available
+    if (modelAvailable() && modelEnabled()) {
+
+        // Find krpano interface
+        var krpano = document.getElementById("krpanoSWFObject");
+
+        // Get current active deco index
+        var decoid = krpano.get("keob.decoid");
+
+        // Find FloorDecoSelector layer
+        var FloorDecoSelector = krpano.get("layer[FloorButtonsContainer3D_Deco" + decoid + "]");
+
+        // Does it actually exist?
+        if (FloorDecoSelector != null) {
+
+            // It's sprite, is not null?
+            if (FloorDecoSelector.sprite != null) {
+
+                FloorDecoSelector.sprite.id = "FloorDecoSelector";
+                var FloorDecoSelector_div = document.getElementById("FloorDecoSelector");
+                FloorDecoSelector_div.style.visibility = "visible";
+                FloorDecoSelector_div.style.zorder = "25";
+
+                //// Show decos selector
+                //krpano.set("layer[FloorButtonsContainer3D_Deco" + decoid + "].visible", "true");
+                //krpano.set("layer[FloorButtonsContainer3D_Deco" + decoid + "].enabled", "true");
+
+            }
+
+            // Force decoselector open
+            krpano.call("ShowFloorButtonsContainerXML3D_Deco" + decoid + "();");
+
+        }
+
+    }
+
+}
+
+function forceDecoSelectorVisible() {
+
+    // If we have 3D model and it is available
+    if (modelAvailable() && modelEnabled()) {
+
+        // Find krpano interface
+        var krpano = document.getElementById("krpanoSWFObject");
+
+        // Find DecoSelector layer
+        var DecoSelector = krpano.get("layer[DecoSelector]");
+
+        // Does it actually exist?
+        if (DecoSelector != null) {
+
+            // It's sprite, is not null?
+            if (DecoSelector.sprite != null) {
+
+                DecoSelector.sprite.id = "DecoSelector";
+                var DecoSelector_div = document.getElementById("DecoSelector");
+                DecoSelector_div.style.visibility = "visible";
+                DecoSelector_div.style.zorder = "25";
+
+                // Show decos selector
+                krpano.set("layer[DecoSelector].visible", "true");
+
+            }
+
+            // Force decoselector open
+            //krpnano.call("combobox_openlist(DecoSelector);");
+
+        }
+
+        // Make current deco floor select visible
+        forceFloorDecoSelectorVisible();
+
+    }
+
+}
+
+////////////////////////////////////////////
+// forceThumbsAndControlBarVisible
+////////////////////////////////////////////
+
+// https://github.com/aframevr/aframe/issues/3137
+
+function freeObjectFromMemory(domObject) {
+
+    // Get object 3D
+    object = domObject.object3D;
+
+    object.traverse(function (obj) {
+        if (obj.material) {
+            obj.material.dispose();
+            if (obj.material.map) {
+                obj.material.map.dispose();
+            }
+            if (obj.material.lightMap) {
+                obj.material.lightMap.dispose();
+            }
+            if (obj.material.aoMap) {
+                obj.material.aoMap.dispose();
+            }
+            if (obj.material.emissiveMap) {
+                obj.material.emissiveMap.dispose();
+            }
+            if (obj.material.bumpMap) {
+                obj.material.bumpMap.dispose();
+            }
+            if (obj.material.normalMap) {
+                obj.material.normalMap.dispose();
+            }
+            if (obj.material.displacementMap) {
+                obj.material.displacementMap.dispose();
+            }
+            if (obj.material.roughnessMap) {
+                obj.material.roughnessMap.dispose();
+            }
+            if (obj.material.metalnessMap) {
+                obj.material.metalnessMap.dispose();
+            }
+            if (obj.material.alphaMap) {
+                obj.material.alphaMap.dispose();
+            }
+        }
+        if (obj.geometry) {
+            obj.geometry.dispose();
+            obj.geometry.attributes.color = {};
+            obj.geometry.attributes.normal = {};
+            obj.geometry.attributes.position = {};
+            obj.geometry.attributes.uv = {};
+            obj.geometry.attributes = {};
+            obj.material = {};
+        }
+    })
+
+    //for (var elem in THREE.Cache.files) {
+    //    if (elem.startsWith('./assets/items/')) {
+    //        THREE.Cache.files[elem] = "";
+    //        THREE.Cache.remove(elem);
+    //    }
+    //}
+
+    if (domReference.object3DMap.mesh) {
+        domReference.object3DMap.mesh.materialLibraries = {};
+
+        var start_elem = domReference.object3DMap.mesh;
+        var elem = start_elem;
+        // while (true) {
+        //   if (elem.children.length < 2) {
+        //     elem = elem.children[0];
+        //   } else {
+        //     break;
+        //   }
+        // }
+
+        var elems = elem.children;
+        for (var el of elems) {
+            for (var key in el) {
+                el[key] = {};
+            }
+        }
+    }
+}
+
+////////////////////////////////////////////
+// forceThumbsAndControlBarVisible
+////////////////////////////////////////////
+
+function forceThumbsAndControlBarVisible() {
+
+    docReady(function () {
+
+        // Find krpano interface
+        var krpano = document.getElementById("krpanoSWFObject");
+
+        // Make 3D floor buttons belong to skin_control_bar
+        krpano.call("setparentfloorbuttons3D();");
+
+        // Make DecoSelectorVisible
+        forceDecoSelectorVisible();
+
+        var control_bar_floors = krpano.get("layer[skin_control_bar_floors]");
+        control_bar_floors.sprite.id = "control_bar_floors";
+        var control_bar_div = document.getElementById("control_bar_floors");
+        control_bar_div.style.visibility = "visible";
+
+        var control_bar_icons = krpano.get("layer[skin_control_bar]");
+        control_bar_icons.sprite.id = "skin_control_bar";
+        var control_bar_div = document.getElementById("skin_control_bar");
+        control_bar_div.style.visibility = "visible";
+
+        var powered = krpano.get("layer[powered]");
+        powered.sprite.id = "powered";
+        var powered_bar_div = document.getElementById("powered");
+        powered_bar_div.style.visibility = "visible";
+
+        var share_canvas = krpano.get("layer[share_canvas]");
+        share_canvas.sprite.id = "share_canvas";
+        var share_canvas_bar_div = document.getElementById("share_canvas");
+        share_canvas_bar_div.style.visibility = "visible";
+
+        var skin_thumbs = krpano.get("layer[skin_thumbs]");
+        skin_thumbs.sprite.id = "skin_thumbs";
+        var skin_thumbs_div = document.getElementById("skin_thumbs");
+        skin_thumbs_div.style.visibility = "visible";
+
+        // Show the correct option in DecoSelector
+        // krpano.call("layer[DecoSelector].selectItemByName(" + defaultDecoID + ")");
+
+        // Show 3D button if 3D available
+        if (modelAvailable()) {
+            krpano.set("layer[skin_btn_3d].visible", "True");
+        }
+
+        //
+        // krpano.set("layer[DecoSelector].parent", "layer[powered]");
+        //
+        krpano.call("add_decoselector_items();");
+
+    });
+
+}
+
+////////////////////////////////////////////
+// docReady
+////////////////////////////////////////////
+
+function docReady(fn) {
+    // see if DOM is already available
+    if (document.readyState === "complete" || document.readyState === "interactive") {
+        // call on next available tick
+        setTimeout(fn, 1);
+    } else {
+        document.addEventListener("DOMContentLoaded", fn);
+    }
+}
+
+////////////////////////////////////////////
+// togglefs
+////////////////////////////////////////////
+
+function togglefs() {
+
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+
+    // Make sure krpano control bar is visible
+    forceThumbsAndControlBarVisible();
+
+}
+
+////////////////////////////////////////////
+// modelEnabled
+////////////////////////////////////////////
+
+function modelEnabled() {
+
+    if (document.getElementById("model").style.visibility == "visible") {
+        return true
+    } else {
+        return false
+    }
+
+}
+
+function modelEnabledNumbers() {
+
+    if (document.getElementById("model").style.visibility == "visible") {
+        return 1
+    } else {
+        return 0
+    }
+
+}
+
+////////////////////////////////////////////
+// toggle3D
+////////////////////////////////////////////
+
+function toggle3D() {
+
+    if (modelEnabled()) {
+        leave3D();
+    } else {
+        enter3D();
+    }
+
+}
+
+////////////////////////////////////////////
+// leave3D
+////////////////////////////////////////////
+
+function leave3D(showthumbs) {
+
+    // Disable mouse interactions with model layer
+    // Talk to krpano
+    var krpano = document.getElementById("krpanoSWFObject");
+
+    // Hide FloorButtonsContainer3D
+    krpano.call("toggleLayersVisibility('false', 'FloorButtonsContainer3D');");
+
+    // Make sure zones layer is visible
+    krpano.set("layer[cbscenes].visible", "true");
+
+    // Let's hide 3D only if:
+    // modelAvailable and not being called from showthumbs button
+    // OR
+    // Called from showthumbs button and with 3DOV (not with 3DModel)
+    if (modelAvailable() && !showthumbs || showthumbs && model3dAvailable()) {
+
+        // Show hotspots again
+        krpano.call("toggleHotspotsVisibility(true);");
+
+        // Show and enable thumbs button
+        krpano.set("layer[skin_btn_thumbs].crop", "0|128|64|64");
+        krpano.set("layer[skin_btn_thumbs].enabled", "true");
+
+        // Show go to 3D button
+        krpano.set("layer[skin_btn_3d].crop", '0|763|64|64');
+        krpano.set("layer[skin_btn_3d].visible", "true");
+        krpano.set("layer[skin_btn_3d].enabled", "true");
+
+        // And show map
+        krpano.call("show_map");
+
+        // Prevent FloorButtonsContainer from being visible in 3D mode
+        krpano.set("layer[FloorButtonsContainer].visible", "true");
+        krpano.set("layer[FloorButtonsContainer3D].visible", "false");
+
+        // Hide 3D model div
+        document.getElementById("panorama").style.visibility = "visible";
+        document.getElementById("model").style.visibility = "hidden";
+
+    }
+
+    // Hide 3D model div and show panorama div
+    if (!showthumbs) {
+        document.getElementById("panorama").style.visibility = "visible";
+        document.getElementById("model").style.visibility = "hidden";
+    }
+
+    // Show info layer
+    krpano.call("skin_update_scene_infos();");
+
+    // Check HSVVersion version
+    if (HSVVersion == "0.0.1") {
+
+        // Get current scene
+        current_scene = getCurrrentSceneNumber()
+
+        // Check if we have to show DecoSelector
+        krpano.call("show_hide_decos_selector_on_hotspot_click(" + current_scene + ");");
+
+    }
+    else {
+
+        // Show decos selector
+        krpano.set("layer[DecoSelector].visible", "true");
+
+    }
+    
+}
+
+////////////////////////////////////////////
+// enter3D
+////////////////////////////////////////////
+
+// Krpano 3D button pressed, let's show the 3D model
+function enter3D(fix_3d_thumb) {
+
+    // krpano
+    var krpano = document.getElementById("krpanoSWFObject");
+
+    // reset dollhouse position
+    //resetDollhousePosition();
+
+    // Show FloorButtonsContainer3D
+    krpano.call("toggleLayersVisibility('true', 'FloorButtonsContainer3D');");
+
+    // Hide skin thumbs if open
+    krpano.call("skin_showthumbs(false);");
+    krpano.call("hide_map");
+    // Hide zones layer
+    krpano.set("layer[cbscenes].visible", "false");
+
+    // Show 3D model div
+    document.getElementById("model").style.visibility = "visible";
+
+    // if no 3DOV we totally hide panorama div and its hotspots
+    //if (!ov3dAvailable()) { //3DOV is deprecated
+    document.getElementById("panorama").style.visibility = "hidden";
+    // Hide hotspots to prevent tooltips from showing
+    krpano.call("toggleHotspotsVisibility(false);");
+
+    // Hide scene name
+    krpano.set("layer[skin_title_desktop].visible", "False");
+    krpano.set("layer[skin_title_mobile].visible", "False");
+
+    // Hide info layer
+    krpano.call("hide_full_info(false);");
+    krpano.set("layer[skin_tour_full_info_desktop].visible", "false");
+    krpano.set("layer[skin_tour_basic_info_desktop].visible", "false");
+    //}
+
+    // Show go to tour button
+    //krpano.set("layer[skin_btn_3d].visible", "True");
+    //if (fix_3d_thumb) {
+    //    krpano.set("layer[skin_btn_3d].crop", '0|763|64|64');
+    //}
+
+    //if (fix_3d_thumb) {
+    krpano.set("layer[skin_btn_3d].crop", '64|763|64|64');
+    krpano.set("layer[skin_btn_thumbs].crop", '0|128|64|64');
+    //}
+
+    // Prevent FloorButtonsContainer from being visible in 3D mode
+    krpano.set("layer[FloorButtonsContainer].visible", "False");
+    krpano.set("layer[FloorButtonsContainer3D].visible", "True");
+
+    // Unchain 3D scenes load
+    loadNextEntity();
+
+    // Force krpano lower bar visible
+    forceThumbsAndControlBarVisible();
+
+    // Setup scene
+    setScene();
+
+}
+
+////////////////////////////////////////////
+// coordsDistance
+////////////////////////////////////////////
+
+function coordsDistance(p1, p2) {
+
+    var x1 = p1.pageX;
+    var y1 = p1.pageY;
+
+    var x2 = p2.pageX;
+    var y2 = p2.pageY;
+
+    var xs = x2 - x1,
+        ys = y2 - y1;
+
+    xs *= xs;
+    ys *= ys;
+
+    return Math.sqrt(xs + ys);
+};
+
+////////////////////////////////////////////
+// toDegrees
+////////////////////////////////////////////
+
+// Converts from radians to degrees.
+function toDegrees(radians) {
+    return radians * 180 / Math.PI;
+};
+
+////////////////////////////////////////////
+// modelYtoYaw
+////////////////////////////////////////////
+
+function modelYtoYaw(quaternion) {
+
+    var w = quaternion.w;
+    var y = new THREE.Euler().setFromQuaternion(quaternion).y;
+
+    // Quaternion to radians to degrees
+    var y_degrees = THREE.Math.radToDeg(y);
+
+    if (y_degrees < 0) {
+        if (Math.abs(w) > 0.67) {
+            yaw = 90 - Math.abs(y_degrees);
+        } else {
+            yaw = 270 + Math.abs(y_degrees)
+        }
+    } else {
+        if (w < 0.67) {
+            yaw = 180 + (90 - y_degrees)
+        } else {
+            yaw = 90 + y_degrees
+        }
+
+    }
+
+    return yaw
+
+};
+
+////////////////////////////////////////////
+// gotopanorama
+////////////////////////////////////////////
+
+AFRAME.registerComponent('gotopanorama', {
+
+    schema: {
+        scene: { default: '' }
+    },
+
+    init: function () {
+
+        //~ var data = this.data;
+        // Current entity
+        var el = this.el;  // <a-box>
+        // Current entity id
+        var currentElementId = el.id;
+        // Get the parent
+        var theParent = document.querySelector("#parent");
+        // react to the click
+        theParent.addEventListener('click', gotoscene, false);
+
+        // Go to scene func
+        function gotoscene(e) {
+
+            // Current entity is the one that got clicked?
+            if (e.target.id == currentElementId) {
+
+                // Get camera parent entity object
+                var cameraparent = document.querySelector("#cameraparent")
+
+                // Animate camera
+                // Get clicked whiteball  position
+                var click_x = e.detail.intersection.point.x;
+                var click_y = e.detail.intersection.point.y;
+                var click_z = e.detail.intersection.point.z;
+
+                // Backup current cameraposition
+                var camera_position_x = cameraparent.object3D.position.x;
+                var camera_position_y = cameraparent.object3D.position.y;
+                var camera_position_z = cameraparent.object3D.position.z;
+
+                // Actually animate camera
+                cameraparent.object3D.el.setAttribute('animation', 'property: position;  dur: 500; to: ' + click_x + ' ' + click_y + ' ' + click_z);
+
+                // xparent entity
+                if (document.querySelector("#xparent")) {
+                    var xparent = document.querySelector("#xparent");
+                } else {
+                    var xparent = document.querySelector("#parent");
+                }
+
+                // Quaternion var to store actual rotation value
+                var quaternion = new THREE.Quaternion();
+                quaternion = xparent.object3D.getWorldQuaternion(quaternion);
+
+                // Normalize xparent y value
+                var yaw = modelYtoYaw(quaternion);
+
+                // Find krpano js object
+                var krpano = document.getElementById("krpanoSWFObject");
+
+                // round yaw
+                yaw = Math.round(yaw);
+
+                // Old legacy or new objs Ids naming
+                // if (e.target.id.includes("obj-wb")) {
+                if (isLegacyWhiteball(e.target.id)) {
+                    // destination scene id
+                    des_id = e.target.id.split('.')[1];
+                    // Do we have the _aliged string?
+                    if (des_id.includes("_")) {
+                        des_id = des_id.split("_")[0]
+                    }
+                } else {
+                    // destination scene id
+                    des_id = e.target.id.split('#')[1];
+
+                }
+
+                // Actually change scene
+                sleep(500).then(() => { krpano.call("loadscene(" + des_id + ", view.vlookat=0&view.hlookat=" + Math.round(yaw) + ");"); });
+
+                // Hide 3D model div
+                if (!ov3dAvailable()) {
+
+                    // Wait for the animation to happen
+                    sleep(500).then(() => { leave3D(); });
+
+                    // Restore camera position
+                    sleep(500).then(() => { cameraparent.object3D.el.setAttribute('animation', 'property: position;  dur: 0; to: ' + camera_position_x + ' ' + camera_position_y + ' ' + camera_position_z); });
+
+                }
+
+            }
+
+            // Stop event propagation
+            e.stopPropagation();
+
+        }
+
+    }
+
+});
+
+////////////////////////////////////////////
+// ydrag-rotate-component
+////////////////////////////////////////////
+
+AFRAME.registerComponent('ydrag-rotate-component', {
+    schema: { speed: { default: 1 } },
+    init: function () {
+        this.ifMouseDown = false;
+        this.y_cord = 0;
+
+        document.addEventListener('mousedown', this.OnDocumentMouseDown.bind(this));
+        document.addEventListener('mouseup', this.OnDocumentMouseUp.bind(this));
+        document.addEventListener('mousemove', this.OnDocumentMouseMove.bind(this));
+        document.addEventListener('wheel', this.OnDocumentMouseWheel.bind(this));
+
+        document.addEventListener('touchstart', this.onTouchStart.bind(this));
+        document.addEventListener('touchmove', this.onTouchMove.bind(this));
+        document.addEventListener('touchend', this.onTouchEnd.bind(this));
+
+    },
+    OnDocumentMouseDown: function (event) {
+
+        // Is click inside model div?
+        if (event.clientX > model.getBoundingClientRect().x &&
+            event.clientX < model.getBoundingClientRect().x + model.clientWidth &&
+            event.clientY > model.getBoundingClientRect().y &&
+            event.clientY < model.getBoundingClientRect().y + model.clientHeight && modelEnabled()) {
+            this.ifMouseDown = true;
+            this.x_cord = event.clientX;
+            this.y_cord = event.clientY;
+        }
+
+        // Disable context menu
+        if (event.which == 3) {
+            document.addEventListener("contextmenu", function (e) {
+                e.preventDefault();
+            }, false);
+        }
+
+    },
+    OnDocumentMouseUp: function () {
+        this.ifMouseDown = false;
+    },
+    OnDocumentMouseMove: function (event) {
+
+        if (this.ifMouseDown && modelEnabled()) {
+            // if left click, then rotate the mess
+            if (event.which == 1) {
+
+                // To rotate the mess, the click have to be made inside the model div
+                var model = document.getElementById("model");
+
+                if (this.el.object3D.el.id == "yparent") {
+
+                    var temp_y = event.clientY - this.y_cord;
+                    var angle_to_rotate = temp_y * this.data.speed / 350;
+                    var current_y = this.el.object3D.rotation.x;
+                    var final_angle = angle_to_rotate + current_y;
+                    if (final_angle > -0.3 && final_angle < 1.1) {
+                        this.el.object3D.rotateX(angle_to_rotate);
+                        this.y_cord = event.clientY;
+                    }
+                }
+
+            }
+
+            // if right click, then move the mesh
+            if (event.which == 3 && modelEnabled()) {
+                if (this.el.object3D.el.id == "yparent") {
+
+                    // Get mouse event move displacement
+                    var temp_x = event.clientX - this.x_cord;
+                    var temp_y = event.clientY - this.y_cord;
+
+                    // Make it a little slower
+                    var addx = temp_x * 0.02;
+                    var addy = temp_y * 0.02;
+                    var addz = 0;
+                    var disp = new THREE.Vector3(addx, addy, addz);
+
+                    // Find zparent entity
+                    var zparent = document.querySelector("#zparent");
+
+                    var zparent_position = new THREE.Vector3();
+
+                    // Translate its local position to the world position
+                    zparent.object3D.getWorldPosition(zparent_position);
+
+                    // Find parent
+                    var parent = document.querySelector("#parent");
+
+                    // Add the displacement
+                    zparent_position.x += disp.x * (1 + (-parent.object3D.position.z / 10));
+                    zparent_position.z += disp.y * (1 + (-parent.object3D.position.z / 10));
+
+                    // Translate new position from parents world coordinates
+                    zparent.parentEl.object3D.worldToLocal(zparent_position); // "Working"
+
+                    // Update zparent entity local coordinates
+                    zparent.object3D.position.x = zparent_position.x;
+                    zparent.object3D.position.z = zparent_position.z;
+
+                    // Update last coords
+                    this.x_cord = event.clientX;
+                    this.y_cord = event.clientY;
+
+                }
+            }
+
+        }
+    },
+    OnDocumentMouseWheel: function (event) {
+
+        if (event.clientX > model.getBoundingClientRect().x &&
+            event.clientX < model.getBoundingClientRect().x + model.clientWidth &&
+            event.clientY > model.getBoundingClientRect().y &&
+            event.clientY < model.getBoundingClientRect().y + model.clientHeight && modelEnabled()) {
+
+            // Get wheel delta
+            var delta = event.deltaY;
+
+            // Zoom
+            var parent = document.querySelector("#parent");
+            parent.object3D.position.z += delta * -0.005 * (1 + (-parent.object3D.position.z / 10));
+            parent.object3D.position.y += delta * -0.005 * (1 + (-parent.object3D.position.y / 10));
+
+            // Boundaries
+            if (parent.object3D.position.z > wheel_min_zoom) {
+                parent.object3D.position.z = wheel_min_zoom;
+                parent.object3D.position.y = wheel_min_zoom;
+            }
+
+            if (parent.object3D.position.z < wheel_max_zoom) {
+                parent.object3D.position.z = wheel_max_zoom;
+                parent.object3D.position.y = wheel_max_zoom;
+            }
+
+        }
+
+    },
+
+    ////////////////////////////////////////////////////////////
+
+    /**
+     * Register touch down to detect touch drag.
+     */
+    onTouchStart: function (evt) {
+
+        this.touchStart = {
+            x: evt.touches[0].pageX,
+            y: evt.touches[0].pageY
+        };
+
+        this.ifTouchStart = false;
+
+        if (modelEnabled()) {
+
+            if (evt.touches.length > 1) {
+
+                var p1 = evt.touches[0];
+                var p2 = evt.touches[1];
+
+                this.lastTouchDistance = coordsDistance(p1, p2);
+
+                this.multipleTouchStarted = true;
+                this.touchStarted = false;
+
+                this.touchStart2 = {
+                    x: evt.touches[1].pageX,
+                    y: evt.touches[1].pageY
+                };
+
+
+            } else {
+
+                this.lastTouchDistance = false;
+                this.touchStarted = true;
+                this.multipleTouchStarted = false;
+
+            }
+
+        }
+
+    },
+
+    /**
+     * Translate touch move to Y-axis rotation.
+     */
+    onTouchMove: function (evt) {
+
+        // Is touch inside model div?
+        if (this.touchStart.x > model.getBoundingClientRect().x &&
+            this.touchStart.x < model.getBoundingClientRect().x + model.clientWidth &&
+            this.touchStart.y > model.getBoundingClientRect().y &&
+            this.touchStart.y < model.getBoundingClientRect().y + model.clientHeight && modelEnabled()) {
+
+            this.ifTouchStart = true;
+        } else {
+            return
+        }
+
+        // Are skin thumbs visible?
+        var krpano = document.getElementById("krpanoSWFObject");
+        var skin_thumbs_layer = krpano.get("layer[skin_thumbs]");
+        var skin_thumbs_layer_state = skin_thumbs_layer.state;
+
+        // Opened?
+        if (skin_thumbs_layer_state == "opened") {
+
+            var skin_thumbs_div = document.getElementById("skin_thumbs");
+            var skin_thumbs_y = skin_thumbs_div.getBoundingClientRect().y;
+            var skin_thumbs_height = skin_thumbs_div.getBoundingClientRect().height;
+
+            // Are we touching skin_thumbs?
+            if ((evt.touches[0].pageY > skin_thumbs_y) && (evt.touches[0].pageY < (skin_thumbs_y + skin_thumbs_height)) || this.skinThumbsOpened == true) {
+                this.skinThumbsOpened = true;
+                return
+            }
+
+            if (evt.touches.length > 1) {
+                if ((evt.touches[1].pageY > skin_thumbs_y) && (evt.touches[1].pageY < (skin_thumbs_y + skin_thumbs_height)) || this.skinThumbsOpened == true) {
+                    this.skinThumbsOpened = true;
+                    return
+                }
+            }
+
+        }
+
+        // 
+        if (evt.touches.length == 1 && this.el.object3D.el.id == "yparent") {
+
+            // Single touch == X/Y rotate
+            if (this.multipleTouchStarted == false) {
+
+                var canvas = this.el.sceneEl.canvas;
+                var temp_y = 2 * Math.PI * (evt.touches[0].pageY - this.touchStart.y) / canvas.clientWidth;
+                var angle_to_rotate = temp_y * 0.5;
+                var final_angle = this.el.object3D.rotation.x - (-angle_to_rotate);
+                if (final_angle >= -0.3 && final_angle <= 1.1) {
+                    this.el.object3D.rotation.x = this.el.object3D.rotation.x - (-angle_to_rotate);
+                    this.touchStart.y = evt.touches[0].pageY;
+                }
+            }
+        }
+
+        // Multiple touch == Move model || Zoom
+        else if (evt.touches.length >= 1 && this.el.object3D.el.id == "yparent") {
+
+            // Get current touches values
+            var p1 = evt.touches[0];
+            var p2 = evt.touches[1];
+
+            // Reckon touches distance
+            var currentTouchDistance = coordsDistance(p1, p2);
+
+            // Update touchDistanceDelta
+            if (this.lastTouchDistance != false) {
+                var touchDistanceDelta = this.lastTouchDistance - currentTouchDistance;
+            } else {
+                this.lastTouchDistance = 0;
+                var touchDistanceDelta = 0;
+            }
+
+            // Zoom
+            var parent = document.querySelector("#parent");
+            parent.object3D.position.z += touchDistanceDelta * -0.05 * (1 + (-parent.object3D.position.z / 10));
+            parent.object3D.position.y += touchDistanceDelta * -0.05 * (1 + (-parent.object3D.position.y / 10));
+
+            // Boundaries
+            if (parent.object3D.position.z > touch_min_zoom) {
+                parent.object3D.position.z = touch_min_zoom
+                parent.object3D.position.y = touch_min_zoom
+            }
+
+            if (parent.object3D.position.z < touch_max_zoom) {
+                parent.object3D.position.z = touch_max_zoom
+                parent.object3D.position.y = touch_max_zoom
+            }
+
+            // Update touch distance
+            this.lastTouchDistance = currentTouchDistance;
+
+            //////////////////////////////
+            // Now let's move the mesh
+
+            var canvas = this.el.sceneEl.canvas;
+            var temp_x1 = 2 * Math.PI * (evt.touches[0].pageX - this.touchStart.x) / canvas.clientWidth;
+            var temp_y1 = 2 * Math.PI * (evt.touches[0].pageY - this.touchStart.y) / canvas.clientWidth;
+            var temp_x2 = 2 * Math.PI * (evt.touches[1].pageX - this.touchStart2.x) / canvas.clientWidth;
+            var temp_y2 = 2 * Math.PI * (evt.touches[1].pageY - this.touchStart2.y) / canvas.clientWidth;
+
+            // If deltas have the same sign they are moving in the same direction, let's move the mesh
+            if (temp_x1 * temp_x2 > 0) {
+                // Let's keep the bigger one
+                if (Math.abs(temp_x1) > Math.abs(temp_x2)) {
+                    var deltax = temp_x1;
+                } else {
+                    var deltax = temp_x2;
+                }
+            } else {
+                var deltax = 0;
+            }
+
+            if (temp_y1 * temp_y2 > 0) {
+                // Let's keep the bigger one
+                if (Math.abs(temp_y1) > Math.abs(temp_y2)) {
+                    var deltay = temp_y1;
+                } else {
+                    var deltay = temp_y2;
+                }
+            } else {
+                var deltay = 0;
+            }
+
+            ///////////////////////////////////////////////////////
+
+            // Find parent
+            var parent = document.querySelector("#parent");
+
+            // Set new position
+            var addx = deltax * 1.7 * (1 + (-parent.object3D.position.z / 10));
+            var addy = deltay * 1.7 * (1 + (-parent.object3D.position.z / 10));
+            var addz = 0;
+            var disp = new THREE.Vector3(addx, addy, addz);
+
+            // Find zparent entity
+            var zparent = document.querySelector("#zparent");
+            var zparent_position = new THREE.Vector3();
+
+            // Translate its local position to the world position
+            zparent.object3D.getWorldPosition(zparent_position);
+
+            // Add the displacement
+            zparent_position.x += disp.x;
+            zparent_position.z += disp.y;
+
+            // Translate new position from parents world coordinates
+            zparent.parentEl.object3D.worldToLocal(zparent_position); // "Working"
+
+            // Update zparent entity local coordinates
+            zparent.object3D.position.x = zparent_position.x;
+            zparent.object3D.position.z = zparent_position.z;
+
+            /////////////////////////////////////////////
+
+            // Update last coords
+            this.x_cord = event.clientX;
+            this.y_cord = event.clientY;
+
+            // Update last positions
+            this.touchStart = {
+                x: evt.touches[0].pageX,
+                y: evt.touches[0].pageY
+            };
+            this.touchStart2 = {
+                x: evt.touches[1].pageX,
+                y: evt.touches[1].pageY
+            };
+
+        }
+
+    },
+
+    /**
+     * Register touch end to detect release of touch drag.
+     */
+    onTouchEnd: function (evt) {
+        if (evt.touches.length == 0) {
+            this.multipleTouchStarted = false;
+            this.touchStarted = false;
+        }
+
+        this.skinThumbsOpened = false;
+
+    }
+
+});
+
+////////////////////////////////////////////
+// xdrag-rotate-component
+////////////////////////////////////////////
+
+AFRAME.registerComponent('xdrag-rotate-component', {
+    schema: { speed: { default: 1 } },
+    init: function () {
+        this.ifMouseDown = false;
+        this.x_cord = 0;
+        this.y_cord = 0;
+
+        document.addEventListener('mousedown', this.OnDocumentMouseDown.bind(this));
+        document.addEventListener('mouseup', this.OnDocumentMouseUp.bind(this));
+        document.addEventListener('mousemove', this.OnDocumentMouseMove.bind(this));
+
+        document.addEventListener('touchstart', this.onTouchStart.bind(this));
+        document.addEventListener('touchmove', this.onTouchMove.bind(this));
+        document.addEventListener('touchend', this.onTouchEnd.bind(this));
+
+    },
+    OnDocumentMouseDown: function (event) {
+
+        // Is click inside model div?
+        if (event.clientX > model.getBoundingClientRect().x &&
+            event.clientX < model.getBoundingClientRect().x + model.clientWidth &&
+            event.clientY > model.getBoundingClientRect().y &&
+            event.clientY < model.getBoundingClientRect().y + model.clientHeight && modelEnabled()) {
+            this.ifMouseDown = true;
+            this.x_cord = event.clientX;
+            this.y_cord = event.clientY;
+        }
+
+        // Disable context menu
+        if (event.which == 3 && modelEnabled()) {
+            document.addEventListener("contextmenu", function (e) {
+                e.preventDefault();
+            }, false);
+        }
+
+    },
+    OnDocumentMouseUp: function (event) {
+        this.ifMouseDown = false;
+    },
+    OnDocumentMouseMove: function (event) {
+
+        if (this.ifMouseDown && modelEnabled()) {
+            if (event.which == 1) {
+                if (this.el.object3D.el.id == "xparent") {
+                    var temp_x = event.clientX - this.x_cord;
+                    this.el.object3D.rotateY(temp_x * this.data.speed / 350);
+                    this.x_cord = event.clientX;
+                }
+            }
+
+        }
+
+    },
+
+    /**
+     * Register touch down to detect touch drag.
+     */
+    onTouchStart: function (evt) {
+
+        if (modelEnabled()) {
+
+            this.touchStart = {
+                x: evt.touches[0].pageX,
+                y: evt.touches[0].pageY
+            };
+            this.touchStarted = true;
+            this.ifTouchStart = false;
+
+            if (evt.touches.length > 1) {
+
+                this.multipleTouchStarted = true;
+                this.touchStarted = false;
+
+            } else {
+
+                this.lastTouchDistance = false;
+                this.touchStarted = true;
+                this.multipleTouchStarted = false;
+
+            }
+
+            this.skinThumbsOpened = false;
+
+        }
+
+    },
+
+    /**
+     * Translate touch move to Y-axis rotation.
+     */
+    onTouchMove: function (evt) {
+
+        // Is touch inside model div?
+        if (this.touchStart.x > model.getBoundingClientRect().x &&
+            this.touchStart.x < model.getBoundingClientRect().x + model.clientWidth &&
+            this.touchStart.y > model.getBoundingClientRect().y &&
+            this.touchStart.y < model.getBoundingClientRect().y + model.clientHeight && modelEnabled()) {
+
+            this.ifTouchStart = true;
+        } else {
+            return
+        }
+
+        //Are skin thumbs visible?
+        var krpano = document.getElementById("krpanoSWFObject");
+        var skin_thumbs_layer = krpano.get("layer[skin_thumbs]");
+        var skin_thumbs_layer_state = skin_thumbs_layer.state;
+
+        // Opened?
+        if (skin_thumbs_layer_state == "opened") {
+
+            var skin_thumbs_div = document.getElementById("skin_thumbs");
+            var skin_thumbs_y = skin_thumbs_div.getBoundingClientRect().y;
+            var skin_thumbs_height = skin_thumbs_div.getBoundingClientRect().height;
+
+            // Are we touching skin_thums?
+            if ((evt.touches[0].pageY > skin_thumbs_y) && (evt.touches[0].pageY < (skin_thumbs_y + skin_thumbs_height)) || this.skinThumbsOpened == true) {
+                this.skinThumbsOpened = true;
+                return
+            }
+
+            if (evt.touches.length > 1) {
+                if ((evt.touches[1].pageY > skin_thumbs_y) && (evt.touches[1].pageY < (skin_thumbs_y + skin_thumbs_height)) || this.skinThumbsOpened == true) {
+                    this.skinThumbsOpened = true;
+                    return
+                }
+            }
+
+        }
+
+        // Rotate horizontally?
+        if (evt.touches.length == 1 && this.el.object3D.el.id == "xparent") {
+
+            if (this.multipleTouchStarted == false) {
+
+                var canvas = this.el.sceneEl.canvas;
+                var temp_x = 2 * Math.PI * (evt.touches[0].pageX - this.touchStart.x) / canvas.clientHeight;
+                var angle_to_rotate = temp_x * 0.5;
+                this.el.object3D.rotation.y += angle_to_rotate;
+                this.touchStart.x = evt.touches[0].pageX;
+
+            }
+        }
+
+    },
+
+    /**
+     * Register touch end to detect release of touch drag.
+     */
+    onTouchEnd: function (evt) {
+
+        if (evt.touches.length == 0) {
+            this.multipleTouchStarted = false;
+            this.touchStarted = false;
+        }
+
+        this.skinThumbsOpened = false;
+
+    }
+
+});

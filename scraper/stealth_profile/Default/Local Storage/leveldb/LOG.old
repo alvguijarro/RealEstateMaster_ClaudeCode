@@ -1,0 +1,6 @@
+2026/01/24-11:58:01.684 5fc0 Reusing MANIFEST C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/01/24-11:58:01.685 5fc0 Recovering log #111
+2026/01/24-11:58:01.688 5fc0 Reusing old log C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile\Default\Local Storage\leveldb/000111.log 
+2026/01/24-12:15:01.995 6068 Level-0 table #115: started
+2026/01/24-12:15:02.267 6068 Level-0 table #115: 16984 bytes OK
+2026/01/24-12:15:02.431 6068 Delete type=0 #111

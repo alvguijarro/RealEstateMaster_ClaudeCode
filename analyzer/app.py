@@ -123,7 +123,15 @@ def list_files():
             if 'venta' in f_lower or 'sale' in f_lower: ftype = 'venta'
             elif 'alquiler' in f_lower or 'rent' in f_lower: ftype = 'alquiler'
             
-            files.append({'filename': f.name, 'type': ftype})
+            # Get modification time
+            mtime = os.path.getmtime(f)
+            mtime_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(mtime))
+            
+            files.append({
+                'filename': f.name, 
+                'type': ftype,
+                'last_modified': mtime_str
+            })
     return jsonify(files)
 
 
@@ -389,34 +397,114 @@ def download_results():
     return send_from_directory(directory, basename, as_attachment=True)
 
 
-@app.route('/heartbeat', methods=['POST'])
-def heartbeat():
-    global LAST_HEARTBEAT
-    LAST_HEARTBEAT = time.time()
-    return jsonify({'status': 'alive'})
 
-# Heartbeat monitor
-import time
-LAST_HEARTBEAT = 0
-SHUTDOWN_TIMEOUT = 300  # Shutdown after 300 seconds of no activity
 
-def monitor_heartbeat():
-    global LAST_HEARTBEAT
-    print("Heartbeat monitor started...")
-    
-    # Wait for first heartbeat to avoid immediate shutdown
-    while LAST_HEARTBEAT == 0:
-        time.sleep(1)
+
+# =============================================================================
+# MERGER TOOL ENDPOINTS
+# =============================================================================
+
+@app.route('/merger')
+def merger_view():
+    return render_template('merger.html', cache_bust=int(time.time()))
+
+@app.route('/api/merge', methods=['POST'])
+def merge_files():
+    try:
+        data = request.json
+        file1_name = data.get('file1')
+        file2_name = data.get('file2')
+
+        if not file1_name or not file2_name:
+            return jsonify({'error': 'Missing files'}), 400
+
+        # Validate filenames safety (simple check)
+        if '..' in file1_name or '..' in file2_name:
+            return jsonify({'error': 'Invalid filenames'}), 400
+
+        # Validate business rule: must contain 'alquiler' or 'venta'
+        def is_valid_type(name):
+            n = name.lower()
+            return 'alquiler' in n or 'venta' in n
+
+        if not is_valid_type(file1_name) or not is_valid_type(file2_name):
+            return jsonify({'error': 'Files must contain "alquiler" or "venta"'}), 400
+
+        # Paths
+        salidas_dir = Path(__file__).parent.parent / "scraper" / "salidas"
+        path1 = salidas_dir / file1_name
+        path2 = salidas_dir / file2_name
+
+        if not path1.exists() or not path2.exists():
+            return jsonify({'error': 'One or more files not found'}), 404
+
+        # Output filename
+        # Remove extensions for concatenation
+        f1_stem = Path(file1_name).stem
+        f2_stem = Path(file2_name).stem
+        output_name = f"{f1_stem} - {f2_stem}_MERGE.xlsx"
+        output_path = salidas_dir / output_name
+
+        # Perform Merge using Context Managers to ensure file handles are released
+        processed_sheets = 0
         
-    while True:
-        if time.time() - LAST_HEARTBEAT > SHUTDOWN_TIMEOUT:
-            print(f"No heartbeat for {SHUTDOWN_TIMEOUT}s. Shutting down server...")
-            os._exit(0)
-        time.sleep(1)
+        # Use Context Managers for input files to prevent locking
+        with pd.ExcelFile(path1) as xl1, pd.ExcelFile(path2) as xl2:
+            sheet_names1 = xl1.sheet_names
+            sheet_names2 = set(xl2.sheet_names)
+            
+            all_sheets = sorted(list(set(sheet_names1) | sheet_names2))
+            
+            # Open Writer context manager
+            with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+                for sheet in all_sheets:
+                    df_combined = None
+                    
+                    if sheet in sheet_names1 and sheet in sheet_names2:
+                        # Case 1: Sheet exists in BOTH files -> MERGE
+                        # Pass the ExcelFile object (xl1/xl2) instead of path strings for speed and safety
+                        df1 = pd.read_excel(xl1, sheet_name=sheet)
+                        df2 = pd.read_excel(xl2, sheet_name=sheet)
+                        
+                        # Find URL column
+                        url_col = None
+                        for col in df1.columns:
+                            if isinstance(col, str) and 'url' in col.lower():
+                                url_col = col
+                                break
+                        
+                        if not url_col:
+                            # Fallback: concat without dedup
+                            print(f"Warning: No URL column found in sheet {sheet}")
+                            df_combined = pd.concat([df1, df2], ignore_index=True)
+                        else:
+                            # Concatenate and Dedup
+                            df_combined = pd.concat([df1, df2], ignore_index=True)
+                            df_combined.drop_duplicates(subset=[url_col], keep='first', inplace=True)
+                            
+                    elif sheet in sheet_names1:
+                        # Case 2: Sheet only in File 1 -> COPY
+                        df_combined = pd.read_excel(xl1, sheet_name=sheet)
+                        
+                    elif sheet in sheet_names2:
+                        # Case 3: Sheet only in File 2 -> COPY
+                        df_combined = pd.read_excel(xl2, sheet_name=sheet)
+                    
+                    # Write to output file
+                    if df_combined is not None:
+                        df_combined.to_excel(writer, sheet_name=sheet, index=False)
+                        processed_sheets += 1
+                
+                if processed_sheets == 0:
+                     return jsonify({'error': 'No matching sheets found to merge'}), 400
 
-# Start monitor thread
-monitor_thread = threading.Thread(target=monitor_heartbeat, daemon=True)
-monitor_thread.start()
+        return jsonify({'status': 'success', 'output_file': output_name})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     port = 5001

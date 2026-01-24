@@ -1,5 +1,69 @@
 [
   {
+    "timestamp": "2026-01-24T12:56:01.664344",
+    "seed_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/pagina-42?shape=%28%28evwtFz~aWepp%40abr%40tkw%40ha%40ozEv_q%40%29%29",
+    "properties_count": 527,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_venta.xlsx",
+    "filename": "idealista_Madrid_venta.xlsx"
+  },
+  {
+    "timestamp": "2026-01-24T11:57:22.121867",
+    "seed_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/?shape=%28%28evwtFz%7EaWepp%40abr%40tkw%40ha%40ozEv_q%40%29%29",
+    "properties_count": 1189,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_venta.xlsx",
+    "filename": "idealista_Madrid_venta.xlsx"
+  },
+  {
+    "timestamp": "2026-01-24T00:08:12.430016",
+    "seed_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28evwtFz%7EaWepp%40abr%40tkw%40ha%40ozEv_q%40%29%29",
+    "properties_count": 17,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_alquiler.xlsx",
+    "filename": "idealista_Madrid_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-01-23T22:56:20.866824",
+    "seed_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ%7Egd%40%29%29&ordenado-por=precios-asc",
+    "properties_count": 1780,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_alquiler.xlsx",
+    "filename": "idealista_Madrid_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-01-23T14:25:45.061096",
+    "seed_url": "https://www.idealista.com/areas/alquiler-viviendas/pagina-33?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ~gd%40%29%29",
+    "properties_count": 736,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_alquiler.xlsx",
+    "filename": "idealista_Madrid_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-01-23T00:23:12.835854",
+    "seed_url": "https://www.idealista.com/areas/alquiler-viviendas/con-precio-hasta_300000/?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ%7Egd%40%29%29",
+    "properties_count": 952,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_alquiler.xlsx",
+    "filename": "idealista_Madrid_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-01-22T12:14:24.281319",
+    "seed_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/?shape=%28%28o%7BbuFd_pUmke%40_%5DpnR_jc%40z%7BQ%7Egd%40%29%29",
+    "properties_count": 26,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_venta.xlsx",
+    "filename": "idealista_Madrid_venta.xlsx"
+  },
+  {
+    "timestamp": "2026-01-22T11:48:54.659065",
+    "seed_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/?shape=%28%28cmguFv%7EoVoha%40oq%5DpjG%7B%7EIvcP_pUh%7DW%60aa%40cdOh%60%5D%29%29",
+    "properties_count": 182,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_venta.xlsx",
+    "filename": "idealista_Madrid_venta.xlsx"
+  },
+  {
     "timestamp": "2026-01-20T19:53:59.498986",
     "seed_url": "https://www.idealista.com/venta-viviendas/talavera-de-la-reina-toledo/",
     "properties_count": 487,

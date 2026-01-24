@@ -304,6 +304,10 @@
                 <div class="icon">📈</div>
                 <span class="label">Market Metrics</span>
             </div>
+            <div class="nav-item" data-view="merger" onclick="switchView('merger')">
+                <div class="icon">🔗</div>
+                <span class="label">Merger Tool</span>
+            </div>
         </div>
 
         <div style="margin-top: auto;">
@@ -351,13 +355,22 @@
             </div>
             <iframe id="frame-metrics" src=""></iframe>
         </div>
+
+        <div id="view-merger" class="view-container">
+            <div class="loading-overlay" id="loading-merger">
+                <div class="spinner"></div>
+                <div>Cargando Merger Tool...</div>
+            </div>
+            <iframe id="frame-merger" src=""></iframe>
+        </div>
     </main>
 
     <script>
         const PORTS = {
             'scraper': 5003,
             'analyzer': 5001,
-            'metrics': 5004
+            'metrics': 5004,
+            'merger': 5001
         };
 
         console.log("Service Ports Configured:", PORTS);
@@ -407,7 +420,7 @@
         }
 
         // Track which frames have been loaded to avoid reloading
-        let frameLoaded = { scraper: false, analyzer: false, metrics: false };
+        let frameLoaded = { scraper: false, analyzer: false, metrics: false, merger: false };
 
         async function initService(service) {
             const loading = document.getElementById(`loading-${service}`);
@@ -436,7 +449,10 @@
                 }
 
                 // 3. Service is ready, set iframe src with cache-busting
-                const url = `http://127.0.0.1:${PORTS[service]}?_t=${Date.now()}`;
+                let path = '';
+                if (service === 'merger') path = '/merger';
+
+                const url = `http://127.0.0.1:${PORTS[service]}${path}?_t=${Date.now()}`;
                 frame.src = url;
                 frameLoaded[service] = true;  // Mark as loaded
 
@@ -462,8 +478,8 @@
             document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
             document.getElementById('view-' + viewName).classList.add('active');
 
-            // For scraper/analyzer/metrics views, only load iframe if not already loaded
-            if (viewName === 'scraper' || viewName === 'analyzer' || viewName === 'metrics') {
+            // For scraper/analyzer/metrics/merger views, only load iframe if not already loaded
+            if (['scraper', 'analyzer', 'metrics', 'merger'].includes(viewName)) {
                 // If frame already loaded, don't reload - just show it
                 if (frameLoaded[viewName]) {
                     return; // Already loaded, just show it (done above)
@@ -491,7 +507,9 @@
                 }
 
                 // Service is ready, load with timestamp (only first time)
-                const url = `http://127.0.0.1:${PORTS[viewName]}?_t=${Date.now()}`;
+                let path = '';
+                if (viewName === 'merger') path = '/merger';
+                const url = `http://127.0.0.1:${PORTS[viewName]}${path}?_t=${Date.now()}`;
                 frame.src = url;
                 frameLoaded[viewName] = true;
 
@@ -510,14 +528,16 @@
             Promise.all([
                 initService('scraper'),
                 initService('analyzer'),
-                initService('metrics')
+                initService('metrics'),
+                // initService('merger') // Optional: Lazy load merger or init with analyzer? 
+                // Since merger uses analyzer port, if analyzer is init, merger is potentially ready. 
+                // But we can let it lazy load on click or init it now.
+                // initService('merger') will call /api/start/merger which main.py handles.
+                initService('merger')
             ]);
         });
 
-        // Heartbeat for auto-shutdown
-        setInterval(() => {
-            fetch('/api/heartbeat', { method: 'POST' }).catch(() => { });
-        }, 2000);
+
     </script>
 </body>
 

@@ -337,10 +337,12 @@ function initializeSocket() {
 
     socket.on('connect', () => {
         addLog('INFO', 'Conectado al servidor');
+        updateServerButtons(true);
     });
 
     socket.on('disconnect', () => {
         addLog('WARN', 'Desconectado del servidor');
+        updateServerButtons(false);
     });
 
     socket.on('log', (data) => {
@@ -610,12 +612,12 @@ function handleStatusChange(data) {
         pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
         seedUrlInput.disabled = true;
 
-        // Disable mode switching while running (must pause first)
-        fastBtn.style.pointerEvents = 'none';
-        fastBtn.style.opacity = '0.5';
+        // Mode switching is now allowed during execution (hot-swap)
+        fastBtn.style.pointerEvents = 'auto';
+        fastBtn.style.opacity = '1';
         if (stealthBtn) {
-            stealthBtn.style.pointerEvents = 'none';
-            stealthBtn.style.opacity = '0.5';
+            stealthBtn.style.pointerEvents = 'auto';
+            stealthBtn.style.opacity = '1';
         }
     } else if (status === 'paused') {
         isPaused = true;
@@ -1094,6 +1096,23 @@ function playAlarm() {
 const startServerBtn = document.getElementById('startServerBtn');
 const stopServerBtn = document.getElementById('stopServerBtn');
 const restartServerBtn = document.getElementById('restartServerBtn');
+
+function updateServerButtons(isConnected) {
+    // If connected, server is running -> Start disabled
+    // If disconnected, server is stopped -> Start enabled (status)
+    if (startServerBtn) {
+        startServerBtn.disabled = isConnected;
+        // Restore original text if it was "Iniciando..."
+        if (!isConnected && startServerBtn.innerHTML.includes('Iniciando')) {
+            startServerBtn.innerHTML = '<span class="btn-icon">▶</span> Arrancar';
+        }
+    }
+
+    // If connected, server is running -> Stop/Restart enabled
+    // If disconnected, server is stopped -> Stop/Restart disabled
+    if (stopServerBtn) stopServerBtn.disabled = !isConnected;
+    if (restartServerBtn) restartServerBtn.disabled = !isConnected;
+}
 
 if (startServerBtn) {
     startServerBtn.addEventListener('click', async () => {
