@@ -620,8 +620,8 @@ class ScraperController:
                     page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
                     page_text_lower = page_text.lower() if page_text else ""
                     
-                    if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower:
-                        self.log("ERR", "🚫 Se ha detectado un uso indebido. El acceso se ha bloqueado.")
+                    if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower:
+                        self.log("ERR", "🚫 Se ha detectado un uso indebido/no autorizado. El acceso se ha bloqueado.")
                         play_blocked_alert()
                         # We do NOT set _stop_evt here to allow for automated recovery
                         raise BlockedException("Acceso bloqueado por uso indebido")
@@ -817,6 +817,8 @@ class ScraperController:
             else:
                 # File doesn't exist yet - keep the registered filename, it will be created
                 self.log("INFO", f"Registered file not found: {target_file} - will be created during this scrape")
+        if seed_url:
+            self.seed_url = seed_url
         else:
             self.log("INFO", "New seed URL - no previous scrape history found")
         
@@ -826,6 +828,7 @@ class ScraperController:
         # Automatic Recovery Loop
         max_restarts = 5
         restart_count = 0
+        self.unauthorized_restart_count = 0  # Track "uso no autorizado" restarts
         
         while not self._stop_evt.is_set():
             try:
@@ -1078,6 +1081,7 @@ class ScraperController:
                     updated = 0
                     new_scraped = 0
                     existing_df = None  # Will be loaded by checkpoint if needed
+                    scraping_finished = False  # Track clean completion
             
                     while not self._stop_evt.is_set():
                         await self._wait_for_pause()
@@ -1459,35 +1463,47 @@ class ScraperController:
                                 self.log("ERR", f"({property_idx}/{self.total_properties_expected}) {key} -> {e}")
                                 self._processed.add(key)
                 
+                
                         # Check if we should continue to next page
                         if self._stop_evt.is_set():
                             # Save state for resume before stopping
                             self.save_state(page_num, target_file)
                             break
                     
+                        # Case 1: Less links than max = Last Page
                         if original_count < LISTING_LINKS_PER_PAGE_MAX:
-                            self.log("INFO", f"Last page reached (found {original_count} links, {len(hrefs)} new).")
-                            # Clear state on successful completion
+                            self.log("INFO", f"Last page reached (found {original_count} links < {LISTING_LINKS_PER_PAGE_MAX}).")
                             self.clear_state()
+                            scraping_finished = True
                             break
-                        # Check if we skipped everything on this page
+
+                        # Case 2: All properties on this page were skipped
                         if len(hrefs) > 0 and skipped_on_page == len(hrefs):
                             self.log("WARN", f"Página {page_num}: todas las propiedades ya existen en el fichero")
                             # Wait a bit longer to let things settle
-                            await asyncio.sleep(5.0)
+                            await asyncio.sleep(2.0)
+                            # Explicitly advance to next page
+                            page_num += 1
+                            continue
 
-                        # Check if we've reached the maximum page limit (60 pages)
+                        # Case 3: Max pages reached
                         if page_num >= 60:
                             self.log("INFO", f"Reached page {page_num} (maximum listing pages). Finishing scrape.")
                             self.clear_state()
+                            scraping_finished = True
                             break
 
-                            # Next page
-                            page_num += 1
+                        # Default: Next page
+                        page_num += 1
                 
-                        # After phase 1 loop completes successfully
-                        self.log("INFO", f"Summary: {new_scraped} new, {updated} updated, {skipped} skipped, {len(expired_urls)} expired")
-                        self._export_to_excel(additions, target_file, expired_urls)
+                    # After phase 1 loop completes successfully
+                    self.log("INFO", f"Summary: {new_scraped} new, {updated} updated, {skipped} skipped, {len(expired_urls)} expired")
+                    self._export_to_excel(additions, target_file, expired_urls)
+
+                    # CRITICAL FIX: If we finished cleanly (last page or max page), STOP the outer recovery loop
+                    if scraping_finished and not self._stop_evt.is_set():
+                        self.log("INFO", "Scraping completed successfully. Exiting.")
+                        break
                 
                     # === DUAL MODE: Run second phase in same browser ===
                     # === DUAL MODE: Run second phase in same browser ===
@@ -1727,6 +1743,8 @@ class ScraperController:
             
             except BlockedException:
                 restart_count += 1
+                self.unauthorized_restart_count += 1
+                self.log("WARN", f"⚠️ 'Uso no autorizado' restart #{self.unauthorized_restart_count} (Total restarts: {restart_count})")
                 if restart_count > max_restarts:
                     self.log("ERR", f"Demasiados reinicios ({max_restarts}). Abortando scraping por seguridad.")
                     break
@@ -1759,7 +1777,8 @@ class ScraperController:
         
                 # Reset self.is_running = False etc will happen at the very end of run()
             
-            self.log("INFO", "Scraping finished. Closing browser...")
+            self.log("INFO", f"Scraping finished. Total 'unauthorized access' restarts: {self.unauthorized_restart_count}")
+            self.log("INFO", "Closing browser...")
             # Close browser/context properly based on mode
             if browser is not None:
                 await browser.close()

@@ -954,7 +954,8 @@ async function checkResumeState() {
             // Show resume button
             if (resumeBtn) {
                 resumeBtn.style.display = 'inline-flex';
-                resumeBtn.title = `Reanudar desde página ${data.state.current_page} (${data.state.scraped_count} propiedades guardadas)`;
+                // Show URL and count in tooltip
+                resumeBtn.title = `URL: ${data.state.seed_url}\nDesde página: ${data.state.current_page}`;
             }
             // Pre-fill seed URL if not already filled
             if (!seedUrlInput.value && data.state.seed_url) {
