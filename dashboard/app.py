@@ -180,10 +180,13 @@ def get_analytics():
         room_col = find_column(combined, ['habs', 'habitaciones', 'rooms', 'dormitorios', 'num_rooms'])
         room_distribution = []
         if room_col:
-            room_counts = combined[room_col].value_counts().sort_index()
+            # Ensure proper numeric sorting by cleaning the column first
+            clean_rooms = pd.to_numeric(combined[room_col], errors='coerce').dropna()
+            room_counts = clean_rooms.value_counts().sort_index()
+            
             for rooms, count in room_counts.items():
-                label = f"{int(rooms)} hab" if pd.notna(rooms) else "N/A"
-                room_distribution.append({'label': label, 'value': int(count), 'raw': int(rooms) if pd.notna(rooms) else None})
+                label = f"{int(rooms)} hab"
+                room_distribution.append({'label': label, 'value': int(count), 'raw': int(rooms)})
         
         # 3. Size Distribution (for Histogram)
         size_col = find_column(combined, ['m2 construidos', 'm2 utiles', 'm2', 'dimensiones', 'size', 'superficie'])

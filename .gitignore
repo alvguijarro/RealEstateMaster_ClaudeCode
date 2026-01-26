@@ -15,6 +15,7 @@ venv/
 # Project Outputs
 *.xlsx
 scraper/salidas/
+analyzer/Salidas/
 scraper/scrape_history.json
 
 # Portable
@@ -34,3 +35,7 @@ python_portable/.deps_installed
 
 # Logs
 *.log
+
+# Scraper internals
+scraper/stealth_profile/
+scraper/python/
