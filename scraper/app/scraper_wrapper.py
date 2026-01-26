@@ -817,10 +817,7 @@ class ScraperController:
             else:
                 # File doesn't exist yet - keep the registered filename, it will be created
                 self.log("INFO", f"Registered file not found: {target_file} - will be created during this scrape")
-        if seed_url:
-            self.seed_url = seed_url
-        else:
-            self.log("INFO", "New seed URL - no previous scrape history found")
+        # seed_url logic removed as it was redundant/erroneous here. self.seed_url is already set in __init__ or passed in registry logic above if needed, but registry logic sets target_file, not seed_url.
         
         additions: List[dict] = []
         expired_urls: List[str] = []  # URLs to delete from Excel (expired listings)
@@ -992,6 +989,7 @@ class ScraperController:
                         await browser.close()
                         self.is_running = False
                         self.status = "error"
+                        self.log("INFO", "Scraper stopped successfully")
                         if self.on_status:
                             self.on_status("error", error="0 inmuebles encontrados")
                         return
@@ -1749,30 +1747,41 @@ class ScraperController:
                     self.log("ERR", f"Demasiados reinicios ({max_restarts}). Abortando scraping por seguridad.")
                     break
             
-                self.log("WARN", f"🔄 Intento de recuperación {restart_count}/{max_restarts}: Reiniciando navegador...")
-                # Switch to stealth mode as requested
+                self.log("WARN", f"🔄 Recuérdame: Se ha cambiado la IP o detectado bloqueo. Reiniciando sesión automáticamente...")
+                
+                # Switch to stealth mode automatically for safety
                 if self.mode != "stealth":
-                    self.log("INFO", "Cambiando a modo STEALTH para mayor seguridad.")
+                    self.log("INFO", "Activando modo STEALTH para evitar futuros bloqueos.")
                     self.mode = "stealth"
             
                 # Save data and state before restart
                 if additions:
-                    self.log("INFO", "Guardando datos acumulados antes del reinicio...")
+                    self.log("INFO", "Guardando progreso antes del reinicio...")
                     try:
                         self._export_to_excel(additions, target_file, expired_urls)
                         # Reset additions list as they are now saved to file
                         additions = []
                     except Exception as e:
-                        self.log("ERR", f"Error guardando datos durante recuperación: {e}")
+                        self.log("ERR", f"Error guardando backup: {e}")
             
                 self.save_state(page_num, target_file)
             
+                # Explicitly close browser before waiting
+                self.log("INFO", "Cerrando navegador actual...")
+                try:
+                    if browser:
+                        await browser.close()
+                    elif ctx:
+                        await ctx.close()
+                except Exception:
+                    pass
+                
                 # Short wait before relaunching browser
-                wait_time = random.randint(10, 20)
-                self.log("INFO", f"Esperando {wait_time}s para enfriar la IP...")
+                wait_time = random.randint(10, 15)
+                self.log("INFO", f"Reiniciando en {wait_time} segundos...")
                 await self._interruptible_sleep(float(wait_time))
             
-                # Ensure browser/context is closed (async with takes care of pw, but we're about to loop)
+                # Continue loop -> This will trigger the 'async with async_playwright()' again
                 continue
         
                 # Reset self.is_running = False etc will happen at the very end of run()
@@ -1791,6 +1800,9 @@ class ScraperController:
         
         self.is_running = False
         self.status = "completed"
+        # Explicit confirmation that scraper is fully stopped
+        self.log("INFO", "Scraper stopped successfully")
+        
         if self.on_status:
             self.on_status("completed", file=self.output_file, count=len(self.scraped_properties))
 

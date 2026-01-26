@@ -1042,7 +1042,6 @@ async function resumeScraping() {
         pauseBtn.disabled = false;
         stopBtn.disabled = false;
         seedUrlInput.disabled = true;
-        outputDirInput.disabled = true;
 
         addLog('OK', `Scraping reanudado en modo ${mode}`);
     } catch (error) {
