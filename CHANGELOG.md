@@ -12,6 +12,7 @@
 - **Dashboard Metrics Inconsistency**: Fixed boolean filters for Garaje, Terraza, and Trastero in `dashboard/static/script.js` to correctly display property percentages.
 - **Resume Button State**: Resolved issue where the Resume button would disappear or fail to enable after a manual stop.
 - **Git Hygiene**: Added `scraper/app/resume_state.json` to `.gitignore` to prevent tracking temporary session states.
+- **Block Detection in Loops**: Fixed a logic gap where "uso indebido" blocks encountered during property extraction were misidentified as CAPTCHA, causing the scraper to hang instead of restarting.
 
 ## [Previous Sessions]
 

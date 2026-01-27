@@ -1363,8 +1363,15 @@ class ScraperController:
                                         self._processed.add(key)
                                         self.current_property_count = property_idx
                                         self.emit_progress()
+                                        self.emit_progress()
                                         continue
                         
+                                # Check for BLOCK (uso indebido) inside loop before CAPTCHA
+                                page_text_lower = page_text.lower() if 'page_text' in locals() else (await page.evaluate("() => document.body ? document.body.innerText : ''")).lower()
+                                if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower:
+                                    self.log("ERR", "🚫 Loop detection: 'Uso indebido' detected. Triggering auto-restart...")
+                                    raise BlockedException("Acceso bloqueado por uso indebido detected in loop")
+
                                 # If missing fields and not a "not found" page, might be CAPTCHA
                                 if miss:
                                     self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado. Resuelve el CAPTCHA y pulsa Resume.")
@@ -1707,6 +1714,12 @@ class ScraperController:
                                             self.log("WARN", f"Anuncio no disponible: {key}")
                                             self._processed.add(key)
                                             continue
+                                
+                                    # Check for BLOCK (uso indebido) inside loop before CAPTCHA
+                                    page_text_lower = page_text.lower() if 'page_text' in locals() else (await page.evaluate("() => document.body ? document.body.innerText : ''")).lower()
+                                    if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower:
+                                        self.log("ERR", "🚫 Loop detection: 'Uso indebido' detected. Triggering auto-restart...")
+                                        raise BlockedException("Acceso bloqueado por uso indebido detected in loop")
                                 
                                     row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
                                     additions.append(row)
