@@ -14,6 +14,7 @@
 - **Resume Button State**: Resolved issue where the Resume button would disappear or fail to enable after a manual stop.
 - **Git Hygiene**: Added `scraper/app/resume_state.json` to `.gitignore` to prevent tracking temporary session states.
 - **Block Detection in Loops**: Fixed a logic gap where "uso indebido" blocks encountered during property extraction were misidentified as CAPTCHA, causing the scraper to hang instead of restarting.
+- **UI Clarification**: Removed the "Arrancar" server button from the UI, as the web interface cannot start the server once it is stopped (manual restart is required).
 
 ## [Previous Sessions]
 
