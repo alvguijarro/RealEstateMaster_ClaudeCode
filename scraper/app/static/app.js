@@ -1097,47 +1097,20 @@ function playAlarm() {
 }
 
 // Server Control Buttons
-const startServerBtn = document.getElementById('startServerBtn');
+// startServerBtn removed (useless)
 const stopServerBtn = document.getElementById('stopServerBtn');
 const restartServerBtn = document.getElementById('restartServerBtn');
 
 function updateServerButtons(isConnected) {
     // If connected, server is running -> Start disabled
     // If disconnected, server is stopped -> Start enabled (status)
-    if (startServerBtn) {
-        startServerBtn.disabled = isConnected;
-        // Restore original text if it was "Iniciando..."
-        if (!isConnected && startServerBtn.innerHTML.includes('Iniciando')) {
-            startServerBtn.innerHTML = '<span class="btn-icon">▶</span> Arrancar';
-        }
-    }
-
     // If connected, server is running -> Stop/Restart enabled
     // If disconnected, server is stopped -> Stop/Restart disabled
     if (stopServerBtn) stopServerBtn.disabled = !isConnected;
     if (restartServerBtn) restartServerBtn.disabled = !isConnected;
 }
 
-if (startServerBtn) {
-    startServerBtn.addEventListener('click', async () => {
-        try {
-            startServerBtn.disabled = true;
-            startServerBtn.innerHTML = '<span class="btn-icon">⏳</span> Iniciando...';
-            const response = await fetch('/api/server/start', { method: 'POST' });
-            const data = await response.json();
-            if (response.ok) {
-                addLog('INFO', 'Servidor iniciándose...');
-            } else {
-                addLog('ERR', data.error || 'Error al iniciar servidor');
-            }
-        } catch (err) {
-            addLog('ERR', 'Error de conexión al iniciar servidor');
-        } finally {
-            startServerBtn.disabled = false;
-            startServerBtn.innerHTML = '<span class="btn-icon">▶</span> Arrancar';
-        }
-    });
-}
+
 
 if (stopServerBtn) {
     stopServerBtn.addEventListener('click', async () => {

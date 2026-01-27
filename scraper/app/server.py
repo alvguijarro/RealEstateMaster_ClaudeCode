@@ -227,19 +227,7 @@ def set_mode():
     return jsonify({'error': 'Scraper not running'}), 400
 
 
-@app.route('/api/server/start', methods=['POST'])
-def start_server():
-    """Execute START_SILENT.bat to start all services (no browser)."""
-    try:
-        base_dir = Path(__file__).parent.parent.parent  # Go up to RealEstateMaster root
-        bat_file = base_dir / 'scripts' / 'START_SILENT.bat'
-        if bat_file.exists():
-            subprocess.Popen(['cmd', '/c', str(bat_file)], cwd=str(base_dir), 
-                           creationflags=subprocess.CREATE_NO_WINDOW)
-            return jsonify({'status': 'started', 'message': 'Server starting...'})
-        return jsonify({'error': 'START_SILENT.bat not found'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/api/server/stop', methods=['POST'])
