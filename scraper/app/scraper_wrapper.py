@@ -620,6 +620,11 @@ class ScraperController:
                     page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
                     page_text_lower = page_text.lower() if page_text else ""
                     
+                    # Check for deactivated listing
+                    if "anuncio ya no está publicado" in page_text_lower or "este anuncio no está publicado" in page_text_lower:
+                        self.log("WARN", f"El anuncio ya no está activo: {url}")
+                        return
+                    
                     if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower:
                         self.log("ERR", "🚫 Se ha detectado un uso indebido/no autorizado. El acceso se ha bloqueado.")
                         play_blocked_alert()
@@ -1347,7 +1352,9 @@ class ScraperController:
                                         "no encontramos" in page_text.lower() or
                                         "anuncio no disponible" in page_text.lower() or
                                         "este anuncio ya no está disponible" in page_text.lower() or
-                                        "enlace antiguo" in page_text.lower()
+                                        "enlace antiguo" in page_text.lower() or
+                                        "anuncio ya no está publicado" in page_text.lower() or
+                                        "lo sentimos" in page_text.lower()
                                     )
                             
                                     if is_not_found:
@@ -1695,7 +1702,7 @@ class ScraperController:
                                     miss = missing_fields(row, is_room_mode=self._is_room_mode)
                                     if miss:
                                         page_text = await page.evaluate("() => (document.body && document.body.innerText) ? document.body.innerText : ''")
-                                        is_not_found = any(x in page_text.lower() for x in ["no encontramos", "anuncio no disponible", "este anuncio ya no está disponible"])
+                                        is_not_found = any(x in page_text.lower() for x in ["no encontramos", "anuncio no disponible", "este anuncio ya no está disponible", "anuncio ya no está publicado", "lo sentimos"])
                                         if is_not_found:
                                             self.log("WARN", f"Anuncio no disponible: {key}")
                                             self._processed.add(key)
