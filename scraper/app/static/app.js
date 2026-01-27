@@ -644,6 +644,10 @@ function handleStatusChange(data) {
             resetUIState();
             // Add log about completion if needed, handled by server events usually
         } else {
+            // Check if we can resume (e.g. if stopped manually)
+            // Delay slightly to ensure backend file write is finished
+            setTimeout(checkResumeState, 1000);
+
             isRunning = false;
             isPaused = false;
             startBtn.disabled = false;

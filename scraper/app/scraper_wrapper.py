@@ -1801,15 +1801,19 @@ class ScraperController:
             else:
                 await ctx.close()  # Persistent context in Stealth mode
         
-        # Clear resume state file on successful completion
-        self.clear_state()
-        self.log("INFO", "Resume state cleared (scraping completed successfully)")
+        # Clear resume state file ONLY on successful completion (not manual stop)
+        if not self._stop_evt.is_set():
+            self.clear_state()
+            self.log("INFO", "Resume state cleared (scraping completed successfully)")
+        else:
+            self.log("INFO", "Scraper stopped by user. State preserved for resume.")
         
         self.is_running = False
-        self.status = "completed"
+        self.status = "completed" if not self._stop_evt.is_set() else "stopped"
+        
         # Explicit confirmation that scraper is fully stopped
-        self.log("INFO", "Scraper stopped successfully")
+        self.log("INFO", "Scraper completely stopped. Browser closed.")
         
         if self.on_status:
-            self.on_status("completed", file=self.output_file, count=len(self.scraped_properties))
+            self.on_status(self.status, file=self.output_file, count=len(self.scraped_properties))
 
