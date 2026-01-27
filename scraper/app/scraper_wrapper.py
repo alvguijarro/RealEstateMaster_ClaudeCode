@@ -406,6 +406,11 @@ class ScraperController:
                 if self._stop_evt.is_set():
                     self.log("INFO", "Coffee break interrupted.")
                     break
+                
+                # Skip if mode switched to FAST
+                if self.mode != "stealth":
+                    self.log("INFO", "Coffee break skipped (switched to FAST mode).")
+                    break
                     
                 sleep_chunk = min(1.0, remaining)
                 await asyncio.sleep(sleep_chunk)
@@ -444,6 +449,11 @@ class ScraperController:
             while remaining > 0:
                 if self._stop_evt.is_set():
                     self.log("INFO", "Session rest interrupted.")
+                    break
+                
+                # Skip if mode switched to FAST
+                if self.mode != "stealth":
+                    self.log("INFO", "Session rest skipped (switched to FAST mode).")
                     break
                     
                 sleep_chunk = min(1.0, remaining)
