@@ -90,6 +90,15 @@ async function loadFiles() {
 async function onFileChange() {
     selectedFile = fileSelect.value;
     selectedDistricts = [];
+
+    // Reset UI to prevent showing old data animation
+    rawData = null;
+    statsBar.style.display = 'none';
+    chartsGrid.style.display = 'none';
+    const propPanel = document.getElementById('propertiesTablePanel');
+    if (propPanel) propPanel.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'block';
+
     clearAllFilters();
 
     if (!selectedFile) {
@@ -203,9 +212,9 @@ function filterData() {
     applyFilter('estado', p => p.estado === activeFilters.estado.raw);
 
     // Boolean filters
-    applyFilter('terraza', p => p.terraza === activeFilters.terraza.raw);
-    applyFilter('garaje', p => p.garaje === activeFilters.garaje.raw);
-    applyFilter('trastero', p => p.trastero === activeFilters.trastero.raw);
+    applyFilter('terraza', p => activeFilters.terraza.raw ? p.terraza === true : !p.terraza);
+    applyFilter('garaje', p => activeFilters.garaje.raw ? p.garaje === true : !p.garaje);
+    applyFilter('trastero', p => activeFilters.trastero.raw ? p.trastero === true : !p.trastero);
 
     // Special status (combined check)
     if (activeFilters.specialStatus) {
@@ -243,7 +252,7 @@ function calculateMetrics(properties) {
         let yes = 0, no = 0;
         properties.forEach(p => {
             if (p[field] === true) yes++;
-            if (p[field] === false) no++;
+            else no++;
         });
         return [
             { label: 'Sí', value: yes, raw: true },
@@ -577,7 +586,7 @@ function renderBar(key, data, activeFilter, filterMap) {
                     align: 'top'
                 }
             },
-            scales: { x: { ticks: { color: '#64748b' }, grid: { display: false } }, y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } } }
+            scales: { x: { ticks: { color: '#64748b' }, grid: { display: false } }, y: { grace: '15%', ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } } }
         },
         plugins: [ChartDataLabels]
     });
@@ -650,7 +659,7 @@ function renderHistogram(key, data, activeFilter, isCategorical = false) {
                     align: 'top'
                 }
             },
-            scales: { x: { ticks: { color: '#64748b' }, grid: { display: false } }, y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } } }
+            scales: { x: { ticks: { color: '#64748b' }, grid: { display: false } }, y: { grace: '15%', ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } } }
         },
         plugins: [ChartDataLabels]
     });
