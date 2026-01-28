@@ -26,6 +26,7 @@
 
 ### Fixed
 - **Update Script Syntax Error**: Fixed a critical `SyntaxError` in `update_urls.py` where a duplicate `except` block prevented the script from running.
+- **Update Pause/Resume UI Fix**: Resolved an issue where the "Pause" button in the URL update process did not update the UI, leaving the "Resume" button inaccessible. The backend now correctly communicates status changes to the frontend.
 
 ## [Previous Sessions]
 

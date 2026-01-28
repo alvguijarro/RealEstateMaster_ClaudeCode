@@ -310,9 +310,17 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
             save_checkpoint(excel_file, i - 1, len(urls), selected_sheets)
             
             # Check for pause
+            was_paused = False
             while os.path.exists(PAUSE_FLAG_FILE):
-                 # emit_to_ui('INFO', 'Paused...') # Too noisy if repeated
+                 if not was_paused:
+                     emit_to_ui('INFO', '[STATUS] paused')
+                     emit_to_ui('INFO', 'Update paused by user.')
+                     was_paused = True
                  await asyncio.sleep(1)
+            
+            if was_paused:
+                emit_to_ui('INFO', '[STATUS] running')
+                emit_to_ui('INFO', 'Update resumed.')
 
             try:
                 # Dynamic delay based on mode flag

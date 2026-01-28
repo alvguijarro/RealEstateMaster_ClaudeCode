@@ -525,7 +525,11 @@ def update_urls():
                 if not line:
                     continue
                 # Parse log level from line
-                if '[ERR]' in line or 'ERROR' in line:
+                # Parse log level from line
+                if '[STATUS]' in line:
+                    status = line.split('[STATUS]')[1].strip().lower() # e.g. "paused"
+                    emit_status(status)
+                elif '[ERR]' in line or 'ERROR' in line:
                     emit_log('ERR', line.replace('[ERR]', '').replace('ERROR:', '').strip())
                 elif '[WARN]' in line:
                     emit_log('WARN', line.replace('[WARN]', '').strip())
