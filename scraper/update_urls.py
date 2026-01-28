@@ -101,37 +101,45 @@ async def detect_captcha(page) -> bool:
         return False
 
 
-def save_checkpoint(excel_file: str, current_index: int, total: int, sheets: list):
-    """Save current progress to checkpoint file."""
+import json
+
+JOURNAL_FILE = "update_progress.jsonl"
+
+def save_to_journal(excel_file: str, data: dict):
+    """Append a processed property result to the journal."""
     try:
-        data = {
+        entry = {
             'excel_file': os.path.basename(excel_file),
             'full_path': excel_file,
-            'current_index': current_index,
-            'total': total,
-            'sheets': sheets,
+            'data': data,
             'timestamp': time.time()
         }
-        with open(CHECKPOINT_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f)
+        with open(JOURNAL_FILE, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(entry) + '\n')
     except Exception as e:
-        # Silently fail on checkpoint save to not disrupt main flow
         pass
 
-def load_checkpoint(excel_file: str):
-    """Load checkpoint for specific file if exists."""
-    if not os.path.exists(CHECKPOINT_FILE):
-        return None
+def load_journal(excel_file: str):
+    """Load previously processed data from journal."""
+    if not os.path.exists(JOURNAL_FILE):
+        return []
+    
+    restored_rows = []
     try:
-        with open(CHECKPOINT_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        # Verify it matches the current file
-        if data.get('full_path') == excel_file:
-            return data
+        with open(JOURNAL_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                if not line.strip(): continue
+                try:
+                    entry = json.loads(line)
+                    # Use full path equality strictly
+                    if entry.get('full_path') == excel_file:
+                        restored_rows.append(entry['data'])
+                except:
+                    continue
     except:
-        pass
-    return None
+        return []
+    
+    return restored_rows
 
 
 
@@ -197,17 +205,26 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     
     # Check resume state
     start_index = 0
+    updated_rows = []
+    
     if resume:
-        checkpoint = load_checkpoint(excel_file)
-        if checkpoint:
-            saved_index = checkpoint.get('current_index', 0)
-            if saved_index > 0 and saved_index < len(urls):
-                start_index = saved_index
-                emit_to_ui('INFO', f'Resuming from property {start_index + 1}/{len(urls)}')
+        # Load EVERYTHING from journal first
+        restored_data = load_journal(excel_file)
+        if restored_data:
+            updated_rows = restored_data
+            saved_count = len(updated_rows)
+            if saved_count > 0 and saved_count < len(urls):
+                start_index = saved_count
+                emit_to_ui('INFO', f'Resuming from journal. Restored {saved_count} properties.')
+                emit_to_ui('INFO', f'Continuing from property {start_index + 1}/{len(urls)}')
             else:
-                emit_to_ui('WARN', 'Checkpoint finished or invalid, starting from beginning.')
+                 # If journal is complete or empty, start over or just warn
+                 if saved_count >= len(urls):
+                     emit_to_ui('WARN', 'Journal indicates update was already completed. Please start clean if needed.')
+                     start_index = 0 # Or maybe just stop? For now reset. 
+                     updated_rows = []
         else:
-            emit_to_ui('WARN', 'No checkpoint found to resume.')
+            emit_to_ui('WARN', 'No journal found to resume from.')
     
     # 3. Scrape each URL
     updated_rows = []
@@ -254,36 +271,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     # Let's look at line 277: new_df.to_excel(..., index=False)
     # Yes, it seems this script produces a FLAT list of unique URLs.
     
-    if start_index > 0:
-        # Pre-fill updated_rows with data from the original DF for the skipped URLs
-        # We need to find the rows corresponding to urls[:start_index]
-        # Since we just want to preserve them as is:
-        skipped_urls = urls[:start_index]
-        
-        # We can try to get the existing data for these URLs from 'df'
-        # df is all rows.
-        # We want the LAST known valid data for these URLs? Or just the first occurrence?
-        # The script collapses unique URLs.
-        
-        # Simple/Safe bet:
-        # We just assume the input file has the columns we need.
-        # We take the subset of df where URL is in skipped_urls.
-        # We deduplicate by URL to match the output format.
-        
-        # existing_data = df[df['URL'].isin(skipped_urls)].drop_duplicates(subset=['URL'])
-        # updated_rows = existing_data.to_dict('records')
-        
-        # However, to avoid schema mismatches, let's just use the 'df' rows directly.
-        # We iterate and copy.
-        emit_to_ui('INFO', f'Loading {start_index} previously processed rows...')
-        for url in skipped_urls:
-            # Get first matching row
-            matches = df[df['URL'] == url]
-            if not matches.empty:
-                updated_rows.append(matches.iloc[0].to_dict())
-            else:
-                 # Should not happen as urls came from df
-                 pass
+    # If not resuming (or start_index is 0), updated_rows is empty.
+    # If resuming, updated_rows is already populated with the preserved data.
+    
+    # We DO NOT need to pre-fill from original DF because we rely on the journaling to have saved the ACTUAL scraped data.
+    # The journal stores the FULL 'd' dict plus 'URL'.
+    
                  
     active_count = 0
     inactive_count = 0
@@ -306,8 +299,8 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
         # Start loop from start_index
         for i, url in enumerate(urls[start_index:], start_index + 1):
             
-            # Save checkpoint at start of each iteration
-            save_checkpoint(excel_file, i - 1, len(urls), selected_sheets)
+            # Append result is handled AFTER scraping below
+            pass
             
             # Check for pause
             was_paused = False
@@ -428,6 +421,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     active_count += 1
                 
                 row = {"URL": url, **d}
+                
+                # Journaling: Save THIS result immediately
+                save_to_journal(excel_file, row)
+                
                 updated_rows.append(row)
                 
                 # Emit progress
@@ -468,10 +465,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     
     emit_to_ui('OK', 'URL status update complete!')
     
-    # Cleanup checkpoint on headers success
-    if os.path.exists(CHECKPOINT_FILE):
+    # Cleanup journal on success
+    if os.path.exists(JOURNAL_FILE):
         try:
-            os.remove(CHECKPOINT_FILE)
+            os.remove(JOURNAL_FILE)
         except:
             pass
     

@@ -582,22 +582,36 @@ def check_update_state():
         return jsonify({'error': 'Excel file path is required'}), 400
         
     update_script = Path(__file__).parent.parent / "update_urls.py"
-    checkpoint_file = update_script.parent / "update_checkpoint.json"
+    journal_file = update_script.parent / "update_progress.jsonl"
     
-    if not checkpoint_file.exists():
+    if not journal_file.exists():
         return jsonify({'can_resume': False})
         
     try:
-        with open(checkpoint_file, 'r', encoding='utf-8') as f:
-            state = json_module.load(f)
-            
-        # Verify file matches
-        if state.get('full_path') == excel_file:
-            return jsonify({
-                'can_resume': True,
-                'current_index': state.get('current_index'),
-                'total': state.get('total')
-            })
+        # Check if journal matches this file by reading the first line
+        with open(journal_file, 'r', encoding='utf-8') as f:
+            first_line = f.readline()
+            if not first_line:
+                return jsonify({'can_resume': False})
+                
+            entry = json_module.loads(first_line)
+            if entry.get('full_path') == excel_file:
+                # Count lines to determine progress
+                # Reset file pointer to count all
+                f.seek(0)
+                count = sum(1 for _ in f)
+                
+                # We don't know total here easily unless we open Excel, 
+                # but we can return the count of processed items.
+                # Ideally we should cache the total?
+                # For now let's just return the count and client can disable "Resume" if data is weird.
+                return jsonify({
+                    'can_resume': True,
+                    'current_index': count,
+                    'total': '?' # Client will show "Reanudar (X finished)"
+                })
+    except:
+        pass
     except:
         pass
         
