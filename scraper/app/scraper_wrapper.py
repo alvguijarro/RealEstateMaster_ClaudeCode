@@ -666,7 +666,8 @@ class ScraperController:
                             if self._stop_evt.is_set():
                                 break
                             play_captcha_alert()
-                            # interruptible wait
+                            
+                            # interruptible wait (10s)
                             for _ in range(100):
                                 if self._stop_evt.is_set():
                                     break

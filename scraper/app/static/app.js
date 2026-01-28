@@ -663,9 +663,9 @@ function handleStatusChange(data) {
         }
     } else if (status === 'captcha') {
         isPaused = true;
-        pauseBtn.disabled = false;
-        pauseBtn.innerHTML = '<span class="btn-icon">▶</span> Reanudar Despúes de CAPTCHA';
-        // Make it obvious
+        // Auto-resume logic: Backend will resume automatically, so we just show status
+        pauseBtn.disabled = true; // Disable resume button during CAPTCHA
+        pauseBtn.innerHTML = '<span class="btn-icon">⏱️</span> Esperando resolución...';
         pauseBtn.classList.add('btn-warning');
 
         // Play alarm sound
