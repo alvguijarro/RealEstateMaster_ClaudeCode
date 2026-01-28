@@ -1,6 +1,20 @@
 # Changelog - RealEstateMaster
 
-## [Latest] - 2026-01-27
+## [Latest] - 2026-01-28
+
+### Added
+- **Auto-Resume for Main Scraper**: The regular scraper now automatically detects when a CAPTCHA is solved and resumes operation without requiring manual confirmation. The "Continuar" button has been removed from the UI.
+- **Resumable URL Updates**: Implemented checkpointing for the "Actualizar estado de URLs" feature. Users can now resume an interrupted update session from the exact property where it stopped.
+- **Hot-switching for URL Updates**: Users can now dynamically switch between Fast and Stealth modes during the "Actualizar estado de URLs" process, instantly adjusting request delays.
+- **Update Start/Resume UI**: Added a dedicated "Reanudar Update" button in the UI that appears automatically when an unfinished update session is detected for the selected Excel file.
+
+### Fixed
+- **Update Pause/Resume UI Fix**: Resolved an issue where the "Pause" button in the URL update process did not update the UI, leaving the "Resume" button inaccessible. The backend now explicitly communicates status changes viaized `[STATUS]` messages.
+- **Inactive Property Logic**: Modified `update_urls.py` to check for inactive/expired property status *before* field validation, preventing false CAPTCHA detections on removed ads.
+- **Update Script Syntax Error**: Fixed a critical `SyntaxError` in `update_urls.py` caused by a duplicate `except` block.
+- **URL Injection in Updates**: Fixed infinite loops in the URL update process by ensuring the `URL` is correctly injected into the data dictionary before validation.
+
+## [2026-01-27]
 
 ### Added
 - **Skip Deactivated Listings**: Implemented logic in `scraper_wrapper.py` to detect and skip deactivated properties ("anuncio ya no está publicado") instead of treating them as CAPTCHAs or errors.
@@ -17,16 +31,6 @@
 - **UI Clarification**: Removed the "Arrancar" server button from the UI, as the web interface cannot start the server once it is stopped (manual restart is required).
 - **Update URLs Loop**: Fixed infinite loop where valid properties were flagged as CAPTCHAs due to missing URL injection in `update_urls.py`.
 - **Update URLs Resumption**: Fixed bug where solving a CAPTCHA during an update did not resume the process correctly.
-
-### Added
-- **Resumable URL Updates**: Implemented checkpointing for the "Actualizar estado de URLs" feature. Users can now resume an interrupted update session from the exact property where it stopped.
-- **Update Start/Resume UI**: Added a dedicated "Reanudar Update" button in the UI that appears automatically when an unfinished update session is detected for the selected Excel file.
-- **Hot-switching for URL Updates**: Users can now dynamically switch between Fast and Stealth modes during the "Actualizar estado de URLs" process, instantly adjusting request delays.
-- **Auto-Resume for Main Scraper**: The regular scraper now automatically detects when a CAPTCHA is solved and resumes operation without requiring manual confirmation. The "Continuar" button has been removed.
-
-### Fixed
-- **Update Script Syntax Error**: Fixed a critical `SyntaxError` in `update_urls.py` where a duplicate `except` block prevented the script from running.
-- **Update Pause/Resume UI Fix**: Resolved an issue where the "Pause" button in the URL update process did not update the UI, leaving the "Resume" button inaccessible. The backend now correctly communicates status changes to the frontend.
 
 ## [Previous Sessions]
 
