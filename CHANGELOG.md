@@ -3,12 +3,14 @@
 ## [Latest] - 2026-01-28
 
 ### Added
+- **Journaling for URL Updates**: Replaced potential data-loss checkpointing with a robust line-by-line JSONL journal. Resuming now reloads actual scraped data, preventing information loss on resume.
 - **Auto-Resume for Main Scraper**: The regular scraper now automatically detects when a CAPTCHA is solved and resumes operation without requiring manual confirmation. The "Continuar" button has been removed from the UI.
 - **Resumable URL Updates**: Implemented checkpointing for the "Actualizar estado de URLs" feature. Users can now resume an interrupted update session from the exact property where it stopped.
 - **Hot-switching for URL Updates**: Users can now dynamically switch between Fast and Stealth modes during the "Actualizar estado de URLs" process, instantly adjusting request delays.
 - **Update Start/Resume UI**: Added a dedicated "Reanudar Update" button in the UI that appears automatically when an unfinished update session is detected for the selected Excel file.
 
 ### Fixed
+- **Resume Data Loss**: Fixed a critical issue where resuming a URL update skipped previously processed items without restoring their data. The new journaling system ensures zero data loss.
 - **Update Pause/Resume UI Fix**: Resolved an issue where the "Pause" button in the URL update process did not update the UI, leaving the "Resume" button inaccessible. The backend now explicitly communicates status changes viaized `[STATUS]` messages.
 - **Inactive Property Logic**: Modified `update_urls.py` to check for inactive/expired property status *before* field validation, preventing false CAPTCHA detections on removed ads.
 - **Update Script Syntax Error**: Fixed a critical `SyntaxError` in `update_urls.py` caused by a duplicate `except` block.
