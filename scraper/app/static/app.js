@@ -93,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // URL Update Elements
 const updateExcelSelect = document.getElementById('updateExcelFile');
 const updateUrlsBtn = document.getElementById('updateUrlsBtn');
+const resumeUpdateBtn = document.getElementById('resumeUpdateBtn');
 const worksheetSelectorGroup = document.getElementById('worksheetSelectorGroup');
 const worksheetSearch = document.getElementById('worksheetSearch');
 const worksheetList = document.getElementById('worksheetList');
@@ -258,8 +259,34 @@ if (updateExcelSelect) {
             }
         } else {
             loadWorksheets(filePath);
+            checkUpdateState(filePath);
         }
     });
+}
+
+// Check if a checkpoint exists for the file
+async function checkUpdateState(filePath) {
+    if (!resumeUpdateBtn) return;
+
+    // Hide by default
+    resumeUpdateBtn.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/update/check-state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ excel_file: filePath })
+        });
+        const data = await response.json();
+
+        if (data.can_resume) {
+            resumeUpdateBtn.style.display = 'block';
+            resumeUpdateBtn.innerHTML = `<span class="btn-icon">▶</span> Reanudar (${data.current_index}/${data.total})`;
+            resumeUpdateBtn.title = `Reanudar desde propiedad ${data.current_index + 1}`;
+        }
+    } catch (error) {
+        console.error('Error checking state:', error);
+    }
 }
 
 // Search filter listener
@@ -269,7 +296,7 @@ if (worksheetSearch) {
     });
 }
 
-async function startUrlUpdate() {
+async function startUrlUpdate(resume = false) {
     const excelFile = updateExcelSelect ? updateExcelSelect.value : '';
 
     if (!excelFile) {
@@ -298,7 +325,7 @@ async function startUrlUpdate() {
         const response = await fetch('/api/update-urls', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ excel_file: excelFile, sheets: selectedSheets })
+            body: JSON.stringify({ excel_file: excelFile, sheets: selectedSheets, resume: resume })
         });
 
         const data = await response.json();
@@ -317,7 +344,11 @@ async function startUrlUpdate() {
 
 // Add event listener for URL update button
 if (updateUrlsBtn) {
-    updateUrlsBtn.addEventListener('click', startUrlUpdate);
+    updateUrlsBtn.addEventListener('click', () => startUrlUpdate(false));
+}
+
+if (resumeUpdateBtn) {
+    resumeUpdateBtn.addEventListener('click', () => startUrlUpdate(true));
 }
 
 async function loadDefaultConfig() {

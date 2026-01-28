@@ -463,6 +463,7 @@ def update_urls():
     data = request.get_json()
     excel_file = data.get('excel_file', '').strip()
     sheets = data.get('sheets', [])  # List of sheet names to process
+    resume = data.get('resume', False)
     
     if not excel_file:
         return jsonify({'error': 'Excel file path is required'}), 400
@@ -490,8 +491,13 @@ def update_urls():
 
             # Run script with the Excel file path and sheets as arguments
             sheets_json = json_module.dumps(sheets) if sheets else '[]'
+            
+            cmd = ['python', '-u', str(update_script), excel_file, '--sheets', sheets_json]
+            if resume:
+                cmd.append('--resume')
+
             process = subprocess.Popen(
-                ['python', '-u', str(update_script), excel_file, '--sheets', sheets_json],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True, # text=True is important for readline
@@ -546,6 +552,40 @@ def update_urls():
     thread.start()
     
     return jsonify({'status': 'started', 'file': excel_file})
+
+
+@app.route('/api/update/check-state', methods=['POST'])
+def check_update_state():
+    """Check if there is a resumable state for the given file."""
+    import json as json_module
+    
+    data = request.get_json()
+    excel_file = data.get('excel_file', '').strip()
+    
+    if not excel_file:
+        return jsonify({'error': 'Excel file path is required'}), 400
+        
+    update_script = Path(__file__).parent.parent / "update_urls.py"
+    checkpoint_file = update_script.parent / "update_checkpoint.json"
+    
+    if not checkpoint_file.exists():
+        return jsonify({'can_resume': False})
+        
+    try:
+        with open(checkpoint_file, 'r', encoding='utf-8') as f:
+            state = json_module.load(f)
+            
+        # Verify file matches
+        if state.get('full_path') == excel_file:
+            return jsonify({
+                'can_resume': True,
+                'current_index': state.get('current_index'),
+                'total': state.get('total')
+            })
+    except:
+        pass
+        
+    return jsonify({'can_resume': False})
 
 
 

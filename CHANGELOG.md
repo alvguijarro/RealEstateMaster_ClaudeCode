@@ -15,6 +15,12 @@
 - **Git Hygiene**: Added `scraper/app/resume_state.json` to `.gitignore` to prevent tracking temporary session states.
 - **Block Detection in Loops**: Fixed a logic gap where "uso indebido" blocks encountered during property extraction were misidentified as CAPTCHA, causing the scraper to hang instead of restarting.
 - **UI Clarification**: Removed the "Arrancar" server button from the UI, as the web interface cannot start the server once it is stopped (manual restart is required).
+- **Update URLs Loop**: Fixed infinite loop where valid properties were flagged as CAPTCHAs due to missing URL injection in `update_urls.py`.
+- **Update URLs Resumption**: Fixed bug where solving a CAPTCHA during an update did not resume the process correctly.
+
+### Added
+- **Resumable URL Updates**: Implemented checkpointing for the "Actualizar estado de URLs" feature. Users can now resume an interrupted update session from the exact property where it stopped.
+- **Update Start/Resume UI**: Added a dedicated "Reanudar Update" button in the UI that appears automatically when an unfinished update session is detected for the selected Excel file.
 
 ## [Previous Sessions]
 

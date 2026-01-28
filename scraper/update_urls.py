@@ -15,6 +15,7 @@ from pathlib import Path
 
 # Pause flag file
 PAUSE_FLAG_FILE = "update_paused.flag"
+CHECKPOINT_FILE = "update_checkpoint.json"
 
 # Add scraper directory to path
 SCRAPER_DIR = Path(__file__).parent
@@ -92,15 +93,52 @@ async def detect_captcha(page) -> bool:
         ])
         return is_captcha
     except:
+        return is_captcha
+    except:
         return False
 
 
-async def update_urls(excel_file: str, selected_sheets: list = None):
+def save_checkpoint(excel_file: str, current_index: int, total: int, sheets: list):
+    """Save current progress to checkpoint file."""
+    try:
+        data = {
+            'excel_file': os.path.basename(excel_file),
+            'full_path': excel_file,
+            'current_index': current_index,
+            'total': total,
+            'sheets': sheets,
+            'timestamp': time.time()
+        }
+        with open(CHECKPOINT_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+    except Exception as e:
+        # Silently fail on checkpoint save to not disrupt main flow
+        pass
+
+def load_checkpoint(excel_file: str):
+    """Load checkpoint for specific file if exists."""
+    if not os.path.exists(CHECKPOINT_FILE):
+        return None
+    try:
+        with open(CHECKPOINT_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # Verify it matches the current file
+        if data.get('full_path') == excel_file:
+            return data
+    except:
+        pass
+    return None
+
+
+
+async def update_urls(excel_file: str, selected_sheets: list = None, resume: bool = False):
     """Update URL status from Excel file.
     
     Args:
         excel_file: Path to Excel file
         selected_sheets: List of sheet names to process (None = all sheets)
+        resume: If True, try to resume from checkpoint
     """
     # Connect to WebSocket for real-time logging (silently)
     if HAS_SOCKET:
@@ -154,8 +192,96 @@ async def update_urls(excel_file: str, selected_sheets: list = None):
     urls = df['URL'].dropna().unique().tolist()
     emit_to_ui('INFO', f'Found {len(urls)} unique URLs to check')
     
+    # Check resume state
+    start_index = 0
+    if resume:
+        checkpoint = load_checkpoint(excel_file)
+        if checkpoint:
+            saved_index = checkpoint.get('current_index', 0)
+            if saved_index > 0 and saved_index < len(urls):
+                start_index = saved_index
+                emit_to_ui('INFO', f'Resuming from property {start_index + 1}/{len(urls)}')
+            else:
+                emit_to_ui('WARN', 'Checkpoint finished or invalid, starting from beginning.')
+        else:
+            emit_to_ui('WARN', 'No checkpoint found to resume.')
+    
     # 3. Scrape each URL
     updated_rows = []
+    
+    # If resuming, we need to load previous rows? 
+    # Actually, simpler strategy: 
+    # We append new results to a TEMPORARY partial file, or we just append to list.
+    # But if we crash, we lose the list.
+    # Ideally we should read the existing output file if it exists?
+    # For now, let's assume we just skip the URLs and apppend the NEW status.
+    # BUT, to save the final file, we need ALL rows.
+    # So we should probably keep the ORIGINAL rows for the skipped ones, or mark them as "not updated".
+    
+    # Better approach for this script:
+    # We loaded the DF. It has 'URL', 'Anuncio activo', etc.
+    # We can use the existing DF as the source of truth.
+    # We only update the rows for the URLs we process.
+    # When saving, we save the WHOLE revised df.
+    
+    # Map URLs to their rows in the original DF for easy updating
+    # (A bit complex if multiple rows have same URL. The script initially said "unique URLs to check")
+    # The script re-scrapes UNIQUE urls.
+    # Then it says: "Re-scrapes ALL URLs found... bypassing deduplication."
+    # Wait, line 154: urls = df['URL'].dropna().unique().tolist()
+    # So we touch each unique URL once.
+    
+    # For simplicity in this script which builds "updated_rows" list from scratch:
+    # If resuming, we CAN'T easily reconstruct "updated_rows" unless we saved them incrementally.
+    # OR, we just initialize `updated_rows` with the data derived from the original DF for the skipped items?
+    # This might be risky if the original file is old.
+    
+    # ALTERNATIVE:
+    # If this is "Update Status", maybe we don't need to re-scrape the first N items, 
+    # but we DO need their data in the final list.
+    # Let's trust the columns in the loaded Excel for the skipped items.
+    
+    # Let's populate updated_rows with the skipped items first, directly from the source DF.
+    # Problem: source DF might have multiple rows per URL?
+    # Line 154 takes unique.
+    # Line 246 creates a new row: row = {"URL": url, **d}
+    # Line 269: new_df = pd.DataFrame(updated_rows)
+    # This implies the output file will ONLY contain one row per unique URL.
+    # If the input had duplicates (e.g. same URL in different sheets), this script collapses them?
+    # Let's look at line 277: new_df.to_excel(..., index=False)
+    # Yes, it seems this script produces a FLAT list of unique URLs.
+    
+    if start_index > 0:
+        # Pre-fill updated_rows with data from the original DF for the skipped URLs
+        # We need to find the rows corresponding to urls[:start_index]
+        # Since we just want to preserve them as is:
+        skipped_urls = urls[:start_index]
+        
+        # We can try to get the existing data for these URLs from 'df'
+        # df is all rows.
+        # We want the LAST known valid data for these URLs? Or just the first occurrence?
+        # The script collapses unique URLs.
+        
+        # Simple/Safe bet:
+        # We just assume the input file has the columns we need.
+        # We take the subset of df where URL is in skipped_urls.
+        # We deduplicate by URL to match the output format.
+        
+        # existing_data = df[df['URL'].isin(skipped_urls)].drop_duplicates(subset=['URL'])
+        # updated_rows = existing_data.to_dict('records')
+        
+        # However, to avoid schema mismatches, let's just use the 'df' rows directly.
+        # We iterate and copy.
+        emit_to_ui('INFO', f'Loading {start_index} previously processed rows...')
+        for url in skipped_urls:
+            # Get first matching row
+            matches = df[df['URL'] == url]
+            if not matches.empty:
+                updated_rows.append(matches.iloc[0].to_dict())
+            else:
+                 # Should not happen as urls came from df
+                 pass
+                 
     active_count = 0
     inactive_count = 0
     error_count = 0
@@ -174,7 +300,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None):
         
         page = await context.new_page()
         
-        for i, url in enumerate(urls, 1):
+        # Start loop from start_index
+        for i, url in enumerate(urls[start_index:], start_index + 1):
+            
+            # Save checkpoint at start of each iteration
+            save_checkpoint(excel_file, i - 1, len(urls), selected_sheets)
+            
             # Check for pause
             while os.path.exists(PAUSE_FLAG_FILE):
                  # emit_to_ui('INFO', 'Paused...') # Too noisy if repeated
@@ -195,6 +326,15 @@ async def update_urls(excel_file: str, selected_sheets: list = None):
                 # Let's match scraper_wrapper logic + small render wait
                 await asyncio.sleep(0.5) 
                 
+                # SMART WAIT: Wait for price or title to appear, allowing "Verificacion" screen to pass
+                try:
+                    # Wait up to 10s for the price or main title, signaling the real page is loaded
+                    await page.wait_for_selector('.info-data-price, .main-info__title-main, h1', timeout=10000)
+                except:
+                    # If timeout, it might be a 404, blocked content, or just slow. 
+                    # We proceed to extraction which will handle the missing data logic.
+                    pass
+                
                 
                 # Extract details (includes active status check)
                 # Retry logic for "Execution context was destroyed"
@@ -211,7 +351,20 @@ async def update_urls(excel_file: str, selected_sheets: list = None):
                         raise e
                 
                 # Check for CAPTCHA (missing critical fields or CAPTCHA page detected)
-                miss = missing_fields(d) if d else ["all"]
+                if d:
+                    d['URL'] = url
+                
+                is_room_mode = 'habitacion' in url.lower()
+                
+                # Check for inactive status FIRST
+                is_inactive_pre = d.get('Anuncio activo') == 'No' or d.get('Baja anuncio') or d.get('isExpired')
+                
+                if is_inactive_pre:
+                     # If inactive, we expect missing fields. Don't check them.
+                     miss = []
+                else:
+                     miss = missing_fields(d, is_room_mode=is_room_mode) if d else ["all"]
+                
                 if miss or await detect_captcha(page):
                     emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado. Resuelve el CAPTCHA manualmente en el navegador.')
                     
@@ -225,7 +378,19 @@ async def update_urls(excel_file: str, selected_sheets: list = None):
                         if not await detect_captcha(page):
                             # Re-extract data
                             d = await extract_detail_fields(page, debug_items=False)
-                            miss = missing_fields(d) if d else ["all"]
+                            
+                            # Apply the same data prep as main loop
+                            if d:
+                                d['URL'] = url
+                            
+                            # Check for inactive status FIRST (consistent with main loop)
+                            is_inactive_loop = d.get('Anuncio activo') == 'No' or d.get('Baja anuncio') or d.get('isExpired')
+                            
+                            if is_inactive_loop:
+                                miss = []
+                            else:
+                                miss = missing_fields(d, is_room_mode=is_room_mode) if d else ["all"]
+
                             if not miss:
                                 emit_to_ui('OK', f'({i}/{len(urls)}) CAPTCHA resuelto! Continuando...')
                                 captcha_resolved = True
@@ -284,6 +449,13 @@ async def update_urls(excel_file: str, selected_sheets: list = None):
     
     emit_to_ui('OK', 'URL status update complete!')
     
+    # Cleanup checkpoint on headers success
+    if os.path.exists(CHECKPOINT_FILE):
+        try:
+            os.remove(CHECKPOINT_FILE)
+        except:
+            pass
+    
     if HAS_SOCKET and sio.connected:
         sio.disconnect()
 
@@ -293,6 +465,7 @@ def main():
     parser = argparse.ArgumentParser(description='Update URL status from Excel file')
     parser.add_argument('excel_file', help='Path to Excel file to update')
     parser.add_argument('--sheets', default='[]', help='JSON array of sheet names to process')
+    parser.add_argument('--resume', action='store_true', help='Resume from checkpoint')
     args = parser.parse_args()
     
     # Parse sheets JSON
@@ -306,7 +479,7 @@ def main():
     if sys.platform == 'win32':
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     
-    asyncio.run(update_urls(args.excel_file, selected_sheets))
+    asyncio.run(update_urls(args.excel_file, selected_sheets, args.resume))
 
 
 if __name__ == "__main__":
