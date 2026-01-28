@@ -222,9 +222,21 @@ def set_mode():
     
     if scraper_controller:
         scraper_controller.set_mode(mode)
-        return jsonify({'status': 'mode_updated', 'mode': mode})
     
-    return jsonify({'error': 'Scraper not running'}), 400
+    # Also toggle flag for the standalone update_urls.py script
+    try:
+        update_script_dir = Path(__file__).parent.parent
+        flag_file = update_script_dir / "update_stealth.flag"
+        
+        if mode == 'stealth':
+            flag_file.touch()
+        elif mode == 'fast':
+            if flag_file.exists():
+                flag_file.unlink()
+    except Exception as e:
+        print(f"Error toggling update mode flag: {e}")
+
+    return jsonify({'status': 'mode_updated', 'mode': mode})
 
 
 

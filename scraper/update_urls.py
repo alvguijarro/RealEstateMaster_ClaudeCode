@@ -15,6 +15,7 @@ from pathlib import Path
 
 # Pause flag file
 PAUSE_FLAG_FILE = "update_paused.flag"
+STEALTH_FLAG_FILE = "update_stealth.flag"
 CHECKPOINT_FILE = "update_checkpoint.json"
 
 # Add scraper directory to path
@@ -29,7 +30,11 @@ if sys.platform == 'win32':
 from idealista_scraper.scraper import _goto_with_retry
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.utils import log, play_captcha_alert
-from idealista_scraper.config import FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE
+from idealista_scraper.utils import log, play_captcha_alert
+from idealista_scraper.config import (
+    FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE,
+    STEALTH_CARD_DELAY_RANGE, STEALTH_POST_CARD_DELAY_RANGE
+)
 from playwright.async_api import async_playwright
 import random
 
@@ -91,8 +96,6 @@ async def detect_captcha(page) -> bool:
             "attention", "moment", "challenge", "robot", "captcha",
             "access denied", "security", "peticiones", "verificación", "verification"
         ])
-        return is_captcha
-    except:
         return is_captcha
     except:
         return False
@@ -312,18 +315,26 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                  await asyncio.sleep(1)
 
             try:
-                # Fast mode pre-delay
-                await asyncio.sleep(random.uniform(*FAST_CARD_DELAY_RANGE))
+                # Dynamic delay based on mode flag
+                if os.path.exists(STEALTH_FLAG_FILE):
+                    # Stealth mode
+                    card_delay = STEALTH_CARD_DELAY_RANGE
+                    post_delay = STEALTH_POST_CARD_DELAY_RANGE
+                    # emit_to_ui('INFO', 'Running in STEALTH mode') # Too noisy
+                else:
+                    # Fast mode
+                    card_delay = FAST_CARD_DELAY_RANGE
+                    post_delay = FAST_POST_CARD_DELAY_RANGE
+
+                # Pre-action delay
+                await asyncio.sleep(random.uniform(*card_delay))
                 
                 await _goto_with_retry(page, url)
                 
-                # Fast mode post-delay (instead of fixed 2s)
-                await asyncio.sleep(random.uniform(*FAST_POST_CARD_DELAY_RANGE))
-                # Wait a bit more for render if needed, but fast mode relies on post_delay
-                # The original fast mode used 2.0s wait in scraper.py? 
-                # Scraper logic was: await page.wait_for_timeout(PAGE_WAIT_MS) -> 250ms
-                # But scraper_wrapper used: await asyncio.sleep(random.uniform(*post_card_delay))
-                # Let's match scraper_wrapper logic + small render wait
+                # Post-action delay
+                await asyncio.sleep(random.uniform(*post_delay))
+                
+                # Small fixed render wait
                 await asyncio.sleep(0.5) 
                 
                 # SMART WAIT: Wait for price or title to appear, allowing "Verificacion" screen to pass
