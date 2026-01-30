@@ -15,7 +15,7 @@ from .config import (
     HARVEST_DEBOUNCE_SECONDS, PAGE_WAIT_MS, RETRY_MAX_ATTEMPTS, RETRY_BASE_DELAY,
     GOTO_WAIT_UNTIL, SCROLL_STEPS, SCROLL_PAUSE_RANGE, LISTING_LINKS_PER_PAGE_MAX
 )
-from .utils import log, same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert
+from .utils import log, same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, simulate_human_interaction
 from .extractors import extract_detail_fields, missing_fields
 from .excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
@@ -49,6 +49,9 @@ async def _goto_with_retry(page, url: str) -> None:
         try:
             # Use domcontentloaded for faster, more reliable navigation
             await page.goto(url, wait_until=GOTO_WAIT_UNTIL, timeout=60000)
+            
+            # Humanize interaction after reaching the page
+            await simulate_human_interaction(page)
             
             # Check for CAPTCHA/Bot protection
             try:
@@ -315,7 +318,7 @@ class ScraperSession:
                         "--start-maximized",
                         "--disable-blink-features=AutomationControlled",
                     ],
-                    ignore_default_args=["--enable-automation"]
+                    ignore_default_args=["--enable-automation", "--no-sandbox"]
                 )
                 log("INFO", "Browser launched successfully!")
             except Exception as e:

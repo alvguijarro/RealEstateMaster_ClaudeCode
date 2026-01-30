@@ -409,3 +409,56 @@ def get_comunidad(provincia: Optional[str]) -> Optional[str]:
             return v
             
     return None
+
+
+# =============================================================================
+# Human Emulation / Stealth Functions
+# =============================================================================
+
+import random
+import math
+
+def _bezier_curve(p0, p1, p2, p3, t):
+    """Cubic Bezier curve."""
+    return (
+        (1-t)**3 * p0 +
+        3 * (1-t)**2 * t * p1 +
+        3 * (1-t) * t**2 * p2 +
+        t**3 * p3
+    )
+
+async def simulate_human_interaction(page):
+    """Simulate human-like mouse movements and random scrolling."""
+    try:
+        # Get viewport size
+        viewport = page.viewport_size or {"width": 1280, "height": 800}
+        width, height = viewport["width"], viewport["height"]
+
+        # 1. Random Mouse Move (Bezier Curve)
+        # Start from current position or random
+        start_x = random.randint(0, width)
+        start_y = random.randint(0, height)
+        
+        # Target position (random element or point)
+        end_x = random.randint(0, width)
+        end_y = random.randint(0, height)
+        
+        # Control points for curved path
+        cp1_x = random.randint(0, width)
+        cp1_y = random.randint(0, height)
+        cp2_x = random.randint(0, width)
+        cp2_y = random.randint(0, height)
+        
+        steps = random.randint(20, 50)
+        for i in range(steps):
+            t = i / steps
+            x = _bezier_curve(start_x, cp1_x, cp2_x, end_x, t)
+            y = _bezier_curve(start_y, cp1_y, cp2_y, end_y, t)
+            await page.mouse.move(x, y)
+            await asyncio.sleep(random.uniform(0.01, 0.03)) # Fast, realistic movement
+
+        # 2. Random short pause
+        await asyncio.sleep(random.uniform(0.5, 1.5))
+
+    except Exception:
+        pass # Fail silently to not interrupt scraper flow

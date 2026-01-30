@@ -42,7 +42,7 @@ from idealista_scraper.config import (
     EXTRA_STEALTH_COFFEE_BREAK_RANGE, EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY,
     EXTRA_STEALTH_READING_TIME_PER_100_CHARS, USER_AGENTS, VIEWPORT_SIZES
 )
-from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert
+from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
@@ -642,6 +642,9 @@ class ScraperController:
             try:
                 await page.goto(url, wait_until=GOTO_WAIT_UNTIL, timeout=60000)
                 
+                # Humanize interaction after reaching the page
+                await simulate_human_interaction(page)
+                
                 # Check for CAPTCHA/Bot protection
                 try:
                     title = await page.title()
@@ -891,7 +894,7 @@ class ScraperController:
                             user_data_dir=STEALTH_PROFILE_DIR,
                             headless=False,
                             args=browser_args,
-                            ignore_default_args=["--enable-automation"],
+                            ignore_default_args=["--enable-automation", "--no-sandbox"],
                             viewport={"width": 1280, "height": 900},
                             user_agent=self.get_random_user_agent(),
                         )

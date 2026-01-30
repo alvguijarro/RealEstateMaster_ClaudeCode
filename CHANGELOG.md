@@ -4,8 +4,9 @@
 
 ### Added
 - **Advanced Stealth**: Implemented "Uso Indebido" detection with hard-stop logic. The scraper now immediately halts and archives the compromised profile if a block is detected.
+- **Human Emulation**: Added randomized Bezier-curve mouse movements and realistic micro-pauses to mimic human browsing behavior across all scraper tools.
+- **Flag Removal**: Resolved the "No se admite el indicador de línea de comandos" warning by explicitly ignoring the `--no-sandbox` flag in all browser launches.
 - **Profile Auto-Cleaning**: Blocked profiles are automatically renamed (e.g., `stealth_profile_BLOCKED_...`), ensuring the next session starts with a fresh, unflagged identity.
-- **Browser Masking**: Added aggressive anti-detection measures (`navigator.webdriver` masking, `excludeSwitches`) and random User-Agent rotation to all scraper tools.
 - **Journaling for URL Updates**: Replaced potential data-loss checkpointing with a robust line-by-line JSONL journal. Resuming now reloads actual scraped data, preventing information loss on resume.
 - **Auto-Resume for Main Scraper**: The regular scraper now automatically detects when a CAPTCHA is solved and resumes operation without requiring manual confirmation. The "Continuar" button has been removed from the UI.
 - **Resumable URL Updates**: Implemented checkpointing for the "Actualizar estado de URLs" feature. Users can now resume an interrupted update session from the exact property where it stopped.

@@ -29,7 +29,7 @@ if sys.platform == 'win32':
 
 from idealista_scraper.scraper import _goto_with_retry
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
-from idealista_scraper.utils import log, play_captcha_alert
+from idealista_scraper.utils import log, play_captcha_alert, simulate_human_interaction
 from idealista_scraper.config import (
     FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE,
     STEALTH_CARD_DELAY_RANGE, STEALTH_POST_CARD_DELAY_RANGE,
@@ -297,7 +297,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
         browser = await pw.chromium.launch(
             headless=False, 
             args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
-            ignore_default_args=["--enable-automation"]
+            ignore_default_args=["--enable-automation", "--no-sandbox"]
         )
         
         # Select random user agent
@@ -348,6 +348,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                 await asyncio.sleep(random.uniform(*card_delay))
                 
                 await _goto_with_retry(page, url)
+                await simulate_human_interaction(page)
                 
                 # Post-action delay
                 await asyncio.sleep(random.uniform(*post_delay))
