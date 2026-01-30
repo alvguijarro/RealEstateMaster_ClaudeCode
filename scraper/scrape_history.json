@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-01-30T08:41:03.856422",
+    "seed_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/?shape=%28%28mdjvF%7Ek%7BS_q%5E_se%40lwByj%5Cjxi%40pcz%40y%7EMfzG%29%29",
+    "properties_count": 803,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_venta.xlsx",
+    "filename": "idealista_Madrid_venta.xlsx"
+  },
+  {
     "timestamp": "2026-01-28T03:58:24.789302",
     "seed_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/pagina-22?shape=%28%28qmxvFpkqX%7Bn%5C%7DoUnl%40%7B%7Br%40vHumw%40z%7Ef%40eqPtsUnfxB%7Dza%40dfZ%29%29",
     "properties_count": 330,

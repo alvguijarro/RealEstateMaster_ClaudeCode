@@ -330,7 +330,6 @@ class ScraperSession:
                     headless=False,  # Show the browser window
                     args=[
                         "--start-maximized",
-                        "--disable-blink-features=AutomationControlled",
                     ],
                     ignore_default_args=["--enable-automation", "--no-sandbox"]
                 )

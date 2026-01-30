@@ -296,7 +296,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
         # emit_to_ui('INFO', 'Launching browser...')
         browser = await pw.chromium.launch(
             headless=False, 
-            args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
+            args=["--start-maximized"],
             ignore_default_args=["--enable-automation", "--no-sandbox"]
         )
         

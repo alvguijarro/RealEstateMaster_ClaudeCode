@@ -894,7 +894,6 @@ class ScraperController:
                     browser_args = [
                         "--start-minimized",
                         "--window-size=1280,900",
-                        "--disable-blink-features=AutomationControlled",
                         "--disable-dev-shm-usage",
                         "--disable-infobars",
                         "--disable-extensions",

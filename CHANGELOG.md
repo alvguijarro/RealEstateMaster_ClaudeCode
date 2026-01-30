@@ -6,7 +6,7 @@
 - **Automated CAPTCHA Solver**: Implemented an intelligent slider solver that mimics human-like dragging behavior (variable speed, slight jitters, and overshoot) to automatically bypass "Slide to Right" challenges.
 - **Advanced Stealth**: Implemented "Uso Indebido" detection with hard-stop logic. The scraper now immediately halts and archives the compromised profile if a block is detected.
 - **Human Emulation**: Added randomized Bezier-curve mouse movements and realistic micro-pauses to mimic human browsing behavior across all scraper tools.
-- **Flag Removal**: Resolved the "No se admite el indicador de línea de comandos" warning by explicitly ignoring the `--no-sandbox` flag in all browser launches.
+- **Flag Removal**: Resolved the "No se admite el indicador de línea de comandos" warning by explicitly ignoring the `--no-sandbox` flag and removing the detected `--disable-blink-features=AutomationControlled` flag in all browser launches.
 - **Profile Auto-Cleaning**: Blocked profiles are automatically renamed (e.g., `stealth_profile_BLOCKED_...`), ensuring the next session starts with a fresh, unflagged identity.
 - **Journaling for URL Updates**: Replaced potential data-loss checkpointing with a robust line-by-line JSONL journal. Resuming now reloads actual scraped data, preventing information loss on resume.
 - **Auto-Resume for Main Scraper**: The regular scraper now automatically detects when a CAPTCHA is solved and resumes operation without requiring manual confirmation. The "Continuar" button has been removed from the UI.
