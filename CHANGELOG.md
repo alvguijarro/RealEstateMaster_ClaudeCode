@@ -11,6 +11,10 @@
     - **15%** District
     - **15%** Bathrooms
     - **15%** Extras (Garage, Terrace, Elevator)
+- **API Integration (Idealista7)**: Implemented `scripts/sync_market_data.py` for massive market data synchronization via API.
+    - **Snapshot Strategy**: Fetches thousands of active listings (Rent/Sale) to build a robust historical database.
+    - **Data Normalization**: Automatically formats API data to match existing scraper schema (Booleans, Ordinals, Districts).
+    - **District Splitting**: Exports data into district-specific worksheets for seamless Analyzer integration.
 
 ### Fixed
 - **Comparables Reliability**: Comparisons for "For Sale" properties now strictly avoid mixing distinct property types (e.g., comparing a flat with a detached house) to ensure realistic rent estimates.
