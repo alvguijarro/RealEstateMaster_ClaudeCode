@@ -365,6 +365,12 @@ function renderResults() {
             ? `<a href="#" class="link-icon consultar-link" data-idx="${arrIdx}" style="color: var(--accent-color);">Consultar</a>`
             : '<span style="color: #888;">-</span>';
 
+        const calcBtn = `
+            <button class="btn-calc" onclick="openCalc(${opp.Precio}, ${opp['Renta_estimada/mes'] || 0})" 
+                style="background:rgba(59, 130, 246, 0.2); border:1px solid #3b82f6; color:#60a5fa; border-radius:4px; padding:2px 8px; cursor:pointer; font-size:0.8rem;">
+                Calcular
+            </button>`;
+
         tr.innerHTML = `
             <td style="font-weight: 500; max-width: 250px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; line-height: 1.2;" title="${titulo}">
                 <a href="${url}" target="_blank" class="link-icon" style="color: var(--accent-color); text-decoration: none;">${titulo}</a>
@@ -384,6 +390,7 @@ function renderResults() {
                 </span>
             </td>
             <td><span class="score-badge">${punt}</span></td>
+            <td>${calcBtn}</td>
             <td>${refsLink}</td>
         `;
         tbody.appendChild(tr);
@@ -809,6 +816,23 @@ function loadReferencias(idx) {
     section.style.display = 'block';
     section.scrollIntoView({ behavior: 'smooth' });
 }
+
+function resetBtn() {
+    const btn = document.getElementById('btnAnalyze');
+    btn.disabled = false;
+    document.getElementById('btnText').textContent = "COMENZAR ANALISIS";
+    document.getElementById('btnLoader').classList.add('hidden');
+}
+
+// Global function for Calculate Button
+window.openCalc = function (price, rent) {
+    if (window.parent && window.parent.openCalculator) {
+        window.parent.openCalculator({ price: price, rent: rent });
+    } else {
+        // Fallback for standalone mode
+        window.open(`/calculator?price=${price}&rent=${rent}`, '_blank');
+    }
+};
 
 function resetBtn() {
     const btn = document.getElementById('btnAnalyze');

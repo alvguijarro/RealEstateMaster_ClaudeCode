@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Rentabilidad</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        h1 {
+            grid-column: 1 / -1;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            color: var(--accent);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+            color: white;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+        
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .suffix {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            pointer-events: none;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 5px 0;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .positive { color: var(--success); }
+        .negative { color: var(--danger); }
+
+        .chart-container {
+            height: 250px;
+            margin-top: 20px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+        
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>📊 Calculadora de Rentabilidad Neta</h1>
+
+        <!-- Left Column: Inputs -->
+        <div class="card">
+            <h3 class="section-title">📥 Datos de la Inversión</h3>
+            
+            <div class="form-group">
+                <label>Precio de Compra</label>
+                <div class="input-wrapper">
+                    <input type="number" id="price" value="200000" oninput="limitInputs()">
+                    <span class="suffix">€</span>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="form-group" style="flex:1">
+                    <label>Impuestos Compra (ITP)</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="taxRate" value="6" step="0.1" oninput="calc()">
+                        <span class="suffix">%</span>
+                    </div>
+                </div>
+                <div class="form-group" style="flex:1">
+                    <label>Notaría y Registro</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="notary" value="1500" oninput="calc()">
+                        <span class="suffix">€</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Reforma y Puesta a Punto</label>
+                <div class="input-wrapper">
+                    <input type="number" id="reform" value="5000" oninput="calc()">
+                    <span class="suffix">€</span>
+                </div>
+            </div>
+
+            <h3 class="section-title" style="margin-top: 30px;">🏦 Financiación (Hipoteca)</h3>
+            
+            <div class="form-group">
+                <label>Porcentaje Financiado (LTV): <span id="ltvDisplay">80</span>%</label>
+                <input type="range" id="ltv" min="0" max="100" value="80" oninput="updateLTV(); calc()">
+            </div>
+
+            <div class="row">
+                <div class="form-group" style="flex:1">
+                    <label>Tipo de Interés</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="interest" value="3.0" step="0.1" oninput="calc()">
+                        <span class="suffix">%</span>
+                    </div>
+                </div>
+                <div class="form-group" style="flex:1">
+                    <label>Plazo (Años)</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="years" value="30" oninput="calc()">
+                        <span class="suffix">Años</span>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="section-title" style="margin-top: 30px;">💵 Ingresos y Gastos</h3>
+            
+            <div class="form-group">
+                <label>Alquiler Mensual Estimado</label>
+                <div class="input-wrapper">
+                    <input type="number" id="rent" value="1000" oninput="calc()">
+                    <span class="suffix">€/mes</span>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="form-group" style="flex:1">
+                    <label>Comunidad</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="community" value="50" oninput="calc()">
+                        <span class="suffix">€/mes</span>
+                    </div>
+                </div>
+                <div class="form-group" style="flex:1">
+                    <label>Seguro e IBI (Anual)</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="ibi" value="400" oninput="calc()">
+                        <span class="suffix">€/año</span>
+                    </div>
+                </div>
+            </div>
+            
+             <div class="form-group">
+                <label>Mantenimiento / Impagos (Estimado)</label>
+                <div class="input-wrapper">
+                    <input type="number" id="maintenance" value="5" step="1" oninput="calc()">
+                    <span class="suffix">% de Renta</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Results -->
+        <div class="card">
+            <h3 class="section-title">🚀 Análisis de Rentabilidad</h3>
+
+            <div class="results-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Inversión Total</div>
+                    <div class="metric-value" id="totalInvestment">0 €</div>
+                </div>
+                 <div class="metric-card">
+                    <div class="metric-label">Capital Necesario (Cash)</div>
+                    <div class="metric-value" id="cashNeeded" style="color:var(--accent)">0 €</div>
+                    <div style="font-size:0.7rem; color:#888">Entrada + Gastos + Reforma</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Cuota Hipoteca</div>
+                    <div class="metric-value" id="monthlyPayment">0 €</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Cashflow Mensual</div>
+                    <div class="metric-value" id="monthlyCashflow">0 €</div>
+                </div>
+            </div>
+
+            <div class="results-grid">
+                <div class="metric-card" style="border: 1px solid var(--accent)">
+                    <div class="metric-label">Rentabilidad Neta</div>
+                    <div class="metric-value" id="netYield">0.0%</div>
+                    <div style="font-size:0.7rem; color:#888">(Ingresos - Gastos) / Inv. Total</div>
+                </div>
+                <div class="metric-card" style="border: 1px solid var(--success)">
+                    <div class="metric-label">Cash on Cash (ROI)</div>
+                    <div class="metric-value" id="cashOnCash">0.0%</div>
+                    <div style="font-size:0.7rem; color:#888">Cashflow Anual / Capital Puesto</div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="cashflowChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- LOGIC ---
+        
+        let chart = null;
+
+        function limitInputs() {
+            // Prevent negative inputs
+            document.querySelectorAll('input[type="number"]').forEach(input => {
+                if (parseFloat(input.value) < 0) input.value = 0;
+            });
+            calc();
+        }
+
+        function updateLTV() {
+            document.getElementById('ltvDisplay').innerText = document.getElementById('ltv').value;
+        }
+
+        function getVal(id) {
+            return parseFloat(document.getElementById(id).value) || 0;
+        }
+
+        function calc() {
+            // Inputs
+            const price = getVal('price');
+            const taxRate = getVal('taxRate') / 100;
+            const notary = getVal('notary');
+            const reform = getVal('reform');
+            
+            const ltv = getVal('ltv') / 100;
+            const interest = getVal('interest') / 100;
+            const years = getVal('years');
+            
+            const rent = getVal('rent');
+            const community = getVal('community');
+            const ibiInsuranceYear = getVal('ibi');
+            const maintenanceRate = getVal('maintenance') / 100;
+
+            // 1. Investment Costs
+            const taxes = price * taxRate;
+            const closingCosts = taxes + notary;
+            const totalInvestment = price + closingCosts + reform;
+            
+            // 2. Financing
+            const loanAmount = price * ltv;
+            const downPayment = price - loanAmount;
+            const cashNeeded = downPayment + closingCosts + reform;
+            
+            // Mortgage PMT: P * r * (1+r)^n / ((1+r)^n - 1)
+            let monthlyPayment = 0;
+            if (loanAmount > 0 && interest > 0) {
+                const r = interest / 12;
+                const n = years * 12;
+                monthlyPayment = loanAmount * (r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1);
+            } else if (loanAmount > 0) {
+                monthlyPayment = loanAmount / (years * 12);
+            }
+
+            // 3. Operational
+            const maintenance = rent * maintenanceRate;
+            const monthlyExpenses = community + (ibiInsuranceYear / 12) + maintenance;
+            const totalMonthlyOutflow = monthlyPayment + monthlyExpenses;
+            
+            // 4. Returns
+            const monthlyCashflow = rent - totalMonthlyOutflow;
+            const annualCashflow = monthlyCashflow * 12;
+            
+            const annualNetIncome = (rent * 12) - (monthlyExpenses * 12); // Operational Net
+            
+            const netYield = (annualNetIncome / totalInvestment) * 100;
+            const cashOnCash = cashNeeded > 0 ? (annualCashflow / cashNeeded) * 100 : 0;
+
+            // --- UPDATE UI ---
+            const fmt = (n) => n.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' €';
+            const fmtPct = (n) => n.toFixed(2) + '%';
+            const setVal = (id, val, isCurrency=true, colorize=false) => {
+                const el = document.getElementById(id);
+                el.innerText = isCurrency ? fmt(val) : fmtPct(val);
+                if (colorize) {
+                    el.className = 'metric-value ' + (val >= 0 ? 'positive' : 'negative');
+                }
+            };
+
+            setVal('totalInvestment', totalInvestment);
+            setVal('cashNeeded', cashNeeded);
+            setVal('monthlyPayment', monthlyPayment);
+            setVal('monthlyCashflow', monthlyCashflow, true, true);
+            setVal('netYield', netYield, false, true);
+            setVal('cashOnCash', cashOnCash, false, true);
+
+            updateChart(rent, monthlyExpenses, monthlyPayment, monthlyCashflow);
+        }
+
+        function updateChart(income, expenses, mortgage, cashflow) {
+            const ctx = document.getElementById('cashflowChart').getContext('2d');
+            
+            const data = {
+                labels: ['Ingresos', 'Gastos', 'Hipoteca', 'Cashflow Neto'],
+                datasets: [{
+                    label: 'Mensual (€)',
+                    data: [income, expenses, mortgage, cashflow],
+                    backgroundColor: [
+                        '#3b82f6', // Ingresos Blue
+                        '#f59e0b', // Gastos Orange
+                        '#ef4444', // Hipoteca Red
+                        '#22c55e'  // Profit Green
+                    ],
+                    borderWidth: 0,
+                    borderRadius: 4
+                }]
+            };
+
+            if (chart) {
+                chart.data = data;
+                chart.update();
+            } else {
+                chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(255,255,255,0.05)' },
+                                ticks: { color: '#94a3b8' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: '#94a3b8' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // --- INIT ---
+        window.onload = () => {
+            // Parse URL Params to pre-fill
+            const urlParams = new URLSearchParams(window.location.search);
+            if(urlParams.has('price')) {
+                document.getElementById('price').value = Math.round(parseFloat(urlParams.get('price')));
+            }
+            if(urlParams.has('rent')) {
+                document.getElementById('rent').value = Math.round(parseFloat(urlParams.get('rent')));
+            }
+            
+            // Auto calc on load
+            calc();
+        };
+
+    </script>
+</body>
+</html>

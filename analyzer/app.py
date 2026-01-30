@@ -8,7 +8,7 @@ import glob
 import json
 import threading
 import pandas as pd
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, request, send_from_directory, render_template_string
 from io import StringIO
 import analysis  # Import the analysis module
 import webbrowser
@@ -407,6 +407,21 @@ def download_results():
 @app.route('/merger')
 def merger_view():
     return render_template('merger.html', cache_bust=int(time.time()))
+
+@app.route('/calculator')
+def calculator_view():
+    try:
+        # Path to the yield directory relative to this file
+        yield_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'yield')
+        template_path = os.path.join(yield_dir, 'calculator.html')
+        
+        with open(template_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # Use render_template_string to process Jinja2 tags like {{ url_for }}
+        return render_template_string(content, cache_bust=int(time.time()))
+    except Exception as e:
+        return f"Error loading calculator template: {str(e)}", 500
 
 @app.route('/api/merge', methods=['POST'])
 def merge_files():

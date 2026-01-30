@@ -308,6 +308,10 @@
                 <div class="icon">🔗</div>
                 <span class="label">Merger Tool</span>
             </div>
+            <div class="nav-item" data-view="calculator" onclick="switchView('calculator')">
+                <div class="icon">🧮</div>
+                <span class="label">Calculadora</span>
+            </div>
         </div>
 
         <div style="margin-top: auto;">
@@ -363,6 +367,14 @@
             </div>
             <iframe id="frame-merger" src=""></iframe>
         </div>
+
+        <div id="view-calculator" class="view-container">
+            <div class="loading-overlay" id="loading-calculator">
+                <div class="spinner"></div>
+                <div>Cargando Calculadora...</div>
+            </div>
+            <iframe id="frame-calculator" src=""></iframe>
+        </div>
     </main>
 
     <script>
@@ -370,7 +382,8 @@
             'scraper': 5003,
             'analyzer': 5001,
             'metrics': 5004,
-            'merger': 5001
+            'merger': 5001,
+            'calculator': 5001
         };
 
         console.log("Service Ports Configured:", PORTS);
@@ -420,7 +433,7 @@
         }
 
         // Track which frames have been loaded to avoid reloading
-        let frameLoaded = { scraper: false, analyzer: false, metrics: false, merger: false };
+        let frameLoaded = { scraper: false, analyzer: false, metrics: false, merger: false, calculator: false };
 
         async function initService(service) {
             const loading = document.getElementById(`loading-${service}`);
@@ -451,6 +464,7 @@
                 // 3. Service is ready, set iframe src with cache-busting
                 let path = '';
                 if (service === 'merger') path = '/merger';
+                if (service === 'calculator') path = '/calculator';
 
                 const url = `http://127.0.0.1:${PORTS[service]}${path}?_t=${Date.now()}`;
                 frame.src = url;
@@ -478,8 +492,8 @@
             document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
             document.getElementById('view-' + viewName).classList.add('active');
 
-            // For scraper/analyzer/metrics/merger views, only load iframe if not already loaded
-            if (['scraper', 'analyzer', 'metrics', 'merger'].includes(viewName)) {
+            // For scraper/analyzer/metrics/merger/calculator views, only load iframe if not already loaded
+            if (['scraper', 'analyzer', 'metrics', 'merger', 'calculator'].includes(viewName)) {
                 // If frame already loaded, don't reload - just show it
                 if (frameLoaded[viewName]) {
                     return; // Already loaded, just show it (done above)
@@ -509,6 +523,7 @@
                 // Service is ready, load with timestamp (only first time)
                 let path = '';
                 if (viewName === 'merger') path = '/merger';
+                if (viewName === 'calculator') path = '/calculator';
                 const url = `http://127.0.0.1:${PORTS[viewName]}${path}?_t=${Date.now()}`;
                 frame.src = url;
                 frameLoaded[viewName] = true;
@@ -533,9 +548,25 @@
                 // Since merger uses analyzer port, if analyzer is init, merger is potentially ready. 
                 // But we can let it lazy load on click or init it now.
                 // initService('merger') will call /api/start/merger which main.py handles.
-                initService('merger')
+                initService('merger'),
+                initService('calculator')
             ]);
         });
+
+        // Global function to open calculator from iframes
+        window.openCalculator = function (data) {
+            switchView('calculator');
+
+            // If data is provided, update the iframe src with params
+            if (data) {
+                const frame = document.getElementById('frame-calculator');
+                const params = new URLSearchParams(data).toString();
+                // Update src to pass params. 
+                // Note: this will reload the iframe which is what we want to populate fields
+                frame.src = `http://127.0.0.1:${PORTS['calculator']}/calculator?${params}`;
+                frameLoaded['calculator'] = true; // Ensure it's marked as loaded
+            }
+        };
 
 
     </script>

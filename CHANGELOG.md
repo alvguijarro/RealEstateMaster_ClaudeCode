@@ -1,6 +1,19 @@
 # Changelog - RealEstateMaster
 
-## [Latest] - 2026-01-30
+## [2026-01-31]
+
+### Added
+- **Calculadora de Rentabilidad Neta**: Integrated a professional-grade mortgage and yield calculator.
+    - **Replicated Excel Logic**: Ported formulas from `Calculadora.xlsx` to JavaScript, covering ITP (6%), Notary/Registry fees, Mortgage PMT (LTV, Interest, Years), and Net Rental Yield (Community, IBI, Maintenance).
+    - **Visual Analytics**: Interactive dashboard with real-time scorecards and a modular Cashflow Chart (Income vs Expenses vs Mortgage).
+    - **Seamless Integration**: Added a "Calcular" button to the `Analytics Pro` results. Clicking it pre-fills the calculator with the property's price and estimated rent.
+    - **Modular Storage**: All calculator-related files are now stored in the dedicated `yield/` directory.
+
+### Modified
+- **Main Sidebar**: Added "Calculadora" as a top-level tool for quick access.
+- **Cross-Module Navigation**: Implemented `window.openCalculator` in the launcher to allow direct communication between the Analyzer and the Calculator.
+
+## [2026-01-30]
 
 ### Added
 - **Smart Rent Calculation**: Overhauled the rent estimation logic in `Analytics Pro`. The new algorithm enforces strict Property Type matching (Pisos vs Chalets) to prevent skewed comparisons.
