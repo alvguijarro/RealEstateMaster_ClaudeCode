@@ -912,26 +912,52 @@ def find_comparables(venta_row, df_alquiler, strict=True, alquiler_index=None):
         df_distrito = df_alquiler[df_alquiler['Distrito'] == distrito]
     
     # Return empty if no properties in distrito
+    # Return empty if no properties in distrito
     if len(df_distrito) == 0:
         return pd.DataFrame()
     
+    # --- TYPE NORMALIZATION ---
+    def normalize_tipo(t):
+        t = str(t).lower()
+        if 'casa' in t or 'chalet' in t or 'unifamiliar' in t or 'pareado' in t:
+            return 'casa'
+        return 'piso' # Default to piso (includes atico, duplex, estudio)
+    
+    venta_tipo = normalize_tipo(venta_row.get('tipo', 'piso'))
+    
+    # Check types in dataset
+    if 'tipo_norm' not in df_distrito.columns:
+        df_distrito = df_distrito.copy()
+        df_distrito['tipo_norm'] = df_distrito['tipo'].apply(normalize_tipo)
+    
     if strict:
-        # Strict: Same habs, banos, ±20% m²
+        # Strict: Same type, same habs, same banos, ±20% m²
+        # This is CRITICAL: Do not compare Flats with Houses in strict mode
+        mask_tipo = df_distrito['tipo_norm'] == venta_tipo
+        
         m2_margin = 0.20
         mask_habs = df_distrito['habs'] == habs
         mask_banos = df_distrito['banos'] == banos
         mask_m2 = (df_distrito['m2 construidos'] >= m2 * (1 - m2_margin)) & \
                   (df_distrito['m2 construidos'] <= m2 * (1 + m2_margin))
+        
+        mask = mask_tipo & mask_habs & mask_banos & mask_m2
     else:
-        # Relaxed: ±1 habs, ±1 banos, ±30% m²
+        # Relaxed: Prefer same type but allow if needed? 
+        # Actually, for Rent Estimation, mixing types is very bad. 
+        # We will enforce type even in relaxed, but widen other params.
+        mask_tipo = df_distrito['tipo_norm'] == venta_tipo
+        
         m2_margin = 0.30
         mask_habs = (df_distrito['habs'] >= habs - 1) & (df_distrito['habs'] <= habs + 1)
         mask_banos = (df_distrito['banos'] >= banos - 1) & (df_distrito['banos'] <= banos + 1)
         mask_m2 = (df_distrito['m2 construidos'] >= m2 * (1 - m2_margin)) & \
                   (df_distrito['m2 construidos'] <= m2 * (1 + m2_margin))
+        
+        # If we are desperate (relaxed), we might drop the type constraint?
+        # Let's keep it for now as "Type" is a strong price determinant.
+        mask = mask_tipo & mask_habs & mask_banos & mask_m2
     
-    # Combine masks (no distrito mask needed - already filtered)
-    mask = mask_habs & mask_banos & mask_m2
     comparables = df_distrito[mask].copy()
     
     # Calculate similarity and precision for each comparable
@@ -941,49 +967,57 @@ def find_comparables(venta_row, df_alquiler, strict=True, alquiler_index=None):
         comp_habs = comparables['habs'].fillna(habs)
         comp_banos = comparables['banos'].fillna(banos)
         
+        # Add mismatch penalty if we ever relax the type constraint
+        comp_tipo_mismatch = (comparables['tipo_norm'] != venta_tipo).astype(int)
+        
         comparables['similarity'] = (
             abs(comp_m2 - m2) / m2 +
             abs(comp_habs - habs) * 0.5 +
-            abs(comp_banos - banos) * 0.5
+            abs(comp_banos - banos) * 0.5 +
+            comp_tipo_mismatch * 2.0  # Huge penalty for wrong type
         )
         
         # Precision score (0-100%, higher = more precise match)
-        # VECTORIZED VERSION - avoids slow iterrows()
+        # VECTORIZED VERSION
         
-        # M2 similarity (35% weight)
+        # M2 similarity (20% weight) - USER REQUEST
         comp_m2_vals = comparables['m2 construidos'].fillna(m2)
         m2_diffs = np.abs(comp_m2_vals - m2) / m2 if m2 > 0 else 0
-        m2_scores = 0.35 * np.maximum(0, 1 - m2_diffs)
+        m2_scores = 0.20 * np.maximum(0, 1 - m2_diffs)
         
-        # Habs exact match (20% weight)
+        # Type match (15% weight) - USER REQUEST
+        tipo_scores = 0.15 * (comparables['tipo_norm'] == venta_tipo).astype(float)
+        
+        # Habs exact match (20% weight) - USER REQUEST
         comp_habs_vals = comparables['habs'].fillna(habs)
         habs_diffs = np.abs(comp_habs_vals - habs)
         habs_scores = 0.20 * np.where(habs_diffs == 0, 1.0, np.where(habs_diffs == 1, 0.5, 0))
         
-        # Banos exact match (15% weight)
+        # Banos exact match (15% weight) - USER REQUEST
         comp_banos_vals = comparables['banos'].fillna(banos)
         banos_diffs = np.abs(comp_banos_vals - banos)
         banos_scores = 0.15 * np.where(banos_diffs == 0, 1.0, np.where(banos_diffs == 1, 0.5, 0))
         
-        # Garaje match (6% weight)
+        # Distrito always matches (15% weight) - USER REQUEST
+        distrito_scores = 0.15
+        
+        # Extras (5% each = 15% total) - REMAINING
+        # Garaje match (5% weight)
         comp_garaje = (comparables.get('Garaje', pd.Series(False, index=comparables.index)).fillna(False).astype(bool) | 
                        comparables.get('garaje', pd.Series(False, index=comparables.index)).fillna(False).astype(bool))
-        garaje_scores = 0.06 * np.where(comp_garaje == venta_garaje, 1.0, 0.5)
+        garaje_scores = 0.05 * np.where(comp_garaje == venta_garaje, 1.0, 0.5)
         
-        # Terraza match (7% weight)
+        # Terraza match (5% weight)
         comp_terraza = (comparables.get('Terraza', pd.Series(False, index=comparables.index)).fillna(False).astype(bool) | 
                         comparables.get('terraza', pd.Series(False, index=comparables.index)).fillna(False).astype(bool))
-        terraza_scores = 0.07 * np.where(comp_terraza == venta_terraza, 1.0, 0.5)
+        terraza_scores = 0.05 * np.where(comp_terraza == venta_terraza, 1.0, 0.5)
         
-        # Ascensor match (7% weight)
+        # Ascensor match (5% weight)
         comp_ascensor = comparables.get('ascensor', pd.Series(False, index=comparables.index)).fillna(False).astype(bool)
-        ascensor_scores = 0.07 * np.where(comp_ascensor == venta_ascensor, 1.0, 0.5)
+        ascensor_scores = 0.05 * np.where(comp_ascensor == venta_ascensor, 1.0, 0.5)
         
-        # Distrito always matches (5% weight)
-        distrito_scores = 0.05
-        
-        # Sum all scores (skip street matching for performance - minor impact)
-        total_scores = m2_scores + habs_scores + banos_scores + garaje_scores + terraza_scores + ascensor_scores + distrito_scores
+        # Sum all scores
+        total_scores = m2_scores + tipo_scores + habs_scores + banos_scores + distrito_scores + garaje_scores + terraza_scores + ascensor_scores
         
         comparables['precision'] = np.round(total_scores * 100, 1)
         comparables = comparables.sort_values('similarity')

@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-01-30T08:58:57.542468",
+    "seed_url": "https://www.idealista.com/areas/alquiler-viviendas/?shape=%28%28mdjvF%7Ek%7BS_q%5E_se%40lwByj%5Cjxi%40pcz%40y%7EMfzG%29%29",
+    "properties_count": 191,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Madrid_alquiler.xlsx",
+    "filename": "idealista_Madrid_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-01-30T08:41:03.856422",
     "seed_url": "https://www.idealista.com/areas/venta-viviendas/con-precio-hasta_300000/?shape=%28%28mdjvF%7Ek%7BS_q%5E_se%40lwByj%5Cjxi%40pcz%40y%7EMfzG%29%29",
     "properties_count": 803,

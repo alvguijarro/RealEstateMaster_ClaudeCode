@@ -573,18 +573,25 @@ def calculate_precision_score(venta_row: pd.Series,
     if comparables_df is None or len(comparables_df) == 0:
         return 0.0
     
-    # Default weights for similarity calculation
+    # Updated weights per user request
     if weights is None:
         weights = {
-            'm2': 0.30,       # Surface area most important
-            'habs': 0.20,     # Bedrooms
-            'banos': 0.15,    # Bathrooms
-            'garaje': 0.10,   # Garage
-            'terraza': 0.10,  # Terrace
-            'ascensor': 0.10, # Elevator
-            'distrito': 0.05  # Same district (usually already filtered)
+            'm2': 0.20,       # Surface area (User: 20%)
+            'tipo': 0.15,     # Property Type (User: 15%)
+            'habs': 0.20,     # Bedrooms (User: 20%)
+            'distrito': 0.15, # Same district (User: 15%)
+            'banos': 0.15,    # Bathrooms (User: 15%)
+            'garaje': 0.05,   # Garage (Remaining 5%)
+            'terraza': 0.05,  # Terrace (Remaining 5%)
+            'ascensor': 0.05, # Elevator (Remaining 5%)
         }
     
+    # helper
+    def norm_tipo(t):
+        t = str(t).lower()
+        if 'casa' in t or 'chalet' in t or 'unifamiliar' in t: return 'casa'
+        return 'piso'
+
     # Get target property values
     m2_col = 'm2 construidos' if 'm2 construidos' in venta_row.index else 'm2_construidos'
     venta_m2 = venta_row.get(m2_col, 0) or 0
@@ -594,6 +601,7 @@ def calculate_precision_score(venta_row: pd.Series,
     venta_terraza = bool(venta_row.get('Terraza') or venta_row.get('terraza'))
     venta_ascensor = bool(venta_row.get('ascensor'))
     venta_distrito = venta_row.get('Distrito', '')
+    venta_tipo = norm_tipo(venta_row.get('tipo', 'piso'))
     
     # Calculate similarity for each comparable
     similarities = []
@@ -601,26 +609,34 @@ def calculate_precision_score(venta_row: pd.Series,
     for _, comp in comparables_df.iterrows():
         score = 0.0
         
-        # M2 similarity (penalize differences)
+        # M2 similarity (20%)
         comp_m2 = comp.get(m2_col, 0) or comp.get('m2 construidos', 0) or 0
         if venta_m2 > 0 and comp_m2 > 0:
             m2_diff = abs(comp_m2 - venta_m2) / venta_m2
-            m2_sim = max(0, 1 - m2_diff)  # 0 if >100% difference
+            m2_sim = max(0, 1 - m2_diff)
             score += weights['m2'] * m2_sim
+            
+        # Tipo similarity (15%)
+        comp_tipo = norm_tipo(comp.get('tipo', 'piso'))
+        score += weights['tipo'] * (1.0 if comp_tipo == venta_tipo else 0.0)
         
-        # Habs similarity
+        # Habs similarity (20%)
         comp_habs = comp.get('habs', 2) or 2
         habs_diff = abs(comp_habs - venta_habs)
-        habs_sim = max(0, 1 - habs_diff * 0.5)  # -50% per bedroom diff
+        habs_sim = max(0, 1 - habs_diff * 0.5)
         score += weights['habs'] * habs_sim
         
-        # Banos similarity
+        # Distrito (15%)
+        comp_distrito = comp.get('Distrito', '')
+        score += weights['distrito'] * (1.0 if comp_distrito == venta_distrito else 0.0)
+        
+        # Banos similarity (15%)
         comp_banos = comp.get('banos', 1) or 1
         banos_diff = abs(comp_banos - venta_banos)
         banos_sim = max(0, 1 - banos_diff * 0.5)
         score += weights['banos'] * banos_sim
         
-        # Binary features (exact match = full score)
+        # Extras (5% each)
         comp_garaje = bool(comp.get('Garaje') or comp.get('garaje'))
         score += weights['garaje'] * (1.0 if comp_garaje == venta_garaje else 0.5)
         
@@ -629,10 +645,6 @@ def calculate_precision_score(venta_row: pd.Series,
         
         comp_ascensor = bool(comp.get('ascensor'))
         score += weights['ascensor'] * (1.0 if comp_ascensor == venta_ascensor else 0.5)
-        
-        # Distrito (should always match if filtered correctly)
-        comp_distrito = comp.get('Distrito', '')
-        score += weights['distrito'] * (1.0 if comp_distrito == venta_distrito else 0.0)
         
         similarities.append(score)
     

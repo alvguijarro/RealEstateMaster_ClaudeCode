@@ -1,6 +1,21 @@
 # Changelog - RealEstateMaster
 
-## [Latest] - 2026-01-28
+## [Latest] - 2026-01-30
+
+### Added
+- **Smart Rent Calculation**: Overhauled the rent estimation logic in `Analytics Pro`. The new algorithm enforces strict Property Type matching (Pisos vs Chalets) to prevent skewed comparisons.
+- **Weighted Precision Scoring**: Implemented a detailed, user-defined weighting system for precision scoring:
+    - **20%** Surface Area (m²)
+    - **20%** Bedrooms
+    - **15%** Property Type (Piso/Casa)
+    - **15%** District
+    - **15%** Bathrooms
+    - **15%** Extras (Garage, Terrace, Elevator)
+
+### Fixed
+- **Comparables Reliability**: Comparisons for "For Sale" properties now strictly avoid mixing distinct property types (e.g., comparing a flat with a detached house) to ensure realistic rent estimates.
+
+## [2026-01-28]
 
 ### Added
 - **Automated CAPTCHA Solver**: Implemented an intelligent slider solver that mimics human-like dragging behavior (variable speed, slight jitters, and overshoot) to automatically bypass "Slide to Right" challenges.
