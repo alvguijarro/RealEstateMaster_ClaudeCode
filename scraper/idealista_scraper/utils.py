@@ -462,3 +462,79 @@ async def simulate_human_interaction(page):
 
     except Exception:
         pass # Fail silently to not interrupt scraper flow
+
+
+async def solve_slider_captcha(page):
+    """Automatically solve 'Slide to the Right' CAPTCHA with human-like dragging."""
+    try:
+        # 1. Identify the slider handle
+        # Common selectors for slider captchas (Idealista uses specific ones, but we check common ones)
+        selectors = [
+            ".geetest_slider_button", ".nc_iconfont.btn_slide", "#nc_1_n1z", 
+            ".slid_btn", ".captcha_slider", "div[role='button'][aria-label*='slider']",
+            ".px-captcha-container .px-captcha-slider-button" # PerimeterX/DataDome common
+        ]
+        
+        handle = None
+        for sel in selectors:
+            handle = await page.query_selector(sel)
+            if handle and await handle.is_visible():
+                break
+        
+        if not handle:
+            # Try finding by icon or style if specific selector fails
+            handle = await page.query_selector("span:has-text('→'), .arrow-right, [class*='slider']")
+            if not handle or not await handle.is_visible():
+                return False
+
+        # 2. Get bounding boxes
+        box = await handle.bounding_box()
+        if not box:
+            return False
+            
+        start_x = box['x'] + box['width'] / 2
+        start_y = box['y'] + box['height'] / 2
+        
+        # Track length - usually around 250-300px, or we try to find the container
+        container = await page.query_selector(".geetest_slider, .nc-container, .captcha_track, [class*='track']")
+        if container:
+            cbox = await container.bounding_box()
+            distance = cbox['width'] - box['width'] if cbox else 260
+        else:
+            distance = 260 + random.randint(-10, 10)
+
+        # 3. Perform human-like drag
+        await page.mouse.move(start_x, start_y)
+        await page.mouse.down()
+        
+        current_x = start_x
+        steps = random.randint(15, 25)
+        
+        for i in range(steps):
+            # Non-linear speed (acceleration then deceleration)
+            t = i / steps
+            # Smooth step function
+            move_x = distance * (math.sin((t * math.pi / 2))) 
+            
+            # Add slight vertical jitter (+/- 1-2px)
+            jitter_y = start_y + random.uniform(-1, 1)
+            
+            await page.mouse.move(start_x + move_x, jitter_y)
+            await asyncio.sleep(random.uniform(0.01, 0.04))
+            
+        # Small overshoot and correction (very human)
+        overshoot = random.randint(2, 5)
+        await page.mouse.move(start_x + distance + overshoot, start_y + random.uniform(-1, 1))
+        await asyncio.sleep(random.uniform(0.1, 0.2))
+        await page.mouse.move(start_x + distance, start_y)
+        
+        await asyncio.sleep(random.uniform(0.2, 0.5))
+        await page.mouse.up()
+        
+        # 4. Verification
+        await asyncio.sleep(2)
+        return True
+        
+    except Exception as e:
+        log("WARN", f"Slider solver attempt failed: {e}")
+        return False

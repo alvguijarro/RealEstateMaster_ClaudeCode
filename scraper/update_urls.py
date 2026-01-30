@@ -29,7 +29,7 @@ if sys.platform == 'win32':
 
 from idealista_scraper.scraper import _goto_with_retry
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
-from idealista_scraper.utils import log, play_captcha_alert, simulate_human_interaction
+from idealista_scraper.utils import log, play_captcha_alert, simulate_human_interaction, solve_slider_captcha
 from idealista_scraper.config import (
     FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE,
     STEALTH_CARD_DELAY_RANGE, STEALTH_POST_CARD_DELAY_RANGE,
@@ -405,7 +405,24 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     break
 
                 if miss or await detect_captcha(page):
-                    emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado. Resuelve el CAPTCHA manualmente en el navegador.')
+                    emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado.')
+                    
+                    # 1. Try automatic slider solve
+                    emit_to_ui('INFO', '🤖 Intentando resolver CAPTCHA automáticamente...')
+                    if await solve_slider_captcha(page):
+                         if not await detect_captcha(page):
+                              emit_to_ui('OK', '✅ CAPTCHA resuelto automáticamente!')
+                              # Re-extract data
+                              d = await extract_detail_fields(page, debug_items=False)
+                              if d: d['URL'] = url
+                              is_inactive_loop = d.get('Anuncio activo') == 'No' or d.get('Baja anuncio') or d.get('isExpired')
+                              miss = [] if is_inactive_loop else missing_fields(d, is_room_mode=is_room_mode)
+                              if not miss:
+                                   # We continue below
+                                   pass
+                    
+                    if miss or await detect_captcha(page):
+                        emit_to_ui('WARN', 'Resuelve el CAPTCHA manualmente en el navegador.')
                     
                     # Wait loop with repeating alarm until CAPTCHA is solved
                     captcha_resolved = False

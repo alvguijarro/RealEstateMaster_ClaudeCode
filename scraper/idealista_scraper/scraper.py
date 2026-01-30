@@ -79,6 +79,20 @@ async def _goto_with_retry(page, url: str) -> None:
 
                 if is_captcha:
                     log("WARN", f"CAPTCHA DETECTED on {url} (Title: '{title}')")
+                    
+                    # 1. Try automatic slider solve
+                    log("INFO", "🤖 Attempting automatic slider solve...")
+                    if await solve_slider_captcha(page):
+                        try:
+                            new_title = await page.title()
+                            if "idealista" in new_title.lower() and "captcha" not in new_title.lower():
+                                log("OK", "✅ CAPTCHA solved automatically!")
+                                return
+                        except: pass
+                        log("WARN", "❌ Slider moved but CAPTCHA still present.")
+                    else:
+                        log("WARN", "❌ Automatic solver could not find slider.")
+
                     log("WARN", ">>> PLEASE SOLVE THE CAPTCHA MANUALLY IN THE BROWSER <<<")
                     
                     # Loop until resolved

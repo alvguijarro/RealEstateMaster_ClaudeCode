@@ -42,7 +42,7 @@ from idealista_scraper.config import (
     EXTRA_STEALTH_COFFEE_BREAK_RANGE, EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY,
     EXTRA_STEALTH_READING_TIME_PER_100_CHARS, USER_AGENTS, VIEWPORT_SIZES
 )
-from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction
+from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_slider_captcha
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
@@ -681,6 +681,21 @@ class ScraperController:
 
                     if is_captcha:
                         self.log("WARN", f"CAPTCHA DETECTED on {url} (Title: '{title}')")
+                        
+                        # 1. Try automatic slider solve
+                        self.log("INFO", "🤖 Attempting automatic slider solve...")
+                        if await solve_slider_captcha(page):
+                            # Check again
+                            try:
+                                title_after = await page.title()
+                                if not any(kw in (title_after or "").lower() for kw in ["moment", "challenge", "robot", "captcha", "verification"]):
+                                    self.log("OK", "✅ CAPTCHA solved automatically!")
+                                    return 
+                            except: pass
+                            self.log("WARN", "❌ Slider moved but CAPTCHA still present.")
+                        else:
+                            self.log("WARN", "❌ Automatic solver could not find slider.")
+
                         self.log("WARN", ">>> PLEASE SOLVE THE CAPTCHA MANUALLY IN THE BROWSER <<<")
                         if self.on_status:
                             self.on_status("captcha")
