@@ -7,4 +7,4 @@ REM Start the Main Menu (Unified Dashboard)
 REM This script handles the rest (scraper, analyzer, browser)
 python main.py
 
-pause
+

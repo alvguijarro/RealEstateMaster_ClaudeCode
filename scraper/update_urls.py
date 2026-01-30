@@ -30,10 +30,10 @@ if sys.platform == 'win32':
 from idealista_scraper.scraper import _goto_with_retry
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.utils import log, play_captcha_alert
-from idealista_scraper.utils import log, play_captcha_alert
 from idealista_scraper.config import (
     FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE,
-    STEALTH_CARD_DELAY_RANGE, STEALTH_POST_CARD_DELAY_RANGE
+    STEALTH_CARD_DELAY_RANGE, STEALTH_POST_CARD_DELAY_RANGE,
+    USER_AGENTS
 )
 from playwright.async_api import async_playwright
 import random
@@ -89,14 +89,24 @@ def emit_progress(current, total):
 
 
 async def detect_captcha(page) -> bool:
-    """Check if page shows CAPTCHA/bot protection based on page title."""
+    """Check if page shows CAPTCHA/bot protection based on page title and body."""
     try:
         title = (await page.title() or "").lower()
-        is_captcha = any(kw in title for kw in [
+        is_captcha_title = any(kw in title for kw in [
             "attention", "moment", "challenge", "robot", "captcha",
             "access denied", "security", "peticiones", "verificación", "verification"
         ])
-        return is_captcha
+        
+        if is_captcha_title:
+             return True
+
+        # Check body text for "uso indebido"
+        page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+        text_lower = page_text.lower()
+        if "uso indebido" in text_lower or "se ha bloqueado" in text_lower or "access denied" in text_lower:
+             return True
+             
+        return False
     except:
         return False
 
@@ -286,12 +296,19 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
         # emit_to_ui('INFO', 'Launching browser...')
         browser = await pw.chromium.launch(
             headless=False, 
-            args=["--start-maximized", "--disable-blink-features=AutomationControlled"]
+            args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
+            ignore_default_args=["--enable-automation"]
         )
+        
+        # Select random user agent
+        ua = random.choice(USER_AGENTS) if 'USER_AGENTS' in globals() else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+        
         context = await browser.new_context(
             viewport={"width": 1920, "height": 1080},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            user_agent=ua
         )
+        # Apply stealth script
+        await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         page = await context.new_page()
         
         page = await context.new_page()
@@ -377,6 +394,15 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                 else:
                      miss = missing_fields(d, is_room_mode=is_room_mode) if d else ["all"]
                 
+                # Check for BLOCK (uso indebido)
+                if await detect_captcha(page) and "uso indebido" in (await page.evaluate("() => document.body ? document.body.innerText : ''")).lower():
+                    emit_to_ui('ERR', f'({i}/{len(urls)}) 🛑 HARD STOP: Scraper bloqueado ("Uso Indebido").')
+                    # Implement profile nuking here or just stop? 
+                    # For update process, we just stop and let the user handle it (profile is shared but this script is separate)
+                    # Ideally we should nuke it too, but we can rely on main scraper wrapper for that logic.
+                    # For now, just break hard.
+                    break
+
                 if miss or await detect_captcha(page):
                     emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado. Resuelve el CAPTCHA manualmente en el navegador.')
                     

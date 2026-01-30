@@ -559,6 +559,27 @@ class ScraperController:
                 os.remove(RESUME_STATE_FILE)
         except Exception:
             pass
+
+    def handle_blocked_profile(self):
+        """Archive the current profile if it has been blocked/poisoned."""
+        import shutil
+        import time
+        from datetime import datetime
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"stealth_profile_BLOCKED_{timestamp}"
+        backup_path = os.path.join(os.path.dirname(STEALTH_PROFILE_DIR), backup_name)
+        
+        self.log("WARN", "☣️  PROFILE POISONED: Dealing with blocked profile...")
+        
+        if os.path.exists(STEALTH_PROFILE_DIR):
+            try:
+                # We assume browser is already closed by now
+                shutil.move(STEALTH_PROFILE_DIR, backup_path)
+                self.log("WARN", f"♻️  Moved poisoned profile to: {backup_name}")
+                self.log("OK", "✨ Next run will generate a fresh, clean profile.")
+            except Exception as e:
+                self.log("ERR", f"Failed to archive profile: {e}")
     
     async def _save_checkpoint(self, additions: List[dict], target_file: Optional[str], existing_df, carry_cols: Set[str]):
         """Save checkpoint - incremental save of new properties since last checkpoint.
@@ -635,10 +656,10 @@ class ScraperController:
                         self.log("WARN", f"El anuncio ya no está activo: {url}")
                         return
                     
-                    if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower:
-                        self.log("ERR", "🚫 Se ha detectado un uso indebido/no autorizado. El acceso se ha bloqueado.")
+                    if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower or "access denied" in page_text_lower:
+                        self.log("ERR", "🚫 BLOCK DETECTED: 'Uso indebido' or 'Access Denied'. Stopping immediately.")
                         play_blocked_alert()
-                        # We do NOT set _stop_evt here to allow for automated recovery
+                        # CRITICAL: Raise BlockedException to trigger profile nuking
                         raise BlockedException("Acceso bloqueado por uso indebido")
                     
                     # Common indicators for Idealista/Cloudflare blockage
@@ -870,10 +891,15 @@ class ScraperController:
                             user_data_dir=STEALTH_PROFILE_DIR,
                             headless=False,
                             args=browser_args,
+                            ignore_default_args=["--enable-automation"],
                             viewport={"width": 1280, "height": 900},
                             user_agent=self.get_random_user_agent(),
                         )
                         browser = None  # No separate browser object with persistent context
+                        
+                        # Explicitly mask webdriver property (safety net for stealth)
+                        await ctx.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                        
                         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
                         self.log("OK", f"Browser launched with persistent profile: {os.path.basename(STEALTH_PROFILE_DIR)}")
                         
@@ -1192,6 +1218,13 @@ class ScraperController:
                                     else:
                                         self.log("WARN", "No CAPTCHA, but no links either. Keeping browser open 30s for inspection...")
                                         await asyncio.sleep(30)  # Keep open for inspection
+                                
+                                except BlockedException as be:
+                                    self.log("ERR", f"🛑 HARD STOP: {be}")
+                                    self._stop_evt.set()
+                                    # Signal that we should NOT dual-mode continue
+                                    self.dual_mode_url = None 
+                                    raise be # Re-raise to be caught by outer loop
                                 
                                 except Exception as debug_e:
                                     self.log("ERR", f"Debug check failed: {debug_e}")
@@ -1771,49 +1804,23 @@ class ScraperController:
                         break
             
             except BlockedException:
-                restart_count += 1
-                self.unauthorized_restart_count += 1
-                self.log("WARN", f"⚠️ 'Uso no autorizado' restart #{self.unauthorized_restart_count} (Total restarts: {restart_count})")
-                if restart_count > max_restarts:
-                    self.log("ERR", f"Demasiados reinicios ({max_restarts}). Abortando scraping por seguridad.")
-                    break
-            
-                self.log("WARN", f"🔄 Recuérdame: Se ha cambiado la IP o detectado bloqueo. Reiniciando sesión automáticamente...")
+                self.log("ERR", "🛑 HARD STOP: Scraper blocked by Idealista (Uso Indebido).")
+                self.handle_blocked_profile()
+                self._stop_evt.set()
+                self.dual_mode_url = None
+                self.status = "error"
+                if self.on_status:
+                    self.on_status("error", error="Acceso bloqueado permanentemente")
                 
-                # Switch to stealth mode automatically for safety
-                if self.mode != "stealth":
-                    self.log("INFO", "Activando modo STEALTH para evitar futuros bloqueos.")
-                    self.mode = "stealth"
-            
-                # Save data and state before restart
-                if additions:
-                    self.log("INFO", "Guardando progreso antes del reinicio...")
-                    try:
-                        self._export_to_excel(additions, target_file, expired_urls)
-                        # Reset additions list as they are now saved to file
-                        additions = []
-                    except Exception as e:
-                        self.log("ERR", f"Error guardando backup: {e}")
-            
-                self.save_state(page_num, target_file)
-            
-                # Explicitly close browser before waiting
-                self.log("INFO", "Cerrando navegador actual...")
+                # Close browser immediately
                 try:
                     if browser:
                         await browser.close()
                     elif ctx:
                         await ctx.close()
-                except Exception:
+                except:
                     pass
-                
-                # Short wait before relaunching browser
-                wait_time = random.randint(10, 15)
-                self.log("INFO", f"Reiniciando en {wait_time} segundos...")
-                await self._interruptible_sleep(float(wait_time))
-            
-                # Continue loop -> This will trigger the 'async with async_playwright()' again
-                continue
+                break # Exit loop immediately
         
                 # Reset self.is_running = False etc will happen at the very end of run()
             

@@ -612,8 +612,6 @@ def check_update_state():
                 })
     except:
         pass
-    except:
-        pass
         
     return jsonify({'can_resume': False})
 

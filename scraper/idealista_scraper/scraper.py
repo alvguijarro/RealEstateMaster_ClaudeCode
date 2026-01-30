@@ -54,6 +54,12 @@ async def _goto_with_retry(page, url: str) -> None:
             try:
                 title = await page.title()
                 t_lower = title.lower()
+                
+                # Check for permanent block (uso indebido)
+                if "uso indebido" in t_lower or "access denied" in t_lower:
+                     log("ERR", f"BLOCK DETECTED on {url} (Title: '{title}')")
+                     raise Exception("Acceso bloqueado por uso indebido")
+                     
                 # Common indicators for Idealista/Cloudflare blockage
                 is_captcha = (
                     "attention" in t_lower or 
@@ -308,7 +314,8 @@ class ScraperSession:
                     args=[
                         "--start-maximized",
                         "--disable-blink-features=AutomationControlled",
-                    ]
+                    ],
+                    ignore_default_args=["--enable-automation"]
                 )
                 log("INFO", "Browser launched successfully!")
             except Exception as e:
@@ -317,10 +324,16 @@ class ScraperSession:
                 return
             
             # Create a new context and page
+            # Use random user agent if available
+            ua = random.choice(USER_AGENTS)
+            
             ctx = await browser.new_context(
                 viewport={"width": 1920, "height": 1080},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                user_agent=ua
             )
+            # Add stealth scripts
+            await ctx.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            
             page = await ctx.new_page()
             
             # Detect Room Mode
