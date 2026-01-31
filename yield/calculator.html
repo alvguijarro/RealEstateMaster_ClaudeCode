@@ -242,9 +242,15 @@
 
         .ratios-table th,
         .ratios-table td {
-            padding: 6px 8px;
+            padding: 8px 12px;
             text-align: center;
             border-bottom: 1px solid var(--border);
+        }
+
+        .ratios-table th:first-child,
+        .ratios-table td:first-child {
+            text-align: left;
+            width: 40%;
         }
 
         .ratios-table th {
@@ -846,7 +852,7 @@
                             <tbody>
                                 <tr>
                                     <td>
-                                        <div class="label-row" style="justify-content:flex-end;">
+                                        <div class="label-row" style="justify-content:flex-start;">
                                             <span class="info-icon" style="margin-right:5px; margin-left:0;"
                                                 data-tooltip="Ingresos anuales divididos por el coste total de la inversión.">i</span>
                                             Rentabilidad Bruta
@@ -857,7 +863,7 @@
                                 </tr>
                                 <tr>
                                     <td>
-                                        <div class="label-row" style="justify-content:flex-end;">
+                                        <div class="label-row" style="justify-content:flex-start;">
                                             <span class="info-icon" style="margin-right:5px; margin-left:0;"
                                                 data-tooltip="Beneficio neto (ingresos - gastos) dividido por la inversión total.">i</span>
                                             Rentabilidad Neta
@@ -868,7 +874,7 @@
                                 </tr>
                                 <tr>
                                     <td>
-                                        <div class="label-row" style="justify-content:flex-end;">
+                                        <div class="label-row" style="justify-content:flex-start;">
                                             <span class="info-icon" style="margin-right:5px; margin-left:0;"
                                                 data-tooltip="Dinero real en el bolsillo tras pagar gastos y cuota hipotecaria.">i</span>
                                             Cashflow Anual (post deuda)
@@ -879,7 +885,7 @@
                                 </tr>
                                 <tr>
                                     <td>
-                                        <div class="label-row" style="justify-content:flex-end;">
+                                        <div class="label-row" style="justify-content:flex-start;">
                                             <span class="info-icon" style="margin-right:5px; margin-left:0;"
                                                 data-tooltip="ROE (Return on Equity): Cashflow sobre capital aportado. Mide el efecto apalancamiento.">i</span>
                                             ROCE
