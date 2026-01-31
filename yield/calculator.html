@@ -240,6 +240,12 @@
             gap: 10px;
         }
 
+        .row-mixed {
+            display: grid;
+            grid-template-columns: 1fr 1fr 3fr 1fr;
+            gap: 10px;
+        }
+
         .ratios-table {
             width: 100%;
             border-collapse: collapse;
@@ -747,7 +753,7 @@
                                 </div>
                             </div>
 
-                            <div class="row-4">
+                            <div class="row-mixed">
                                 <div class="form-group">
                                     <div class="label-row">
                                         <label>Seguro de hogar</label>
@@ -769,7 +775,7 @@
                                 <div class="form-group">
                                     <label>Seguro de impago</label>
                                     <div style="display: flex; gap: 5px;">
-                                        <div class="input-wrapper" style="flex: 0 0 40%;">
+                                        <div class="input-wrapper" style="flex: 0 0 30%;">
                                             <input type="number" id="seguroImpago" value="5" step="1"
                                                 oninput="calcAll()">
                                             <span class="suffix">%</span>
