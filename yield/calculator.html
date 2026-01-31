@@ -407,7 +407,7 @@
                                 <div class="form-group" style="flex:1">
                                     <label>Comunidad Autónoma</label>
                                     <select id="comunidad" onchange="calcAll()">
-                                        <option value="0.08">Andalucía (8%)</option>
+                                        <option value="0.07">Andalucía (7%)</option>
                                         <option value="0.08">Aragón (8%)</option>
                                         <option value="0.08">Asturias (8%)</option>
                                         <option value="0.08">Baleares (8%)</option>
@@ -420,7 +420,7 @@
                                         <option value="0.06" selected>Comunidad de Madrid (6%)</option>
                                         <option value="0.10">Comunidad Valenciana (10%)</option>
                                         <option value="0.08">Extremadura (8%)</option>
-                                        <option value="0.10">Galicia (10%)</option>
+                                        <option value="0.08">Galicia (8%)</option>
                                         <option value="0.07">La Rioja (7%)</option>
                                         <option value="0.06">Melilla (6%)</option>
                                         <option value="0.08">Murcia (8%)</option>
@@ -1042,10 +1042,10 @@
             // 8. Amortización deducible: 3% × (30% × Compraventa + 50% × (ITP + Notaría + Registro + Comisión) + Reforma)
             const amortizacion = 0.03 * (0.30 * price + 0.50 * (itpPagar + notary + registro + agencia) + reform);
 
-            // 9. Impuestos: (Beneficio - Amortización) × (1 - 60% reducción) × IRPF
-            // Reducción del 60% para arrendamiento de vivienda habitual
+            // 9. Impuestos: (Beneficio - Amortización) × (1 - 50% reducción) × IRPF
+            // Reducción del 50% para arrendamiento de vivienda habitual (Ley 12/2023)
             const baseImponible = Math.max(0, beneficioAntes - amortizacion);
-            const impuestos = baseImponible * (1 - 0.60) * tramoIrpf;
+            const impuestos = baseImponible * (1 - 0.50) * tramoIrpf;
 
             const beneficioDespues = beneficioAntes - impuestos;
 

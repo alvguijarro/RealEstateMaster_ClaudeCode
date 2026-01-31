@@ -6,8 +6,8 @@
 - **Enhanced Mortgage & Yield Calculator**: Full replication of `Calculadora.xlsx` advanced logic.
     - **Amortization Tab**: Added a dedicated "Hipoteca" view with a full amortization table (360+ rows), calculating monthly Interest, Principal Repayment, and Remaining Balance.
     - **Dual Scenario Analysis**: Implemented "Prudente" and "Optimista" calculation modes for Net Yield, Annual Cashflow, and ROCE (Return on Capital Employed).
-    - **Tax Optimization**: Added complete IRPF logic with the 60% reduction for rental income and dynamic tax brackets (from 19% to 45%).
-    - **Regional Accuracy**: Updated the ITP list to include all 19 Spanish Autonomous Communities with their specific tax rates.
+    - **Tax Optimization**: Updated IRPF reduction from 60% to **50%** to match the new Housing Law (Ley 12/2023) and the definitive Excel formulas, resolving the 416€ vs 333€ discrepancy.
+    - **Regional Accuracy**: Verified and updated ITP rates for all 19 Spanish Autonomous Communities as of 2025 (e.g., Andalucía 7%, Galicia 8%, Navarra 6%).
     - **Advanced Deductions**: Integrated mortgage interest from the first year and the 3% property depreciation into the net benefit calculation.
     - **Real-time Synchronicity**: Seamless bidirectional synchronization between the "Análisis" and "Hipoteca" tabs.
     - **Dynamic Inputs**: Added missing fields for Agency Commission, Notary, Registry, Gestoría, Tasación, and split insurance fields (Hogar, Vida, Impago).
