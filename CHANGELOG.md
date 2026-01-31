@@ -3,15 +3,20 @@
 ## [2026-01-31]
 
 ### Added
-- **Calculadora de Rentabilidad Neta**: Integrated a professional-grade mortgage and yield calculator.
-    - **Replicated Excel Logic**: Ported formulas from `Calculadora.xlsx` to JavaScript, covering ITP (6%), Notary/Registry fees, Mortgage PMT (LTV, Interest, Years), and Net Rental Yield (Community, IBI, Maintenance).
-    - **Visual Analytics**: Interactive dashboard with real-time scorecards and a modular Cashflow Chart (Income vs Expenses vs Mortgage).
-    - **Seamless Integration**: Added a "Calcular" button to the `Analytics Pro` results. Clicking it pre-fills the calculator with the property's price and estimated rent.
-    - **Modular Storage**: All calculator-related files are now stored in the dedicated `yield/` directory.
+- **Enhanced Mortgage & Yield Calculator**: Full replication of `Calculadora.xlsx` advanced logic.
+    - **Amortization Tab**: Added a dedicated "Hipoteca" view with a full amortization table (360+ rows), calculating monthly Interest, Principal Repayment, and Remaining Balance.
+    - **Dual Scenario Analysis**: Implemented "Prudente" and "Optimista" calculation modes for Net Yield, Annual Cashflow, and ROCE (Return on Capital Employed).
+    - **Tax Optimization**: Added complete IRPF logic with the 60% reduction for rental income and dynamic tax brackets (from 19% to 45%).
+    - **Regional Accuracy**: Updated the ITP list to include all 19 Spanish Autonomous Communities with their specific tax rates.
+    - **Advanced Deductions**: Integrated mortgage interest from the first year and the 3% property depreciation into the net benefit calculation.
+    - **Real-time Synchronicity**: Seamless bidirectional synchronization between the "Análisis" and "Hipoteca" tabs.
+    - **Dynamic Inputs**: Added missing fields for Agency Commission, Notary, Registry, Gestoría, Tasación, and split insurance fields (Hogar, Vida, Impago).
+- **Multi-Tab Interface**: Refactored the calculator into a single-page app with internal navigation (Análisis | Hipoteca) for instant data sharing.
+- **Main Sidebar**: Added "Calculadora" as a top-level tool for quick access.
 
 ### Modified
-- **Main Sidebar**: Added "Calculadora" as a top-level tool for quick access.
 - **Cross-Module Navigation**: Implemented `window.openCalculator` in the launcher to allow direct communication between the Analyzer and the Calculator.
+- **Data Flow Integration**: The "Calcular" button in `Analytics Pro` now triggers a deep-sync that pre-fills purchase price and rental estimates into the new tabbed calculator.
 
 ## [2026-01-30]
 

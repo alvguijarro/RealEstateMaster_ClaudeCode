@@ -12,7 +12,7 @@ print("Querying Idealista2 API (RapidAPI)...")
 try:
     # Testing standard endpoint for APIDojo style
     # Usually: /properties/list or just /list
-    conn.request("GET", "/properties/list?locationId=0-EU-ES-28-07-001-079&operation=sale&locale=es&country=es", headers=headers)
+    conn.request("GET", "/properties/list?locationId=0-EU-ES-28&operation=rent&numPage=1&maxItems=1&location=es&locale=es", headers=headers)
 
     res = conn.getresponse()
     data = res.read()

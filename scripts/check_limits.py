@@ -11,7 +11,7 @@ headers = {
 print("Checking API Limits...")
 try:
     # Minimal request to get headers
-    conn.request("GET", "/listhomes?locationId=0-EU-ES-28-07-001-079&operation=rent&numPage=1&maxItems=1", headers=headers)
+    conn.request("GET", "/listhomes?locationId=0-EU-ES-28-07-001-079&operation=rent&numPage=1&maxItems=40&location=es&locale=es", headers=headers)
     res = conn.getresponse()
     
     print("--- HEADERS ---")
