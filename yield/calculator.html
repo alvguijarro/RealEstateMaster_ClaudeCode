@@ -798,19 +798,35 @@
 
                         <div class="results-grid">
                             <div class="metric-card">
-                                <div class="metric-label">Precio entrada total</div>
+                                <div class="metric-label">
+                                    Precio entrada total
+                                    <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                        data-tooltip="Suma del coste de la vivienda, impuestos, reforma, agencia y gastos de financiación.">i</span>
+                                </div>
                                 <div class="metric-value" id="precioEntradaTotal">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Capital propio</div>
+                                <div class="metric-label">
+                                    Capital propio
+                                    <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                        data-tooltip="Dinero total que debes aportar de tu bolsillo (Entrada + Gastos - Parte financiada).">i</span>
+                                </div>
                                 <div class="metric-value" id="capitalPropio" style="color:var(--accent)">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Préstamo hipotecario</div>
+                                <div class="metric-label">
+                                    Préstamo hipotecario
+                                    <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                        data-tooltip="Cantidad total financiada por el banco (Calculada sobre el % LTV).">i</span>
+                                </div>
                                 <div class="metric-value" id="prestamo">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Cuota anual</div>
+                                <div class="metric-label">
+                                    Cuota anual
+                                    <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                        data-tooltip="Pago total anual al banco (Incluye devolución de capital + intereses).">i</span>
+                                </div>
                                 <div class="metric-value" id="cuotaAnual">0 €</div>
                             </div>
                         </div>
@@ -819,28 +835,52 @@
 
                         <div class="results-grid">
                             <div class="metric-card">
-                                <div class="metric-label">Intereses hip. año 1</div>
+                                <div class="metric-label">
+                                    Intereses hip. año 1
+                                    <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                        data-tooltip="Parte de la cuota anual que corresponde a intereses. Es un gasto fiscalmente deducible.">i</span>
+                                </div>
                                 <div class="metric-value" id="interesesAnio1" style="color:var(--danger)">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Total gastos anuales</div>
+                                <div class="metric-label">
+                                    Total gastos anuales
+                                    <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                        data-tooltip="Suma de gastos operativos (comunidad, IBI, seguros...) + intereses de la hipoteca.">i</span>
+                                </div>
                                 <div class="metric-value" id="totalGastosAnuales" style="color:var(--warning)">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Beneficio (antes de imp.)</div>
+                                <div class="metric-label">
+                                    Beneficio (antes de imp.)
+                                    <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                        data-tooltip="Renta Anual - Total Gastos Anuales. Es el rendimiento neto previo a impuestos.">i</span>
+                                </div>
                                 <div class="metric-value" id="beneficioAntes">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Amortización deducible</div>
+                                <div class="metric-label">
+                                    Amortización deducible
+                                    <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                        data-tooltip="Gasto fiscal teórico por el deterioro del inmueble (3% del valor de construcción + gastos de compra + reforma).">i</span>
+                                </div>
                                 <div class="metric-value" id="amortizacionDeducible" style="color:var(--text-muted)">0 €
                                 </div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Impuestos (aprox)</div>
+                                <div class="metric-label">
+                                    Impuestos (aprox)
+                                    <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                        data-tooltip="IRPF estimado a pagar tras aplicar la reducción del 50% por alquiler de vivienda habitual.">i</span>
+                                </div>
                                 <div class="metric-value" id="impuestosAprox" style="color:var(--danger)">0 €</div>
                             </div>
                             <div class="metric-card" style="border: 1px solid var(--success)">
-                                <div class="metric-label">Beneficio (después de imp.)</div>
+                                <div class="metric-label">
+                                    Beneficio (después de imp.)
+                                    <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                        data-tooltip="Beneficio neto real disponible (Cashflow bruto) antes de devolver el principal de la hipoteca.">i</span>
+                                </div>
                                 <div class="metric-value" id="beneficioDespues">0 €</div>
                             </div>
                         </div>
