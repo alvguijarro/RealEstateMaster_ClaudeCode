@@ -1132,6 +1132,52 @@
         }
 
         // --- INIT ---
+        // Mapping from short codes to select values
+        const comunidadMap = {
+            'andalucia': '0.07',
+            'aragon': '0.08',
+            'asturias': '0.08',
+            'baleares': '0.08',
+            'canarias': '0.065',
+            'cantabria': '0.10',
+            'castillamancha': '0.09',
+            'castillaleon': '0.08',
+            'cataluna': '0.10',
+            'ceuta': '0.06',
+            'madrid': '0.06',
+            'valenciana': '0.10',
+            'extremadura': '0.08',
+            'galicia': '0.08',
+            'rioja': '0.07',
+            'melilla': '0.06',
+            'murcia': '0.08',
+            'navarra': '0.06',
+            'paisvasco': '0.04'
+        };
+
+        // Mapping to find correct option index by name
+        const comunidadNames = {
+            'andalucia': 0,
+            'aragon': 1,
+            'asturias': 2,
+            'baleares': 3,
+            'canarias': 4,
+            'cantabria': 5,
+            'castillamancha': 6,
+            'castillaleon': 7,
+            'cataluna': 8,
+            'ceuta': 9,
+            'madrid': 10,
+            'valenciana': 11,
+            'extremadura': 12,
+            'galicia': 13,
+            'rioja': 14,
+            'melilla': 15,
+            'murcia': 16,
+            'navarra': 17,
+            'paisvasco': 18
+        };
+
         window.onload = () => {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('price')) {
@@ -1139,6 +1185,13 @@
             }
             if (urlParams.has('rent')) {
                 document.getElementById('rent').value = Math.round(parseFloat(urlParams.get('rent')));
+            }
+            if (urlParams.has('comunidad')) {
+                const comunidad = urlParams.get('comunidad').toLowerCase();
+                const selectEl = document.getElementById('comunidad');
+                if (comunidadNames.hasOwnProperty(comunidad)) {
+                    selectEl.selectedIndex = comunidadNames[comunidad];
+                }
             }
             updateHipotecaFields();
             calcAll();

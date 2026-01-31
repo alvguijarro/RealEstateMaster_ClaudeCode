@@ -365,8 +365,31 @@ function renderResults() {
             ? `<a href="#" class="link-icon consultar-link" data-idx="${arrIdx}" style="color: var(--accent-color);">Consultar</a>`
             : '<span style="color: #888;">-</span>';
 
+        // Map distrito/ciudad to Comunidad Autónoma code for calculator
+        const distrito = (opp.Distrito || '').toLowerCase();
+        let comunidad = 'madrid'; // Default
+        // Simple mapping based on common cities
+        if (distrito.includes('barcelona') || distrito.includes('tarragona') || distrito.includes('girona') || distrito.includes('lleida')) comunidad = 'cataluna';
+        else if (distrito.includes('valencia') || distrito.includes('alicante') || distrito.includes('castellón')) comunidad = 'valenciana';
+        else if (distrito.includes('sevilla') || distrito.includes('málaga') || distrito.includes('córdoba') || distrito.includes('granada') || distrito.includes('cádiz')) comunidad = 'andalucia';
+        else if (distrito.includes('bilbao') || distrito.includes('san sebastián') || distrito.includes('vitoria')) comunidad = 'paisvasco';
+        else if (distrito.includes('zaragoza') || distrito.includes('huesca') || distrito.includes('teruel')) comunidad = 'aragon';
+        else if (distrito.includes('toledo') || distrito.includes('ciudad real') || distrito.includes('guadalajara') || distrito.includes('cuenca') || distrito.includes('albacete')) comunidad = 'castillamancha';
+        else if (distrito.includes('valladolid') || distrito.includes('salamanca') || distrito.includes('león') || distrito.includes('burgos') || distrito.includes('segovia')) comunidad = 'castillaleon';
+        else if (distrito.includes('palma') || distrito.includes('mallorca') || distrito.includes('ibiza') || distrito.includes('menorca')) comunidad = 'baleares';
+        else if (distrito.includes('las palmas') || distrito.includes('tenerife') || distrito.includes('canarias')) comunidad = 'canarias';
+        else if (distrito.includes('murcia') || distrito.includes('cartagena')) comunidad = 'murcia';
+        else if (distrito.includes('oviedo') || distrito.includes('gijón') || distrito.includes('asturias')) comunidad = 'asturias';
+        else if (distrito.includes('a coruña') || distrito.includes('vigo') || distrito.includes('santiago') || distrito.includes('galicia')) comunidad = 'galicia';
+        else if (distrito.includes('pamplona') || distrito.includes('navarra')) comunidad = 'navarra';
+        else if (distrito.includes('santander') || distrito.includes('cantabria')) comunidad = 'cantabria';
+        else if (distrito.includes('logroño') || distrito.includes('rioja')) comunidad = 'rioja';
+        else if (distrito.includes('mérida') || distrito.includes('badajoz') || distrito.includes('cáceres') || distrito.includes('extremadura')) comunidad = 'extremadura';
+        else if (distrito.includes('ceuta')) comunidad = 'ceuta';
+        else if (distrito.includes('melilla')) comunidad = 'melilla';
+
         const calcBtn = `
-            <button class="btn-calc" onclick="openCalc(${opp.Precio}, ${opp['Renta_estimada/mes'] || 0})" 
+            <button class="btn-calc" onclick="openCalc(${opp.Precio}, ${opp['Renta_estimada/mes'] || 0}, '${comunidad}')" 
                 style="background:rgba(59, 130, 246, 0.2); border:1px solid #3b82f6; color:#60a5fa; border-radius:4px; padding:2px 8px; cursor:pointer; font-size:0.8rem;">
                 Calcular
             </button>`;
@@ -390,8 +413,8 @@ function renderResults() {
                 </span>
             </td>
             <td><span class="score-badge">${punt}</span></td>
-            <td>${calcBtn}</td>
             <td>${refsLink}</td>
+            <td>${calcBtn}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -825,18 +848,12 @@ function resetBtn() {
 }
 
 // Global function for Calculate Button
-window.openCalc = function (price, rent) {
+window.openCalc = function (price, rent, comunidad) {
+    comunidad = comunidad || 'madrid';
     if (window.parent && window.parent.openCalculator) {
-        window.parent.openCalculator({ price: price, rent: rent });
+        window.parent.openCalculator({ price: price, rent: rent, comunidad: comunidad });
     } else {
         // Fallback for standalone mode
-        window.open(`/calculator?price=${price}&rent=${rent}`, '_blank');
+        window.open(`/calculator?price=${price}&rent=${rent}&comunidad=${comunidad}`, '_blank');
     }
 };
-
-function resetBtn() {
-    const btn = document.getElementById('btnAnalyze');
-    btn.disabled = false;
-    document.getElementById('btnText').textContent = "COMENZAR ANALISIS";
-    document.getElementById('btnLoader').classList.add('hidden');
-}
