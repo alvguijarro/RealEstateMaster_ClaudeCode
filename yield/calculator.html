@@ -152,6 +152,12 @@
             font-size: 0.85rem;
         }
 
+        /* Fix dropdown option visibility on mixed OS themes */
+        select option {
+            background-color: #ffffff;
+            color: #000000;
+        }
+
         input[type="number"]:focus,
         select:focus {
             outline: none;
@@ -863,7 +869,7 @@
                                 <tr>
                                     <td>
                                         <div class="label-row" style="justify-content:flex-start;">
-                                            Rentabilidad Neta
+                                            Rentabilidad neta
                                             <span class="info-icon" style="margin-left:5px; margin-right:0;"
                                                 data-tooltip="Beneficio neto (ingresos - gastos) dividido por la inversión total.">i</span>
                                         </div>
@@ -874,7 +880,7 @@
                                 <tr>
                                     <td>
                                         <div class="label-row" style="justify-content:flex-start;">
-                                            Cashflow Anual (post deuda)
+                                            Cashflow anual
                                             <span class="info-icon" style="margin-left:5px; margin-right:0;"
                                                 data-tooltip="Dinero real en el bolsillo tras pagar gastos y cuota hipotecaria.">i</span>
                                         </div>
@@ -887,7 +893,7 @@
                                         <div class="label-row" style="justify-content:flex-start;">
                                             ROCE
                                             <span class="info-icon" style="margin-left:5px; margin-right:0;"
-                                                data-tooltip="ROE (Return on Equity): Cashflow sobre capital aportado. Mide el efecto apalancamiento.">i</span>
+                                                data-tooltip="ROCE (Return on Capital Employed): Cashflow sobre capital aportado.">i</span>
                                         </div>
                                     </td>
                                     <td id="roceP">0%</td>
