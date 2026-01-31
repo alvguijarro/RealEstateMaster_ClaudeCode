@@ -850,8 +850,12 @@ function resetBtn() {
 // Global function for Calculate Button
 window.openCalc = function (price, rent, comunidad) {
     comunidad = comunidad || 'madrid';
-    if (window.parent && window.parent.openCalculator) {
-        window.parent.openCalculator({ price: price, rent: rent, comunidad: comunidad });
+    // Use postMessage for cross-origin communication
+    if (window.parent) {
+        window.parent.postMessage({
+            action: 'openCalculator',
+            data: { price: price, rent: rent, comunidad: comunidad }
+        }, '*');
     } else {
         // Fallback for standalone mode
         window.open(`/calculator?price=${price}&rent=${rent}&comunidad=${comunidad}`, '_blank');

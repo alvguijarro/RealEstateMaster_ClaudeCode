@@ -568,6 +568,13 @@
             }
         };
 
+        // Listen for messages from iframes (Cross-Origin support)
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.action === 'openCalculator') {
+                window.openCalculator(event.data.data);
+            }
+        });
+
 
     </script>
 </body>

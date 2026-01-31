@@ -13,6 +13,10 @@
     - **Dynamic Inputs**: Added missing fields for Agency Commission, Notary, Registry, Gestoría, Tasación, and split insurance fields (Hogar, Vida, Impago).
 - **Multi-Tab Interface**: Refactored the calculator into a single-page app with internal navigation (Análisis | Hipoteca) for instant data sharing.
 - **Main Sidebar**: Added "Calculadora" as a top-level tool for quick access.
+- **Deep Table Integration**:
+    - **Smart Mapping**: Implemented an automated district-to-region mapper that pre-selects the correct Comunidad Autónoma and ITP rate based on property location.
+    - **UI Polish**: Reordered columns in "Principales oportunidades" and added the "Calcular rent. neta" action button.
+    - **Cross-Origin Bridge**: Implemented a secure `postMessage` protocol to allow the Analyzer (port 5001) to communicate with the Launcher (port 5000) and open the calculator with pre-loaded data.
 
 ### Modified
 - **Cross-Module Navigation**: Implemented `window.openCalculator` in the launcher to allow direct communication between the Analyzer and the Calculator.
