@@ -90,12 +90,12 @@ def index():
 @app.route('/api/start/<service>', methods=['POST'])
 @app.route('/api/start/<service>', methods=['POST'])
 def api_start_service(service):
-    if service not in ['scraper', 'analyzer', 'metrics', 'merger']:
+    if service not in ['scraper', 'analyzer', 'metrics', 'merger', 'calculator']:
         return jsonify({'error': 'Invalid service'}), 400
         
     try:
-        # 'merger' is hosted in the analyzer service
-        target_service = 'analyzer' if service == 'merger' else service
+        # 'merger' and 'calculator' are hosted in the analyzer service
+        target_service = 'analyzer' if service in ['merger', 'calculator'] else service
         
         success = start_service(target_service)
         if success:

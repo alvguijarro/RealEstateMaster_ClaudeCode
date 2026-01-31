@@ -442,6 +442,14 @@
         .label-row label {
             margin-bottom: 0;
         }
+
+        /* Specific override for first element to avoid top clipping */
+        .info-icon.force-bottom:hover::after {
+            bottom: auto;
+            top: 24px;
+            left: 0;
+            transform: none;
+        }
     </style>
 </head>
 
@@ -468,7 +476,7 @@
                             <div class="form-group">
                                 <div class="label-row">
                                     <label>Precio Compraventa</label>
-                                    <span class="info-icon"
+                                    <span class="info-icon force-bottom"
                                         data-tooltip="Incluye el precio del inmueble. El ITP se calcula aparte según la comunidad (del 4% al 10%).">i</span>
                                 </div>
                                 <div class="input-wrapper">
@@ -595,7 +603,7 @@
                                     <div class="label-row">
                                         <label>Gestoría</label>
                                         <span class="info-icon"
-                                            data-tooltip="Trámites administrativos de la hipoteca (impuestos, registro). Suele pagarlo el inversor.">i</span>
+                                            data-tooltip="Trámites administrativos de la hipoteca (impuestos, registro).">i</span>
                                     </div>
                                     <div class="input-wrapper">
                                         <input type="number" id="gestoria" value="300" oninput="calcAll()">
@@ -716,7 +724,7 @@
                             <div class="row-4">
                                 <div class="form-group">
                                     <div class="label-row">
-                                        <label>Seguro Hogar</label>
+                                        <label>Seguro de hogar</label>
                                         <span class="info-icon"
                                             data-tooltip="Prima anual del seguro de continente y contenido.">i</span>
                                     </div>
@@ -726,14 +734,14 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Seguro Vida</label>
+                                    <label>Seguro de vida</label>
                                     <div class="input-wrapper">
                                         <input type="number" id="seguroVida" value="150" oninput="calcAll()">
                                         <span class="suffix">€/año</span>
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Seguro Impago</label>
+                                    <label>Seguro de impago</label>
                                     <div class="input-wrapper">
                                         <input type="number" id="seguroImpago" value="5" step="1" oninput="calcAll()">
                                         <span class="suffix">%</span>
@@ -742,8 +750,7 @@
                                 <div class="form-group">
                                     <div class="label-row">
                                         <label>IBI</label>
-                                        <span class="info-icon"
-                                            data-tooltip="Impuesto sobre Bienes Inmuebles. Gasto anual municipal.">i</span>
+                                        <span class="info-icon" data-tooltip="Impuesto sobre Bienes Inmuebles.">i</span>
                                     </div>
                                     <div class="input-wrapper">
                                         <input type="number" id="ibi" value="650" oninput="calcAll()">
@@ -757,9 +764,9 @@
 
                             <div class="form-group">
                                 <div class="label-row">
-                                    <label>Salario Bruto Anual</label>
+                                    <label>Salario bruto anual</label>
                                     <span class="info-icon"
-                                        data-tooltip="Determina el tramo de IRPF. Aplica reducción del 50-60% si es vivienda habitual.">i</span>
+                                        data-tooltip="Determina el tramo de IRPF. Aplica reducción del 50% si es vivienda habitual.">i</span>
                                 </div>
                                 <select id="tramoIrpf" onchange="calcAll()">
                                     <option value="0.19">0€ - 12.450€ (19% → Efectivo: 7.6%)</option>
@@ -775,23 +782,23 @@
 
                     <!-- Right Column: Results -->
                     <div class="card">
-                        <h3 class="section-title">🚀 Resumen de Inversión</h3>
+                        <h3 class="section-title">🚀 Resumen de inversión</h3>
 
                         <div class="results-grid">
                             <div class="metric-card">
-                                <div class="metric-label">Precio Entrada Total</div>
+                                <div class="metric-label">Precio entrada total</div>
                                 <div class="metric-value" id="precioEntradaTotal">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Capital Propio</div>
+                                <div class="metric-label">Capital propio</div>
                                 <div class="metric-value" id="capitalPropio" style="color:var(--accent)">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Préstamo Hipotecario</div>
+                                <div class="metric-label">Préstamo hipotecario</div>
                                 <div class="metric-value" id="prestamo">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Cuota Anual</div>
+                                <div class="metric-label">Cuota anual</div>
                                 <div class="metric-value" id="cuotaAnual">0 €</div>
                             </div>
                         </div>
@@ -800,15 +807,15 @@
 
                         <div class="results-grid">
                             <div class="metric-card">
-                                <div class="metric-label">Intereses Hip. Año 1</div>
+                                <div class="metric-label">Intereses hip. año 1</div>
                                 <div class="metric-value" id="interesesAnio1" style="color:var(--danger)">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Total Gastos Anuales</div>
+                                <div class="metric-label">Total gastos anuales</div>
                                 <div class="metric-value" id="totalGastosAnuales" style="color:var(--warning)">0 €</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Beneficio (antes imp.)</div>
+                                <div class="metric-label">Beneficio (antes de imp.)</div>
                                 <div class="metric-value" id="beneficioAntes">0 €</div>
                             </div>
                             <div class="metric-card">
@@ -817,11 +824,11 @@
                                 </div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Impuestos (Aprox)</div>
+                                <div class="metric-label">Impuestos (aprox)</div>
                                 <div class="metric-value" id="impuestosAprox" style="color:var(--danger)">0 €</div>
                             </div>
                             <div class="metric-card" style="border: 1px solid var(--success)">
-                                <div class="metric-label">Beneficio (después imp.)</div>
+                                <div class="metric-label">Beneficio (después de imp.)</div>
                                 <div class="metric-value" id="beneficioDespues">0 €</div>
                             </div>
                         </div>
@@ -841,7 +848,7 @@
                                     <div class="label-row" style="justify-content:flex-end;">
                                         <span class="info-icon" style="margin-right:5px; margin-left:0;"
                                             data-tooltip="Ingresos anuales divididos por el coste total de la inversión.">i</span>
-                                        Rentabilidad Bruta
+                                        Rentabilidad bruta
                                     </div>
                                     <td id="rentBrutaP">0%</td>
                                     <td id="rentBrutaO">0%</td>
@@ -850,7 +857,7 @@
                                     <div class="label-row" style="justify-content:flex-end;">
                                         <span class="info-icon" style="margin-right:5px; margin-left:0;"
                                             data-tooltip="Beneficio neto (ingresos - gastos) dividido por la inversión total.">i</span>
-                                        Rentabilidad Neta
+                                        Rentabilidad neta
                                     </div>
                                     <td id="rentNetaP">0%</td>
                                     <td id="rentNetaO">0%</td>
@@ -859,7 +866,7 @@
                                     <div class="label-row" style="justify-content:flex-end;">
                                         <span class="info-icon" style="margin-right:5px; margin-left:0;"
                                             data-tooltip="Dinero real en el bolsillo tras pagar gastos y cuota hipotecaria.">i</span>
-                                        Cashflow Anual (post deuda)
+                                        Cashflow anual (post deuda)
                                     </div>
                                     <td id="cashflowP">0 €</td>
                                     <td id="cashflowO">0 €</td>
@@ -867,7 +874,7 @@
                                 <tr>
                                     <div class="label-row" style="justify-content:flex-end;">
                                         <span class="info-icon" style="margin-right:5px; margin-left:0;"
-                                            data-tooltip="ROE (Return on Equity): Cashflow sobre capital aportado. Mide el efecto apalancamiento.">i</span>
+                                            data-tooltip="ROE (Return on Equity): cashflow sobre capital aportado. Mide el efecto del apalancamiento.">i</span>
                                         ROCE
                                     </div>
                                     <td id="roceP">0%</td>
@@ -946,16 +953,16 @@
                         <!-- Summary Cards -->
                         <div class="summary-row">
                             <div class="summary-card highlight">
-                                <div class="label">Cuota Mensual</div>
+                                <div class="label">Cuota mensual</div>
                                 <div class="value" id="hipCuota">0 €</div>
                             </div>
                             <div class="summary-card">
-                                <div class="label">Total a Pagar</div>
+                                <div class="label">Total a pagar</div>
                                 <div class="value" id="hipTotal">0 €</div>
                                 <div class="sub">Capital + Intereses</div>
                             </div>
                             <div class="summary-card">
-                                <div class="label">Intereses Totales</div>
+                                <div class="label">Intereses totales</div>
                                 <div class="value" id="hipIntereses" style="color:var(--danger)">0 €</div>
                                 <div class="sub" id="hipInteresesPct">0% del capital</div>
                             </div>
@@ -963,19 +970,19 @@
 
                         <div class="summary-row" style="grid-template-columns: repeat(2, 1fr);">
                             <div class="summary-card">
-                                <div class="label">Intereses Año 1</div>
+                                <div class="label">Intereses año 1</div>
                                 <div class="value" id="hipInteresesAnio1" style="color:var(--warning)">0 €</div>
-                                <div class="sub">Deducibles en Análisis</div>
+                                <div class="sub">Deducibles</div>
                             </div>
                             <div class="summary-card">
-                                <div class="label">Parte Devolución Año 1</div>
+                                <div class="label">Parte devolución año 1</div>
                                 <div class="value" id="hipDevolucionAnio1">0 €</div>
                                 <div class="sub">Cuota anual - Intereses</div>
                             </div>
                         </div>
 
                         <!-- Amortization Table -->
-                        <h3 class="section-title">📅 Cuadro de Amortización</h3>
+                        <h3 class="section-title">📅 Cuadro de amortización</h3>
                         <div class="amort-table-container">
                             <table class="amort-table">
                                 <thead>
