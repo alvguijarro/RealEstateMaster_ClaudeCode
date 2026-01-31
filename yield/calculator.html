@@ -715,9 +715,17 @@
                                         <span class="info-icon"
                                             data-tooltip="Se estima un 10% de la renta anual para reparaciones imprevistas.">i</span>
                                     </div>
-                                    <div class="input-wrapper">
-                                        <input type="number" id="maintenance" value="10" step="1" oninput="calcAll()">
-                                        <span class="suffix">%</span>
+                                    <div style="display: flex; gap: 10px;">
+                                        <div class="input-wrapper" style="flex: 0 0 45%;">
+                                            <input type="number" id="maintenance" value="10" step="1"
+                                                oninput="calcAll()">
+                                            <span class="suffix">%</span>
+                                        </div>
+                                        <div class="input-wrapper" style="flex: 1;">
+                                            <input type="text" id="maintenanceVal" readonly tabindex="-1"
+                                                style="text-align: right; padding-right: 30px;">
+                                            <span class="suffix">€</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-group">
@@ -726,9 +734,16 @@
                                         <span class="info-icon"
                                             data-tooltip="Estimación de tiempo (ej. 5%) que el piso puede estar vacío entre inquilinos.">i</span>
                                     </div>
-                                    <div class="input-wrapper">
-                                        <input type="number" id="vacantes" value="5" step="1" oninput="calcAll()">
-                                        <span class="suffix">%</span>
+                                    <div style="display: flex; gap: 10px;">
+                                        <div class="input-wrapper" style="flex: 0 0 45%;">
+                                            <input type="number" id="vacantes" value="5" step="1" oninput="calcAll()">
+                                            <span class="suffix">%</span>
+                                        </div>
+                                        <div class="input-wrapper" style="flex: 1;">
+                                            <input type="text" id="vacantesVal" readonly tabindex="-1"
+                                                style="text-align: right; padding-right: 30px;">
+                                            <span class="suffix">€</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -754,9 +769,17 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Seguro de impago</label>
-                                    <div class="input-wrapper">
-                                        <input type="number" id="seguroImpago" value="5" step="1" oninput="calcAll()">
-                                        <span class="suffix">%</span>
+                                    <div style="display: flex; gap: 10px;">
+                                        <div class="input-wrapper" style="flex: 0 0 45%;">
+                                            <input type="number" id="seguroImpago" value="5" step="1"
+                                                oninput="calcAll()">
+                                            <span class="suffix">%</span>
+                                        </div>
+                                        <div class="input-wrapper" style="flex: 1;">
+                                            <input type="text" id="seguroImpagoVal" readonly tabindex="-1"
+                                                style="text-align: right; padding-right: 30px;">
+                                            <span class="suffix">€</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-group">
@@ -1271,6 +1294,11 @@
             const mantenimiento = rentAnual * maintenancePct;
             const seguroImpago = rentAnual * seguroImpagoPct;
             const periodosVacantes = rentAnual * vacantesPct;
+
+            // Update readonly percent-based value inputs
+            document.getElementById('maintenanceVal').value = Math.round(mantenimiento).toLocaleString('es-ES');
+            document.getElementById('vacantesVal').value = Math.round(periodosVacantes).toLocaleString('es-ES');
+            document.getElementById('seguroImpagoVal').value = Math.round(seguroImpago).toLocaleString('es-ES');
 
             // Total includes: comunidad, mantenimiento, seguros, IBI, intereses hipoteca, vacantes
             const totalGastosAnuales = communityAnual + mantenimiento + seguroHogar + seguroVida + seguroImpago + ibi + interesesAnio1 + periodosVacantes;
