@@ -853,20 +853,19 @@
                                 <tr>
                                     <td>
                                         <div class="label-row" style="justify-content:flex-start;">
-                                            <span class="info-icon" style="margin-right:5px; margin-left:0;"
-                                                data-tooltip="Ingresos anuales divididos por el coste total de la inversión.">i</span>
                                             Rentabilidad Bruta
+                                            <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                                data-tooltip="Ingresos anuales divididos por el coste total de la inversión.">i</span>
                                         </div>
                                     </td>
-                                    <td id="rentBrutaP">0%</td>
-                                    <td id="rentBrutaO">0%</td>
+                                    <td id="rentBrutaP" colspan="2">0%</td>
                                 </tr>
                                 <tr>
                                     <td>
                                         <div class="label-row" style="justify-content:flex-start;">
-                                            <span class="info-icon" style="margin-right:5px; margin-left:0;"
-                                                data-tooltip="Beneficio neto (ingresos - gastos) dividido por la inversión total.">i</span>
                                             Rentabilidad Neta
+                                            <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                                data-tooltip="Beneficio neto (ingresos - gastos) dividido por la inversión total.">i</span>
                                         </div>
                                     </td>
                                     <td id="rentNetaP">0%</td>
@@ -875,9 +874,9 @@
                                 <tr>
                                     <td>
                                         <div class="label-row" style="justify-content:flex-start;">
-                                            <span class="info-icon" style="margin-right:5px; margin-left:0;"
-                                                data-tooltip="Dinero real en el bolsillo tras pagar gastos y cuota hipotecaria.">i</span>
                                             Cashflow Anual (post deuda)
+                                            <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                                data-tooltip="Dinero real en el bolsillo tras pagar gastos y cuota hipotecaria.">i</span>
                                         </div>
                                     </td>
                                     <td id="cashflowP">0 €</td>
@@ -886,9 +885,9 @@
                                 <tr>
                                     <td>
                                         <div class="label-row" style="justify-content:flex-start;">
-                                            <span class="info-icon" style="margin-right:5px; margin-left:0;"
-                                                data-tooltip="ROE (Return on Equity): Cashflow sobre capital aportado. Mide el efecto apalancamiento.">i</span>
                                             ROCE
+                                            <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                                data-tooltip="ROE (Return on Equity): Cashflow sobre capital aportado. Mide el efecto apalancamiento.">i</span>
                                         </div>
                                     </td>
                                     <td id="roceP">0%</td>
@@ -1273,7 +1272,6 @@
             beneficioDespuesEl.className = 'metric-value ' + (beneficioDespues >= 0 ? 'positive' : 'negative');
 
             document.getElementById('rentBrutaP').innerText = fmtPct(rentBruta);
-            document.getElementById('rentBrutaO').innerText = fmtPct(rentBruta);
             document.getElementById('rentNetaP').innerText = fmtPct(rentNetaPrudente);
             document.getElementById('rentNetaO').innerText = fmtPct(rentNetaOptimista);
             document.getElementById('cashflowP').innerText = fmt(cashflowPrudente);
