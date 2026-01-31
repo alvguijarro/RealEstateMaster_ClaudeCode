@@ -405,7 +405,7 @@
             padding: 10px;
             border-radius: 8px;
             font-size: 0.75rem;
-            width: 220px;
+            width: 200px;
             text-align: left;
             z-index: 1000;
             pointer-events: none;
@@ -413,6 +413,24 @@
             border: 1px solid var(--border);
             white-space: normal;
             line-height: 1.4;
+        }
+
+        /* Smart positioning to avoid clipping in grids */
+        /* First element in a row: align tooltip to left (going right) */
+        .row>.form-group:first-child .info-icon:hover::after,
+        .row-3>.form-group:first-child .info-icon:hover::after,
+        .row-4>.form-group:first-child .info-icon:hover::after {
+            left: -5px;
+            transform: none;
+        }
+
+        /* Last element in a row: align tooltip to right (going left) */
+        .row>.form-group:last-child .info-icon:hover::after,
+        .row-3>.form-group:last-child .info-icon:hover::after,
+        .row-4>.form-group:last-child .info-icon:hover::after {
+            left: auto;
+            right: -5px;
+            transform: none;
         }
 
         .label-row {
