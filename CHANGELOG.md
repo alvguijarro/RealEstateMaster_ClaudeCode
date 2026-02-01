@@ -8,6 +8,7 @@
 - **High-Speed Indexing**: Created `idx_analytics_fast` for instant queries by Province/Operation.
 - **Robust Ingestion**: Updated input processing to handle multi-sheet Excel files and sanitize integer parsing.
 - **Strict filtering**: Ingestion now strictly filters files by 'venta'/'alquiler' keywords to ensure data integrity.
+- **Full Data Load**: Successfully reloaded all historical data from Excel archives, ensuring 100% sheet coverage.
 
 ## [2026-01-31]
 
