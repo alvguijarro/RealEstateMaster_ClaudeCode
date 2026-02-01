@@ -463,3 +463,36 @@ class ScraperSession:
         existing_df_target = load_existing_specific_sheet(out_effective, self.detected_sheet or self.sheet_name)
         export_single_sheet(existing_df_target, self.additions, out_effective, self.detected_sheet or self.sheet_name, carry_cols=set())
         log("INFO", f"Added {len(self.additions)} new rows this session.")
+
+        # =============================================================================
+        # DATABASE EXPORT
+        # =============================================================================
+        try:
+            # Add parent directory to path to find database_manager
+            import sys
+            import os
+            import pandas as pd
+            
+            current_dir = os.path.dirname(os.path.abspath(__file__)) # idealista_scraper/
+            scraper_dir = os.path.dirname(current_dir) # scraper/
+            
+            if scraper_dir not in sys.path:
+                sys.path.append(scraper_dir)
+                
+            from database_manager import DatabaseManager
+            
+            db_path = os.path.join(scraper_dir, 'real_estate.db')
+            db = DatabaseManager(db_path)
+            
+            if self.additions:
+                df_add = pd.DataFrame(self.additions)
+                # Ensure 'Provincia' is present if possible (usually is)
+                
+                # Use the effective output filename as the source
+                source_name = os.path.basename(out_effective)
+                
+                db.save_listings_from_df(df_add, source_file=source_name)
+                log("OK", f"✅ [DB] Successfully saved {len(self.additions)} new listings to local database.")
+                
+        except Exception as e:
+            log("WARN", f"❌ [DB] Could not save to database: {e}")

@@ -85,6 +85,21 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # =============================================================================
+# DATABASE INTEGRATION
+# =============================================================================
+try:
+    # Add scraper directory to path to import database_manager
+    scraper_path = os.path.join(os.path.dirname(__file__), '..', 'scraper')
+    if scraper_path not in sys.path:
+        sys.path.append(scraper_path)
+    from database_manager import DatabaseManager
+    DB_AVAILABLE = True
+    print("  [DB] Database Manager loaded successfully")
+except Exception as e:
+    DB_AVAILABLE = False
+    print(f"  [DB] Database Manager not available: {e}")
+
+# =============================================================================
 # ML RENT MODEL IMPORT (with fallback)
 # =============================================================================
 try:
@@ -335,6 +350,61 @@ def phase_load(config, use_cache=True):
     )
     print(f"    -> {len(df_alquiler)} rows from {len(xl_alquiler.sheet_names)} sheets")
     
+    # --- ENRICH WITH HISTORICAL DATA ---
+    if DB_AVAILABLE:
+        try:
+            print("\n  [DB] Checking for historical data in database...")
+            # Initialize DB connection
+            db_path = os.path.join(scraper_path, 'real_estate.db')
+            db = DatabaseManager(db_path)
+            
+            # 1. Identify Target Province
+            # We look at the loaded data to find the province
+            provinces = []
+            if 'Provincia' in df_venta.columns:
+                provinces.extend(df_venta['Provincia'].dropna().unique())
+            
+            # If standard column missing (older files), try finding it in other columns or just skip
+            # Assuming 'Provincia' exists as per schema
+            
+            if provinces:
+                target_prov = pd.Series(provinces).mode()[0]
+                print(f"    -> Target Province detected: {target_prov}")
+                
+                # 2. Fetch Historical ALQUILER Data
+                # We prioritize enriching the rental data for the model
+                df_hist_alq = db.get_historical_data(target_prov, operation_type='alquiler')
+                
+                if not df_hist_alq.empty:
+                    print(f"    -> Found {len(df_hist_alq)} historical rental records in DB")
+                    
+                    # 3. Merge with current df_alquiler
+                    # Concatenate
+                    # We must ensure columns match or at least important ones
+                    # The DB returns original column names so it should be compatible
+                    
+                    # Convert DB types if needed (though pandas/sqlite handles most)
+                    # DB might return None for missing numbers, keep an eye
+                    
+                    combined_alq = pd.concat([df_alquiler, df_hist_alq], ignore_index=True)
+                    
+                    # Deduplicate by URL (keep latest from current file if conflict? or keep latest date?)
+                    # If 'URL' column exists
+                    if 'URL' in combined_alq.columns:
+                        before_dedup = len(combined_alq)
+                        combined_alq = combined_alq.drop_duplicates(subset=['URL'], keep='last')
+                        print(f"    -> Merged & Deduplicated: {len(df_alquiler)} + {len(df_hist_alq)} => {len(combined_alq)} rows")
+                    
+                    df_alquiler = combined_alq
+                    
+                else:
+                    print("    -> No historical rental data found for this province.")
+            else:
+                print("    -> Could not detect province from input file.")
+                
+        except Exception as e:
+            print(f"    [WARN] Database enrichment failed: {e}")
+            
     result = (df_venta, df_alquiler)
     save_checkpoint(config, 'load', result)
     return result

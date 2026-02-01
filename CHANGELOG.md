@@ -1,5 +1,14 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-01]
+
+### Added
+- **Optimized Database Schema**: Unified `listings` table for maximum efficiency with "Analyzer Pro".
+- **Logical Separation**: Added `operation` ('VENTA'/'ALQUILER') and `province` columns with auto-population logic.
+- **High-Speed Indexing**: Created `idx_analytics_fast` for instant queries by Province/Operation.
+- **Robust Ingestion**: Updated input processing to handle multi-sheet Excel files and sanitize integer parsing.
+- **Strict filtering**: Ingestion now strictly filters files by 'venta'/'alquiler' keywords to ensure data integrity.
+
 ## [2026-01-31]
 
 ### Added
