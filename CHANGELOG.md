@@ -10,6 +10,14 @@
 - **API Price Filter (300k Max)**: Added `API_MAX_PRICE=300000` configuration to limit property downloads to ≤300,000€.
     - The `fetch_api_page` function in `api_client.py` now includes `&maxPrice=300000` in all API requests by default.
     - This reduces database load and API calls by filtering out high-priced properties at the source.
+- **Background Enrichment Worker** (`scripts/enrich_worker.py`): Automatic hybrid API+Scraper approach.
+    - Reads URLs from API-downloaded Excel files and visits each to extract missing fields.
+    - **18 additional fields**: m2 útiles, orientación, año construcción, certificación energética, gastos comunidad, okupado, copropiedad, con inquilino, nuda propiedad, cesión remate, etc.
+    - Price filter: Only enriches properties ≤300,000€.
+    - Resume capability: Tracks enriched URLs in `.enrich_state.json`.
+    - Rate limiting: Conservative delays (8-20s between pages, 2-5min between batches).
+    - CAPTCHA detection with manual resolution support.
+    - Run with: `RUN_ENRICH_WORKER.bat` or `python scripts/enrich_worker.py --input "scraper/salidas/API_BATCH_*.xlsx"`
 
 ### Changed
 - **main.py**: Imports ports from `shared.config` instead of hardcoding.
