@@ -410,7 +410,30 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
     full_text = data.get("fullText") or ""
     gastos_comunidad = sanitize_units(data.get("gastosComunidad"))
 
-    precio_por_m2 = normalize_price(ppm2_raw)
+    # Calculate price per m2 as requested by user: (precio / total m2)
+    # This avoids issues with scraped strings where decimal separators were being stripped.
+    if price and m2_construidos and m2_construidos > 0:
+        # Use float for precision, then round or keep as float depending on scale
+        raw_ppm2 = price / m2_construidos
+        # For rent (usually < 100), keep 1-2 decimals. For sale, round to integer.
+        if raw_ppm2 < 100:
+            precio_por_m2 = round(raw_ppm2, 2)
+        else:
+            precio_por_m2 = int(round(raw_ppm2))
+    else:
+        # Fallback to scraped string but handle decimal comma correctly
+        if ppm2_raw:
+            # Spanish format: 1.234,56 -> remove dots, replace comma with dot
+            s_ppm2 = str(ppm2_raw).replace(".", "").replace(",", ".")
+            d_ppm2 = re.sub(r"[^\d.]", "", s_ppm2)
+            try:
+                precio_por_m2 = float(d_ppm2) if d_ppm2 else None
+                if precio_por_m2 and precio_por_m2 >= 100:
+                    precio_por_m2 = int(round(precio_por_m2))
+            except:
+                precio_por_m2 = None
+        else:
+            precio_por_m2 = None
 
     tipo = None
     num_plantas: Optional[int] = None

@@ -861,6 +861,7 @@ function handleStatusChange(data) {
         'stopping': 'Deteniendo...',
         'completed': 'Completado',
         'error': 'Error',
+        'stopped': 'Detenido',
         'captcha': 'CAPTCHA detectado',
         'resting': 'Descansando...'
     };
@@ -888,6 +889,7 @@ function handleStatusChange(data) {
     } else if (status === 'paused') {
         isPaused = true;
         pauseBtn.innerHTML = '<span class="btn-icon">▶</span> Reanudar';
+        pauseBtn.disabled = false;
 
         // Enable mode switching when paused
         fastBtn.style.pointerEvents = 'auto';
@@ -905,56 +907,32 @@ function handleStatusChange(data) {
 
         // Play alarm sound
         playAlarm();
-    } else if (status === 'completed' || status === 'stopped' || status === 'stopping') {
+    } else if (status === 'stopping') {
+        // UI should disable actions while stopping
+        pauseBtn.disabled = true;
+        stopBtn.disabled = true;
+        stopBtn.innerHTML = '<span class="btn-icon">⏳</span> Deteniendo...';
+    } else if (status === 'completed' || status === 'stopped' || status === 'error') {
+        // TERMINAL STATUSES
         if (isUpdateMode) {
             resetUIState();
-            // Add log about completion if needed, handled by server events usually
         } else {
+            // Restore original Stop button text if it was changed to "Deteniendo..."
+            stopBtn.innerHTML = '<span class="btn-icon">⏹</span> Detener';
+
+            // Comprehensive reset
+            resetUIState();
+
             // Check if we can resume (e.g. if stopped manually)
             // Delay slightly to ensure backend file write is finished
             setTimeout(checkResumeState, 1000);
 
-            isRunning = false;
-            isPaused = false;
-            startBtn.disabled = false;
-            pauseBtn.disabled = true;
-            stopBtn.disabled = true;
-            pauseBtn.classList.remove('btn-warning');
-            seedUrlInput.disabled = false;
-            if (typeof validateDualMode === 'function') validateDualMode();
-            stopTimer();
-
-            // Re-enable mode switching
-            fastBtn.style.pointerEvents = 'auto';
-            fastBtn.style.opacity = '1';
-            if (stealthBtn) {
-                stealthBtn.style.pointerEvents = 'auto';
-                stealthBtn.style.opacity = '1';
-            }
-
-            // Show download button
+            // Show download button if file is available
             if (data.file) {
                 downloadBtn.style.display = 'inline-flex';
                 downloadBtn.href = '/api/download';
                 addLog('OK', `Archivo guardado: ${data.file}`);
             }
-            // Re-enable update button
-            if (updateUrlsBtn) updateUrlsBtn.disabled = false;
-            if (startApiImportBtn) startApiImportBtn.disabled = false;
-        }
-    } else if (status === 'error') {
-        if (isUpdateMode) {
-            resetUIState();
-        } else {
-            isRunning = false;
-            startBtn.disabled = false;
-            pauseBtn.disabled = true;
-            stopBtn.disabled = true;
-            seedUrlInput.disabled = false;
-            stopTimer();
-            // Re-enable update button
-            if (updateUrlsBtn) updateUrlsBtn.disabled = false;
-            if (startApiImportBtn) startApiImportBtn.disabled = false;
         }
     }
 }

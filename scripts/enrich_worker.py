@@ -137,29 +137,39 @@ def load_properties_to_enrich(file_path: Path, max_price: int, enriched_urls: Se
 async def enrich_single_property(page, url: str) -> Optional[dict]:
     """Visit a URL and extract missing fields."""
     try:
-        await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        # Use domcontentloaded for faster, more reliable navigation
+        await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        
+        # 1. IMMEDIATE BLOCK CHECK (Title)
+        title = await page.title()
+        t_lower = title.lower()
+        if "uso indebido" in t_lower or "access denied" in t_lower:
+            log("ERR", f"⛔ BLOQUEO DETECTADO (Título): {title}")
+            return {"__blocked__": True}
+
         await simulate_human_interaction(page)
         
         # Check for CAPTCHA
-        title = await page.title()
-        if any(kw in title.lower() for kw in ["captcha", "robot", "verification", "challenge"]):
+        if any(kw in t_lower for kw in ["captcha", "robot", "verification", "challenge"]):
             log("WARN", f"CAPTCHA detected on {url}")
             play_captcha_alert()
             # Wait for manual resolution
             for _ in range(60):  # Wait up to 60 seconds
                 await asyncio.sleep(1)
                 new_title = await page.title()
-                if "idealista" in new_title.lower():
+                if "idealista" in new_title.lower() and "captcha" not in new_title.lower():
                     log("OK", "CAPTCHA resolved!")
                     break
             else:
                 log("ERR", "CAPTCHA not resolved, skipping...")
                 return None
         
-        # Check for blocked
+        # 2. CONTENT BLOCK CHECK
+        # Sometimes title is normal but body says "uso indebido"
         page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
-        if "uso indebido" in page_text.lower() or "bloqueado" in page_text.lower():
-            log("ERR", "BLOCKED! Stopping enrichment.")
+        pt_lower = page_text.lower()
+        if "uso indebido" in pt_lower or "access denied" in pt_lower or "se ha bloqueado" in pt_lower:
+            log("ERR", "⛔ BLOQUEO DETECTADO (Contenido). Deteniendo.")
             return {"__blocked__": True}
         
         # Extract fields
@@ -212,13 +222,26 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
         log("INFO", f"  ... and {len(all_properties) - 10} more")
         return
     
-    # Start browser
+    # Start browser with robust stealth settings
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)  # Visible for CAPTCHA solving
+        # Match main scraper's stealth configuration
+        browser = await p.chromium.launch(
+            headless=False,
+            args=["--start-maximized"],
+            ignore_default_args=["--enable-automation", "--no-sandbox"]
+        )
+        
+        # Use random user agent if available, else standard
+        ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        
         context = await browser.new_context(
             viewport={"width": 1920, "height": 1080},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            user_agent=ua
         )
+        
+        # Critical: Strip webdriver property
+        await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        
         page = await context.new_page()
         
         if HAS_STEALTH:
@@ -241,7 +264,7 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
             enriched = await enrich_single_property(page, url)
             
             if enriched and enriched.get("__blocked__"):
-                log("ERR", "Blocked! Stopping.")
+                log("ERR", "⛔ Uso Indebido detectado (Bloqueo IP/UserAgent). Deteniendo enriquecimiento para proteger perfil.")
                 break
             
             if enriched:

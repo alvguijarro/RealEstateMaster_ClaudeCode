@@ -951,7 +951,8 @@ class ScraperController:
                         self.status = "error"
                         if self.on_status:
                             self.on_status("error", error=str(e))
-                        return
+                        self._stop_evt.set()
+                        break
             
                     # Navigate to seed URL
                     try:
@@ -1045,13 +1046,15 @@ class ScraperController:
                     # If still no count after all retries, log error and exit cleanly
                     if total_count == 0:
                         self.log("ERR", "Deteniendo scraping. URL no válida (0 inmuebles encontrados)")
-                        await browser.close()
+                        await browser.close() if browser else await ctx.close()
+                        self.log("INFO", "✅ Browser closed successfully.")
                         self.is_running = False
                         self.status = "error"
-                        self.log("INFO", "Scraper stopped successfully")
+                        self.log("INFO", "Scraper stopped.")
                         if self.on_status:
                             self.on_status("error", error="0 inmuebles encontrados")
-                        return
+                        self._stop_evt.set() # Ensure we exit the main recovery loop
+                        break
 
             
                     # Detect alquiler/venta from h1 text
@@ -1616,8 +1619,10 @@ class ScraperController:
                             self.log("OK", "Opened second seed URL")
                         except Exception as e:
                             self.log("ERR", f"Could not open second seed URL: {e}")
-                            await browser.close()
-                            return
+                            await (browser.close() if browser else ctx.close())
+                            self.log("INFO", "✅ Browser closed successfully.")
+                            self._stop_evt.set()
+                            break
                     
                         # Re-detect properties count and category for phase 2
                         h1txt = ""
@@ -1823,31 +1828,37 @@ class ScraperController:
             except BlockedException:
                 self.log("ERR", "🛑 HARD STOP: Scraper blocked by Idealista (Uso Indebido).")
                 self.handle_blocked_profile()
-                self._stop_evt.set()
+                self.stop() # This sets status to 'stopping' and _stop_evt.set()
                 self.dual_mode_url = None
                 self.status = "error"
                 if self.on_status:
                     self.on_status("error", error="Acceso bloqueado permanentemente")
                 
-                # Close browser immediately
+                # Close browser immediately but don't re-log confirmation if it will be done at the end
                 try:
                     if browser:
                         await browser.close()
                     elif ctx:
                         await ctx.close()
+                    self.log("OK", "✅ Browser closed successfully.")
                 except:
                     pass
                 break # Exit loop immediately
         
                 # Reset self.is_running = False etc will happen at the very end of run()
             
-            self.log("INFO", f"Scraping finished. Total 'unauthorized access' restarts: {self.unauthorized_restart_count}")
+            self.log("INFO", "Scraping finished.")
             self.log("INFO", "Closing browser...")
-            # Close browser/context properly based on mode
-            if browser is not None:
-                await browser.close()
-            else:
-                await ctx.close()  # Persistent context in Stealth mode
+            # Close browser/context properly based on mode (if not already closed)
+            try:
+                if browser is not None:
+                    await browser.close()
+                elif ctx is not None:
+                    await ctx.close()  # Persistent context in Stealth mode
+                self.log("OK", "✅ Browser closed successfully.")
+            except:
+                # Browser might be already closed
+                pass
         
         # Clear resume state file ONLY on successful completion (not manual stop)
         if not self._stop_evt.is_set():

@@ -199,7 +199,11 @@ def write_excel_with_retry(df: pd.DataFrame, out_path: str, sheet: str):
                             for r in range(header_row + 1, n_rows + 1):
                                 cell = ws[f"{letter}{r}"]
                                 if isinstance(cell.value, (int, float)):
-                                    cell.number_format = "0"
+                                    # Allow 2 decimals for price per m2 if it's small (rent)
+                                    if name == "precio por m2" and cell.value < 100:
+                                        cell.number_format = "0.00"
+                                    else:
+                                        cell.number_format = "0"
 
                     if "price change %" in col_index:
                         col = col_index["price change %"]
@@ -406,7 +410,11 @@ def export_split_by_distrito(existing_df: pd.DataFrame,
                                 for r in range(header_row + 1, n_rows + 1):
                                     cell = ws[f"{letter}{r}"]
                                     if isinstance(cell.value, (int, float)):
-                                        cell.number_format = "0"
+                                        # Allow 2 decimals for price per m2 if it's small (rent)
+                                        if name == "precio por m2" and cell.value < 100:
+                                            cell.number_format = "0.00"
+                                        else:
+                                            cell.number_format = "0"
                         
                         if "price change %" in col_index:
                             col = col_index["price change %"]
