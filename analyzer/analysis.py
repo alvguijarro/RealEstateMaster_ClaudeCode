@@ -353,54 +353,99 @@ def phase_load(config, use_cache=True):
     # --- ENRICH WITH HISTORICAL DATA ---
     if DB_AVAILABLE:
         try:
-            print("\n  [DB] Checking for historical data in database...")
-            # Initialize DB connection
-            db_path = os.path.join(scraper_path, 'real_estate.db')
-            db = DatabaseManager(db_path)
+            print("\n  [BQ] Checking for historical data in BigQuery...")
             
-            # 1. Identify Target Province
-            # We look at the loaded data to find the province
-            provinces = []
-            if 'Provincia' in df_venta.columns:
-                provinces.extend(df_venta['Provincia'].dropna().unique())
+            # Initialize BigQuery connection using service account
+            scraper_path_local = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scraper')
+            key_file = os.path.join(scraper_path_local, 'service-account.json')
             
-            # If standard column missing (older files), try finding it in other columns or just skip
-            # Assuming 'Provincia' exists as per schema
-            
-            if provinces:
-                target_prov = pd.Series(provinces).mode()[0]
-                print(f"    -> Target Province detected: {target_prov}")
+            if os.path.exists(key_file):
+                from google.oauth2 import service_account
+                import pandas_gbq
+                import json
                 
-                # 2. Fetch Historical ALQUILER Data
-                # We prioritize enriching the rental data for the model
-                df_hist_alq = db.get_historical_data(target_prov, operation_type='alquiler')
+                with open(key_file, 'r') as f:
+                    creds_data = json.load(f)
+                    project_id = creds_data.get('project_id')
+                    
+                credentials = service_account.Credentials.from_service_account_file(key_file)
                 
-                if not df_hist_alq.empty:
-                    print(f"    -> Found {len(df_hist_alq)} historical rental records in DB")
+                # 1. Identify Target Province
+                provinces = []
+                if 'Provincia' in df_venta.columns:
+                    provinces.extend(df_venta['Provincia'].dropna().unique())
+                
+                # Initialize empty by default in case no province found
+                df_hist_alq = pd.DataFrame() 
+                
+                if provinces:
+                    target_prov = pd.Series(provinces).mode()[0]
+                    print(f"    -> Target Province detected: {target_prov}")
                     
-                    # 3. Merge with current df_alquiler
-                    # Concatenate
-                    # We must ensure columns match or at least important ones
-                    # The DB returns original column names so it should be compatible
+                    # 2. Fetch Historical ALQUILER Data from BigQuery
+                    query = f"""
+                        SELECT *
+                        FROM `{project_id}.real_estate.oportunidades`
+                        WHERE LOWER(provincia) LIKE '%{target_prov.lower()}%'
+                        AND LOWER(source_file) LIKE '%alquiler%'
+                    """
                     
-                    # Convert DB types if needed (though pandas/sqlite handles most)
-                    # DB might return None for missing numbers, keep an eye
+                    print(f"    -> Executing BQ Query: SELECT * ... WHERE province~'{target_prov}' AND type~'alquiler'")
                     
-                    combined_alq = pd.concat([df_alquiler, df_hist_alq], ignore_index=True)
-                    
-                    # Deduplicate by URL (keep latest from current file if conflict? or keep latest date?)
-                    # If 'URL' column exists
-                    if 'URL' in combined_alq.columns:
-                        before_dedup = len(combined_alq)
-                        combined_alq = combined_alq.drop_duplicates(subset=['URL'], keep='last')
-                        print(f"    -> Merged & Deduplicated: {len(df_alquiler)} + {len(df_hist_alq)} => {len(combined_alq)} rows")
-                    
-                    df_alquiler = combined_alq
-                    
-                else:
-                    print("    -> No historical rental data found for this province.")
+                    df_hist_alq = pandas_gbq.read_gbq(
+                        query,
+                        project_id=project_id,
+                        credentials=credentials
+                    )
             else:
-                print("    -> Could not detect province from input file.")
+                print("    [WARN] Service account key not found. Skipping BigQuery.")
+                df_hist_alq = pd.DataFrame()
+            
+            # --- MERGE LOGIC (Fixed Indentation) ---
+            if not df_hist_alq.empty:
+                print(f"    -> Found {len(df_hist_alq)} historical rental records in BigQuery")
+                
+                # 3. Normalize Columns (BQ snake_case -> Analyzer Format)
+                # Simple mapping for critical columns
+                rename_map = {
+                    'titulo': 'Titulo',
+                    'price': 'price',
+                    'm2_construidos': 'm2 construidos',
+                    'm2_utiles': 'm2 utiles',
+                    'm2_construidos': 'm2 construidos', # Duplicate key in dict, python allows but overwrites.
+                    'm2_utiles': 'm2 utiles',
+                    'num_plantas': 'Num plantas',
+                    'habs': 'habs',
+                    'banos': 'banos',
+                    'ascensor': 'ascensor',
+                    'garaje': 'Garaje',
+                    'terraza': 'Terraza',
+                    'trastero': 'Trastero',
+                    'provincia': 'Provincia',
+                    'ciudad': 'Ciudad',
+                    'distrito': 'Distrito',
+                    'barrio': 'Barrio',
+                    'url': 'URL',
+                    'latitud': 'Latitud',
+                    'longitud': 'Longitud'
+                }
+                df_hist_alq = df_hist_alq.rename(columns=rename_map)
+                
+                # 3. Merge with current df_alquiler
+                
+                combined_alq = pd.concat([df_alquiler, df_hist_alq], ignore_index=True)
+                
+                # Deduplicate by URL (keep latest from current file if conflict? or keep latest date?)
+                # If 'URL' column exists
+                if 'URL' in combined_alq.columns:
+                    before_dedup = len(combined_alq)
+                    combined_alq = combined_alq.drop_duplicates(subset=['URL'], keep='last')
+                    print(f"    -> Merged & Deduplicated: {len(df_alquiler)} + {len(df_hist_alq)} => {len(combined_alq)} rows")
+                
+                df_alquiler = combined_alq
+                    
+            else:
+                print("    -> No historical rental data found in BigQuery for this province.")
                 
         except Exception as e:
             print(f"    [WARN] Database enrichment failed: {e}")

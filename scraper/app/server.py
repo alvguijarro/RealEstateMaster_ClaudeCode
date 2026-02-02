@@ -660,6 +660,111 @@ def stop_update_process():
 
 
 
+@app.route('/api/import-api', methods=['POST'])
+def start_api_import():
+    """Start API Import process."""
+    from scraper.idealista_scraper.api_client import fetch_data_generator
+    from scraper.idealista_scraper.excel_writer import export_split_by_distrito
+    import pandas as pd
+    
+    data = request.get_json()
+    location_id = data.get('location_id', '').strip()
+    operation = data.get('operation', 'rent')
+    max_pages = int(data.get('max_pages', 50))
+    location_name = data.get('location_name', location_id) # Allow passing name if manual
+    
+    if not location_id:
+        return jsonify({'error': 'Location ID is required'}), 400
+        
+    emit_log('INFO', f'Starting API Import for ID: {location_id} ({operation})')
+    emit_status('running', mode='api_import')
+    
+    def run_import():
+        try:
+            generator = fetch_data_generator(
+                location_id=location_id,
+                operation=operation,
+                max_pages=max_pages,
+                on_log=emit_log,
+                location_name=location_name
+            )
+            
+            all_rows = []
+            
+            for event in generator:
+                if event['type'] == 'progress':
+                    emit_progress({
+                        'current_page': event['page'],
+                        'total_pages': max_pages,
+                        'current_properties': event['total'],
+                        'total_properties': 0 
+                    })
+                elif event['type'] == 'batch':
+                    new_rows = event['rows']
+                    all_rows.extend(new_rows)
+                    if new_rows:
+                        emit_property(new_rows[-1])
+
+            if not all_rows:
+                emit_log('WARN', 'API Import finished but no properties found.')
+                emit_status('completed', message='No data found')
+                return
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            from scraper.idealista_scraper.utils import sanitize_filename_part
+            loc_clean = sanitize_filename_part(location_name)
+            
+            filename = f"API_IMPORT_{loc_clean}_{operation}_{timestamp}.xlsx"
+            out_path = os.path.join(DEFAULT_OUTPUT_DIR, filename)
+            
+            emit_log('INFO', f"Exporting {len(all_rows)} properties to {filename}...")
+            
+            export_split_by_distrito(
+                existing_df=pd.DataFrame(),
+                additions=all_rows,
+                out_path=out_path,
+                carry_cols=set()
+            )
+            
+            # Global controller output_file might be needed for download button?
+            # We don't have a scraper_controller instance for API mode...
+            # But the UI checks /api/status.
+            # We can mock a controller state or just set the global output file?
+            # Or just rely on history entry.
+            # But "Download" button uses `scraper_controller.output_file`.
+            # I can create a dummy object?
+            
+            class DummyController:
+                def __init__(self, f, p):
+                    self.output_file = f
+                    self.scraped_properties = p
+                    self.status = 'completed'
+                    self.current_page = 0
+                    self.is_running = False
+            
+            global scraper_controller
+            scraper_controller = DummyController(out_path, all_rows)
+            
+            add_history_entry(
+                seed_url=f"API:{location_id}",
+                properties_count=len(all_rows),
+                category=f"{loc_clean}_{operation}",
+                output_file=out_path
+            )
+            
+            emit_log('OK', f"API Import Successful! Saved: {filename}")
+            emit_status('completed', message='Import successful', output_file=out_path)
+            
+        except Exception as e:
+            emit_log('ERR', f"API Import failed: {e}")
+            emit_status('error', message=str(e))
+
+    thread = threading.Thread(target=run_import, daemon=True)
+    thread.start()
+
+    return jsonify({'status': 'started'})
+
+
 @socketio.on('progress')
 def handle_progress(data):
     """Forward progress events from update_urls.py to UI."""

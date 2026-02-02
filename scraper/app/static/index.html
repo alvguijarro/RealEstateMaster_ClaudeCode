@@ -155,6 +155,42 @@
                         </div>
                     </div>
                 </section>
+
+
+                <!-- API Import Module (New) -->
+                <section class="panel api-import-panel">
+                    <h3
+                        style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                        <span style="margin-right:8px;">📡</span> Importación vía API (RapidAPI)
+                    </h3>
+
+                    <div class="input-group">
+                        <label for="apiLocationId">Location ID (Idealista7 Code)</label>
+                        <input type="text" id="apiLocationId" placeholder="e.g. 0-EU-ES-45 (Toledo)" autocomplete="off">
+                        <small style="color: var(--text-secondary); display: block; margin-top: 5px;">
+                            Ejemplos: Toledo (0-EU-ES-45), Madrid (0-EU-ES-28-07-001-079)
+                        </small>
+                    </div>
+
+                    <div class="form-row" style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <div class="input-group" style="flex: 1;">
+                            <label for="apiOperation">Operación</label>
+                            <select id="apiOperation">
+                                <option value="rent" selected>Alquiler</option>
+                                <option value="sale">Venta</option>
+                            </select>
+                        </div>
+                        <div class="input-group" style="flex: 1;">
+                            <label for="apiMaxPages">Páginas Máx.</label>
+                            <input type="number" id="apiMaxPages" value="50" min="1" max="100">
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" id="startApiImportBtn" style="width: 100%;">
+                        <span class="btn-icon">⬇️</span> Importar desde API
+                    </button>
+
+                </section>
             </div>
 
             <!-- Stats Bar -->

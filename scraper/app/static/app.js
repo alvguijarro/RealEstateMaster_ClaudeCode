@@ -351,6 +351,60 @@ if (resumeUpdateBtn) {
     resumeUpdateBtn.addEventListener('click', () => startUrlUpdate(true));
 }
 
+// API Import Handler
+const startApiImportBtn = document.getElementById('startApiImportBtn');
+
+if (startApiImportBtn) {
+    startApiImportBtn.addEventListener('click', async () => {
+        const locationId = document.getElementById('apiLocationId').value.trim();
+        const operation = document.getElementById('apiOperation').value;
+        const maxPages = document.getElementById('apiMaxPages').value;
+
+        if (!locationId) {
+            addLog('ERR', 'Por favor, introduce un Location ID válido (ej: 0-EU-ES-45)');
+            return;
+        }
+
+        addLog('INFO', `Iniciando importación API para ${locationId}...`);
+
+        // Reset state matches startScraping
+        properties = [];
+        tableBody.innerHTML = '';
+        emptyState.style.display = 'block';
+        downloadBtn.style.display = 'none';
+
+        // Disable buttons
+        startApiImportBtn.disabled = true;
+        if (startBtn) startBtn.disabled = true;
+
+        try {
+            const response = await fetch('/api/import-api', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    location_id: locationId,
+                    operation: operation,
+                    max_pages: maxPages
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                addLog('ERR', data.error || 'Error al iniciar API import');
+                startApiImportBtn.disabled = false;
+                if (startBtn) startBtn.disabled = false;
+            } else {
+                startTimer(); // Track time
+                // Status updates will come via socket
+            }
+        } catch (e) {
+            addLog('ERR', 'Error de conexión: ' + e.message);
+            startApiImportBtn.disabled = false;
+            if (startBtn) startBtn.disabled = false;
+        }
+    });
+}
+
 async function loadDefaultConfig() {
     try {
         const response = await fetch('/api/config');
@@ -642,6 +696,7 @@ function handleStatusChange(data) {
         stopBtn.disabled = false;
         pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
         seedUrlInput.disabled = true;
+        if (startApiImportBtn) startApiImportBtn.disabled = true;
 
         // Mode switching is now allowed during execution (hot-swap)
         fastBtn.style.pointerEvents = 'auto';
@@ -705,6 +760,7 @@ function handleStatusChange(data) {
             }
             // Re-enable update button
             if (updateUrlsBtn) updateUrlsBtn.disabled = false;
+            if (startApiImportBtn) startApiImportBtn.disabled = false;
         }
     } else if (status === 'error') {
         if (isUpdateMode) {
@@ -718,6 +774,7 @@ function handleStatusChange(data) {
             stopTimer();
             // Re-enable update button
             if (updateUrlsBtn) updateUrlsBtn.disabled = false;
+            if (startApiImportBtn) startApiImportBtn.disabled = false;
         }
     }
 }
@@ -765,6 +822,7 @@ async function startScraping(isDualMode = false) {
 
     // Disable Update controls
     if (updateUrlsBtn) updateUrlsBtn.disabled = true;
+    if (startApiImportBtn) startApiImportBtn.disabled = true;
 
     // Detect habitacion mode and switch columns
     if (seedUrl.toLowerCase().includes('habitacion')) {

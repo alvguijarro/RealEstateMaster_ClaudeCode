@@ -1,0 +1,34 @@
+"""Shared module for RealEstateMaster."""
+from .config import (
+    PROJECT_ROOT,
+    SCRAPER_DIR,
+    ANALYZER_DIR,
+    DASHBOARD_DIR,
+    OUTPUT_DIR,
+    DASHBOARD_PORT,
+    ANALYZER_PORT,
+    SCRAPER_PORT,
+    METRICS_PORT,
+    RAPIDAPI_HOST,
+    RAPIDAPI_KEY,
+    GOOGLE_API_KEY,
+    API_MAX_PRICE,
+    DEFAULT_OUTPUT_DIR,
+)
+
+__all__ = [
+    "PROJECT_ROOT",
+    "SCRAPER_DIR",
+    "ANALYZER_DIR",
+    "DASHBOARD_DIR",
+    "OUTPUT_DIR",
+    "DASHBOARD_PORT",
+    "ANALYZER_PORT",
+    "SCRAPER_PORT",
+    "METRICS_PORT",
+    "RAPIDAPI_HOST",
+    "RAPIDAPI_KEY",
+    "GOOGLE_API_KEY",
+    "API_MAX_PRICE",
+    "DEFAULT_OUTPUT_DIR",
+]

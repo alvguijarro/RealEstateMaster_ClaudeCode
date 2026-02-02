@@ -11,6 +11,11 @@ import json
 import time
 from pathlib import Path
 
+# Add project root to path for shared imports
+_PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 from flask import Flask, render_template, jsonify, request
 from flask.json.provider import DefaultJSONProvider
 import pandas as pd

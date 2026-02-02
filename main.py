@@ -7,13 +7,20 @@ import time
 import requests
 from flask import Flask, render_template, jsonify, redirect
 
-app = Flask(__name__)
+# Add project root to path for shared imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Configuration
-SCRAPER_PORT = 5003
-ANALYZER_PORT = 5001
-METRICS_PORT = 5004
-DASHBOARD_PORT = 5000
+# Import from shared config
+try:
+    from shared.config import SCRAPER_PORT, ANALYZER_PORT, METRICS_PORT, DASHBOARD_PORT
+except ImportError:
+    # Fallback for standalone execution
+    SCRAPER_PORT = 5003
+    ANALYZER_PORT = 5001
+    METRICS_PORT = 5004
+    DASHBOARD_PORT = 5000
+
+app = Flask(__name__)
 
 # Process handles
 SCRAPER_PROCESS = None

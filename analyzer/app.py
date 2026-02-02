@@ -1,6 +1,11 @@
 import sys
 import os
 
+# Add project root to path for shared imports
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
 # Add current directory to sys.path for embedded Python compatibility
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -13,8 +18,15 @@ from io import StringIO
 import analysis  # Import the analysis module
 import webbrowser
 import time
-import google.generativeai as genai
 from pathlib import Path
+
+# Import from shared config
+try:
+    from shared.config import GOOGLE_API_KEY
+except ImportError:
+    GOOGLE_API_KEY = None
+
+import google.generativeai as genai
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
@@ -316,10 +328,10 @@ def generate_report():
     if not user_prompt:
         return jsonify({'error': 'Prompt is required'}), 400
         
-    # Hardcoded API Key as requested
-    api_key = "AIzaSyC7IGitg94xGP_ojTEbcnW9sHa24C1tFNM"
+    # Use API Key from shared config
+    api_key = GOOGLE_API_KEY
     if not api_key:
-        return jsonify({'error': 'GOOGLE_API_KEY not found'}), 500
+        return jsonify({'error': 'GOOGLE_API_KEY not found. Set it in shared/config.py or as environment variable.'}), 500
         
     try:
         genai.configure(api_key=api_key)

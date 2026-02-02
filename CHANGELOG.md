@@ -1,5 +1,22 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-02]
+
+### Added
+- **Centralized Configuration Module**: Created `shared/config.py` to unify ports, paths, and API keys across all services.
+    - Ports (SCRAPER_PORT=5003, ANALYZER_PORT=5001, DASHBOARD_PORT=5000, METRICS_PORT=5004) now imported from a single source.
+    - Google API Key for LLM reports now loaded from environment variable `GOOGLE_API_KEY` with fallback to default.
+    - RapidAPI credentials centralized with environment variable support.
+- **API Price Filter (300k Max)**: Added `API_MAX_PRICE=300000` configuration to limit property downloads to ≤300,000€.
+    - The `fetch_api_page` function in `api_client.py` now includes `&maxPrice=300000` in all API requests by default.
+    - This reduces database load and API calls by filtering out high-priced properties at the source.
+
+### Changed
+- **main.py**: Imports ports from `shared.config` instead of hardcoding.
+- **analyzer/app.py**: Uses `GOOGLE_API_KEY` from shared config for LLM report generation.
+- **dashboard/app.py**: Added project root to `sys.path` for shared module access.
+- **scraper/idealista_scraper/api_client.py**: Refactored to use shared config; added `max_price` parameter to `fetch_api_page`.
+
 ## [2026-02-01]
 
 ### Added
