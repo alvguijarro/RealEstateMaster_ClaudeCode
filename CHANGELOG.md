@@ -27,6 +27,16 @@
     - Integrated a live search/filter input to quickly find and select provinces in the batch scan list.
     - Added "SEL. FILTRADAS" and "LIMPIAR" shortcuts for efficient batch configuration.
 - **Premium UI Aesthetic**: Introduced high-fidelity CSS components for selects and section headers, adopting the "Market Metrics" premium theme project-wide.
+- **Robust Scraper Lifecycle**: Improved stop button logic and terminal status handling (`completed`, `stopped`, `error`).
+    - UI now consistently resets state (`resetUIState`) on all terminal statuses.
+    - Added programatic stop triggering when "Uso Indebido" is detected, ensuring immediate UI feedback.
+    - Explicit confirmation of browser closure logged across all exit paths: "✅ Browser closed successfully."
+- **Fixed "Precio por m2" Precision**: Replaced direct text extraction with a robust programatic calculation (`price / m2_construidos`).
+    - Handled Spanish decimal commas (`,`) in fallback extraction to prevent incorrect 100x scaling.
+    - **Smart Formatting**: Applied 2 decimal places for rental prices (values < 100) and integer rounding for sales (values ≥ 100) in Excel exports.
+- **Improved Background Enrichment**:
+    - Replaced early returns with loop breaks in `enrich_worker.py` to ensure final status updates and cleanup.
+    - Harmonized error handling with the main scraper for consistent stealth and block detection.
 
 ### Changed
 - **main.py**: Imports ports from `shared.config` instead of hardcoding.
