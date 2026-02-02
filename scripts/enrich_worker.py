@@ -122,15 +122,14 @@ def load_properties_to_enrich(file_path: Path, max_price: int, enriched_urls: Se
         df["price"] = pd.to_numeric(df["price"], errors="coerce")
         df = df[df["price"] <= max_price]
     
-    price_filtered = len(df)
-    log("INFO", f"  Price filter (≤{max_price}€): {original_count} → {price_filtered}")
+    final_count = len(df)
     
     # Filter out already enriched
     if "URL" in df.columns:
         df = df[~df["URL"].isin(enriched_urls)]
     
-    final_count = len(df)
-    log("INFO", f"  After excluding enriched: {final_count} properties to process")
+    to_process = len(df)
+    log("INFO", f"Procesando {to_process} anuncios (Filtrados por precio <= {max_price}E y no enriquecidos)")
     
     return df
 
@@ -183,8 +182,7 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
     state = load_enrich_state()
     enriched_urls = set(state.get("enriched_urls", []))
     
-    log("INFO", f"Starting enrichment worker. Max price: {max_price}€")
-    log("INFO", f"Previously enriched: {len(enriched_urls)} URLs")
+    log("INFO", f"Iniciando Enriquecedor (Precio max: {max_price}E)")
     
     # Collect all properties to enrich
     all_properties = []
@@ -199,10 +197,10 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                 })
     
     if not all_properties:
-        log("OK", "No properties need enrichment!")
+        log("OK", "No hay inmuebles nuevos para enriquecer.")
         return
     
-    log("INFO", f"Total properties to enrich: {len(all_properties)}")
+    log("INFO", f"Total a procesar: {len(all_properties)} inmuebles")
     
     # Randomize order to avoid sequential access patterns
     random.shuffle(all_properties)

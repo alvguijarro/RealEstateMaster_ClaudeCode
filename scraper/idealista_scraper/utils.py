@@ -24,24 +24,43 @@ def log(kind: str, msg: str) -> None:
     Args:
         kind: Log level/kind - one of: DEBUG, INFO, OK, WARN, ERR
         msg: The message to log
-    
-    Example:
-        >>> log("INFO", "Starting scraper")
-        [12:34:56] [INFO] Starting scraper
     """
-    ts = time.strftime("%H:%M:%S")
-    # Color codes for Windows console (optional enhancement, falls back gracefully)
-    colors = {
-        "DEBUG": "\033[36m",    # Cyan
-        "INFO": "\033[37m",     # White
-        "OK": "\033[32m",       # Green
-        "WARN": "\033[33m",     # Yellow
-        "ERR": "\033[31m",      # Red
-    }
-    reset = "\033[0m"
+    import sys
+    import os
     
-    color = colors.get(kind.upper(), "")
-    print(f"{color}[{ts}] [{kind}]{reset} {msg}")
+    ts = time.strftime("%H:%M:%S")
+    
+    # Detect if we should use colors (terminal only)
+    use_colors = sys.stdout.isatty() and os.environ.get("NO_COLOR") != "1"
+    
+    if use_colors:
+        colors = {
+            "DEBUG": "\033[36m",    # Cyan
+            "INFO": "\033[37m",     # White
+            "OK": "\033[32m",       # Green
+            "WARN": "\033[33m",     # Yellow
+            "ERR": "\033[31m",      # Red
+        }
+        color = colors.get(kind.upper(), "")
+        reset = "\033[0m"
+    else:
+        color = ""
+        reset = ""
+    
+    full_msg = f"[{ts}] [{kind.upper()}] {msg}"
+    
+    try:
+        print(f"{color}{full_msg}{reset}")
+    except UnicodeEncodeError:
+        # Fallback for Windows consoles (cp1252)
+        # Replace non-ascii chars like ≤, → with safe alternatives
+        safe_msg = msg.replace("≤", "<=").replace("→", "->").replace("€", "E")
+        # Final safety net: replace any other unicode with ?
+        try:
+            print(f"{color}[{ts}] [{kind.upper()}] {safe_msg}{reset}")
+        except UnicodeEncodeError:
+            final_msg = full_msg.encode('ascii', 'replace').decode('ascii')
+            print(f"{final_msg}")
 
 
 def play_captcha_alert():

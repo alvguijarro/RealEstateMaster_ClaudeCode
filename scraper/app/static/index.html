@@ -183,26 +183,26 @@
                                 <p class="desc-text">Escaneo completo por provincias.</p>
 
                                 <div class="premium-select-group">
-                                    <label class="premium-label">Buscar Provincias</label>
-                                    <input type="text" id="provinceSearch" placeholder="🔍 Escribe para buscar..."
-                                        class="premium-select"
-                                        style="margin-bottom: 10px; height: 42px; border-bottom-left-radius: 0; border-bottom-right-radius: 0;">
+                                    <label class="premium-label">Filtrar Provincias</label>
+                                    <input type="text" id="provinceSearch"
+                                        placeholder="🔍 Teclea para filtrar la lista..." class="premium-select"
+                                        style="margin-bottom: 8px; height: 40px; font-size: 0.9rem;">
 
                                     <select id="apiProvinces" class="premium-select" multiple
-                                        style="height: 150px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
+                                        style="height: 160px; font-size: 0.9rem;">
                                         <option value="">Cargando provincias...</option>
                                     </select>
 
-                                    <div style="display:flex; justify-content:space-between; margin-top: 8px;">
-                                        <small id="selectedCount"
-                                            style="color: var(--text-muted); font-size: 0.7rem; opacity: 0.8;">0
-                                            seleccionadas. Vacío = TODAS.</small>
+                                    <div style="display:flex; justify-content:space-between; margin-top: 6px;">
+                                        <small id="selectedCount" style="color: var(--text-muted); font-size: 0.7rem;">0
+                                            seleccionadas</small>
                                         <div style="display: flex; gap: 10px;">
-                                            <a href="#" onclick="selectAllProvinces(true); return false;"
-                                                style="font-size: 0.75rem; color: var(--success); text-decoration: none;">FILTRADAS</a>
+                                            <a href="#" onclick="selectAllProvinces(); return false;"
+                                                style="font-size: 0.7rem; color: var(--accent); text-decoration: none; font-weight: 500;">SEL.
+                                                FILTRADAS</a>
                                             <a href="#"
                                                 onclick="document.getElementById('apiProvinces').selectedIndex = -1; updateProvinceCount(); return false;"
-                                                style="font-size: 0.75rem; color: var(--accent); text-decoration: none; font-weight: 600;">LIMPIAR</a>
+                                                style="font-size: 0.7rem; color: var(--text-muted); text-decoration: none;">LIMPIAR</a>
                                         </div>
                                     </div>
                                 </div>
@@ -224,16 +224,12 @@
 
                                 <div class="premium-select-group">
                                     <label class="premium-label">Archivo a Enriquecer</label>
-                                    <div style="position: relative;">
-                                        <select id="enrichFileSelect" class="premium-select">
-                                            <option value="">Cargando archivos...</option>
-                                        </select>
-                                        <span
-                                            style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); pointer-events: none; opacity: 0.6;">▼</span>
-                                    </div>
+                                    <select id="enrichFileSelect" class="premium-select">
+                                        <option value="">Cargando archivos...</option>
+                                    </select>
                                     <small
-                                        style="display: block; margin-top: 5px; color: var(--text-muted); font-size: 0.7rem;">Solo
-                                        archivos de la carpeta /salidas</small>
+                                        style="display: block; color: var(--text-muted); font-size: 0.7rem; opacity: 0.8; margin-top: 4px;">(Últimos
+                                        100 archivos en /salidas)</small>
                                 </div>
 
                                 <div class="btn-group-vertical">

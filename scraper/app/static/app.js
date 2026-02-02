@@ -293,12 +293,13 @@ function selectAllProvinces() {
 // Load Enrichment Files (Optimized)
 async function loadEnrichFiles() {
     try {
-        const response = await fetch('/api/salidas-files');
+        const response = await fetch('/api/salidas-files?limit=100');
         const data = await response.json();
         const select = document.getElementById('enrichFileSelect');
 
         if (select && data.files) {
             select.innerHTML = '';
+            // Newest first is already handled by server, we show a 'Recientes' label
             if (data.files.length === 0) {
                 select.innerHTML = '<option value="">Sin archivos en salidas/</option>';
                 return;
@@ -390,6 +391,8 @@ window.runApiTask = async function (endpoint, operation) {
             const select = document.getElementById('enrichFileSelect');
             if (select && select.value) {
                 body.file_path = select.value;
+                const fileName = select.options[select.selectedIndex].text;
+                addLog('INFO', `🎯 Enriqueciendo: ${fileName}`);
             }
         }
 

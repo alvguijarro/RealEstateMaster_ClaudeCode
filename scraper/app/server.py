@@ -812,6 +812,8 @@ def get_provinces():
 def get_salidas_files():
     """Optimized file listing for scraper/salidas using scandir for maximum performance."""
     try:
+        limit = request.args.get('limit', default=200, type=int)
+        
         # Resolve scraper/salidas relative to this server file
         current_dir = Path(__file__).parent.parent
         salidas_dir = (current_dir / "salidas").resolve()
@@ -823,7 +825,7 @@ def get_salidas_files():
         # scandir is significantly faster for directories with many files
         with os.scandir(salidas_dir) as it:
             for entry in it:
-                if entry.is_file() and entry.name.endswith('.xlsx') and not entry.name.startswith('~$'):
+                if entry.is_file() and entry.name.endswith('.xlsx') and not entry.name.startswith('~$') and not entry.name.startswith('.'):
                     files.append({
                         'name': entry.name,
                         'path': entry.path,
@@ -832,6 +834,10 @@ def get_salidas_files():
         
         # Sort by modification time (newest first)
         files.sort(key=lambda x: x['mtime'], reverse=True)
+        
+        # Apply limit
+        files = files[:limit]
+        
         return jsonify({'files': files})
     except Exception as e:
         print(f"Error in get_salidas_files: {e}")
