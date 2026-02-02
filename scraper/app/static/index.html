@@ -180,26 +180,28 @@
                             <!-- API Scanning -->
                             <div class="api-group">
                                 <h4>📥 Descarga API (Batch)</h4>
-                                <p class="desc-text">Escaneo completo de todas las provincias.</p>
+                                <p class="desc-text">Escaneo completo por provincias.</p>
 
-                                <div
-                                    style="margin-bottom: 20px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid var(--border);">
-                                    <h5
-                                        style="color: var(--text-main); font-size: 0.85rem; display: flex; align-items: center; gap: 8px; margin: 0 0 15px 0; opacity: 0.9;">
-                                        <span style="font-size: 1rem;">⚙️</span> CONFIGURACIÓN
-                                    </h5>
+                                <div class="premium-select-group">
+                                    <label class="premium-label">Buscar Provincias</label>
+                                    <input type="text" id="provinceSearch" placeholder="🔍 Escribe para buscar..."
+                                        class="premium-select"
+                                        style="margin-bottom: 10px; height: 42px; border-bottom-left-radius: 0; border-bottom-right-radius: 0;">
 
-                                    <div class="premium-select-group">
-                                        <label class="premium-label">Provincias</label>
-                                        <select id="apiProvinces" class="premium-select" multiple>
-                                            <option value="">Cargando provincias...</option>
-                                        </select>
-                                        <div style="display:flex; justify-content:space-between; margin-top: 8px;">
-                                            <small
-                                                style="color: var(--text-muted); font-size: 0.7rem; opacity: 0.8;">Ctrl+Click
-                                                (Multi). Vacío = TODAS.</small>
+                                    <select id="apiProvinces" class="premium-select" multiple
+                                        style="height: 150px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
+                                        <option value="">Cargando provincias...</option>
+                                    </select>
+
+                                    <div style="display:flex; justify-content:space-between; margin-top: 8px;">
+                                        <small id="selectedCount"
+                                            style="color: var(--text-muted); font-size: 0.7rem; opacity: 0.8;">0
+                                            seleccionadas. Vacío = TODAS.</small>
+                                        <div style="display: flex; gap: 10px;">
+                                            <a href="#" onclick="selectAllProvinces(true); return false;"
+                                                style="font-size: 0.75rem; color: var(--success); text-decoration: none;">FILTRADAS</a>
                                             <a href="#"
-                                                onclick="document.getElementById('apiProvinces').selectedIndex = -1; return false;"
+                                                onclick="document.getElementById('apiProvinces').selectedIndex = -1; updateProvinceCount(); return false;"
                                                 style="font-size: 0.75rem; color: var(--accent); text-decoration: none; font-weight: 600;">LIMPIAR</a>
                                         </div>
                                     </div>
@@ -220,19 +222,18 @@
                                 <h4>✨ Enriquecimiento (Scraper)</h4>
                                 <p class="desc-text">Completa datos faltantes (≤300k€).</p>
 
-                                <div
-                                    style="margin-bottom: 20px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid var(--border);">
-                                    <h5
-                                        style="color: var(--text-main); font-size: 0.85rem; display: flex; align-items: center; gap: 8px; margin: 0 0 15px 0; opacity: 0.9;">
-                                        <span style="font-size: 1rem;">⚙️</span> CONFIGURACIÓN
-                                    </h5>
-
-                                    <div class="premium-select-group" style="margin-bottom: 0;">
-                                        <label class="premium-label">Archivo a Enriquecer</label>
+                                <div class="premium-select-group">
+                                    <label class="premium-label">Archivo a Enriquecer</label>
+                                    <div style="position: relative;">
                                         <select id="enrichFileSelect" class="premium-select">
                                             <option value="">Cargando archivos...</option>
                                         </select>
+                                        <span
+                                            style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); pointer-events: none; opacity: 0.6;">▼</span>
                                     </div>
+                                    <small
+                                        style="display: block; margin-top: 5px; color: var(--text-muted); font-size: 0.7rem;">Solo
+                                        archivos de la carpeta /salidas</small>
                                 </div>
 
                                 <div class="btn-group-vertical">

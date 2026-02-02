@@ -237,9 +237,10 @@ function getSelectedSheets() {
     return Array.from(selectedWorksheets);
 }
 
-// ==========================================
 // TABS & API DASHBOARD LOGIC
 // ==========================================
+
+let allProvinces = [];
 
 // Load Provinces
 async function loadProvinces() {
@@ -249,39 +250,63 @@ async function loadProvinces() {
         const select = document.getElementById('apiProvinces');
 
         if (select && data.provinces) {
-            select.innerHTML = '';
-            data.provinces.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.id;
-                opt.textContent = p.name;
-                select.appendChild(opt);
-            });
+            allProvinces = data.provinces;
+            renderProvinces(allProvinces);
         }
     } catch (e) {
         console.error("Error loading provinces", e);
     }
 }
 
-// Load Enrichment Files
+function renderProvinces(list) {
+    const select = document.getElementById('apiProvinces');
+    if (!select) return;
+    const currentSelected = new Set(Array.from(select.selectedOptions).map(o => o.value));
+
+    select.innerHTML = '';
+    list.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        if (currentSelected.has(p.id)) opt.selected = true;
+        select.appendChild(opt);
+    });
+    updateProvinceCount();
+}
+
+function updateProvinceCount() {
+    const select = document.getElementById('apiProvinces');
+    const countDisplay = document.getElementById('selectedCount');
+    if (select && countDisplay) {
+        const count = Array.from(select.selectedOptions).length;
+        countDisplay.textContent = `${count} seleccionadas. Vacío = TODAS.`;
+    }
+}
+
+function selectAllProvinces() {
+    const select = document.getElementById('apiProvinces');
+    if (!select) return;
+    Array.from(select.options).forEach(opt => opt.selected = true);
+    updateProvinceCount();
+}
+
+// Load Enrichment Files (Optimized)
 async function loadEnrichFiles() {
     try {
-        const response = await fetch('/api/excel-files');
+        const response = await fetch('/api/salidas-files');
         const data = await response.json();
         const select = document.getElementById('enrichFileSelect');
 
         if (select && data.files) {
             select.innerHTML = '';
-            // Only suggest files from 'salidas' as requested
-            const salidasFiles = data.files.filter(f => f.path.includes('salidas'));
-
-            if (salidasFiles.length === 0) {
+            if (data.files.length === 0) {
                 select.innerHTML = '<option value="">Sin archivos en salidas/</option>';
                 return;
             }
 
-            salidasFiles.forEach(f => {
+            data.files.forEach(f => {
                 const opt = document.createElement('option');
-                opt.value = f.path;
+                opt.value = f.path; // Use full path for the server
                 opt.textContent = f.name;
                 select.appendChild(opt);
             });
@@ -295,6 +320,22 @@ async function loadEnrichFiles() {
 document.addEventListener('DOMContentLoaded', () => {
     loadProvinces();
     loadEnrichFiles();
+
+    // Province Search Listener
+    const provSearch = document.getElementById('provinceSearch');
+    if (provSearch) {
+        provSearch.addEventListener('input', () => {
+            const term = provSearch.value.toLowerCase();
+            const filtered = allProvinces.filter(p => p.name.toLowerCase().includes(term));
+            renderProvinces(filtered);
+        });
+    }
+
+    // Province Selection Listener
+    const provSelect = document.getElementById('apiProvinces');
+    if (provSelect) {
+        provSelect.addEventListener('change', updateProvinceCount);
+    }
 
     const tabBtns = document.querySelectorAll('.tab-btn');
     if (tabBtns.length > 0) {

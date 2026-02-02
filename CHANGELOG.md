@@ -24,6 +24,8 @@
     - **Multi-Province Filtering**: Implemented a multi-select province system in the API Batch Scan for granular control over data downloads.
     - **Enrichment File Selector**: Added a dedicated dropdown to select specific files for enrichment from the `salidas/` directory.
     - **Premium UI Aesthetic**: Introduced high-fidelity CSS components for selects and section headers, adopting the "Market Metrics" premium theme project-wide.
+    - **Performance Optimization**: Created optimized `/api/salidas-files` endpoint using `os.scandir`, resolving file selector lag in the Scraper Dashboard.
+    - **Searchable Province Selector**: Implemented live filtering for province selection with a dedicated search input and selection counter.
 
 ### Changed
 - **main.py**: Imports ports from `shared.config` instead of hardcoding.

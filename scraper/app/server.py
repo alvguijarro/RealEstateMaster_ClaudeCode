@@ -808,6 +808,35 @@ PROVINCES_LIST = [
 def get_provinces():
     return jsonify({'provinces': PROVINCES_LIST})
 
+@app.route('/api/salidas-files', methods=['GET'])
+def get_salidas_files():
+    """Optimized file listing for scraper/salidas using scandir for maximum performance."""
+    try:
+        # Resolve scraper/salidas relative to this server file
+        current_dir = Path(__file__).parent.parent
+        salidas_dir = (current_dir / "salidas").resolve()
+        
+        if not salidas_dir.exists():
+            return jsonify({'files': []})
+        
+        files = []
+        # scandir is significantly faster for directories with many files
+        with os.scandir(salidas_dir) as it:
+            for entry in it:
+                if entry.is_file() and entry.name.endswith('.xlsx') and not entry.name.startswith('~$'):
+                    files.append({
+                        'name': entry.name,
+                        'path': entry.path,
+                        'mtime': entry.stat().st_mtime
+                    })
+        
+        # Sort by modification time (newest first)
+        files.sort(key=lambda x: x['mtime'], reverse=True)
+        return jsonify({'files': files})
+    except Exception as e:
+        print(f"Error in get_salidas_files: {e}")
+        return jsonify({'error': str(e), 'files': []}), 500
+
 @app.route('/api/batch-scan', methods=['POST'])
 def run_batch_scan():
     """Run batch API scan script."""
