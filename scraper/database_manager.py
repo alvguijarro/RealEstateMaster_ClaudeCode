@@ -230,6 +230,24 @@ class DatabaseManager:
             except Exception as e:
                 print(f"  [DB] Error saving batch {i//CHUNK_SIZE + 1}: {e}")
 
+    def delete_all_listings(self):
+        """
+        Delete ALL data from the listings table.
+        USED WITH CAUTION.
+        """
+        if not self.connected:
+            return False
+        try:
+            # count = self.client.table('listings').select("*", count='exact').execute().count
+            # Supabase delete requires a filter. To delete all, we filter where id is distinct from 0 (if id exists)
+            # or just 'url' is not null.
+            self.client.table('listings').delete().neq('url', 'NON_EXISTENT_URL_PLACEHOLDER').execute()
+            print("  [DB] All listings deleted successfully.")
+            return True
+        except Exception as e:
+            print(f"  [DB] Error deleting data: {e}")
+            return False
+
     def get_historical_data(self, provincia: str, operation_type: str = None) -> pd.DataFrame:
         """
         Retrieve listings from Supabase filters by province and operation.

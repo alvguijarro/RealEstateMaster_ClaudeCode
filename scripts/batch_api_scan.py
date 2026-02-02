@@ -266,13 +266,14 @@ def run_batch_scan(operation="rent", max_pages=50, delay_between=10, resume=Fals
     file_log("INFO", f"Results Directory: {DEFAULT_OUTPUT_DIR}")
     file_log("INFO", f"===================================================")
     
-    input("\nPress Enter to close this window...")
+    # input("\nPress Enter to close this window...")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run batch API scan.")
     parser.add_argument("--operation", default="rent", choices=["rent", "sale"], help="Operation type")
     parser.add_argument("--max-pages", type=int, default=50, help="Max pages per location")
-    parser.add_argument("--filter", type=str, help="Filter provinces by name or ID (e.g. 'Segovia' or '40')")
+    parser.add_argument("--filter", type=str, help="Filter provinces by name or ID (substring)")
+    parser.add_argument("--provinces", type=str, help="Comma-separated list of province IDs or Names (exact matchish)")
     parser.add_argument("--resume", action="store_true", help="Resume from latest file if exists")
     
     args = parser.parse_args()
@@ -287,4 +288,19 @@ if __name__ == "__main__":
         ]
         print(f"Filtered provinces from {original_count} to {len(PROVINCES_TO_SCAN)} matching '{args.filter}'")
     
+    if args.provinces:
+        original_count = len(PROVINCES_TO_SCAN)
+        target_list = [t.strip().lower() for t in args.provinces.split(',')]
+        
+        filtered = []
+        for p in PROVINCES_TO_SCAN:
+            p_name = p['name'].lower()
+            p_id = p['id'].lower()
+            # Match if any target is in name OR equals ID
+            if any(t == p_name or t == p_id or t in p_name for t in target_list):
+                 filtered.append(p)
+        
+        PROVINCES_TO_SCAN = filtered
+        print(f"Selected {len(PROVINCES_TO_SCAN)} provinces from list: {args.provinces}")
+
     run_batch_scan(operation=args.operation, max_pages=args.max_pages, resume=args.resume)

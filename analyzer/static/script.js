@@ -861,3 +861,49 @@ window.openCalc = function (price, rent, comunidad) {
         window.open(`/calculator?price=${price}&rent=${rent}&comunidad=${comunidad}`, '_blank');
     }
 };
+
+/* OVERRIDE: Support for 'sale' and 'rent' keywords */
+function validateFileSelection() {
+    const vVal = document.getElementById('ventaFile').value;
+    const aVal = document.getElementById('alquilerFile').value;
+
+    const vWarning = document.getElementById('ventaWarning');
+    if (vVal && !vVal.toLowerCase().includes('venta') && !vVal.toLowerCase().includes('sale')) {
+        vWarning.style.display = 'block';
+    } else {
+        vWarning.style.display = 'none';
+    }
+
+    const aWarning = document.getElementById('alquilerWarning');
+    if (aVal && !aVal.toLowerCase().includes('alquiler') && !aVal.toLowerCase().includes('rent')) {
+        aWarning.style.display = 'block';
+    } else {
+        aWarning.style.display = 'none';
+    }
+    validateAnalyzeButton();
+}
+
+function validateAnalyzeButton() {
+    const btn = document.getElementById('btnAnalyze');
+    const textEl = document.getElementById('btnText');
+    const isRunning = textEl && textEl.textContent !== 'COMENZAR ANALISIS';
+
+    if (isRunning) return;
+
+    const vVal = document.getElementById('ventaFile').value;
+    const aVal = document.getElementById('alquilerFile').value;
+
+    const vValid = vVal && (vVal.toLowerCase().includes('venta') || vVal.toLowerCase().includes('sale'));
+    const aValid = aVal && (aVal.toLowerCase().includes('alquiler') || aVal.toLowerCase().includes('rent'));
+
+    if (vValid && aValid) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+    } else {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+    }
+}
+

@@ -237,6 +237,142 @@ function getSelectedSheets() {
     return Array.from(selectedWorksheets);
 }
 
+// ==========================================
+// TABS & API DASHBOARD LOGIC
+// ==========================================
+
+// Load Provinces
+async function loadProvinces() {
+    try {
+        const response = await fetch('/api/provinces');
+        const data = await response.json();
+        const select = document.getElementById('apiProvinces');
+
+        if (select && data.provinces) {
+            select.innerHTML = '';
+            data.provinces.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                select.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.error("Error loading provinces", e);
+    }
+}
+
+// Load Enrichment Files
+async function loadEnrichFiles() {
+    try {
+        const response = await fetch('/api/excel-files');
+        const data = await response.json();
+        const select = document.getElementById('enrichFileSelect');
+
+        if (select && data.files) {
+            select.innerHTML = '';
+            // Only suggest files from 'salidas' as requested
+            const salidasFiles = data.files.filter(f => f.path.includes('salidas'));
+
+            if (salidasFiles.length === 0) {
+                select.innerHTML = '<option value="">Sin archivos en salidas/</option>';
+                return;
+            }
+
+            salidasFiles.forEach(f => {
+                const opt = document.createElement('option');
+                opt.value = f.path;
+                opt.textContent = f.name;
+                select.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.error("Error loading enrich files", e);
+    }
+}
+
+// Tab Switching
+document.addEventListener('DOMContentLoaded', () => {
+    loadProvinces();
+    loadEnrichFiles();
+
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    if (tabBtns.length > 0) {
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remove active class from all buttons
+                tabBtns.forEach(b => b.classList.remove('active'));
+                // Add active to clicked
+                btn.classList.add('active');
+
+                // Hide all panes
+                document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+
+                // Show target pane
+                const targetId = `tab-${btn.dataset.tab}`;
+                const targetPane = document.getElementById(targetId);
+                if (targetPane) {
+                    targetPane.style.display = 'contents';
+                }
+            });
+        });
+    }
+});
+
+// Run API Task (Exposed globally for onclick)
+window.runApiTask = async function (endpoint, operation) {
+    // Check if scraper is running (optional, but good practice)
+    if (isRunning) {
+        if (!confirm("El scraper principal parece estar activo. ¿Seguro que quieres lanzar esta tarea en paralelo?")) {
+            return;
+        }
+    }
+
+    // UI Feedback
+    addLog('INFO', `⏳ Solicitando Tarea: ${endpoint} ${operation ? '(' + operation + ')' : ''}...`);
+
+    try {
+        const body = {};
+        if (operation) body.operation = operation;
+
+        if (endpoint === 'batch-scan') {
+            const select = document.getElementById('apiProvinces');
+            if (select && select.selectedOptions.length > 0) {
+                const selected = Array.from(select.selectedOptions).map(opt => opt.value);
+                body.provinces = selected;
+                // Add info log
+                addLog('INFO', `🎯 Filtrando por ${selected.length} provincias seleccionadas.`);
+            }
+        }
+
+        if (endpoint === 'enrich') {
+            const select = document.getElementById('enrichFileSelect');
+            if (select && select.value) {
+                body.file_path = select.value;
+            }
+        }
+
+        const response = await fetch(`/api/${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            addLog('OK', `✅ Tarea iniciada: ${data.task}`);
+            addLog('INFO', 'Sigue el progreso en este log...');
+        } else {
+            addLog('ERR', `❌ Error: ${data.message}`);
+            alert(`Error: ${data.message}`);
+        }
+    } catch (e) {
+        addLog('ERR', `❌ Error de conexión: ${e.message}`);
+    }
+};
+
+
 // File selection change listener
 if (updateExcelSelect) {
     updateExcelSelect.addEventListener('change', (e) => {

@@ -18,6 +18,12 @@
     - Rate limiting: Conservative delays (8-20s between pages, 2-5min between batches).
     - CAPTCHA detection with manual resolution support.
     - Run with: `RUN_ENRICH_WORKER.bat` or `python scripts/enrich_worker.py --input "scraper/salidas/API_BATCH_*.xlsx"`
+- **UI & Functional Refinements**:
+    - **Analytics Pro Validation**: Updated file selection to accept English keywords ("sale", "rent") alongside Spanish ("venta", "alquiler").
+    - **Optimized API Dashboard Layout**: Refactored the "API & Database" panel with a horizontal flexbox layout for improved readability.
+    - **Multi-Province Filtering**: Implemented a multi-select province system in the API Batch Scan for granular control over data downloads.
+    - **Enrichment File Selector**: Added a dedicated dropdown to select specific files for enrichment from the `salidas/` directory.
+    - **Premium UI Aesthetic**: Introduced high-fidelity CSS components for selects and section headers, adopting the "Market Metrics" premium theme project-wide.
 
 ### Changed
 - **main.py**: Imports ports from `shared.config` instead of hardcoding.

@@ -777,5 +777,178 @@ def run_server(host='127.0.0.1', port=5003):
     socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
 
 
+
+# =============================================================================
+# API & DATABASE DASHBOARD ENDPOINTS
+# =============================================================================
+
+# List of supported provinces (INE Codes)
+PROVINCES_LIST = [
+    {"id": "0-EU-ES-01", "name": "Alava"}, {"id": "0-EU-ES-02", "name": "Albacete"}, {"id": "0-EU-ES-03", "name": "Alicante"}, 
+    {"id": "0-EU-ES-04", "name": "Almeria"}, {"id": "0-EU-ES-05", "name": "Avila"}, {"id": "0-EU-ES-06", "name": "Badajoz"},
+    {"id": "0-EU-ES-07", "name": "Baleares"}, {"id": "0-EU-ES-08", "name": "Barcelona"}, {"id": "0-EU-ES-09", "name": "Burgos"},
+    {"id": "0-EU-ES-10", "name": "Caceres"}, {"id": "0-EU-ES-11", "name": "Cadiz"}, {"id": "0-EU-ES-12", "name": "Castellon"},
+    {"id": "0-EU-ES-13", "name": "Ciudad Real"}, {"id": "0-EU-ES-14", "name": "Cordoba"}, {"id": "0-EU-ES-15", "name": "A Coruna"},
+    {"id": "0-EU-ES-16", "name": "Cuenca"}, {"id": "0-EU-ES-17", "name": "Girona"}, {"id": "0-EU-ES-18", "name": "Granada"},
+    {"id": "0-EU-ES-19", "name": "Guadalajara"}, {"id": "0-EU-ES-20", "name": "Guipuzcoa"}, {"id": "0-EU-ES-21", "name": "Huelva"},
+    {"id": "0-EU-ES-22", "name": "Huesca"}, {"id": "0-EU-ES-23", "name": "Jaen"}, {"id": "0-EU-ES-24", "name": "Leon"},
+    {"id": "0-EU-ES-25", "name": "Lleida"}, {"id": "0-EU-ES-26", "name": "La Rioja"}, {"id": "0-EU-ES-27", "name": "Lugo"},
+    {"id": "0-EU-ES-28", "name": "Madrid"}, {"id": "0-EU-ES-29", "name": "Malaga"}, {"id": "0-EU-ES-30", "name": "Murcia"},
+    {"id": "0-EU-ES-31", "name": "Navarra"}, {"id": "0-EU-ES-32", "name": "Ourense"}, {"id": "0-EU-ES-33", "name": "Asturias"},
+    {"id": "0-EU-ES-34", "name": "Palencia"}, {"id": "0-EU-ES-35", "name": "Las Palmas"}, {"id": "0-EU-ES-36", "name": "Pontevedra"},
+    {"id": "0-EU-ES-37", "name": "Salamanca"}, {"id": "0-EU-ES-38", "name": "Santa Cruz de Tenerife"},
+    {"id": "0-EU-ES-39", "name": "Cantabria"}, {"id": "0-EU-ES-40", "name": "Segovia"}, {"id": "0-EU-ES-41", "name": "Sevilla"},
+    {"id": "0-EU-ES-42", "name": "Soria"}, {"id": "0-EU-ES-43", "name": "Tarragona"}, {"id": "0-EU-ES-44", "name": "Teruel"},
+    {"id": "0-EU-ES-45", "name": "Toledo"}, {"id": "0-EU-ES-46", "name": "Valencia"}, {"id": "0-EU-ES-47", "name": "Valladolid"},
+    {"id": "0-EU-ES-48", "name": "Vizcaya"}, {"id": "0-EU-ES-49", "name": "Zamora"}, {"id": "0-EU-ES-50", "name": "Zaragoza"},
+    {"id": "0-EU-ES-51", "name": "Ceuta"}, {"id": "0-EU-ES-52", "name": "Melilla"}
+]
+
+@app.route('/api/provinces', methods=['GET'])
+def get_provinces():
+    return jsonify({'provinces': PROVINCES_LIST})
+
+@app.route('/api/batch-scan', methods=['POST'])
+def run_batch_scan():
+    """Run batch API scan script."""
+    global update_process
+    if update_process and update_process.poll() is None:
+        return jsonify({'status': 'error', 'message': 'A task is already running. Please wait.'}), 409
+        
+    data = request.json or {}
+    operation = data.get('operation', 'rent') # rent or sale
+    provinces = data.get('provinces', []) # List of strings
+    
+    script_path = (Path(__file__).parent.parent.parent / "scripts" / "batch_api_scan.py").resolve()
+    
+    cmd = [sys.executable, str(script_path), "--operation", operation, "--resume"]
+    
+    if provinces:
+        # Pass comma-separated list
+        # Ensure we don't have empty strings
+        clean_provs = [p.strip() for p in provinces if p.strip()]
+        if clean_provs:
+            cmd.extend(["--provinces", ",".join(clean_provs)])
+
+    return start_background_task(cmd, f"Batch Scan ({operation.upper()})")
+
+@app.route('/api/enrich', methods=['POST'])
+def run_enrichment():
+    """Run enrichment worker script."""
+    global update_process
+    if update_process and update_process.poll() is None:
+        return jsonify({'status': 'error', 'message': 'A task is already running. Please wait.'}), 409
+    
+    data = request.json or {}
+    operation = data.get('operation', 'rent')
+    file_path = data.get('file_path')
+    
+    script_path = (Path(__file__).parent.parent.parent / "scripts" / "enrich_worker.py").resolve()
+    
+    if file_path:
+        # Use specific file (from picker)
+        input_pattern = file_path
+    else:
+        # Fallback to operation pattern
+        input_pattern = f"scraper/salidas/*_{operation}_*.xlsx"
+    
+    cmd = [sys.executable, str(script_path), "--input", input_pattern, "--max-price", "300000"]
+    return start_background_task(cmd, f"Enrichment ({operation.upper()})")
+
+@app.route('/api/db/upload', methods=['POST'])
+def run_db_upload():
+    """Run upload to Supabase script."""
+    global update_process
+    if update_process and update_process.poll() is None:
+        return jsonify({'status': 'error', 'message': 'A task is already running. Please wait.'}), 409
+        
+    script_path = (Path(__file__).parent.parent / "import_historical_data.py").resolve()
+    
+    cmd = [sys.executable, str(script_path)]
+    return start_background_task(cmd, "Supabase Upload")
+
+@app.route('/api/db/sync-bq', methods=['POST'])
+def run_bq_sync():
+    """Run BigQuery sync script."""
+    global update_process
+    if update_process and update_process.poll() is None:
+        return jsonify({'status': 'error', 'message': 'A task is already running. Please wait.'}), 409
+        
+    script_path = (Path(__file__).parent.parent / "migrate_to_gbq.py").resolve()
+    
+    cmd = [sys.executable, str(script_path)]
+    return start_background_task(cmd, "BigQuery Sync")
+
+@app.route('/api/db/delete', methods=['POST'])
+def run_db_delete():
+    """Delete all data from Supabase."""
+    # This is quick enough to run synchronously in the request, or we can background it.
+    # Let's background it to keep UI responsive and consistent logging.
+    
+    # We'll run a small inline script or just call the function if we can import it.
+    # To keep logging consistent with other tasks, let's run a one-liner script.
+    
+    global update_process
+    if update_process and update_process.poll() is None:
+        return jsonify({'status': 'error', 'message': 'A task is already running. Please wait.'}), 409
+
+    # Python one-liner to call delete
+    cmd = [
+        sys.executable, "-c", 
+        "import sys; sys.path.insert(0, 'scraper'); from database_manager import DatabaseManager; db=DatabaseManager(); db.delete_all_listings()"
+    ]
+    # We need to run this from project root so 'scraper' import works if sys.path isn't set right by default
+    cwd = str(Path(__file__).parent.parent.parent)
+    
+    return start_background_task(cmd, "Supabase Delete", cwd=cwd)
+
+
+def start_background_task(cmd, task_name, cwd=None):
+    """Helper to start a background process and stream output to frontend."""
+    global update_process
+    
+    def run_and_stream():
+        global update_process
+        emit_log("INFO", f"Starting task: {task_name}")
+        emit_log("INFO", f"Command: {' '.join(cmd)}")
+        
+        try:
+            # Use project root as default CWD if not specified
+            working_dir = cwd if cwd else str(Path(__file__).parent.parent.parent)
+            
+            update_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                cwd=working_dir,
+                env={**os.environ, "PYTHONUNBUFFERED": "1"} # Force unbuffered output
+            )
+            
+            for line in iter(update_process.stdout.readline, ''):
+                if line:
+                    emit_log("INFO", line.strip())
+            
+            update_process.wait()
+            rc = update_process.returncode
+            
+            if rc == 0:
+                emit_log("OK", f"Task '{task_name}' completed successfully.")
+            else:
+                emit_log("ERR", f"Task '{task_name}' failed with exit code {rc}")
+                
+        except Exception as e:
+            emit_log("ERR", f"Failed to start task: {e}")
+        finally:
+            update_process = None
+
+    thread = threading.Thread(target=run_and_stream)
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({'status': 'started', 'task': task_name})
+
 if __name__ == '__main__':
+
     run_server()
