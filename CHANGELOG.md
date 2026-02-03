@@ -18,6 +18,9 @@
     - Ensures "Generar informe con IA" and "Deep Research" use the correct geographical context.
 - **Library Upgrade**: Upgraded from `google-generativeai` to `google-genai` (v1.61.0) for better tool support.
 - **Model Upgrade**: Switched Deep Research model to `gemini-3-flash-preview` for latest capabilities.
+- **Feature Unification**: Merged "Generar informe con IA" and "Deep Research".
+    - The "Generar informe" button now triggers the Deep Research engine directly for the top district.
+    - Prompts unified to combine "Visual Analyst" styling with Deep Research data depth.
 
 ### Changed
 - **Frontend Fix**: Fixed "BATCH" appearing in district names by correctly parsing `API_BATCH_` filenames (index 2 for City).

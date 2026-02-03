@@ -625,65 +625,53 @@ window.onclick = (e) => {
 }
 
 // Generate button handler
+// Generate button handler (Unified Logic)
 generateBtn.onclick = async () => {
-    const userPrompt = document.getElementById('promptInput').value;
+    // 1. Close the modal immediately
+    modal.classList.add('hidden');
 
-    // Switch to Processing Mode
-    generateBtn.disabled = true;
-    generateBtn.textContent = "PROCESANDO DISTRITOS...";
-    reportOutput.innerHTML = '';
-    reportOutput.classList.remove('hidden');
+    // 2. Identify target district (Top 1 from sorted results)
+    if (!sortedResults || sortedResults.length === 0) {
+        alert("Primero ejecuta un análisis para obtener resultados.");
+        return;
+    }
+    const topDistrict = sortedResults[0]?.Distrito;
+    if (!topDistrict) {
+        alert("No se encontró un distrito válido.");
+        return;
+    }
 
-    availableDistrictReports = {};
-    const districts = batchDistrictsToAnalyze;
-
-    // Extract province/city from file for context
-    let locationContext = "Madrid"; // Default
+    // 3. Determine Location Context (City/Province) from filename
+    let city = "Madrid";
+    let province = "Madrid";
     const ventaFile = document.getElementById('ventaFile').value;
+
     if (ventaFile) {
         if (ventaFile.startsWith('API_BATCH_')) {
             const parts = ventaFile.split('_');
-            if (parts.length >= 3) locationContext = parts[2];
+            // API_BATCH_City_... -> City at index 2
+            if (parts.length >= 3) {
+                city = parts[2];
+                province = parts[2];
+            }
         } else {
             const parts = ventaFile.split('_');
-            if (parts.length >= 2) locationContext = parts[1];
+            // idealista_City_... -> City at index 1
+            if (parts.length >= 2) {
+                city = parts[1];
+                if (city !== 'Madrid') province = city;
+            }
         }
     }
 
-    for (let i = 0; i < districts.length; i++) {
-        const dist = districts[i];
-        reportOutput.innerHTML += `<div class="log-line">> Generando informe para <strong>${dist}</strong> (${i + 1}/${districts.length})...</div>`;
+    // 4. Construct context-aware district name
+    // Format: "Distrito Name (City, Province)"
+    const fullDistrictName = `${topDistrict} (${city}, ${province})`;
 
-        try {
-            // Combine User Prompt + District Context
-            // Dynamic province injection
-            const fullPrompt = `${userPrompt}\n\n[CONTEXTO]\nDistrito: ${dist}\nProvincia: ${locationContext}\nComunidad Autónoma: ${locationContext}`;
+    console.log(`Starting Unified Deep Research for: ${fullDistrictName}`);
 
-            const res = await fetch('/api/generate-report', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: fullPrompt })
-            });
-
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-
-            availableDistrictReports[dist] = data.report;
-            reportOutput.innerHTML += `<div class="log-line log-success">√ Completado.</div>`;
-
-        } catch (e) {
-            reportOutput.innerHTML += `<div class="log-line log-error">X Error: ${e.message}</div>`;
-        }
-    }
-
-    reportOutput.innerHTML += `<div class="log-line log-highlight">¡Proceso finalizado! Mostrando resultados...</div>`;
-
-    setTimeout(() => {
-        modal.classList.add('hidden');
-        showDistrictReports(districts);
-        generateBtn.disabled = false;
-        generateBtn.textContent = "GENERAR INFORMES";
-    }, 1500);
+    // 5. Execute Deep Research (The Unified Engine)
+    await executeDeepResearch(fullDistrictName);
 };
 
 // ============================================================================

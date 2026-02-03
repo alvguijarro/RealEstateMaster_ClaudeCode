@@ -79,52 +79,75 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     # Prepare Prompt
     topics_list = "\n".join([f"- {t.format(zona=zona)}" for t in RESEARCH_TOPICS])
     
-    prompt = f"""Eres un analista de inversión inmobiliaria experto y riguroso.
-Estás encargado de realizar un informe de "Deep Research" sobre el distrito o zona: "{zona}".
-
-Tu tarea es investigar a fondo utilizando tus herramientas de búsqueda y sintetizar un informe detallado.
-Debes buscar información específica sobre los siguientes temas clave:
-
-{topics_list}
-
----
-
-**MÉTRICAS INTERNAS DE NUESTRA BASE DE DATOS (NO BUSCAR, USAR COMO REFERENCIA):**
-{metrics_context if metrics_context else "No disponibles"}
-
----
-
-Genera un informe FINAL EN ESPAÑOL con el siguiente formato Markdown.
-
-**REGLAS:**
-1. **FUNDAMENTA TODO**: Usa la búsqueda de Google para encontrar datos reales recientes (precios, noticias, planes urbanísticos).
-2. **CITA FUENTES**: El sistema añadirá citas automáticamente, pero asegúrate de basar tus afirmaciones en los resultados de búsqueda.
-3. **SÉ CRÍTICO**: Si hay datos contradictorios (ej: bajada de precios en una fuente, subida en otra), menciónalo.
-4. **NO INVENTES**: Si no encuentras datos sobre algo específico (ej: inundabilidad), indícalo claramente ("No se hallaron datos específicos").
-
----
-FORMATO DEL INFORME:
-
-## {zona} - Análisis de Inversión
-
-### 📊 Resumen Ejecutivo
-[Recomendación clara: INVERTIR / ESPERAR / EVITAR y por qué]
-
-### 💰 Precios y Mercado
-[Análisis de precios venta/alquiler, tendencias recientes y rentabilidades de mercado vs nuestras métricas]
-
-### 🚇 Infraestructura y Urbanismo
-[Transporte, obras públicas, planeamiento y proyectos futuros]
-
-### 👥 Demografía y Social
-[Perfil del habitante, seguridad, ocupación, demanda de alquiler]
-
-### ⚠️ Riesgos y Oportunidades
-[Riesgos específicos (okupación, zonas tensionadas) vs Catalizadores de revalorización]
-
-### ✅ Conclusión Final
-[Veredicto inversor fundamentado]
-"""
+    prompt = f"""Eres un analista experto en inversiones inmobiliarias. Tu objetivo es crear informes de ALTO IMPACTO VISUAL para inversores, sobre un DISTRITO específico.
+    
+    ESTILO REQUERIDO: "THE VISUAL ANALYST"
+    - Prioridad absoluta: LEGIBILIDAD y SÍNTESIS.
+    - Usa EMOJIS como iconos para cada sección y punto clave.
+    - Usa TABLAS Markdown para datos.
+    - Usa BLOCKQUOTES (>) para el resumen/perfil.
+    - No uses parrafadas largas. Ve al grano.
+    
+    Tu tarea es investigar a fondo el distrito "{zona}" utilizando tus herramientas de búsqueda y sintetizar un informe detallado.
+    Debes buscar información específica y actualizada sobre los siguientes temas clave:
+    
+    {topics_list}
+    
+    ---
+    
+    **MÉTRICAS INTERNAS DE NUESTRA BASE DE DATOS (NO BUSCAR, USAR COMO REFERENCIA):**
+    {metrics_context if metrics_context else "No disponibles"}
+    
+    ---
+    
+    Genera un informe FINAL EN ESPAÑOL con el siguiente formato Markdown.
+    
+    **REGLAS DE CONTENIDO:**
+    1. **FUNDAMENTA TODO**: Usa la búsqueda de Google para encontrar datos reales recientes (precios, noticias, planes urbanísticos).
+    2. **CITA FUENTES**: El sistema añadirá citas automáticamente.
+    3. **SÉ CRÍTICO**: Si hay datos contradictorios, menciónalo.
+    4. **NO INVENTES**: Si no hay datos, indícalo.
+    
+    ---
+    ESTRUCTURA EXACTA DE SALIDA:
+    
+    # 🇪🇸 **Informe de Inversión: {zona}**
+    
+    ### 📊 **Indicadores Clave**
+    | Métrica | Valor (Estimado) | Evaluación (🟢/🟡/🔴) |
+    | :--- | :--- | :--- |
+    | **Precio Venta** | [€/m²] | [Emoji] [Tendencia] |
+    | **Rentabilidad Bruta** | [X.X]% | [Emoji] [Evaluación] |
+    | **Riesgo Vacancia** | [Bajo/Medio/Alto] | [Emoji] [Motivo] |
+    
+    ### 🏘️ **Perfil del Distrito**
+    > **"[Frase gancho o apodo del barrio]"**: [Resumen de 2-3 líneas sobre la "vibra" del barrio, gentrificación, perfil de población y por qué es interesante].
+    
+    ### 💰 **Análisis de Precios y Mercado**
+    *   **Venta**: [Datos precio m2, evolución anual, comparación con media ciudad].
+    *   **Alquiler**: [Datos precio m2, evolución, demanda].
+    *   **Rentabilidad**: [Estimación yield bruto/neto].
+    
+    #### 🎯 **Oportunidades Destacadas (Zonas/Barrios)**
+    *   **[Nombre Zona A]**: [Por qué interesa].
+    *   **[Nombre Zona B]**: [Por qué interesa].
+    
+    ### 🚇 **Infraestructura y Urbanismo**
+    *   **Transporte**: [Metro, cercanías, accesos].
+    *   **Proyectos**: [Obras en marcha, nuevas estaciones, reurbanizaciones].
+    
+    ### 👥 **Demografía y Seguridad**
+    *   **Población**: [Perfil joven/mayor, nivel socioeconómico].
+    *   **Seguridad**: [Percepción, datos delincuencia, zonas a evitar].
+    *   **Okupación**: [Riesgo real, zonas conflictivas].
+    
+    ### ⚠️ **Riesgos y Consideraciones**
+    *   🔹 **[Riesgo A]**: [Explicación].
+    *   🔹 **[Riesgo B]**: [Explicación].
+    
+    ### 💡 **Veredicto Final**
+    [Conclusión de 1 frase sobre si COMPRAR o ESPERAR, y para qué perfil de inversor: Cashflow vs Revalorización].
+    """
 
     print("\n[1/1] Ejecutando investigación y síntesis con Gemini Grounding...")
     
