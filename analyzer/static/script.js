@@ -526,36 +526,36 @@ function setupDistrictReport() {
                 return;
             }
 
-            const districts = [];
+            // Extract Unique Districts maintaining order
+            const uniqueDistricts = [];
             const seen = new Set();
-
-            // Extract Top 3 Unique Districts
             for (const res of sortedResults) {
                 if (res.Distrito && !seen.has(res.Distrito)) {
                     seen.add(res.Distrito);
-                    districts.push(res.Distrito);
-                    if (districts.length >= 3) break;
+                    uniqueDistricts.push(res.Distrito);
                 }
             }
 
-            if (districts.length === 0) {
+            if (uniqueDistricts.length === 0) {
                 alert("No se encontraron distritos válidos.");
                 return;
             }
 
-            // Store for batch processing
-            batchDistrictsToAnalyze = districts;
-
-            // Open Modal
+            // Populate Modal Dropdown
             const modal = document.getElementById('reportModal');
-            const reportOutput = document.getElementById('reportOutput');
-            const promptInput = document.getElementById('promptInput');
+            const select = document.getElementById('districtModalSelect');
             const btnModalGen = document.getElementById('btnGenerateReport');
+            const reportOutput = document.getElementById('reportOutput');
 
-            document.querySelector('.modal-content h2').textContent = `Generar Informe para: ${districts.join(', ')}`;
+            select.innerHTML = '';
+            uniqueDistricts.forEach(dist => {
+                const opt = document.createElement('option');
+                opt.value = dist;
+                opt.textContent = dist;
+                select.appendChild(opt);
+            });
 
-            // Default Prompt Template
-            promptInput.value = "Genera un análisis de inversión detallado centrado en rentabilidad y riesgos.";
+            document.querySelector('.modal-content h2').textContent = "Selecciona Distrito para Deep Research";
 
             // Reset UI
             reportOutput.innerHTML = '';
@@ -563,83 +563,30 @@ function setupDistrictReport() {
             btnModalGen.style.display = 'block';
             document.querySelector('.form-group').style.display = 'block';
             btnModalGen.disabled = false;
-            btnModalGen.textContent = "GENERAR INFORMES";
+            btnModalGen.textContent = "EJECUTAR DEEP RESEARCH 🚀";
 
             modal.classList.remove('hidden');
         });
     }
 }
 
-function showDistrictReports(districts) {
-    const section = document.getElementById('districtReportSection');
-    const select = document.getElementById('districtSelect');
-    const content = document.getElementById('districtReportContent');
+// ... existing showDistrictReports ...
+// ... existing renderDistrictContent ...
+// ... existing modal interaction ...
 
-    section.classList.remove('hidden');
-    select.innerHTML = '';
-
-    districts.forEach(dist => {
-        if (availableDistrictReports[dist]) {
-            const opt = document.createElement('option');
-            opt.value = dist;
-            opt.textContent = dist;
-            select.appendChild(opt);
-        }
-    });
-
-    if (select.options.length > 0) {
-        select.selectedIndex = 0;
-        renderDistrictContent(select.value);
-    } else {
-        content.innerHTML = "No se pudieron generar informes.";
-    }
-
-    select.onchange = () => {
-        renderDistrictContent(select.value);
-    };
-
-    section.scrollIntoView({ behavior: 'smooth' });
-}
-
-function renderDistrictContent(distName) {
-    const content = document.getElementById('districtReportContent');
-    const markdown = availableDistrictReports[distName];
-    if (markdown) {
-        content.innerHTML = marked.parse(markdown);
-    }
-}
-
-// Modal Interaction
-const modal = document.getElementById('reportModal');
-const closeBtn = document.querySelector('.close-modal');
-const generateBtn = document.getElementById('btnGenerateReport');
-const reportOutput = document.getElementById('reportOutput');
-
-closeBtn.onclick = () => {
-    modal.classList.add('hidden');
-};
-window.onclick = (e) => {
-    if (e.target == modal) {
-        modal.classList.add('hidden');
-    }
-}
-
-// Generate button handler
-// Generate button handler (Unified Logic)
+// Generate button handler (Unified Logic with Dropdown)
 generateBtn.onclick = async () => {
-    // 1. Close the modal immediately
-    modal.classList.add('hidden');
+    // 1. Get Selected District
+    const select = document.getElementById('districtModalSelect');
+    const selectedDistrict = select.value;
 
-    // 2. Identify target district (Top 1 from sorted results)
-    if (!sortedResults || sortedResults.length === 0) {
-        alert("Primero ejecuta un análisis para obtener resultados.");
+    if (!selectedDistrict) {
+        alert("Selecciona un distrito.");
         return;
     }
-    const topDistrict = sortedResults[0]?.Distrito;
-    if (!topDistrict) {
-        alert("No se encontró un distrito válido.");
-        return;
-    }
+
+    // 2. Close the modal
+    modal.classList.add('hidden');
 
     // 3. Determine Location Context (City/Province) from filename
     let city = "Madrid";
@@ -649,14 +596,12 @@ generateBtn.onclick = async () => {
     if (ventaFile) {
         if (ventaFile.startsWith('API_BATCH_')) {
             const parts = ventaFile.split('_');
-            // API_BATCH_City_... -> City at index 2
             if (parts.length >= 3) {
                 city = parts[2];
                 province = parts[2];
             }
         } else {
             const parts = ventaFile.split('_');
-            // idealista_City_... -> City at index 1
             if (parts.length >= 2) {
                 city = parts[1];
                 if (city !== 'Madrid') province = city;
@@ -665,12 +610,11 @@ generateBtn.onclick = async () => {
     }
 
     // 4. Construct context-aware district name
-    // Format: "Distrito Name (City, Province)"
-    const fullDistrictName = `${topDistrict} (${city}, ${province})`;
+    const fullDistrictName = `${selectedDistrict} (${city}, ${province})`;
 
     console.log(`Starting Unified Deep Research for: ${fullDistrictName}`);
 
-    // 5. Execute Deep Research (The Unified Engine)
+    // 5. Execute Deep Research
     await executeDeepResearch(fullDistrictName);
 };
 

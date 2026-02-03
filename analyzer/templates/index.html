@@ -330,9 +330,11 @@
                     <span class="close-modal">&times;</span>
                     <h2>Generar Informe IA</h2>
                     <div class="form-group">
-                        <label for="promptInput">Prompt para Gemini:</label>
-                        <textarea id="promptInput" rows="6"
-                            style="width: 100%; font-family: 'Fira Code', monospace;"></textarea>
+                        <label for="districtModalSelect">Selecciona el Distrito a analizar:</label>
+                        <select id="districtModalSelect"
+                            style="width: 100%; padding: 10px; background: rgba(0,0,0,0.2); color: white; border: 1px solid var(--border-color); border-radius: 4px;">
+                            <!-- Options populated via JS -->
+                        </select>
                     </div>
                     <button id="btnGenerateReport" class="btn-analyze">GENERAR INFORME</button>
 
