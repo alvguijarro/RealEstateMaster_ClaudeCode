@@ -102,11 +102,12 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     
     Genera un informe FINAL EN ESPAÑOL con el siguiente formato Markdown.
     
-    **REGLAS DE CONTENIDO:**
-    1. **FUNDAMENTA TODO**: Usa la búsqueda de Google para encontrar datos reales recientes (precios, noticias, planes urbanísticos).
-    2. **CITA FUENTES**: El sistema añadirá citas automáticamente.
-    3. **SÉ CRÍTICO**: Si hay datos contradictorios, menciónalo.
-    4. **NO INVENTES**: Si no hay datos, indícalo.
+    **REGLAS CRÍTICAS DE CONTENIDO:**
+    1. **PROHIBIDO HACER RECOMENDACIONES DE INVERSIÓN**: NUNCA digas "Comprar", "Esperar", "Vender" o "Recomiendo invertir". Tu trabajo es SÓLO exponer los HECHOS y DATOS. Deja que el inversor decida.
+    2. **CITA FUENTES SIEMPRE**: Cada dato numérico o afirmación debe tener su fuente enlazada. El sistema añadirá citas automáticamente.
+    3. **FUNDAMENTA TODO**: Usa la búsqueda de Google para encontrar datos reales recientes (precios, noticias, planes urbanísticos).
+    4. **SÉ CRÍTICO**: Si hay datos contradictorios, menciónalo.
+    5. **NO INVENTES**: Si no hay datos, indícalo.
     
     ---
     ESTRUCTURA EXACTA DE SALIDA:
@@ -116,37 +117,38 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     ### 📊 **Indicadores Clave**
     | Métrica | Valor (Estimado) | Evaluación (🟢/🟡/🔴) |
     | :--- | :--- | :--- |
-    | **Precio Venta** | [€/m²] | [Emoji] [Tendencia] |
-    | **Rentabilidad Bruta** | [X.X]% | [Emoji] [Evaluación] |
+    | **Precio Venta** | [€/m²] | [Emoji] [Ref. mercado] |
+    | **Rentabilidad Bruta** | [X.X]% | [Emoji] [Ref. mercado] |
     | **Riesgo Vacancia** | [Bajo/Medio/Alto] | [Emoji] [Motivo] |
+    | **Tasa de Paro** | [X.X]% | [Emoji] [Tendencia] |
     
-    ### 🏘️ **Perfil del Distrito**
-    > **"[Frase gancho o apodo del barrio]"**: [Resumen de 2-3 líneas sobre la "vibra" del barrio, gentrificación, perfil de población y por qué es interesante].
+    ### 📝 **Resumen Ejecutivo**
+    [Párrafo de síntesis sobre el estado del distrito. NO hacer recomendaciones de inversión. Solo describir la situación actual basándose en los datos encontrados: precios al alza/baja, demanda, proyectos, etc.]
     
-    ### 💰 **Análisis de Precios y Mercado**
-    *   **Venta**: [Datos precio m2, evolución anual, comparación con media ciudad].
-    *   **Alquiler**: [Datos precio m2, evolución, demanda].
-    *   **Rentabilidad**: [Estimación yield bruto/neto].
-    
-    #### 🎯 **Oportunidades Destacadas (Zonas/Barrios)**
-    *   **[Nombre Zona A]**: [Por qué interesa].
-    *   **[Nombre Zona B]**: [Por qué interesa].
+    ### 💰 **Precios y Mercado**
+    *   **Precio vivienda**: [Datos precio m2, evolución anual, comparación].
+    *   **Precio alquiler**: [Datos precio m2, evolución, demanda].
+    *   **Rentabilidad**: [Estimación yield bruto/neto basado en datos de mercado].
+    *   **Evolución precios**: [Tendencia últimos años].
     
     ### 🚇 **Infraestructura y Urbanismo**
     *   **Transporte**: [Metro, cercanías, accesos].
-    *   **Proyectos**: [Obras en marcha, nuevas estaciones, reurbanizaciones].
+    *   **Inversiones Públicas**: [Presupuestos, obras en marcha].
+    *   **Planeamiento**: [PGOU, nuevos desarrollos].
+    *   **Mapas de Ruido/Inundabilidad**: [Datos si existen].
     
-    ### 👥 **Demografía y Seguridad**
-    *   **Población**: [Perfil joven/mayor, nivel socioeconómico].
-    *   **Seguridad**: [Percepción, datos delincuencia, zonas a evitar].
-    *   **Okupación**: [Riesgo real, zonas conflictivas].
+    ### 👥 **Demografía y Social**
+    *   **Demografía**: [Población, edad media, crecimiento].
+    *   **Tasa de Paro**: [Datos empleo/desempleo].
+    *   **Renta Media**: [Nivel socioeconómico].
+    *   **Seguridad y Okupación**: [Datos reales o percepción, citando fuentes].
     
-    ### ⚠️ **Riesgos y Consideraciones**
-    *   🔹 **[Riesgo A]**: [Explicación].
-    *   🔹 **[Riesgo B]**: [Explicación].
+    ### ⚠️ **Riesgos y Oportunidades**
+    *   🔹 **Riesgos**: [Listado de riesgos objetivos: paro, regulación, falta de oferta, etc.].
+    *   🔹 **Oportunidades**: [Factores positivos: revalorización, alta demanda alquiler, mejoras urbanas].
     
-    ### 💡 **Veredicto Final**
-    [Conclusión de 1 frase sobre si COMPRAR o ESPERAR, y para qué perfil de inversor: Cashflow vs Revalorización].
+    ### ✅ **Conclusión Final**
+    [Síntesis de los factores principales encontrados. RECUERDA: NO dar recomendación de inversión explícita. Solo resumir si los fundamentales son sólidos o débiles.]
     """
 
     print("\n[1/1] Ejecutando investigación y síntesis con Gemini Grounding...")

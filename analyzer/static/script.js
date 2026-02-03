@@ -718,66 +718,11 @@ async function executeDeepResearch(distrito) {
 }
 
 // Setup Deep Research button if it exists
-function setupDeepResearchButton() {
-    const btn = document.getElementById('btnDeepResearch');
-    if (!btn) return;
-
-    btn.addEventListener('click', () => {
-        if (!sortedResults || sortedResults.length === 0) {
-            alert("Primero ejecuta un análisis para obtener resultados.");
-            return;
-        }
-
-        // Get the top district from results
-        const topDistrict = sortedResults[0]?.Distrito;
-        if (!topDistrict) {
-            alert("No se encontró un distrito válido.");
-        }
-
-        // Try to extract city from filename
-        let city = "Madrid";
-        let province = "Madrid"; // Default
-        const ventaFile = document.getElementById('ventaFile').value;
-
-        if (ventaFile) {
-            // Check for API_BATCH files: API_BATCH_City_...
-            if (ventaFile.startsWith('API_BATCH_')) {
-                const parts = ventaFile.split('_');
-                // API_BATCH_City_... -> City is at index 2
-                if (parts.length >= 3) {
-                    city = parts[2];
-                    province = parts[2]; // Assume city = province in filename context usually
-                }
-            } else {
-                // Expected: idealista_City_venta.xlsx -> City is at index 1
-                const parts = ventaFile.split('_');
-                if (parts.length >= 2) {
-                    city = parts[1];
-                    // Heuristic: if city is not Madrid, assumed province is same as city or generic
-                    // Ideally we could have a map, but using City as Province is a safe fallback for query context
-                    if (city !== 'Madrid') province = city;
-                }
-            }
-        }
-
-        // Format: "Distrito Name (City, Province)"
-        const defaultPrompt = `Distrito ${topDistrict} (${city}, ${province})`;
-
-        // Prompt user to confirm or modify
-        const distrito = prompt(
-            "🔬 Deep Research\n\nEste proceso ejecutará 21 búsquedas en Google y sintetizará un informe completo con Gemini.\n\nDistrito a investigar:",
-            defaultPrompt
-        );
-
-        if (distrito) {
-            executeDeepResearch(distrito);
-        }
-    });
-}
+// function setupDeepResearchButton() { ... } // Removed as unified into Generate Report button
 
 // Initialize Deep Research on page load
 document.addEventListener('DOMContentLoaded', () => {
-    setupDeepResearchButton();
+    // setupDeepResearchButton(); // Removed
 });
 
 function loadReferencias(idx) {
