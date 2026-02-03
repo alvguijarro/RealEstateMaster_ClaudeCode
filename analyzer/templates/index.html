@@ -71,26 +71,6 @@
             box-shadow: 0 6px 20px rgba(118, 75, 162, 0.6);
         }
 
-        /* FIX TABLE STICKY COLUMN BORDERS */
-        .results-table th:first-child,
-        .results-table td:first-child {
-            position: sticky;
-            left: 0;
-            z-index: 10;
-            /* Ensure background covers scrolling content */
-            background-color: #1e293b;
-            /* Fix border alignment */
-            border-bottom: 1px solid var(--border);
-            /* Add shadow for separation */
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
-        }
-
-        /* Active row background for sticky cell */
-        .results-table tr:hover td:first-child {
-            background-color: #263345;
-            /* approximating glass-hover on dark bg */
-        }
-
         /* HIGH CONTRAST MODAL SELECT */
         #districtModalSelect {
             background-color: #ffffff !important;

@@ -169,56 +169,68 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     if progress_callback:
         progress_callback(50, 100, "Investigando y redactando con Gemini...")
 
-    try:
-        # Use new generate_content call structure with google_search tool
-        response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(
-                    google_search=types.GoogleSearchRetrieval
-                )]
-            )
-        )
-        
-        # Check if response has valid text
-        if response.text:
-            report_text = response.text
-            
-            # SLICE: Start from the first '# ' to avoid meta-commentary
-            first_hash = report_text.find('#')
-            if first_hash != -1:
-                report_text = report_text[first_hash:]
-            
-            # Extract citations from metadata to ensure they are present
-            try:
-                sources = []
-                # Grounding metadata exploration
-                if response.candidates and response.candidates[0].grounding_metadata:
-                    gm = response.candidates[0].grounding_metadata
-                    # Attempt to get grounding chunks which contain sources
-                    if hasattr(gm, 'grounding_chunks'):
-                        for chunk in gm.grounding_chunks:
-                            if hasattr(chunk, 'web') and chunk.web:
-                                sources.append(f"- [{chunk.web.title}]({chunk.web.uri})")
-                
-                # If we found sources but the model didn't include a sources section
-                if sources and "Fuentes Consultadas" not in report_text:
-                    report_text += "\n\n### 🔗 **Fuentes Consultadas (Automáticas)**\n"
-                    # Deduplicate sources
-                    unique_sources = list(dict.fromkeys(sources))
-                    report_text += "\n".join(unique_sources)
-            except Exception as e:
-                print(f"Warning: Error extracting metadata sources: {e}")
+    import time
+    max_retries = 3
+    retry_delay = 5 # seconds
 
-            print("\n  -> Informe generado correctamente.")
-            return report_text
-        else:
-            return "Error: Gemini no devolvió texto (posible bloqueo de seguridad)."
+    for attempt in range(max_retries):
+        try:
+            # Use new generate_content call structure with google_search tool
+            response = client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(
+                        google_search=types.GoogleSearchRetrieval
+                    )]
+                )
+            )
             
-    except Exception as e:
-        print(f"\n[ERROR] Fallo en Deep Research: {e}")
-        return f"Error generando informe: {e}"
+            # Check if response has valid text
+            if response.text:
+                report_text = response.text
+                
+                # SLICE: Start from the first '# ' to avoid meta-commentary
+                first_hash = report_text.find('#')
+                if first_hash != -1:
+                    report_text = report_text[first_hash:]
+                
+                # Extract citations from metadata to ensure they are present
+                try:
+                    sources = []
+                    # Grounding metadata exploration
+                    if response.candidates and response.candidates[0].grounding_metadata:
+                        gm = response.candidates[0].grounding_metadata
+                        # Attempt to get grounding chunks which contain sources
+                        if hasattr(gm, 'grounding_chunks'):
+                            for chunk in gm.grounding_chunks:
+                                if hasattr(chunk, 'web') and chunk.web:
+                                    sources.append(f"- [{chunk.web.title}]({chunk.web.uri})")
+                    
+                    # If we found sources but the model didn't include a sources section
+                    if sources and "Fuentes Consultadas" not in report_text:
+                        report_text += "\n\n### 🔗 **Fuentes Consultadas (Automáticas)**\n"
+                        # Deduplicate sources
+                        unique_sources = list(dict.fromkeys(sources))
+                        report_text += "\n".join(unique_sources)
+                except Exception as e:
+                    print(f"Warning: Error extracting metadata sources: {e}")
+
+                print("\n  -> Informe generado correctamente.")
+                return report_text
+            else:
+                return "Error: Gemini no devolvió texto (posible bloqueo de seguridad)."
+                
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str and attempt < max_retries - 1:
+                print(f"\n⚠️ [429] Cuota excedida. Reintentando en {retry_delay}s... (Intento {attempt + 1}/{max_retries})")
+                time.sleep(retry_delay)
+                retry_delay *= 2 # Exponential backoff
+                continue
+            
+            print(f"\n[ERROR] Fallo en Deep Research: {e}")
+            return f"Error generando informe: {e}"
 
 
 # Test function
