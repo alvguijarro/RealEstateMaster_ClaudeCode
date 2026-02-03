@@ -113,7 +113,7 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     
     **REGLAS CRÍTICAS DE CONTENIDO:**
     1. **PROHIBIDO HACER RECOMENDACIONES DE INVERSIÓN**: NUNCA digas "Comprar", "Esperar", "Vender" o "Recomiendo invertir". Tu trabajo es SÓLO exponer los HECHOS y DATOS. Deja que el inversor decida.
-    2. **CITA FUENTES SIEMPRE**: Cada dato numérico o afirmación DEBE incluir un enlace Markdown a la fuente consultada (ejemplo: [Fuente](link)). Es obligatorio para dar credibilidad al informe.
+    2. **CITA FUENTES SIEMPRE (INLINE)**: Cada dato numérico o afirmación clave DEBE incluir un enlace Markdown justo al lado con el texto exacto "[Link]". Ejemplo: "La población ha crecido un 5%. [Link](https://ejemplo.com)". Es obligatorio para cada punto de información.
     3. **FUNDAMENTA TODO**: Usa la búsqueda de Google para encontrar datos reales recientes (precios, noticias, planes urbanísticos).
     4. **SÉ CRÍTICO**: Si hay datos contradictorios, menciónalo.
     5. **NO INVENTES**: Si no hay datos, indícalo con "Dato no disponible".
@@ -126,40 +126,39 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     ### 📊 **Indicadores Clave**
     | Métrica | Valor (Estimado) | Evaluación (🟢/🟡/🔴) |
     | :--- | :--- | :--- |
-    | **Precio Venta** | [€/m²] | [Emoji] [Ref. mercado] |
-    | **Rentabilidad Bruta** | [X.X]% | [Emoji] [Ref. mercado] |
-    | **Riesgo Vacancia** | [Bajo/Medio/Alto] | [Emoji] [Motivo] |
-    | **Tasa de Paro** | [X.X]% | [Emoji] [Tendencia] |
+    | **Precio Venta** | [€/m²] [Link](URL) | [Emoji] [Ref. mercado] |
+    | **Rentabilidad Bruta** | [X.X]% [Link](URL) | [Emoji] [Ref. mercado] |
+    | **Riesgo Vacancia** | [Bajo/Medio/Alto] [Link](URL) | [Emoji] [Motivo] |
+    | **Tasa de Paro** | [X.X]% [Link](URL) | [Emoji] [Tendencia] |
     
     ### 📝 **Resumen Ejecutivo**
-    [Párrafo de síntesis sobre el estado del distrito. NO hacer recomendaciones de inversión.]
+    [Párrafo de síntesis sobre el estado del distrito con sus respectivos [Link](URL) en los datos clave.]
     
     ### 💰 **Precios y Mercado**
-    *   **Precio vivienda**: [Datos m2 + link fuente].
-    *   **Precio alquiler**: [Datos m2 + link fuente].
-    *   **Rentabilidad**: [Estimación yield basado en mercado + link fuente].
-    *   **Evolución precios**: [Tendencia últimos años + link fuente].
+    *   **Precio vivienda**: [Datos m2] [Link](URL).
+    *   **Precio alquiler**: [Datos m2] [Link](URL).
+    *   **Rentabilidad**: [Estimación yield] [Link](URL).
+    *   **Evolución precios**: [Tendencia últimos años] [Link](URL).
     
     ### 🚇 **Infraestructura y Urbanismo**
-    *   **Transporte**: [Metro, cercanías, accesos].
-    *   **Inversiones Públicas**: [Presupuestos, obras en marcha].
-    *   **Planeamiento**: [PGOU, nuevos desarrollos].
-    *   **Riesgos Ambientales**: [Ruido, inundabilidad (SNCZI)].
+    *   **Transporte**: [Metro/Bus] [Link](URL).
+    *   **Inversiones/Planeamiento**: [Obras/PGOU] [Link](URL).
+    *   **Riesgos Ambientales**: [Ruido/Inundabilidad] [Link](URL).
     
     ### 👥 **Demografía y Social**
-    *   **Población**: [Edad media, crecimiento].
-    *   **Economía**: [Tasa de paro, renta media].
-    *   **Seguridad**: [Datos reales u okupación].
+    *   **Población**: [Edad/Crecimiento] [Link](URL).
+    *   **Economía**: [Paro/Renta] [Link](URL).
+    *   **Seguridad/Okupación**: [Datos/Noticias] [Link](URL).
     
     ### ⚠️ **Riesgos y Oportunidades**
-    *   🔹 **Riesgos**: [Listado de riesgos objetivos].
-    *   🔹 **Oportunidades**: [Factores de revalorización o alta demanda].
+    *   🔹 **Riesgos**: [Listado] [Link](URL).
+    *   🔹 **Oportunidades**: [Factores] [Link](URL).
     
     ### ✅ **Conclusión Final**
-    [Síntesis de los factores principales encontrados. SÓLO HECHOS. Sin recomendación.]
+    [Síntesis final. SÓLO HECHOS con sus [Link](URL).]
     
     ---
-    Al final de todo, incluye la sección:
+    Al final de todo:
     ### 🔗 **Fuentes Consultadas**
     - [Título Fuente 1](URL)
     - [Título Fuente 2](URL)
