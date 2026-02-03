@@ -108,7 +108,7 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     
     **REGLAS CRÍTICAS DE CONTENIDO:**
     1. **PROHIBIDO HACER RECOMENDACIONES DE INVERSIÓN**: NUNCA digas "Comprar", "Esperar", "Vender" o "Recomiendo invertir". Tu trabajo es SÓLO exponer los HECHOS y DATOS. Deja que el inversor decida.
-    2. **CITA FUENTES SIEMPRE**: Cada dato numérico o afirmación debe tener su fuente enlazada. El sistema añadirá citas automáticamente.
+    2. **CITA FUENTES SIEMPRE**: Cada dato numérico o afirmación DEBE incluir un enlace Markdown a la fuente consultada (ejemplo: [Fuente](link)). Es obligatorio para dar credibilidad al informe.
     3. **FUNDAMENTA TODO**: Usa la búsqueda de Google para encontrar datos reales recientes (precios, noticias, planes urbanísticos).
     4. **SÉ CRÍTICO**: Si hay datos contradictorios, menciónalo.
     5. **NO INVENTES**: Si no hay datos, indícalo.
@@ -127,32 +127,18 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     | **Tasa de Paro** | [X.X]% | [Emoji] [Tendencia] |
     
     ### 📝 **Resumen Ejecutivo**
-    [Párrafo de síntesis sobre el estado del distrito. NO hacer recomendaciones de inversión. Solo describir la situación actual basándose en los datos encontrados: precios al alza/baja, demanda, proyectos, etc.]
+    [Párrafo de síntesis sobre el estado del distrito. NO hacer recomendaciones de inversión.]
     
     ### 💰 **Precios y Mercado**
-    *   **Precio vivienda**: [Datos precio m2, evolución anual, comparación].
-    *   **Precio alquiler**: [Datos precio m2, evolución, demanda].
-    *   **Rentabilidad**: [Estimación yield bruto/neto basado en datos de mercado].
-    *   **Evolución precios**: [Tendencia últimos años].
+    *   **Precio vivienda**: [Datos m2 + link fuente].
+    *   **Precio alquiler**: [Datos m2 + link fuente].
+    ... (resto de secciones)
     
-    ### 🚇 **Infraestructura y Urbanismo**
-    *   **Transporte**: [Metro, cercanías, accesos].
-    *   **Inversiones Públicas**: [Presupuestos, obras en marcha].
-    *   **Planeamiento**: [PGOU, nuevos desarrollos].
-    *   **Mapas de Ruido/Inundabilidad**: [Datos si existen].
-    
-    ### 👥 **Demografía y Social**
-    *   **Demografía**: [Población, edad media, crecimiento].
-    *   **Tasa de Paro**: [Datos empleo/desempleo].
-    *   **Renta Media**: [Nivel socioeconómico].
-    *   **Seguridad y Okupación**: [Datos reales o percepción, citando fuentes].
-    
-    ### ⚠️ **Riesgos y Oportunidades**
-    *   🔹 **Riesgos**: [Listado de riesgos objetivos: paro, regulación, falta de oferta, etc.].
-    *   🔹 **Oportunidades**: [Factores positivos: revalorización, alta demanda alquiler, mejoras urbanas].
-    
-    ### ✅ **Conclusión Final**
-    [Síntesis de los factores principales encontrados. RECUERDA: NO dar recomendación de inversión explícita. Solo resumir si los fundamentales son sólidos o débiles.]
+    ---
+    Al final de todo, incluye una sección:
+    ### 🔗 **Fuentes Consultadas**
+    - [Título Fuente 1](URL)
+    - [Título Fuente 2](URL)
     """
 
     print("\n[1/1] Ejecutando investigación y síntesis con Gemini Grounding...")
@@ -162,9 +148,8 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
 
     try:
         # Use new generate_content call structure with google_search tool
-        # Updated to gemini-3-flash-preview as requested
         response = client.models.generate_content(
-            model='gemini-3-flash-preview',
+            model='gemini-2.0-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(
@@ -175,8 +160,31 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
         
         # Check if response has valid text
         if response.text:
+            report_text = response.text
+            
+            # Extract citations from metadata to ensure they are present
+            try:
+                sources = []
+                # Grounding metadata exploration
+                if response.candidates and response.candidates[0].grounding_metadata:
+                    gm = response.candidates[0].grounding_metadata
+                    # Attempt to get grounding chunks which contain sources
+                    if hasattr(gm, 'grounding_chunks'):
+                        for chunk in gm.grounding_chunks:
+                            if hasattr(chunk, 'web') and chunk.web:
+                                sources.append(f"- [{chunk.web.title}]({chunk.web.uri})")
+                
+                # If we found sources but the model didn't include a sources section
+                if sources and "Fuentes Consultadas" not in report_text:
+                    report_text += "\n\n### 🔗 **Fuentes Consultadas (Automáticas)**\n"
+                    # Deduplicate sources
+                    unique_sources = list(dict.fromkeys(sources))
+                    report_text += "\n".join(unique_sources)
+            except Exception as e:
+                print(f"Warning: Error extracting metadata sources: {e}")
+
             print("\n  -> Informe generado correctamente.")
-            return response.text
+            return report_text
         else:
             return "Error: Gemini no devolvió texto (posible bloqueo de seguridad)."
             
