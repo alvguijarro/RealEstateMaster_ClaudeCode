@@ -939,35 +939,50 @@ def phase_market(config, df_venta, df_alquiler, use_cache=True):
         from sklearn.preprocessing import LabelEncoder
         
         df_model = df_venta.copy()
+        
+        # Safe Median calculation (handle empty case)
+        habs_median = df_model['habs'].median() if len(df_model) > 0 else 2
+        banos_median = df_model['banos'].median() if len(df_model) > 0 else 1
+        
+        df_model['habs'] = df_model['habs'].fillna(habs_median)
+        df_model['banos'] = df_model['banos'].fillna(banos_median)
+        
         le_tipo = LabelEncoder()
         df_model['tipo_encoded'] = le_tipo.fit_transform(df_model['tipo'].fillna('Unknown').astype(str))
         le_distrito = LabelEncoder()
-        df_model['distrito_encoded'] = le_distrito.fit_transform(df_model['Distrito'].astype(str))
+        df_model['distrito_encoded'] = le_distrito.fit_transform(df_model['Distrito'].fillna('Unknown').astype(str))
         le_estado = LabelEncoder()
         df_model['estado_encoded'] = le_estado.fit_transform(df_model['estado'].fillna('Unknown').astype(str))
-        df_model['habs'] = df_model['habs'].fillna(df_model['habs'].median())
-        df_model['banos'] = df_model['banos'].fillna(df_model['banos'].median())
+        
+        if 'ascensor' not in df_model.columns:
+             df_model['ascensor'] = 0
         df_model['ascensor'] = df_model['ascensor'].fillna(False).astype(int)
         
-        X = df_model[['m2 construidos', 'habs', 'banos', 'ascensor', 'tipo_encoded', 'distrito_encoded', 'estado_encoded']].values
-        y = df_model['precio_m2'].values
+        # Check if we have enough data (at least 2 samples for model fit)
+        if len(df_model) < 2:
+             print(f"    ⚠️ [INFO] Skipping ML Model: Not enough data points ({len(df_model)}). Need at least 2.")
+             df_venta['below_market_model'] = False
+        else:
+             X = df_model[['m2 construidos', 'habs', 'banos', 'ascensor', 'tipo_encoded', 'distrito_encoded', 'estado_encoded']].values
+             y = df_model['precio_m2'].values
+             
+             rf = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+             rf.fit(X, y)
+             
+             df_model['precio_m2_pred'] = rf.predict(X)
+             df_model['residual'] = (df_model['precio_m2'] - df_model['precio_m2_pred']) / df_model['precio_m2_pred']
+             df_model['below_market_model'] = df_model['residual'] <= config['umbral_residual']
+             
+             df_venta['precio_m2_pred'] = df_model['precio_m2_pred']
+             df_venta['residual'] = df_model['residual']
+             df_venta['below_market_model'] = df_model['below_market_model']
+             
+             n_model = df_venta['below_market_model'].sum()
+             print(f"    -> {n_model} below market (model)")
         
-        rf = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
-        rf.fit(X, y)
-        
-        df_model['precio_m2_pred'] = rf.predict(X)
-        df_model['residual'] = (df_model['precio_m2'] - df_model['precio_m2_pred']) / df_model['precio_m2_pred']
-        df_model['below_market_model'] = df_model['residual'] <= config['umbral_residual']
-        
-        df_venta['precio_m2_pred'] = df_model['precio_m2_pred']
-        df_venta['residual'] = df_model['residual']
-        df_venta['below_market_model'] = df_model['below_market_model']
-        
-        n_model = df_venta['below_market_model'].sum()
-        print(f"    -> {n_model} below market (model)")
-        
-    except ImportError:
-        print("    [WARN] sklearn not available, skipping ML model")
+    except Exception as e:
+        print(f"    ⚠️ [WARN] ML Model/Data error: {str(e)}")
+        print("    -> Skipping ML model phase due to error.")
         df_venta['below_market_model'] = False
     
     # Combined
