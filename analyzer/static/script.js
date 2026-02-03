@@ -612,64 +612,78 @@ function renderDistrictContent(distName) {
     }
 }
 
-// Modal Interaction
-const modal = document.getElementById('reportModal');
-const closeBtn = document.querySelector('.close-modal');
-const generateBtn = document.getElementById('btnGenerateReport');
-const reportOutput = document.getElementById('reportOutput');
+// ... existing showDistrictReports ...
+// ... existing renderDistrictContent ...
 
-closeBtn.onclick = () => {
-    modal.classList.add('hidden');
-};
-window.onclick = (e) => {
-    if (e.target == modal) {
-        modal.classList.add('hidden');
-    }
-}
+function setupModalHandlers() {
+    const modal = document.getElementById('reportModal');
+    const closeBtn = document.querySelector('.close-modal');
+    const generateBtn = document.getElementById('btnGenerateReport');
 
-// Generate button handler (Unified Logic with Dropdown)
-generateBtn.onclick = async () => {
-    // 1. Get Selected District
-    const select = document.getElementById('districtModalSelect');
-    const selectedDistrict = select.value;
-
-    if (!selectedDistrict) {
-        alert("Selecciona un distrito.");
-        return;
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            modal.classList.add('hidden');
+        };
     }
 
-    // 2. Close the modal
-    modal.classList.add('hidden');
-
-    // 3. Determine Location Context (City/Province) from filename
-    let city = "Madrid";
-    let province = "Madrid";
-    const ventaFile = document.getElementById('ventaFile').value;
-
-    if (ventaFile) {
-        if (ventaFile.startsWith('API_BATCH_')) {
-            const parts = ventaFile.split('_');
-            if (parts.length >= 3) {
-                city = parts[2];
-                province = parts[2];
-            }
-        } else {
-            const parts = ventaFile.split('_');
-            if (parts.length >= 2) {
-                city = parts[1];
-                if (city !== 'Madrid') province = city;
-            }
+    window.onclick = (e) => {
+        if (e.target == modal) {
+            modal.classList.add('hidden');
         }
     }
 
-    // 4. Construct context-aware district name
-    const fullDistrictName = `${selectedDistrict} (${city}, ${province})`;
+    if (generateBtn) {
+        // Generate button handler (Unified Logic with Dropdown)
+        generateBtn.onclick = async () => {
+            // 1. Get Selected District
+            const select = document.getElementById('districtModalSelect');
+            const selectedDistrict = select.value;
 
-    console.log(`Starting Unified Deep Research for: ${fullDistrictName}`);
+            if (!selectedDistrict) {
+                alert("Selecciona un distrito.");
+                return;
+            }
 
-    // 5. Execute Deep Research
-    await executeDeepResearch(fullDistrictName);
-};
+            // 2. Close the modal
+            if (modal) modal.classList.add('hidden');
+
+            // 3. Determine Location Context (City/Province) from filename
+            let city = "Madrid";
+            let province = "Madrid";
+            const ventaFile = document.getElementById('ventaFile') ? document.getElementById('ventaFile').value : '';
+
+            if (ventaFile) {
+                if (ventaFile.startsWith('API_BATCH_')) {
+                    const parts = ventaFile.split('_');
+                    if (parts.length >= 3) {
+                        city = parts[2];
+                        province = parts[2];
+                    }
+                } else {
+                    const parts = ventaFile.split('_');
+                    if (parts.length >= 2) {
+                        city = parts[1];
+                        if (city !== 'Madrid') province = city;
+                    }
+                }
+            }
+
+            // 4. Construct context-aware district name
+            const fullDistrictName = `${selectedDistrict} (${city}, ${province})`;
+
+            console.log(`Starting Unified Deep Research for: ${fullDistrictName}`);
+
+            // 5. Execute Deep Research
+            await executeDeepResearch(fullDistrictName);
+        };
+    }
+}
+
+// Initial Setup
+document.addEventListener('DOMContentLoaded', () => {
+    setupModalHandlers();
+});
+
 
 // ============================================================================
 // DEEP RESEARCH - Uses Google CSE + Gemini for comprehensive market research
