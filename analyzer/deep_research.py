@@ -134,7 +134,7 @@ FORMATO DEL INFORME:
     try:
         # Use new generate_content call structure with google_search tool
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='deep-research-pro-preview-12-2025',
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(
