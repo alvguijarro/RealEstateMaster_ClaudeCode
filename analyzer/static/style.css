@@ -188,61 +188,61 @@ input:focus {
 }
 
 /* Tables */
+/* Tables */
 .results-table {
     width: 100%;
-    border-collapse: separate;
-    /* Changed from collapse to fix sticky borders */
-    border-spacing: 0;
+    border-collapse: collapse;
+    /* Reverting to collapse for alignment */
     min-width: 800px;
 }
 
-.results-table th {
-    text-align: left;
-    padding: 15px;
-    background: #1e293b;
-    /* Solid background matching card-bg to prevent transparency issues */
-    color: var(--text-muted);
-    font-weight: 600;
-    border-bottom: 2px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
+.results-table th,
 .results-table td {
     padding: 12px 15px;
     border-bottom: 1px solid var(--border);
     color: #e2e8f0;
+    background-clip: padding-box;
+    /* Prevents background from eating borders */
 }
 
-/* Sticky First Column Fix */
-.results-table th:first-child,
-.results-table td:first-child {
+.results-table th {
+    text-align: left;
+    background: #1e293b;
+    color: var(--text-muted);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    /* Layer 2: Header */
+    border-bottom: 2px solid var(--border);
+}
+
+/* Sticky First Column */
+.results-table td:first-child,
+.results-table th:first-child {
     position: sticky;
     left: 0;
     background-color: #1e293b;
-    /* Match card-bg */
-    z-index: 15;
-    /* Above normal content */
-    /* REMOVED border-right and box-shadow as requested */
+    z-index: 10;
+    /* Layer 1: Column */
     border-right: none;
-    box-shadow: none;
-    /* FIX: prevents background from overlapping the border */
-    background-clip: padding-box;
+    /* No vertical separator as requested */
 }
 
-/* Ensure Header First Child sits on top */
+/* Top Left Corner (Intersection) - Must be on top of everything */
 .results-table th:first-child {
-    z-index: 20;
-    border-bottom: 2px solid var(--border);
-    /* Maintain header border weight */
+    z-index: 30;
+    /* Layer 3: Corner */
 }
 
-/* Hover effect needs to be applied to the sticky cell manually */
+/* Hover Effects */
+.results-table tr:hover td {
+    background-color: var(--glass-hover);
+}
+
+/* Sticky cell needs explicit hover background to match because it sits on top */
 .results-table tr:hover td:first-child {
     background-color: #263345;
-    /* Darker hover state matching row hover */
-    background-clip: padding-box;
 }
 
 .results-table th.sort-active {
