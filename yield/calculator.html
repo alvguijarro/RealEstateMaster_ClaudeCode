@@ -446,7 +446,8 @@
         /* Last element in a row: align tooltip to right (going left) */
         .row>.form-group:last-child .info-icon:hover::after,
         .row-3>.form-group:last-child .info-icon:hover::after,
-        .row-4>.form-group:last-child .info-icon:hover::after {
+        .row-4>.form-group:last-child .info-icon:hover::after,
+        .ratios-table td:last-child .info-icon:hover::after {
             left: auto;
             right: -5px;
             transform: none;
@@ -949,22 +950,38 @@
                                         <div class="label-row" style="justify-content:flex-start;">
                                             Cashflow anual
                                             <span class="info-icon" style="margin-left:5px; margin-right:0;"
-                                                data-tooltip="Calculado como Prudente: Beneficio (después de imp.) - Devol. capital. Optimista: Cashflow anual (prudente) + Periodos vacantes + Gastos mantenim.">i</span>
+                                                data-tooltip="Dinero real en el bolsillo tras pagar gastos y cuota hipotecaria.">i</span>
                                         </div>
                                     </td>
-                                    <td id="cashflowP">0 €</td>
-                                    <td id="cashflowO">0 €</td>
+                                    <td class="prudente">
+                                        <span id="cashflowP">0 €</span>
+                                        <span class="info-icon" style="margin-left:5px;"
+                                            data-tooltip="Calculado como Beneficio (después de imp.) - Devol. capital">i</span>
+                                    </td>
+                                    <td class="optimista">
+                                        <span id="cashflowO">0 €</span>
+                                        <span class="info-icon" style="margin-left:5px;"
+                                            data-tooltip="Calculado como Cashflow anual (prudente) + Periodos vacantes + Gastos mantenim.">i</span>
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td>
                                         <div class="label-row" style="justify-content:flex-start;">
                                             ROCE
                                             <span class="info-icon" style="margin-left:5px; margin-right:0;"
-                                                data-tooltip="Calculado como Prudente: Cashflow anual (prudente) / Capital propio. Optimista: Cashflow anual (optimista) / Capital propio.">i</span>
+                                                data-tooltip="ROCE (Return on Capital Employed): Cashflow sobre capital aportado.">i</span>
                                         </div>
                                     </td>
-                                    <td id="roceP">0%</td>
-                                    <td id="roceO">0%</td>
+                                    <td class="prudente">
+                                        <span id="roceP">0%</span>
+                                        <span class="info-icon" style="margin-left:5px;"
+                                            data-tooltip="Calculado como Cashflow anual (prudente) / Capital propio">i</span>
+                                    </td>
+                                    <td class="optimista">
+                                        <span id="roceO">0%</span>
+                                        <span class="info-icon" style="margin-left:5px;"
+                                            data-tooltip="Calculado como Cashflow anual (optimista) / Capital propio">i</span>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
