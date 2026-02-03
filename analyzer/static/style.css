@@ -188,29 +188,24 @@ input:focus {
 }
 
 /* Tables */
-/* Tables */
+/* Tables Section */
 .results-table {
     width: 100%;
     border-collapse: collapse;
-    /* Reverting to collapse for alignment */
+    /* Essential for border alignment */
     min-width: 800px;
 }
 
+/* Base styles for all cells */
 .results-table th,
 .results-table td {
     padding: 12px 15px;
     border-bottom: 1px solid var(--border);
     color: #e2e8f0;
     background-clip: padding-box;
-    /* Prevents background from eating borders */
-    white-space: nowrap;
-    /* FORCE SINGLE LINE: Prevents wrapping wrapping row height mismatch */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 300px;
-    /* Safety cap for extremely long titles */
 }
 
+/* Headers */
 .results-table th {
     text-align: left;
     background: #1e293b;
@@ -219,8 +214,21 @@ input:focus {
     position: sticky;
     top: 0;
     z-index: 20;
-    /* Layer 2: Header */
+    /* Layer: Sticky Header */
+    white-space: normal;
+    /* Allow wrapping as requested */
+    line-height: 1.2;
+    vertical-align: bottom;
     border-bottom: 2px solid var(--border);
+}
+
+/* Data Cells */
+.results-table td {
+    white-space: nowrap;
+    /* Single line for alignment */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
 }
 
 /* Sticky First Column */
@@ -230,23 +238,21 @@ input:focus {
     left: 0;
     background-color: #1e293b;
     z-index: 10;
-    /* Layer 1: Column */
     border-right: none;
-    /* No vertical separator as requested */
 }
 
-/* Top Left Corner (Intersection) - Must be on top of everything */
+/* Sticky Corner Intersection */
 .results-table th:first-child {
     z-index: 30;
-    /* Layer 3: Corner */
+    /* Keep corner on top */
 }
 
-/* Hover Effects */
+/* Row Hover */
 .results-table tr:hover td {
     background-color: var(--glass-hover);
 }
 
-/* Sticky cell needs explicit hover background to match because it sits on top */
+/* Sticky cell needs manual hover match */
 .results-table tr:hover td:first-child {
     background-color: #263345;
 }
