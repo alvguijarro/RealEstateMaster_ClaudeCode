@@ -132,10 +132,10 @@ FORMATO DEL INFORME:
         progress_callback(50, 100, "Investigando y redactando con Gemini...")
 
     try:
-        # Reverted to gemini-2.0-flash as deep-research-pro requires Interactions API
         # Use new generate_content call structure with google_search tool
+        # Updated to gemini-3-flash-preview as requested
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-3-flash-preview',
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(

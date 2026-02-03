@@ -14,7 +14,10 @@
     - `analyzer/static/script.js` now extracts City and Province from filenames (e.g., `API_BATCH_Melilla...` -> Melilla).
     - Ensures "Generar informe con IA" and "Deep Research" use the correct geographical context.
 - **Library Upgrade**: Upgraded from `google-generativeai` to `google-genai` (v1.61.0) for better tool support.
-- **Model Note**: Tested `deep-research-pro-preview-12-2025` but reverted to `gemini-2.0-flash` due to API compatibility (Interactions API requirement).
+    - `analyzer/static/script.js` now extracts City and Province from filenames (e.g., `API_BATCH_Melilla...` -> Melilla).
+    - Ensures "Generar informe con IA" and "Deep Research" use the correct geographical context.
+- **Library Upgrade**: Upgraded from `google-generativeai` to `google-genai` (v1.61.0) for better tool support.
+- **Model Upgrade**: Switched Deep Research model to `gemini-3-flash-preview` for latest capabilities.
 
 ### Changed
 - **Frontend Fix**: Fixed "BATCH" appearing in district names by correctly parsing `API_BATCH_` filenames (index 2 for City).
