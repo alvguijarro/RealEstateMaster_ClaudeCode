@@ -505,7 +505,7 @@ def update_urls():
             # Run script with the Excel file path and sheets as arguments
             sheets_json = json_module.dumps(sheets) if sheets else '[]'
             
-            cmd = ['python', '-u', str(update_script), excel_file, '--sheets', sheets_json]
+            cmd = [sys.executable, '-u', str(update_script), excel_file, '--sheets', sheets_json]
             if resume:
                 cmd.append('--resume')
 
@@ -876,7 +876,7 @@ class BatchManager:
         
         # Ensure we always try to RESUME in batch mode to match user expectation (resume from left off)
         # But for new files it just starts from 0.
-        cmd = ['python', '-u', str(update_script), excel_file, '--resume']
+        cmd = [sys.executable, '-u', str(update_script), excel_file, '--resume']
         
         # NOTE: We force logic to create STEALTH flag if not present?
         # User requested "Stealth" mode.
@@ -916,7 +916,9 @@ class BatchManager:
                     emit_log('OK', line.replace('[OK]', '').strip())
                 elif '[INFO]' in line:
                     emit_log('INFO', line.replace('[INFO]', '').strip())
-                # Ignore others to avoid noise or forward as INFO
+                else:
+                    # Capture untagged output (like tracebacks)
+                    emit_log('INFO', line)
                 
             process.wait()
             update_process = None
