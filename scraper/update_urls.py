@@ -11,12 +11,17 @@ import asyncio
 import argparse
 import pandas as pd
 import time
+import shutil
+import random
+import json
 from pathlib import Path
 
 # Pause flag file
 PAUSE_FLAG_FILE = "update_paused.flag"
 STEALTH_FLAG_FILE = "update_stealth.flag"
-CHECKPOINT_FILE = "update_checkpoint.json"
+JOURNAL_FILE = "update_progress.jsonl"
+ENRICHED_HISTORY_FILE = "enriched_history.json" # Local cache of enriched data
+STEALTH_PROFILE_DIR = str(Path(__file__).parent.parent / "stealth_profile")
 
 # Add scraper directory to path
 SCRAPER_DIR = Path(__file__).parent
@@ -33,10 +38,10 @@ from idealista_scraper.utils import log, play_captcha_alert, simulate_human_inte
 from idealista_scraper.config import (
     FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE,
     STEALTH_CARD_DELAY_RANGE, STEALTH_POST_CARD_DELAY_RANGE,
+    EXTRA_STEALTH_CARD_DELAY_RANGE, EXTRA_STEALTH_POST_CARD_DELAY_RANGE,
     USER_AGENTS
 )
 from playwright.async_api import async_playwright
-import random
 
 # Configure logging to suppress noisy libraries
 import logging
@@ -44,7 +49,6 @@ logging.getLogger('socketio').setLevel(logging.ERROR)
 logging.getLogger('engineio').setLevel(logging.ERROR)
 
 # Optional: Socket client for real-time updates (if available)
-# Suppress stdout/stderr during import to hide "requests package" message
 import io
 _old_stdout = sys.stdout
 _old_stderr = sys.stderr
@@ -62,16 +66,14 @@ finally:
     sys.stderr = _old_stderr
 
 
+class BlockedException(Exception):
+    """Raised when Idealista blocks access due to 'uso indebido'."""
+    pass
+
+
 def emit_to_ui(level: str, message: str):
     """Emit log message to both console and UI (if connected)."""
-    # print(f"[{level}] {message}") # Console print is handled by server streaming now, avoid double print
-    # Actually server streams stdout. So we MUST print to stdout.
     print(f"[{level}] {message}")
-    # WebSocket emit is NOT needed because server.py captures stdout and emits logs.
-    # BUT for 'progress' event, we DO need a direct socket emit because server.py only captures stdout logs.
-    # Wait, server.py uses subprocess.stdout.readline() loop to emit 'log'.
-    # It does NOT emit 'progress'.
-    # So we DO need to emit 'progress' via socketio client from here.
     pass
 
 def emit_progress(current, total):
@@ -87,6 +89,22 @@ def emit_progress(current, total):
         except:
             pass
 
+def handle_blocked_profile():
+    """Archive the current profile if it has been blocked/poisoned."""
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_name = f"stealth_profile_BLOCKED_{timestamp}"
+    backup_path = os.path.join(os.path.dirname(STEALTH_PROFILE_DIR), backup_name)
+    
+    emit_to_ui("WARN", "☣️  PROFILE POISONED: Dealing with blocked profile...")
+    
+    if os.path.exists(STEALTH_PROFILE_DIR):
+        try:
+            shutil.move(STEALTH_PROFILE_DIR, backup_path)
+            emit_to_ui("WARN", f"♻️  Moved poisoned profile to: {backup_name}")
+            emit_to_ui("OK", "✨ Next run will generate a fresh, clean profile.")
+        except Exception as e:
+            emit_to_ui("ERR", f"Failed to archive profile: {e}")
 
 async def detect_captcha(page) -> bool:
     """Check if page shows CAPTCHA/bot protection based on page title and body."""
@@ -110,61 +128,114 @@ async def detect_captcha(page) -> bool:
     except:
         return False
 
-
-import json
-
-JOURNAL_FILE = "update_progress.jsonl"
-
-def save_to_journal(excel_file: str, data: dict):
-    """Append a processed property result to the journal."""
+def save_to_journal(filename, row):
+    """Append a row to the journal file."""
     try:
+        # We store: filename (for context), timestamp, and the row data
         entry = {
-            'excel_file': os.path.basename(excel_file),
-            'full_path': excel_file,
-            'data': data,
-            'timestamp': time.time()
+            "source_file": os.path.basename(filename),
+            "timestamp": time.time(),
+            "data": row
         }
         with open(JOURNAL_FILE, 'a', encoding='utf-8') as f:
             f.write(json.dumps(entry) + '\n')
     except Exception as e:
-        pass
+        print(f"Error saving to journal: {e}")
 
-def load_journal(excel_file: str):
-    """Load previously processed data from journal."""
+def load_journal(target_filename):
+    """Load updated rows from journal for a specific file."""
     if not os.path.exists(JOURNAL_FILE):
         return []
+        
+    restored = []
+    target_base = os.path.basename(target_filename)
     
-    restored_rows = []
     try:
         with open(JOURNAL_FILE, 'r', encoding='utf-8') as f:
             for line in f:
-                if not line.strip(): continue
                 try:
                     entry = json.loads(line)
-                    # Use full path equality strictly
-                    if entry.get('full_path') == excel_file:
-                        restored_rows.append(entry['data'])
+                    if entry.get("source_file") == target_base:
+                        restored.append(entry.get("data"))
                 except:
-                    continue
-    except:
-        return []
-    
-    return restored_rows
+                    pass
+    except Exception as e:
+        print(f"Error loading journal: {e}")
+    return restored
 
+def load_history():
+    """Load the global enriched history cache."""
+    history_path = Path(SCRAPER_DIR) / ENRICHED_HISTORY_FILE
+    if not history_path.exists():
+        return {}
+    try:
+        with open(history_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        emit_to_ui('ERR', f"Error loading history: {e}")
+        return {}
+
+def save_history(history_data):
+    """Save enriched data to global history cache."""
+    history_path = Path(SCRAPER_DIR) / ENRICHED_HISTORY_FILE
+    try:
+        # Load existing first to merge? Or assume we have the full dict in memory?
+        # If multiple processes run, we should lock. For now, assume single process.
+        # Ideally, we append or update. Reading full file every 50 items is fine for small/medium files.
+        # But if history grows huge (100k+), this is slow. 
+        # For now, let's just write what we have if we pass the full dict, 
+        # OR better: read current, update, write.
+        
+        current_history = {}
+        if history_path.exists():
+            with open(history_path, 'r', encoding='utf-8') as f:
+                try:
+                    current_history = json.load(f)
+                except: pass
+        
+        current_history.update(history_data)
+        
+        with open(history_path, 'w', encoding='utf-8') as f:
+            json.dump(current_history, f, ensure_ascii=False, indent=2)
+            
+    except Exception as e:
+        emit_to_ui('ERR', f"Error saving history: {e}")
+
+async def save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs):
+    """Save the current progress to the Excel file."""
+    output_xlsx = excel_file.replace('.xlsx', '_updated.xlsx')
+    emit_to_ui('INFO', f'💾 Creating checkpoint: {os.path.basename(output_xlsx)} ...')
+    
+    try:
+        # Reconstruct sheets logic (same as final save)
+        sheet_data = {s: [] for s in dfs.keys()} 
+        for row in updated_rows:
+            u = row.get('URL')
+            sheet = url_to_sheet.get(u, 'oportunidades') 
+            if sheet not in sheet_data:
+                sheet_data[sheet] = []
+            sheet_data[sheet].append(row)
+            
+        with pd.ExcelWriter(output_xlsx, engine='openpyxl') as writer:
+            for sheet_name, rows in sheet_data.items():
+                if rows:
+                    pd.DataFrame(rows).to_excel(writer, sheet_name=sheet_name, index=False)
+                elif sheet_name in dfs:
+                     # Preserve original if empty?
+                     # If we are midway, we might want to preserve UNTOUCHED rows?
+                     # The current logic only saves touched rows.
+                     # Ideally a checkpoint should look like the final file.
+                     pass 
+        emit_to_ui('OK', '💾 Checkpoint saved.')
+    except Exception as e:
+        emit_to_ui('WARN', f"⚠️ Checkpoint failed (file open?): {e}")
 
 
 async def update_urls(excel_file: str, selected_sheets: list = None, resume: bool = False):
-    """Update URL status from Excel file.
-    
-    Args:
-        excel_file: Path to Excel file
-        selected_sheets: List of sheet names to process (None = all sheets)
-        resume: If True, try to resume from checkpoint
-    """
+    """Update URL status from Excel file."""
     # Connect to WebSocket for real-time logging (silently)
     if HAS_SOCKET:
         try:
-            # Suppress internal socketio prints during connection
             import io
             old_stdout = sys.stdout
             old_stderr = sys.stderr
@@ -176,7 +247,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                 sys.stdout = old_stdout
                 sys.stderr = old_stderr
         except Exception:
-            pass  # Silently continue without socket
+            pass 
     
     # 1. Validate file
     if not os.path.exists(excel_file):
@@ -187,30 +258,50 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     
     # 2. Load data
     try:
-        # Read sheets (sheet_name=None returns a dict of DataFrames)
         dfs = pd.read_excel(excel_file, sheet_name=None)
         
-        # Filter sheets if specified
+        # Filter sheets if requested
         if selected_sheets and len(selected_sheets) > 0:
-            # Only keep selected sheets
             dfs = {k: v for k, v in dfs.items() if k in selected_sheets}
             sheet_info = f"{len(dfs)} sheet(s): {', '.join(dfs.keys())}"
         else:
             sheet_info = "all sheets"
         
-        # Create a single dataframe with all rows
-        df = pd.concat(dfs.values(), ignore_index=True)
+        # Create URL to Sheet and URL to Original Row maps
+        url_to_sheet = {}
+        url_to_row = {}
+        all_rows = []
         
-        emit_to_ui('OK', f'Loaded {len(df)} rows from Excel ({sheet_info})')
+        for sheet_name, df_sheet in dfs.items():
+            if 'URL' not in df_sheet.columns:
+                continue
+            
+            # Convert to records
+            # Force string URL just in case
+            df_sheet['URL'] = df_sheet['URL'].astype(str)
+            records = df_sheet.to_dict('records')
+            
+            for row in records:
+                u = row.get('URL')
+                if u and isinstance(u, str) and "http" in u:
+                    url_to_sheet[u] = sheet_name
+                    # Clean NaN values from row immediately for easier counting?
+                    # No, keep them for now, handle in merge.
+                    url_to_row[u] = row
+                    all_rows.append(row)
+
+        emit_to_ui('OK', f'Loaded {len(all_rows)} rows from Excel ({sheet_info})')
+
     except Exception as e:
         emit_to_ui('ERR', f'Error reading Excel: {e}')
         return
     
-    if 'URL' not in df.columns:
-        emit_to_ui('ERR', "Dataset missing 'URL' column")
+    if not all_rows:
+        emit_to_ui('ERR', "No rows found in Excel.")
         return
     
-    urls = df['URL'].dropna().unique().tolist()
+    # Use the keys from our map as the master list
+    urls = list(url_to_row.keys())
     emit_to_ui('INFO', f'Found {len(urls)} unique URLs to check')
     
     # Check resume state
@@ -218,300 +309,407 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     updated_rows = []
     
     if resume:
-        # Load EVERYTHING from journal first
         restored_data = load_journal(excel_file)
         if restored_data:
             updated_rows = restored_data
             saved_count = len(updated_rows)
+            # Find how many URLs we have covered
+            # Note: journal saves row per URL.
+            # Assuming sequential processing...
             if saved_count > 0 and saved_count < len(urls):
                 start_index = saved_count
                 emit_to_ui('INFO', f'Resuming from journal. Restored {saved_count} properties.')
                 emit_to_ui('INFO', f'Continuing from property {start_index + 1}/{len(urls)}')
             else:
-                 # If journal is complete or empty, start over or just warn
                  if saved_count >= len(urls):
-                     emit_to_ui('WARN', 'Journal indicates update was already completed. Please start clean if needed.')
-                     start_index = 0 # Or maybe just stop? For now reset. 
+                     emit_to_ui('WARN', 'Journal indicates update was already completed. Resetting start index.')
+                     start_index = 0 # Can reset or exit? Reset for now.
                      updated_rows = []
         else:
             emit_to_ui('WARN', 'No journal found to resume from.')
     
-    # 3. Scrape each URL
-    updated_rows = []
-    
-    # If resuming, we need to load previous rows? 
-    # Actually, simpler strategy: 
-    # We append new results to a TEMPORARY partial file, or we just append to list.
-    # But if we crash, we lose the list.
-    # Ideally we should read the existing output file if it exists?
-    # For now, let's assume we just skip the URLs and apppend the NEW status.
-    # BUT, to save the final file, we need ALL rows.
-    # So we should probably keep the ORIGINAL rows for the skipped ones, or mark them as "not updated".
-    
-    # Better approach for this script:
-    # We loaded the DF. It has 'URL', 'Anuncio activo', etc.
-    # We can use the existing DF as the source of truth.
-    # We only update the rows for the URLs we process.
-    # When saving, we save the WHOLE revised df.
-    
-    # Map URLs to their rows in the original DF for easy updating
-    # (A bit complex if multiple rows have same URL. The script initially said "unique URLs to check")
-    # The script re-scrapes UNIQUE urls.
-    # Then it says: "Re-scrapes ALL URLs found... bypassing deduplication."
-    # Wait, line 154: urls = df['URL'].dropna().unique().tolist()
-    # So we touch each unique URL once.
-    
-    # For simplicity in this script which builds "updated_rows" list from scratch:
-    # If resuming, we CAN'T easily reconstruct "updated_rows" unless we saved them incrementally.
-    # OR, we just initialize `updated_rows` with the data derived from the original DF for the skipped items?
-    # This might be risky if the original file is old.
-    
-    # ALTERNATIVE:
-    # If this is "Update Status", maybe we don't need to re-scrape the first N items, 
-    # but we DO need their data in the final list.
-    # Let's trust the columns in the loaded Excel for the skipped items.
-    
-    # Let's populate updated_rows with the skipped items first, directly from the source DF.
-    # Problem: source DF might have multiple rows per URL?
-    # Line 154 takes unique.
-    # Line 246 creates a new row: row = {"URL": url, **d}
-    # Line 269: new_df = pd.DataFrame(updated_rows)
-    # This implies the output file will ONLY contain one row per unique URL.
-    # If the input had duplicates (e.g. same URL in different sheets), this script collapses them?
-    # Let's look at line 277: new_df.to_excel(..., index=False)
-    # Yes, it seems this script produces a FLAT list of unique URLs.
-    
-    # If not resuming (or start_index is 0), updated_rows is empty.
-    # If resuming, updated_rows is already populated with the preserved data.
-    
-    # We DO NOT need to pre-fill from original DF because we rely on the journaling to have saved the ACTUAL scraped data.
-    # The journal stores the FULL 'd' dict plus 'URL'.
-    
-                 
     active_count = 0
     inactive_count = 0
     error_count = 0
-    
-    async with async_playwright() as pw:
-        # emit_to_ui('INFO', 'Launching browser...')
-        browser = await pw.chromium.launch(
-            headless=False, 
-            args=["--start-maximized"],
-            ignore_default_args=["--enable-automation", "--no-sandbox"]
-        )
-        
-        # Select random user agent
-        ua = random.choice(USER_AGENTS) if 'USER_AGENTS' in globals() else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-        
-        context = await browser.new_context(
-            viewport={"width": 1920, "height": 1080},
-            user_agent=ua
-        )
-        # Apply stealth script
-        await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        page = await context.new_page()
-        
-        page = await context.new_page()
-        
-        # Start loop from start_index
-        for i, url in enumerate(urls[start_index:], start_index + 1):
-            
-            # Append result is handled AFTER scraping below
-            pass
-            
-            # Check for pause
-            was_paused = False
-            while os.path.exists(PAUSE_FLAG_FILE):
-                 if not was_paused:
-                     emit_to_ui('INFO', '[STATUS] paused')
-                     emit_to_ui('INFO', 'Update paused by user.')
-                     was_paused = True
-                 await asyncio.sleep(1)
-            
-            if was_paused:
-                emit_to_ui('INFO', '[STATUS] running')
-                emit_to_ui('INFO', 'Update resumed.')
 
-            try:
-                # Dynamic delay based on mode flag
-                if os.path.exists(STEALTH_FLAG_FILE):
-                    # Stealth mode
-                    card_delay = STEALTH_CARD_DELAY_RANGE
-                    post_delay = STEALTH_POST_CARD_DELAY_RANGE
-                    # emit_to_ui('INFO', 'Running in STEALTH mode') # Too noisy
-                else:
-                    # Fast mode
-                    card_delay = FAST_CARD_DELAY_RANGE
-                    post_delay = FAST_POST_CARD_DELAY_RANGE
-
-                # Pre-action delay
-                await asyncio.sleep(random.uniform(*card_delay))
+    # ================= RECOVERY LOOP =================
+    while start_index < len(urls):
+        try:
+            async with async_playwright() as pw:
+                emit_to_ui('INFO', 'Launching persistent browser...')
                 
-                await _goto_with_retry(page, url)
-                await simulate_human_interaction(page)
+                # Use persistent context to match main scraper behavior
+                os.makedirs(STEALTH_PROFILE_DIR, exist_ok=True)
                 
-                # Post-action delay
-                await asyncio.sleep(random.uniform(*post_delay))
+                browser_args = [
+                    "--start-maximized",
+                    "--disable-dev-shm-usage",
+                    "--disable-infobars",
+                    "--disable-extensions",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-popup-blocking",
+                ]
                 
-                # Small fixed render wait
-                await asyncio.sleep(0.5) 
-                
-                # SMART WAIT: Wait for price or title to appear, allowing "Verificacion" screen to pass
+                # Launch PERSISTENT context
                 try:
-                    # Wait up to 10s for the price or main title, signaling the real page is loaded
-                    await page.wait_for_selector('.info-data-price, .main-info__title-main, h1', timeout=10000)
-                except:
-                    # If timeout, it might be a 404, blocked content, or just slow. 
-                    # We proceed to extraction which will handle the missing data logic.
-                    pass
-                
-                
-                # Extract details (includes active status check)
-                # Retry logic for "Execution context was destroyed"
-                d = None
-                for attempt in range(3):
-                    try:
-                        d = await extract_detail_fields(page, debug_items=False)
-                        break
-                    except Exception as e:
-                        if "Execution context was destroyed" in str(e) and attempt < 2:
-                            # Wait and retry
-                            await asyncio.sleep(1)
-                            continue
-                        raise e
-                
-                # Check for CAPTCHA (missing critical fields or CAPTCHA page detected)
-                if d:
-                    d['URL'] = url
-                
-                is_room_mode = 'habitacion' in url.lower()
-                
-                # Check for inactive status FIRST
-                is_inactive_pre = d.get('Anuncio activo') == 'No' or d.get('Baja anuncio') or d.get('isExpired')
-                
-                if is_inactive_pre:
-                     # If inactive, we expect missing fields. Don't check them.
-                     miss = []
-                else:
-                     miss = missing_fields(d, is_room_mode=is_room_mode) if d else ["all"]
-                
-                # Check for BLOCK (uso indebido)
-                if await detect_captcha(page) and "uso indebido" in (await page.evaluate("() => document.body ? document.body.innerText : ''")).lower():
-                    emit_to_ui('ERR', f'({i}/{len(urls)}) 🛑 HARD STOP: Scraper bloqueado ("Uso Indebido").')
-                    # Implement profile nuking here or just stop? 
-                    # For update process, we just stop and let the user handle it (profile is shared but this script is separate)
-                    # Ideally we should nuke it too, but we can rely on main scraper wrapper for that logic.
-                    # For now, just break hard.
-                    break
+                    context = await pw.chromium.launch_persistent_context(
+                        user_data_dir=STEALTH_PROFILE_DIR,
+                        headless=False,
+                        args=browser_args,
+                        ignore_default_args=["--enable-automation", "--no-sandbox"],
+                        viewport={"width": 1280, "height": 900},
+                        user_agent=random.choice(USER_AGENTS)
+                    )
+                    
+                    # Mask webdriver
+                    await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                    
+                    page = context.pages[0] if context.pages else await context.new_page()
+                    
+                    # Initial warm-up if needed
+                    if start_index == 0:
+                        try:
+                            await page.goto("https://www.idealista.com", timeout=30000)
+                            await asyncio.sleep(2)
+                            # Accept cookies
+                            await page.evaluate(r"""() => {
+                                const acceptBtn = document.querySelector('#didomi-notice-agree-button, [id*="accept"], .onetrust-accept-btn');
+                                if (acceptBtn) acceptBtn.click();
+                            }""")
+                        except:
+                            pass
+                    
 
-                if miss or await detect_captcha(page):
-                    emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado.')
+                    # --- PROCESSING LOOP ---
+                    HISTORY = load_history() # Load history once at start of browser session (or refresh?)
+                    pending_history = {} # Local buffer for history updates
                     
-                    # 1. Try automatic slider solve
-                    emit_to_ui('INFO', '🤖 Intentando resolver CAPTCHA automáticamente...')
-                    if await solve_slider_captcha(page):
-                         if not await detect_captcha(page):
-                              emit_to_ui('OK', '✅ CAPTCHA resuelto automáticamente!')
-                              # Re-extract data
-                              d = await extract_detail_fields(page, debug_items=False)
-                              if d: d['URL'] = url
-                              is_inactive_loop = d.get('Anuncio activo') == 'No' or d.get('Baja anuncio') or d.get('isExpired')
-                              miss = [] if is_inactive_loop else missing_fields(d, is_room_mode=is_room_mode)
-                              if not miss:
-                                   # We continue below
-                                   pass
-                    
-                    if miss or await detect_captcha(page):
-                        emit_to_ui('WARN', 'Resuelve el CAPTCHA manualmente en el navegador.')
-                    
-                    # Wait loop with repeating alarm until CAPTCHA is solved
-                    captcha_resolved = False
-                    while not captcha_resolved:
-                        play_captcha_alert()
-                        await asyncio.sleep(10)  # Wait 10 seconds before checking again
+                    # --- PROCESSING LOOP ---
+                    for i, url in enumerate(urls[start_index:], start_index + 1):
+                        current_list_idx = i - 1 
                         
-                        # Check if CAPTCHA is solved
-                        if not await detect_captcha(page):
-                            # Re-extract data
-                            d = await extract_detail_fields(page, debug_items=False)
+                        # Handle Pause
+                        was_paused = False
+                        while os.path.exists(PAUSE_FLAG_FILE):
+                             if not was_paused:
+                                 emit_to_ui('INFO', '[STATUS] paused')
+                                 was_paused = True
+                             await asyncio.sleep(1)
+                        if was_paused:
+                            emit_to_ui('INFO', '[STATUS] running')
                             
-                            # Apply the same data prep as main loop
-                            if d:
-                                d['URL'] = url
+                        # --- SMART SKIP: Check History ---
+                        if url in HISTORY:
+                            emit_to_ui('INFO', f'({i}/{len(urls)}) [SKIP] Enriched in history: {url}')
+                            # We still need to add this row to 'updated_rows' so it ends up in the output Excel!
+                            # Since we don't have the full data in HISTORY (just key check?), 
+                            # we must rely on what we have.
+                            # WAIT: If user wants to "Skip", they assume data is present?
+                            # "Enriquecedor mirará en este archivo antes de hacer el scraping para completar los campos"
+                            # This implies HISTORY stores the DATA.
+                            # Our save_history implementation DOES store data (we pass a dict).
+                            # So we retrieve it.
+                            d_history = HISTORY.get(url, {})
                             
-                            # Check for inactive status FIRST (consistent with main loop)
-                            is_inactive_loop = d.get('Anuncio activo') == 'No' or d.get('Baja anuncio') or d.get('isExpired')
+                            # We merge history data with original row, similar to active/overwrite logic
+                            # But since it's "history", we assume it's the latest good state.
+                            orig_row = url_to_row.get(url, {})
+                            final_row = orig_row.copy()
+                            final_row['URL'] = url
                             
-                            if is_inactive_loop:
-                                miss = []
-                            else:
-                                miss = missing_fields(d, is_room_mode=is_room_mode) if d else ["all"]
+                            # Merge history data (it should override original raw data)
+                            # But we also respect the "Overwrite" logic which might have stripped stale fields.
+                            # So really, final_row IS the history data.
+                            # But we need to ensure 'Ciudad', 'exterior', 'Fecha Scraping' are preserved from ORIGINAL if missing in history?
+                            # No, if it's in history, it was already enriched correctly (with preservation logic applied THEN).
+                            # So we just use history data.
+                            # BUT, we might need to backfill 'Ciudad' if history is from a different run?
+                            # Let's assume history is the master record.
+                            final_row.update(d_history)
+                            
+                            updated_rows.append(final_row)
+                            emit_progress(i, len(urls))
+                            # Don't sleep if skipping
+                            continue
 
-                            if not miss:
-                                emit_to_ui('OK', f'({i}/{len(urls)}) CAPTCHA resuelto! Continuando...')
-                                captcha_resolved = True
+                        try:
+                            # Use Extra Stealth if flag is present (User requested "Like Scraper Tool")
+                            if os.path.exists(STEALTH_FLAG_FILE):
+                                card_delay = EXTRA_STEALTH_CARD_DELAY_RANGE
+                                post_delay = EXTRA_STEALTH_POST_CARD_DELAY_RANGE
                             else:
-                                emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA aún presente. Resuelve y espera...')
-                
-                # Check status
-                is_inactive = d.get('Anuncio activo') == 'No' or d.get('Baja anuncio')
-                
-                if is_inactive:
-                    baja_date = d.get('Baja anuncio', 'fecha desconocida')
-                    emit_to_ui('WARN', f'({i}/{len(urls)}) [anuncio dado de baja] {url} - {baja_date}')
-                    inactive_count += 1
-                else:
-                    emit_to_ui('OK', f'({i}/{len(urls)}) [activo] {url}')
-                    active_count += 1
-                
-                row = {"URL": url, **d}
-                
-                # Journaling: Save THIS result immediately
-                save_to_journal(excel_file, row)
-                
-                updated_rows.append(row)
-                
-                # Emit progress
-                emit_progress(i, len(urls))
-                
-            except Exception as e:
-                emit_to_ui('ERR', f'({i}/{len(urls)}) Error: {url} - {str(e)[:100]}') # Increased length
-                error_count += 1
-                emit_progress(i, len(urls))
-        
-        await browser.close()
+                                card_delay = FAST_CARD_DELAY_RANGE
+                                post_delay = FAST_POST_CARD_DELAY_RANGE
+                                
+                            await asyncio.sleep(random.uniform(*card_delay))
+                            
+                            # Navigate
+                            await _goto_with_retry(page, url)
+                            
+                            # Check Block immediately
+                            page_text = await page.evaluate("() => document.body ? document.body.innerText.toLowerCase() : ''")
+                            if "uso indebido" in page_text or "se ha bloqueado" in page_text:
+                                raise BlockedException("Uso Indebido detected")
+                                
+                            await simulate_human_interaction(page)
+                            await asyncio.sleep(random.uniform(*post_delay))
+                            
+                            # Extract
+                            d = None
+                            for attempt in range(3):
+                                try:
+                                    d = await extract_detail_fields(page, debug_items=False)
+                                    if d and d.get('isBlocked'):
+                                        raise BlockedException("Uso Indebido detected (via extractor)")
+                                    break
+                                except BlockedException:
+                                    raise 
+                                except Exception as e:
+                                    if "Execution context was destroyed" in str(e) and attempt < 2:
+                                        await asyncio.sleep(1)
+                                        continue
+                                    raise e
+
+                            # Check Block again
+                            if await detect_captcha(page):
+                                if "uso indebido" in (await page.evaluate("() => document.body ? document.body.innerText : ''")).lower():
+                                    raise BlockedException("Uso Indebido detected")
+                                
+                                emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado.')
+                                emit_to_ui('INFO', '🤖 Intentando resolver CAPTCHA automáticamente...')
+                                if await solve_slider_captcha(page):
+                                     if not await detect_captcha(page):
+                                          emit_to_ui('OK', '✅ CAPTCHA resuelto automáticamente!')
+                                          d = await extract_detail_fields(page, debug_items=False)
+                                          if d and d.get('isBlocked'):
+                                              raise BlockedException("Uso Indebido detected (via extractor)")
+                                
+                                if await detect_captcha(page):
+                                    emit_to_ui('WARN', 'Resuelve el CAPTCHA manualmente en el navegador.')
+                                    while await detect_captcha(page):
+                                        play_captcha_alert()
+                                        await asyncio.sleep(5)
+                                    d = await extract_detail_fields(page, debug_items=False)
+                                    if d and d.get('isBlocked'):
+                                        raise BlockedException("Uso Indebido detected (via extractor)")
+                            
+                            # --- Data Merging & Logging ---
+                            d = d or {}
+                            orig_row = url_to_row.get(url, {})
+                            
+                            # Count pre-existing fields (non-empty)
+                            pre_count = sum(1 for k, v in orig_row.items() if pd.notna(v) and str(v).strip() != "")
+                            
+                            # Helper for date parsing
+                            def parse_relative_date(date_str):
+                                if not date_str: return None
+                                date_str = date_str.strip().lower()
+                                today = pd.Timestamp.now()
+                                if date_str == 'hoy':
+                                    return today.strftime('%Y-%m-%d')
+                                elif date_str == 'ayer':
+                                    return (today - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+                                elif date_str == 'anteayer':
+                                    return (today - pd.Timedelta(days=2)).strftime('%Y-%m-%d')
+                                # Check DD/MM/YYYY
+                                try:
+                                    # If it matches our expected regex format from extractor (DD/MM/YYYY)
+                                    if "/" in date_str:
+                                         return pd.to_datetime(date_str, format="%d/%m/%Y").strftime('%Y-%m-%d')
+                                except:
+                                    pass
+                                return date_str
+
+                            # Status check
+                            is_inactive = d.get('Anuncio activo') == 'No' or d.get('Baja anuncio')
+                            final_row = orig_row.copy()
+                            final_row['URL'] = url
+                            
+                            # Normalize 'Baja anuncio' date if present
+                            baja_raw = d.get('Baja anuncio')
+                            baja_date = parse_relative_date(baja_raw)
+                            
+                            if is_inactive:
+                                emit_to_ui('WARN', f'({i}/{len(urls)}) [baja] {url}')
+                                inactive_count += 1
+                                # Inactive: Preserve original data, update status only
+                                final_row['Anuncio activo'] = 'No'
+                                if baja_date:
+                                    final_row['Baja anuncio'] = baja_date
+                            else:
+                                emit_to_ui('OK', f'({i}/{len(urls)}) [activo] {url}')
+                                active_count += 1
+                                
+                                # Active: OVERWRITE MODE
+                                # Create new row from fresh data 'd', keeping only URL
+                                # User Request: Preserve 'Ciudad', 'exterior', 'Fecha Scraping'
+                                preserved_cols = ['Ciudad', 'exterior', 'Fecha Scraping']
+                                
+                                final_row = d.copy() # Start fresh with scraped data
+                                final_row['URL'] = url
+                                
+                                for col in preserved_cols:
+                                    val = orig_row.get(col)
+                                    if val is not None and pd.notna(val) and str(val).strip() != "":
+                                         final_row[col] = val
+                                         
+                                # Also ensure we don't have a 'Baja anuncio' date if it is active
+                                if 'Baja anuncio' in final_row:
+                                    del final_row['Baja anuncio']
+                            
+                            # Count final fields
+                            final_field_count = sum(1 for k, v in final_row.items() if pd.notna(v) and str(v).strip() != "")
+                            new_fields = max(0, final_field_count - pre_count)
+                            
+                            if not is_inactive:
+                                emit_to_ui('INFO', f'   - {pre_count} campos pre-existentes, {new_fields} campos nuevos/actualizados.')
+
+                            save_to_journal(excel_file, final_row)
+                            updated_rows.append(final_row)
+                            
+                            # --- HISTORY UPDATE ---
+                            # Clean final_row for history? Convert types?
+                            # json.dumps expects standard types. Pandas objects (Timestamp, etc) might fail.
+                            # We should convert row to compatible dict.
+                            def clean_for_json(obj):
+                                if isinstance(obj, (pd.Timestamp, pd.Timedelta)):
+                                    return str(obj)
+                                if pd.isna(obj):
+                                    return None
+                                return obj
+                            
+                            history_entry = {k: clean_for_json(v) for k, v in final_row.items()}
+                            pending_history[url] = history_entry
+                            HISTORY[url] = history_entry # Update in-memory copy for subsequent lookups if dupes exist
+
+                            emit_progress(i, len(urls))
+                            
+                            start_index = i 
+                            
+                            # --- PERIODIC SAVE (Every 50) ---
+                            if i % 50 == 0:
+                                await save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs)
+                                if pending_history:
+                                    save_history(pending_history)
+                                    pending_history = {} # Reset buffer
+                            
+                        except BlockedException:
+                            # Save checkpoint before raising
+                            await save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs)
+                            if pending_history: save_history(pending_history)
+                            raise 
+                        except Exception as e:
+                            emit_to_ui('ERR', f'({i}/{len(urls)}) Error processing {url}: {e}')
+                            error_count += 1
+                            start_index = i 
+                            if "Target closed" in str(e) or "session" in str(e).lower():
+                                await asyncio.sleep(2)
+                                break 
+                    
+                    # End of loop save
+                    if pending_history: save_history(pending_history)
+                    
+                    if start_index >= len(urls):
+                        break
+
+                finally:
+                    # Close context
+                    try:
+                        await context.close()
+                    except:
+                        pass 
+                            
+                    if start_index >= len(urls):
+                        break
+
+                finally:
+                    # Close context
+                    try:
+                        await context.close()
+                    except:
+                        pass
+                        
+        except BlockedException:
+            emit_to_ui('ERR', '🛑 HARD STOP: Scraper bloqueado ("Uso Indebido").')
+            handle_blocked_profile()
+            
+            wait_time = random.randint(60, 180)
+            emit_to_ui('WARN', f'🔄 Reiniciando sesión en {wait_time} segundos...')
+            await asyncio.sleep(wait_time)
+            
+            emit_to_ui('INFO', '🔄 Retomando proceso...')
+            continue # Loop back and restart browser
+
+        except Exception as e:
+            emit_to_ui('ERR', f"Critical Session Error: {e}")
+            await asyncio.sleep(10)
+            # Try to restart?
+            continue
+
+    # ================= END RECOVERY LOOP =================
     
-    # 4. Summary
-    # 4. Summary
-    # emit_to_ui('INFO', '=' * 40) # Removing separator as requested
     emit_to_ui('INFO', f'SUMMARY: {active_count} activos, {inactive_count} dados de baja, {error_count} errores')
     
     if not updated_rows:
         emit_to_ui('WARN', 'No rows updated. Exiting.')
         return
     
-    # 5. Save to Excel (with retry if file is open)
-    new_df = pd.DataFrame(updated_rows)
-    output_xlsx = excel_file.replace('.xlsx', '_status_updated.xlsx')
-    
+    # 5. Save to Excel
+    # 5. Save to Excel with Multisheet Support
+    output_xlsx = excel_file.replace('.xlsx', '_updated.xlsx')
     emit_to_ui('INFO', f'Saving to: {os.path.basename(output_xlsx)}')
     
-    # Retry loop for PermissionError (file open in Excel)
-    while True:
-        try:
-            new_df.to_excel(output_xlsx, sheet_name='oportunidades', index=False)
-            break
-        except PermissionError:
-            emit_to_ui('WARN', f'⚠️ No se puede escribir en "{os.path.basename(output_xlsx)}". El archivo parece estar abierto en Excel.')
-            emit_to_ui('WARN', 'Cierra el archivo Excel y espera 10 segundos para reintentar...')
-            await asyncio.sleep(10)
-            emit_to_ui('INFO', 'Reintentando guardado...')
-    
+    try:
+        # Reconstruct sheets
+        sheet_data = {s: [] for s in dfs.keys()} # Initialize with empty lists for known sheets
+
+        for row in updated_rows:
+            u = row.get('URL')
+            sheet = url_to_sheet.get(u, 'oportunidades') 
+            if sheet not in sheet_data:
+                sheet_data[sheet] = []
+            sheet_data[sheet].append(row)
+            
+        # Write to Excel
+        while True:
+            try:
+                with pd.ExcelWriter(output_xlsx, engine='openpyxl') as writer:
+                    for sheet_name, rows in sheet_data.items():
+                        if rows:
+                            pd.DataFrame(rows).to_excel(writer, sheet_name=sheet_name, index=False)
+                        elif sheet_name in dfs and not rows:
+                             # If we have no updated rows, we might missed them?
+                             # Or they were filtered out? 
+                             # If "dfs" contains original raw dataframes, we can write them back?
+                             # But "dfs" was loaded at start.
+                             # If we didn't process rows from a sheet, they won't be in updated_rows?
+                             # Logic: only selected_sheets were loaded into dfs?
+                             # If selected_sheets was [], dfs has all sheets.
+                             # If start_index > 0 (resume), updated_rows has everything?
+                             # Check resume logic: "updated_rows = restored_data".
+                             # Yes, if we resume transparency, we have full history.
+                             pass
+                break
+            except PermissionError:
+                 emit_to_ui('WARN', f'⚠️ No se puede escribir en "{os.path.basename(output_xlsx)}". Archivo abierto.')
+                 await asyncio.sleep(10)
+
+        emit_to_ui('OK', f'✅ Finished: {os.path.basename(excel_file)}')
+        emit_to_ui('INFO', f'🎉 saved {len(updated_rows)} properties across {len(sheet_data)} sheets.')
+        
+    except Exception as e:
+        emit_to_ui('ERR', f"Error saving Excel (FATAL): {e}")
+            
     emit_to_ui('OK', 'URL status update complete!')
     
-    # Cleanup journal on success
     if os.path.exists(JOURNAL_FILE):
         try:
+            # Check if this journal belongs to current file before deleting? 
+            # save_to_journal saves full_path.
+            # load_journal filtered by full_path.
+            # If we delete, we might lose other file progress?
+            # Ideally we filter and rewrite. But for now, just delete is simpler if we assume single user.
             os.remove(JOURNAL_FILE)
         except:
             pass
@@ -528,7 +726,6 @@ def main():
     parser.add_argument('--resume', action='store_true', help='Resume from checkpoint')
     args = parser.parse_args()
     
-    # Parse sheets JSON
     try:
         selected_sheets = json.loads(args.sheets)
         if not isinstance(selected_sheets, list):

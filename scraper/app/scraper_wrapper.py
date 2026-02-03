@@ -1828,22 +1828,31 @@ class ScraperController:
             except BlockedException:
                 self.log("ERR", "🛑 HARD STOP: Scraper blocked by Idealista (Uso Indebido).")
                 self.handle_blocked_profile()
-                self.stop() # This sets status to 'stopping' and _stop_evt.set()
-                self.dual_mode_url = None
-                self.status = "error"
-                if self.on_status:
-                    self.on_status("error", error="Acceso bloqueado permanentemente")
                 
-                # Close browser immediately but don't re-log confirmation if it will be done at the end
+                # Auto-Restart Logic
+                wait_time = random.randint(60, 180) # 1 to 3 minutes cooldown
+                self.log("WARN", f"🔄 Initiating Auto-Restart sequence in {wait_time} seconds...")
+                
+                if self.on_status:
+                    self.on_status("error", error=f"Bloqueado. Reiniciando en {wait_time}s...")
+                
+                # Close browser explicitly
                 try:
                     if browser:
                         await browser.close()
                     elif ctx:
                         await ctx.close()
-                    self.log("OK", "✅ Browser closed successfully.")
                 except:
                     pass
-                break # Exit loop immediately
+                
+                # Wait cooldown
+                await self._interruptible_sleep(wait_time)
+                
+                if self._stop_evt.is_set():
+                    break
+                    
+                self.log("INFO", "🔄 Restarting browser now...")
+                continue # Loop back to start (and reuse persistent profile handling which will be fresh)
         
                 # Reset self.is_running = False etc will happen at the very end of run()
             

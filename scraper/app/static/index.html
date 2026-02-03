@@ -34,6 +34,7 @@
             <div class="tabs-nav">
                 <button class="tab-btn active" data-tab="scraper">🕷️ Scraper Tool</button>
                 <button class="tab-btn" data-tab="api-db">🔄 API & Database</button>
+                <button class="tab-btn" data-tab="enricher">✨ Enricher Tool</button>
             </div>
 
             <!-- Top Controls Grid -->
@@ -217,31 +218,6 @@
                                 </div>
                             </div>
 
-                            <!-- Enrichment -->
-                            <div class="api-group">
-                                <h4>✨ Enriquecimiento (Scraper)</h4>
-                                <p class="desc-text">Completa datos faltantes (≤300k€).</p>
-
-                                <div class="premium-select-group">
-                                    <label class="premium-label">Archivo a Enriquecer</label>
-                                    <select id="enrichFileSelect" class="premium-select">
-                                        <option value="">Cargando archivos...</option>
-                                    </select>
-                                    <small
-                                        style="display: block; color: var(--text-muted); font-size: 0.7rem; opacity: 0.8; margin-top: 4px;">(Últimos
-                                        100 archivos en /salidas)</small>
-                                </div>
-
-                                <div class="btn-group-vertical">
-                                    <button class="btn btn-primary" onclick="runApiTask('enrich', 'sale')">
-                                        <span class="btn-icon">⚡</span> ENRIQUECER VENTA
-                                    </button>
-                                    <button class="btn btn-info" onclick="runApiTask('enrich', 'rent')">
-                                        <span class="btn-icon">⚡</span> ENRIQUECER ALQUILER
-                                    </button>
-                                </div>
-                            </div>
-
                             <!-- Database -->
                             <div class="api-group">
                                 <h4>☁️ Base de Datos</h4>
@@ -262,6 +238,76 @@
                         </div>
                     </section>
                 </div>
+
+                <!-- Tab: Enricher Tool (New) -->
+                <div id="tab-enricher" class="tab-pane" style="display: none;">
+                    <section class="panel control-panel-main">
+                        <div class="input-section">
+                            <h3
+                                style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                                ✨ Batch Enrichment Tool
+                            </h3>
+                            <p
+                                style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+                                Selecciona archivos de <code>scraper/salidas</code> para enriquecerlos secuencialmente
+                                en modo Stealth.
+                            </p>
+
+                            <!-- File List Container -->
+                            <div class="input-group">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                                    <label>Archivos Objetivo</label>
+                                    <div>
+                                        <a href="#" onclick="toggleBatchFiles(true); return false;"
+                                            style="font-size:0.8rem; color:var(--text-main);">Todos</a> |
+                                        <a href="#" onclick="toggleBatchFiles(false); return false;"
+                                            style="font-size:0.8rem; color:var(--text-muted);">Ninguno</a>
+                                    </div>
+                                </div>
+                                <div id="batchFileList"
+                                    style="height:250px; overflow-y:auto; border:1px solid var(--border); padding:10px; background:rgba(0,0,0,0.2); border-radius:6px; display:flex; flex-direction:column; gap:5px;">
+                                    <!-- Populated via JS -->
+                                    <div style="text-align:center; padding:20px; color:var(--text-muted);">Cargando
+                                        archivos...</div>
+                                </div>
+                                <div style="text-align:right; margin-top:5px;">
+                                    <small id="batchSelectedCount" style="color:var(--text-muted);">0 archivos
+                                        seleccionados</small>
+                                </div>
+                            </div>
+
+                            <!-- Status Info -->
+                            <div class="batch-status"
+                                style="margin-top:15px; padding:12px; background:rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius:4px; font-size:0.9rem;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <strong>Progreso del Lote:</strong>
+                                    <span id="batchProgressText"
+                                        style="font-family:monospace; font-weight:bold;">Inactivo</span>
+                                </div>
+                                <div id="batchCurrentFile"
+                                    style="margin-top:5px; font-size:0.8rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                    -
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button class="btn btn-primary" id="batchStartBtn">
+                                <span class="btn-icon">▶</span> Iniciar Lote
+                            </button>
+                            <button class="btn btn-warning" id="batchPauseBtn" disabled>
+                                <span class="btn-icon">⏸</span> Pausar
+                            </button>
+                            <button class="btn btn-info" id="batchResumeBtn" style="display:none;">
+                                <span class="btn-icon">⏩</span> Reanudar
+                            </button>
+                            <button class="btn btn-danger" id="batchStopBtn" disabled>
+                                <span class="btn-icon">⏹</span> Detener
+                            </button>
+                        </div>
+                    </section>
+                </div>
+
 
             </div>
 

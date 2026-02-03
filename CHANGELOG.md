@@ -21,6 +21,15 @@
 - **Feature Unification**: Merged "Generar informe con IA" and "Deep Research".
     - The "Generar informe" button now triggers the Deep Research engine directly for the top district.
     - Prompts unified to combine "Visual Analyst" styling with Deep Research data depth.
+- **Enrichment Tool Refinements**:
+    - **Permanent History (JSON)**: Implemented `scraper/enriched_history.json` to store all enriched property data.
+    - **Smart Skip**: The Enrichment tool now checks history before scraping; existing URLs are skipped and their data is restored from the JSON cache.
+    - **Periodic Checkpoints**: Automatically saves progress (Excel and JSON) every 50 properties and upon manual stop/error.
+    - **Data Overwrite Logic**: For active listings, the tool now replaces old data with fresh scraped information, preserving only 'Ciudad', 'exterior', and 'Fecha Scraping' from the original row.
+    - **Relative Date Parsing**: Automatic conversion of "hoy", "ayer", "anteayer" and "DD/MM/YYYY" into "YYYY-MM-DD" for 'Baja anuncio' dates.
+    - **UI Stability**: "Iniciar Lote" button is now disabled until at least one file is selected in the Batch Enrichment panel.
+    - **Log Cleanup**: Removed incompatible box-drawing characters (`└─`) for better Windows console support.
+    - **Output Filename**: Changed default output suffix from `_status_updated.xlsx` to `_updated.xlsx`.
 
 ### Fixed
 - **Analyzer Fatal Error**: Fixed a crash in `analysis.py` when filtering resulted in empty or small datasets (< 2 properties) by adding data point checks and broader exception handling in the ML phase.

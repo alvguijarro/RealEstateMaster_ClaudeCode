@@ -103,6 +103,7 @@ function validateFileSelection() {
     validateAnalyzeButton();
 }
 
+
 function setupFilters() {
     const filterGroups = {
         'filter-ascensor': { type: 'exclusive' },

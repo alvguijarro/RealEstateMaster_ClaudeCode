@@ -641,6 +641,11 @@ function initializeSocket() {
         addLog('WARN', 'El navegador fue cerrado. Scraping pausado.');
         showBrowserClosedModal();
     });
+
+    // Initialize Batch Listeners if function exists (it's defined at bottom)
+    if (typeof setupBatchSocketListeners === 'function') {
+        setupBatchSocketListeners();
+    }
 }
 
 // Browser closed modal
@@ -1402,3 +1407,264 @@ if (restartServerBtn) {
         }
     });
 }
+// =============================================================================
+// BATCH ENRICHMENT LOGIC
+// =============================================================================
+
+const batchStartBtn = document.getElementById('batchStartBtn');
+const batchPauseBtn = document.getElementById('batchPauseBtn');
+const batchResumeBtn = document.getElementById('batchResumeBtn');
+const batchStopBtn = document.getElementById('batchStopBtn');
+const batchFileList = document.getElementById('batchFileList');
+const batchProgressText = document.getElementById('batchProgressText');
+const batchCurrentFile = document.getElementById('batchCurrentFile');
+const batchSelectedCount = document.getElementById('batchSelectedCount');
+
+let batchFiles = []; // Stores file objects {path, name}
+
+// Load files for Batch List
+async function loadBatchFiles() {
+    if (!batchFileList) return;
+
+    try {
+        const response = await fetch('/api/salidas-files?limit=100');
+        const data = await response.json();
+
+        batchFileList.innerHTML = '';
+        batchFiles = data.files || [];
+
+        if (batchFiles.length === 0) {
+            batchFileList.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No hay archivos en scraper/salidas</div>';
+            return;
+        }
+
+        batchFiles.forEach((f, index) => {
+            const item = document.createElement('div');
+            item.className = 'batch-file-item';
+            item.style.cssText = 'display:flex; align-items:center; padding:6px; background:rgba(255,255,255,0.02); border-bottom:1px solid rgba(255,255,255,0.05);';
+            item.innerHTML = `
+                <input type="checkbox" id="bf-${index}" value="${f.path}" style="margin-right:10px; cursor:pointer;">
+                <label for="bf-${index}" style="cursor:pointer; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.85rem;">${f.name}</label>
+            `;
+            batchFileList.appendChild(item);
+
+            // Add change listener for count update
+            const cb = item.querySelector('input');
+            cb.addEventListener('change', updateBatchCount);
+        });
+
+        updateBatchCount();
+
+    } catch (e) {
+        console.error("Error loading batch files", e);
+        batchFileList.innerHTML = `<div style="color:var(--danger)">Error al cargar archivos: ${e.message}</div>`;
+    }
+}
+
+
+function updateBatchCount() {
+    if (!batchSelectedCount) return;
+    const count = batchFileList.querySelectorAll('input[type="checkbox"]:checked').length;
+    batchSelectedCount.textContent = `${count} archivos seleccionados`;
+    validateBatchButton();
+}
+
+function toggleBatchFiles(selectAll) {
+    if (!batchFileList) return;
+    const cbs = batchFileList.querySelectorAll('input[type="checkbox"]');
+    cbs.forEach(cb => cb.checked = selectAll);
+    updateBatchCount();
+}
+
+function validateBatchButton() {
+    if (!batchStartBtn) return;
+    // Don't enable if we are already running
+    if (batchStartBtn.disabled && batchProgressText.textContent !== "Inactivo") return;
+
+    const count = batchFileList.querySelectorAll('input[type="checkbox"]:checked').length;
+    if (count > 0) {
+        batchStartBtn.disabled = false;
+        batchStartBtn.style.opacity = '1';
+        batchStartBtn.style.cursor = 'pointer';
+    } else {
+        batchStartBtn.disabled = true;
+        batchStartBtn.style.opacity = '0.5';
+        batchStartBtn.style.cursor = 'not-allowed';
+    }
+}
+
+// Batch Actions
+if (batchStartBtn) {
+    batchStartBtn.addEventListener('click', async () => {
+        const checked = Array.from(batchFileList.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+
+        if (checked.length === 0) {
+            alert("Por favor, selecciona al menos un archivo.");
+            return;
+        }
+
+        setBatchUIState('running');
+        addLog('INFO', `🚀 Iniciando lote con ${checked.length} archivos...`);
+
+        try {
+            const res = await fetch('/api/batch/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ files: checked })
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                addLog('ERR', `Error al iniciar lote: ${data.error}`);
+                setBatchUIState('idle');
+            }
+        } catch (e) {
+            addLog('ERR', `Error de conexión: ${e.message}`);
+            setBatchUIState('idle');
+        }
+    });
+}
+
+if (batchStopBtn) {
+    batchStopBtn.addEventListener('click', async () => {
+        if (!confirm("¿Seguro que quieres detener todo el lote?")) return;
+
+        addLog('WARN', '🛑 Deteniendo lote...');
+        try {
+            await fetch('/api/batch/stop', { method: 'POST' });
+            setBatchUIState('idle');
+        } catch (e) { console.error(e); }
+    });
+}
+
+if (batchPauseBtn) {
+    batchPauseBtn.addEventListener('click', async () => {
+        // We reuse the update urls pause endpoint
+        addLog('INFO', '⏸️ Pausando proceso actual...');
+        try {
+            await fetch('/api/update/pause', { method: 'POST' });
+            setBatchUIState('paused'); // Toggle buttons
+        } catch (e) { console.error(e); }
+    });
+}
+
+if (batchResumeBtn) {
+    batchResumeBtn.addEventListener('click', async () => {
+        addLog('INFO', '▶️ Reanudando proceso...');
+        try {
+            await fetch('/api/update/resume', { method: 'POST' });
+            setBatchUIState('running');
+        } catch (e) { console.error(e); }
+    });
+}
+
+function setBatchUIState(state) {
+    // states: idle, running, paused
+    if (!batchStartBtn) return;
+
+    if (state === 'running') {
+        batchStartBtn.disabled = true;
+        batchStopBtn.disabled = false;
+        batchPauseBtn.disabled = false;
+        batchPauseBtn.style.display = 'inline-block';
+        batchResumeBtn.style.display = 'none';
+        batchProgressText.textContent = "Ejecutando...";
+        batchProgressText.style.color = "var(--success)";
+    } else if (state === 'paused') {
+        batchStartBtn.disabled = true;
+        batchStopBtn.disabled = false;
+        batchPauseBtn.style.display = 'none';
+        batchResumeBtn.style.display = 'inline-block';
+        batchProgressText.textContent = "Pausado";
+        batchProgressText.style.color = "var(--warning)";
+    } else {
+        batchStartBtn.disabled = false;
+        batchStopBtn.disabled = true;
+        batchPauseBtn.disabled = true;
+        batchPauseBtn.style.display = 'inline-block';
+        batchResumeBtn.style.display = 'none';
+        batchProgressText.textContent = "Inactivo";
+        batchProgressText.style.color = "var(--text-muted)";
+        batchCurrentFile.textContent = "-";
+    }
+}
+
+// Initialize on Load
+document.addEventListener('DOMContentLoaded', () => {
+    loadBatchFiles();
+
+    // Check initial status
+    fetch('/api/batch/status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.is_running) {
+                setBatchUIState('running');
+                // Check if paused? 
+                // We'd need to check 'update_paused.flag' endpoint but for now assume running
+                if (data.current_idx >= 0) {
+                    batchProgressText.textContent = `Procesando archivo ${data.current_idx + 1} de ${data.total}`;
+                    if (data.current_file) {
+                        batchCurrentFile.textContent = data.current_file.split(/[\\/]/).pop();
+                    }
+                }
+            }
+        })
+        .catch(e => console.log("Batch status check failed", e));
+
+    // Listen to Batch Events (add to initializeSocket if global socket exists)
+    if (socket) {
+        setupBatchSocketListeners();
+    }
+});
+
+function setupBatchSocketListeners() {
+    socket.on('batch_progress', (data) => {
+        batchProgressText.textContent = `Archivo ${data.current} de ${data.total}`;
+        batchCurrentFile.textContent = `📄 ${data.file}`;
+        setBatchUIState('running'); // Ensure UI is in sync
+    });
+
+    socket.on('batch_completed', (data) => {
+        addLog('OK', `🎉 Lote completado: ${data.completed}/${data.total} archivos.`);
+        setBatchUIState('idle');
+        alert("Batch Enrichment Completed!");
+    });
+
+    socket.on('batch_stopped', () => {
+        setBatchUIState('idle');
+    });
+
+    // Also listen for legacy status if paused manually
+    socket.on('status_change', (data) => {
+        if (data.status === 'paused') setBatchUIState('paused');
+        if (data.status === 'running') setBatchUIState('running');
+    });
+}
+
+// Hook into existing initializeSocket if possible, or just run it if socket is already there
+// Since we appended this code, socket might be null if DOMContentLoaded fires early?
+// No, DOMContentLoaded in this block handles it.
+// BUT, the MAIN `initializeSocket` is called in main DOMContentLoaded.
+// The `socket` variable is global.
+// We can just add the listener registration to the original `initializeSocket` function 
+// OR simpler: check interval?
+// Better: Override or Extend.
+// Since we can't easily edit the middle of file, we use the fact that `socket` is global.
+// We just need to make sure we attach listeners ONCE.
+
+const originalInitSocket = window.initializeSocket;
+// Actually we can't override the internal logic easily if it's not exposed.
+// But `initializeSocket` IS defined in global scope in the file above.
+// AND we are appending to the file.
+// So we can redefine it? No, that's risky.
+// We can just watch for socket connection.
+
+// Since `socket` is global, we can just add listeners if it exists.
+// If it connects later, we might miss it.
+// Wait, `socket` is initialized in `initializeSocket`.
+// We can modify `initializeSocket` in the file above to call `setupBatchSocketListeners`.
+// OR we just use `socket.on('connect')` here if socket is already created?
+// `socket` is null initially.
+
+// Let's modify the ORIGINAL `initializeSocket` to call `setupBatchSocketListeners`.
+// I'll make a separate tool call to inject the call inside `initializeSocket`.
