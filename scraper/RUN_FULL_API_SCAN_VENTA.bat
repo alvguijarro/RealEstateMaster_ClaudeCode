@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0\.."
 echo Starting Full API Province Scan (VENTA)...
 echo =======================================
 

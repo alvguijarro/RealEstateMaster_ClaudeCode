@@ -624,6 +624,7 @@ window.onclick = (e) => {
     }
 }
 
+// Generate button handler
 generateBtn.onclick = async () => {
     const userPrompt = document.getElementById('promptInput').value;
 
@@ -636,13 +637,27 @@ generateBtn.onclick = async () => {
     availableDistrictReports = {};
     const districts = batchDistrictsToAnalyze;
 
+    // Extract province/city from file for context
+    let locationContext = "Madrid"; // Default
+    const ventaFile = document.getElementById('ventaFile').value;
+    if (ventaFile) {
+        if (ventaFile.startsWith('API_BATCH_')) {
+            const parts = ventaFile.split('_');
+            if (parts.length >= 3) locationContext = parts[2];
+        } else {
+            const parts = ventaFile.split('_');
+            if (parts.length >= 2) locationContext = parts[1];
+        }
+    }
+
     for (let i = 0; i < districts.length; i++) {
         const dist = districts[i];
         reportOutput.innerHTML += `<div class="log-line">> Generando informe para <strong>${dist}</strong> (${i + 1}/${districts.length})...</div>`;
 
         try {
             // Combine User Prompt + District Context
-            const fullPrompt = `${userPrompt}\n\n[CONTEXTO]\nDistrito: ${dist}\nProvincia: Madrid\nComunidad Autónoma: Madrid`;
+            // Dynamic province injection
+            const fullPrompt = `${userPrompt}\n\n[CONTEXTO]\nDistrito: ${dist}\nProvincia: ${locationContext}\nComunidad Autónoma: ${locationContext}`;
 
             const res = await fetch('/api/generate-report', {
                 method: 'POST',
@@ -729,23 +744,36 @@ function setupDeepResearchButton() {
         const topDistrict = sortedResults[0]?.Distrito;
         if (!topDistrict) {
             alert("No se encontró un distrito válido.");
-            return;
         }
 
         // Try to extract city from filename
         let city = "Madrid";
+        let province = "Madrid"; // Default
         const ventaFile = document.getElementById('ventaFile').value;
+
         if (ventaFile) {
-            // Expected: idealista_City_venta.xlsx
-            const parts = ventaFile.split('_');
-            if (parts.length >= 2) {
-                city = parts[1];
+            // Check for API_BATCH files: API_BATCH_City_...
+            if (ventaFile.startsWith('API_BATCH_')) {
+                const parts = ventaFile.split('_');
+                // API_BATCH_City_... -> City is at index 2
+                if (parts.length >= 3) {
+                    city = parts[2];
+                    province = parts[2]; // Assume city = province in filename context usually
+                }
+            } else {
+                // Expected: idealista_City_venta.xlsx -> City is at index 1
+                const parts = ventaFile.split('_');
+                if (parts.length >= 2) {
+                    city = parts[1];
+                    // Heuristic: if city is not Madrid, assumed province is same as city or generic
+                    // Ideally we could have a map, but using City as Province is a safe fallback for query context
+                    if (city !== 'Madrid') province = city;
+                }
             }
         }
 
         // Format: "Distrito Name (City, Province)"
-        // Assuming Madrid as province since app is Madrid-centric or consistent
-        const defaultPrompt = `Distrito ${topDistrict} (${city}, Madrid)`;
+        const defaultPrompt = `Distrito ${topDistrict} (${city}, ${province})`;
 
         // Prompt user to confirm or modify
         const distrito = prompt(

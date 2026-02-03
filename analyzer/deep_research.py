@@ -1,24 +1,20 @@
 """
 Deep Research Module - Agentic Research for Real Estate Districts
 
-Uses Google Custom Search + Gemini to generate comprehensive investment reports
-for each district based on 21 predefined queries.
+Uses Gemini Grounding (Search Tool) via the new `google-genai` library to generate 
+comprehensive investment reports for each district based on predefined research topics.
 """
 import os
-import time
-import requests
-from typing import List, Dict, Optional
+from typing import Dict, Optional
+# Import the new client library for Gemini API
+from google import genai
+from google.genai import types
 
-# Rate limiting for Google CSE
-_last_search_time = 0
-SEARCH_RATE_LIMIT = 1.1  # seconds between requests
+# Load Google API Key
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
-# Google CSE Configuration
-GOOGLE_CSE_ID = os.getenv('GOOGLE_CSE_ID', '043339718c8054129')
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', 'AIzaSyC7IGitg94xGP_ojTEbcnW9sHa24C1tFNM')
-
-# 21 Fixed Query Templates (user-defined)
-RESEARCH_QUERIES = [
+# 21 Fixed Research Topics
+RESEARCH_TOPICS = [
     "precio vivienda €/m² {zona}",
     "precio alquiler €/m² {zona} idealista",
     "rentabilidad alquiler bruta {zona} (venta vs alquiler)",
@@ -43,218 +39,120 @@ RESEARCH_QUERIES = [
 ]
 
 
-def google_search(query: str, num_results: int = 5) -> List[Dict]:
+def deep_research_distrito(zona: str, metrics: Optional[Dict] = None, 
+                           progress_callback=None) -> str:
     """
-    Execute a Google Custom Search query.
-    
-    Returns list of results with title, link, and snippet.
-    Rate-limited to 1 request per second.
-    """
-    global _last_search_time
-    
-    # Rate limiting
-    elapsed = time.time() - _last_search_time
-    if elapsed < SEARCH_RATE_LIMIT:
-        time.sleep(SEARCH_RATE_LIMIT - elapsed)
-    
-    url = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        'key': GOOGLE_API_KEY,
-        'cx': GOOGLE_CSE_ID,
-        'q': query,
-        'num': min(num_results, 10),  # Max 10 per request
-        'lr': 'lang_es',  # Spanish results
-        'gl': 'es',       # Spain geo
-    }
-    
-    try:
-        resp = requests.get(url, params=params, timeout=15)
-        _last_search_time = time.time()
-        
-        if resp.status_code == 200:
-            data = resp.json()
-            items = data.get('items', [])
-            return [
-                {
-                    'title': item.get('title', ''),
-                    'link': item.get('link', ''),
-                    'snippet': item.get('snippet', '')
-                }
-                for item in items
-            ]
-        else:
-            print(f"[WARN] Google Search error {resp.status_code}: {resp.text[:200]}")
-            return []
-            
-    except Exception as e:
-        print(f"[WARN] Google Search failed: {e}")
-        return []
-
-
-def execute_research_queries(zona: str, progress_callback=None) -> Dict[str, List[Dict]]:
-    """
-    Execute all 21 research queries for a given zone/district.
+    Main entry point: Execute full deep research for a district using Gemini Grounding.
     
     Args:
         zona: District name
-        progress_callback: Optional callback(query_num, total, query_text)
+        metrics: Optional metrics dict from analysis
+        progress_callback: Optional callback (compatibility mode, not fully used with single-call)
         
     Returns:
-        Dictionary mapping query template -> list of search results
+        Complete investment report in markdown format
     """
-    results = {}
-    total = len(RESEARCH_QUERIES)
-    
-    for i, template in enumerate(RESEARCH_QUERIES, 1):
-        query = template.format(zona=zona)
-        
-        if progress_callback:
-            progress_callback(i, total, query)
-        
-        search_results = google_search(query)
-        results[template] = search_results
-        
-        print(f"  [{i}/{total}] {query[:50]}... -> {len(search_results)} results")
-    
-    return results
+    if not GOOGLE_API_KEY:
+        return "Error: GOOGLE_API_KEY no configurada en el entorno."
 
-
-def synthesize_report(zona: str, search_results: Dict[str, List[Dict]], 
-                      metrics: Optional[Dict] = None) -> str:
-    """
-    Use Gemini to synthesize a comprehensive investment report.
+    print(f"\n{'='*60}")
+    print(f"DEEP RESEARCH (GEMINI GROUNDING): {zona}")
+    print(f"{'='*60}")
     
-    Args:
-        zona: District name
-        search_results: Output from execute_research_queries()
-        metrics: Optional dict with calculated metrics (yield, price vs market, etc.)
-        
-    Returns:
-        Markdown-formatted investment report in Spanish
-    """
-    try:
-        import google.generativeai as genai
-    except ImportError:
-        return f"Error: google-generativeai no instalado. Ejecutar: pip install google-generativeai"
-    
-    # Configure Gemini
-    genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel('gemini-2.0-flash')
-    
-    # Build context from search results
-    context_parts = []
-    for template, results in search_results.items():
-        if results:
-            snippets = "\n".join([f"- {r['snippet']}" for r in results[:3]])
-            context_parts.append(f"**{template.format(zona=zona)}**:\n{snippets}")
-    
-    search_context = "\n\n".join(context_parts)
+    # Initialize New Client
+    client = genai.Client(api_key=GOOGLE_API_KEY)
     
     # Build metrics context if available
     metrics_context = ""
     if metrics:
         metrics_lines = []
         if 'yield_bruto' in metrics:
-            metrics_lines.append(f"- Rentabilidad bruta: {metrics['yield_bruto']:.1%}")
+            metrics_lines.append(f"- Rentabilidad bruta calculada: {metrics['yield_bruto']:.1%}")
         if 'yield_neto' in metrics:
-            metrics_lines.append(f"- Rentabilidad neta: {metrics['yield_neto']:.1%}")
+            metrics_lines.append(f"- Rentabilidad neta calculada: {metrics['yield_neto']:.1%}")
         if 'descuento_vs_mercado_pct' in metrics:
             metrics_lines.append(f"- Descuento vs mercado: {metrics['descuento_vs_mercado_pct']:.1f}%")
         if 'n_oportunidades' in metrics:
-            metrics_lines.append(f"- Nº oportunidades detectadas: {metrics['n_oportunidades']}")
+            metrics_lines.append(f"- Nº oportunidades detectadas en nuestra base: {metrics['n_oportunidades']}")
         metrics_context = "\n".join(metrics_lines)
     
-    # Build prompt
+    # Prepare Prompt
+    topics_list = "\n".join([f"- {t.format(zona=zona)}" for t in RESEARCH_TOPICS])
+    
     prompt = f"""Eres un analista de inversión inmobiliaria experto y riguroso.
+Estás encargado de realizar un informe de "Deep Research" sobre el distrito o zona: "{zona}".
 
-A continuación tienes datos recogidos de búsquedas web sobre el distrito "{zona}".
-Sintetiza un informe de inversión EN ESPAÑOL con el siguiente formato.
+Tu tarea es investigar a fondo utilizando tus herramientas de búsqueda y sintetizar un informe detallado.
+Debes buscar información específica sobre los siguientes temas clave:
 
-**REGLAS CRÍTICAS ANTI-ALUCINACIÓN (MUY IMPORTANTE):**
-1. **USA SOLO LOS DATOS PROPORCIONADOS ABAJO** en la sección "DATOS DE BÚSQUEDA WEB".
-2. **NO INVENTES DATOS**. Si los resultados de búsqueda no contienen información específica sobre precios, delitos o planes urbanísticos, DEBES escribir: "No hay información suficiente en los resultados de búsqueda".
-3. NO SUPONGAS tendencias si no hay datos históricos mostrados explícitamente en los fragmentos.
-4. Si la información es escasa, admítelo honestamente. Es mejor decir "No hay datos" que dar un dato falso o inventado.
-5. NO uses conocimiento general externo para rellenar datos numéricos (precios, rentabilidades, estadísticas).
+{topics_list}
 
 ---
+
+**MÉTRICAS INTERNAS DE NUESTRA BASE DE DATOS (NO BUSCAR, USAR COMO REFERENCIA):**
+{metrics_context if metrics_context else "No disponibles"}
+
+---
+
+Genera un informe FINAL EN ESPAÑOL con el siguiente formato Markdown.
+
+**REGLAS:**
+1. **FUNDAMENTA TODO**: Usa la búsqueda de Google para encontrar datos reales recientes (precios, noticias, planes urbanísticos).
+2. **CITA FUENTES**: El sistema añadirá citas automáticamente, pero asegúrate de basar tus afirmaciones en los resultados de búsqueda.
+3. **SÉ CRÍTICO**: Si hay datos contradictorios (ej: bajada de precios en una fuente, subida en otra), menciónalo.
+4. **NO INVENTES**: Si no encuentras datos sobre algo específico (ej: inundabilidad), indícalo claramente ("No se hallaron datos específicos").
+
+---
+FORMATO DEL INFORME:
 
 ## {zona} - Análisis de Inversión
 
 ### 📊 Resumen Ejecutivo
-[2-3 líneas sobre si es INVERTIR / ESPERAR / EVITAR y por qué, basándote SOLO en lo encontrado]
+[Recomendación clara: INVERTIR / ESPERAR / EVITAR y por qué]
 
-### 💰 Precios y Rentabilidad
-[Datos sobre precios venta/alquiler y rentabilidad bruta encontrados en los resultados]
+### 💰 Precios y Mercado
+[Análisis de precios venta/alquiler, tendencias recientes y rentabilidades de mercado vs nuestras métricas]
 
-### 📈 Tendencias
-[Evolución de precios últimos años, proyección - SOLO SI HAY DATOS]
+### 🚇 Infraestructura y Urbanismo
+[Transporte, obras públicas, planeamiento y proyectos futuros]
 
-### 🚇 Infraestructura y Transporte
-[Planes urbanísticos, nuevas líneas, accesibilidad - SOLO SI HAY DATOS]
+### 👥 Demografía y Social
+[Perfil del habitante, seguridad, ocupación, demanda de alquiler]
 
-### 👥 Demografía y Demanda
-[Población, renta media, demanda alquiler - SOLO SI HAY DATOS]
+### ⚠️ Riesgos y Oportunidades
+[Riesgos específicos (okupación, zonas tensionadas) vs Catalizadores de revalorización]
 
-### ⚠️ Riesgos
-[Okupación, zona tensionada, ruido, inundabilidad - SOLO SI HAY DATOS]
-
-### ✅ Conclusión
-[1-2 frases finales con recomendación clara basada estrictamente en la evidencia encontrada]
-
----
-
-**DATOS DE BÚSQUEDA WEB:**
-{search_context}
-
-**MÉTRICAS CALCULADAS:**
-{metrics_context if metrics_context else "No disponibles"}
-
-Genera el informe siguiendo ESTRICTAMENTE las reglas anti-alucinación.
-Usa emojis apropiados para cada sección. Sé conciso pero informativo.
+### ✅ Conclusión Final
+[Veredicto inversor fundamentado]
 """
+
+    print("\n[1/1] Ejecutando investigación y síntesis con Gemini Grounding...")
     
+    if progress_callback:
+        progress_callback(50, 100, "Investigando y redactando con Gemini...")
+
     try:
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"Error generando informe: {e}"
-
-
-def deep_research_distrito(zona: str, metrics: Optional[Dict] = None, 
-                           progress_callback=None) -> str:
-    """
-    Main entry point: Execute full deep research for a district.
-    
-    Args:
-        zona: District name
-        metrics: Optional metrics dict from analysis
-        progress_callback: Optional callback for progress updates
+        # Use new generate_content call structure with google_search tool
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(
+                    google_search=types.GoogleSearchRetrieval
+                )]
+            )
+        )
         
-    Returns:
-        Complete investment report in markdown format
-    """
-    print(f"\n{'='*60}")
-    print(f"DEEP RESEARCH: {zona}")
-    print(f"{'='*60}")
-    
-    # Phase 1: Execute all 21 queries
-    print("\n[1/2] Ejecutando búsquedas...")
-    search_results = execute_research_queries(zona, progress_callback)
-    
-    # Count total results
-    total_results = sum(len(r) for r in search_results.values())
-    print(f"\n  Total resultados: {total_results}")
-    
-    # Phase 2: Synthesize with Gemini
-    print("\n[2/2] Sintetizando informe con Gemini...")
-    report = synthesize_report(zona, search_results, metrics)
-    
-    print(f"\n{'='*60}")
-    print("DEEP RESEARCH COMPLETADO")
-    print(f"{'='*60}")
-    
-    return report
+        # Check if response has valid text
+        if response.text:
+            print("\n  -> Informe generado correctamente.")
+            return response.text
+        else:
+            return "Error: Gemini no devolvió texto (posible bloqueo de seguridad)."
+            
+    except Exception as e:
+        print(f"\n[ERROR] Fallo en Deep Research: {e}")
+        return f"Error generando informe: {e}"
 
 
 # Test function
@@ -263,7 +161,6 @@ if __name__ == "__main__":
     
     if len(sys.argv) < 2:
         print("Usage: python deep_research.py <distrito>")
-        print("Example: python deep_research.py Arroyomolinos")
         sys.exit(1)
     
     distrito = " ".join(sys.argv[1:])

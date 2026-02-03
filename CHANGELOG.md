@@ -1,5 +1,21 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-03]
+
+### Added
+- **Gemini Deep Research (Grounding)**: Migrated "Deep Research" from Google Custom Search to native **Gemini Grounding**.
+    - Removed dependency on Custom Search Engine ID (CSE) and rate limits.
+    - Simplified `analyzer/deep_research.py` to use `google.generativeai` with `tools='google_search_retrieval'`.
+    - Gemini now autonomously performs the searches based on the 21 research topics.
+- **Dynamic Province Detection**: Fixed hardcoded "Madrid" in frontend logic.
+    - `analyzer/static/script.js` now extracts City and Province from filenames (e.g., `API_BATCH_Melilla...` -> Melilla).
+    - Ensures "Generar informe con IA" and "Deep Research" use the correct geographical context.
+- **Library Upgrade**: Upgraded from `google-generativeai` to `google-genai` (v1.61.0) for better tool support.
+- **Model Upgrade**: Switched Deep Research model to `deep-research-pro-preview-12-2025` for enhanced reasoning capabilities.
+
+### Changed
+- **Frontend Fix**: Fixed "BATCH" appearing in district names by correctly parsing `API_BATCH_` filenames (index 2 for City).
+
 ## [2026-02-02]
 
 ### Added
@@ -17,7 +33,7 @@
     - Resume capability: Tracks enriched URLs in `.enrich_state.json`.
     - Rate limiting: Conservative delays (8-20s between pages, 2-5min between batches).
     - CAPTCHA detection with manual resolution support.
-    - Run with: `RUN_ENRICH_WORKER.bat` or `python scripts/enrich_worker.py --input "scraper/salidas/API_BATCH_*.xlsx"`
+    - Run with: `scraper/RUN_ENRICH_WORKER.bat` or `python scripts/enrich_worker.py --input "scraper/salidas/API_BATCH_*.xlsx"`
 - **Unicode Safety & Windows Compatibility**: Fixed a `UnicodeEncodeError` in the `log` function by implementing ASCII fallbacks for special characters (`≤`, `→`, `€`), ensuring stability on Windows consoles.
 - **Concise User Logs**: Streamlined the enrichment worker's terminal output to be less technical and more informative ("Procesando X inmuebles..." instead of internal filtering steps).
 - **Fast File Loading (Limit 100)**: Added a result limit to the enrichment file selector and optimized the `/api/salidas-files` endpoint, ensuring instantaneous UI response even with thousands of files.
