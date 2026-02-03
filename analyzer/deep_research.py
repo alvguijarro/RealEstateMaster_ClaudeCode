@@ -40,7 +40,7 @@ RESEARCH_TOPICS = [
 
 
 def deep_research_distrito(zona: str, metrics: Optional[Dict] = None, 
-                           progress_callback=None) -> str:
+                           progress_callback=None, api_key: Optional[str] = None) -> str:
     """
     Main entry point: Execute full deep research for a district using Gemini Grounding.
     
@@ -48,11 +48,15 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
         zona: District name
         metrics: Optional metrics dict from analysis
         progress_callback: Optional callback (compatibility mode, not fully used with single-call)
+        api_key: Optional API Key override
         
     Returns:
         Complete investment report in markdown format
     """
-    if not GOOGLE_API_KEY:
+    # Use passed key, or env var, or global var
+    key_to_use = api_key or os.getenv('GOOGLE_API_KEY') or GOOGLE_API_KEY
+    
+    if not key_to_use:
         return "Error: GOOGLE_API_KEY no configurada en el entorno."
 
     print(f"\n{'='*60}")
@@ -60,7 +64,7 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     print(f"{'='*60}")
     
     # Initialize New Client
-    client = genai.Client(api_key=GOOGLE_API_KEY)
+    client = genai.Client(api_key=key_to_use)
     
     # Build metrics context if available
     metrics_context = ""

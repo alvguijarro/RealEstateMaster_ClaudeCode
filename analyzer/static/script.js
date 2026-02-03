@@ -575,31 +575,16 @@ function setupDistrictReport() {
 // ... existing modal interaction ...
 function showDistrictReports(districts) {
     const section = document.getElementById('districtReportSection');
-    const select = document.getElementById('districtSelect');
     const content = document.getElementById('districtReportContent');
 
     section.classList.remove('hidden');
-    select.innerHTML = '';
 
-    districts.forEach(dist => {
-        if (availableDistrictReports[dist]) {
-            const opt = document.createElement('option');
-            opt.value = dist;
-            opt.textContent = dist;
-            select.appendChild(opt);
-        }
-    });
-
-    if (select.options.length > 0) {
-        select.selectedIndex = 0;
-        renderDistrictContent(select.value);
+    // Just render the first district in the list (usually only one is generated per run)
+    if (districts.length > 0) {
+        renderDistrictContent(districts[0]);
     } else {
         content.innerHTML = "No se pudieron generar informes.";
     }
-
-    select.onchange = () => {
-        renderDistrictContent(select.value);
-    };
 
     section.scrollIntoView({ behavior: 'smooth' });
 }

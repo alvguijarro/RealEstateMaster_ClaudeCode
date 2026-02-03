@@ -363,7 +363,13 @@ def deep_research():
     try:
         from deep_research import deep_research_distrito
         
-        report = deep_research_distrito(distrito, metrics=metrics)
+        # Pass the global API KEY explicitly
+        report = deep_research_distrito(
+            distrito, 
+            metrics=metrics, 
+            api_key=GOOGLE_API_KEY
+        )
+        
         return jsonify({
             'distrito': distrito,
             'report': report,

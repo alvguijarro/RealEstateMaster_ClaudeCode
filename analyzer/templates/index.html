@@ -90,6 +90,13 @@
             background-color: #263345;
             /* approximating glass-hover on dark bg */
         }
+
+        /* HIGH CONTRAST MODAL SELECT */
+        #districtModalSelect {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 
@@ -313,14 +320,7 @@
                         <h2 class="card-title" style="color: var(--accent-color);">Informe de inversión por
                             distrito
                             (IA)</h2>
-                        <div style="display: flex; gap: 1rem; align-items: center;">
-                            <label for="districtSelect" style="color: white; margin: 0;">Ver
-                                distrito:</label>
-                            <select id="districtSelect"
-                                style="width: 250px; background: rgba(0,0,0,0.3); color: white; border: 1px solid var(--border-color); padding: 5px;">
-                                <!-- Options populated via JS -->
-                            </select>
-                        </div>
+                        <!-- Dropdown removed as requested -->
                     </div>
                     <div id="districtReportContent" class="markdown-body"
                         style="padding: 20px; max-height: 800px; overflow-y: auto;">
