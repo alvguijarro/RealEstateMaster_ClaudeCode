@@ -106,12 +106,17 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     
     Genera un informe FINAL EN ESPAÑOL con el siguiente formato Markdown.
     
+    **INSTRUCCIONES DE FORMATO IMPORTANTES:**
+    1. **SÓLO UNA VERSIÓN**: Genera una única versión final del informe. No incluyas versiones preliminares ni informes "vacíos" previos.
+    2. **SIN COMENTARIOS**: No incluyas introducciones como "Aquí tienes el informe...", ni conclusiones sobre la dificultad de la búsqueda.
+    3. **COMIENZO DIRECTO**: Tu respuesta debe empezar DIRECTAMENTE con el encabezado "# 🇪🇸 **Informe de Inversión: {zona}**".
+    
     **REGLAS CRÍTICAS DE CONTENIDO:**
     1. **PROHIBIDO HACER RECOMENDACIONES DE INVERSIÓN**: NUNCA digas "Comprar", "Esperar", "Vender" o "Recomiendo invertir". Tu trabajo es SÓLO exponer los HECHOS y DATOS. Deja que el inversor decida.
     2. **CITA FUENTES SIEMPRE**: Cada dato numérico o afirmación DEBE incluir un enlace Markdown a la fuente consultada (ejemplo: [Fuente](link)). Es obligatorio para dar credibilidad al informe.
     3. **FUNDAMENTA TODO**: Usa la búsqueda de Google para encontrar datos reales recientes (precios, noticias, planes urbanísticos).
     4. **SÉ CRÍTICO**: Si hay datos contradictorios, menciónalo.
-    5. **NO INVENTES**: Si no hay datos, indícalo.
+    5. **NO INVENTES**: Si no hay datos, indícalo con "Dato no disponible".
     
     ---
     ESTRUCTURA EXACTA DE SALIDA:
@@ -132,10 +137,29 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     ### 💰 **Precios y Mercado**
     *   **Precio vivienda**: [Datos m2 + link fuente].
     *   **Precio alquiler**: [Datos m2 + link fuente].
-    ... (resto de secciones)
+    *   **Rentabilidad**: [Estimación yield basado en mercado + link fuente].
+    *   **Evolución precios**: [Tendencia últimos años + link fuente].
+    
+    ### 🚇 **Infraestructura y Urbanismo**
+    *   **Transporte**: [Metro, cercanías, accesos].
+    *   **Inversiones Públicas**: [Presupuestos, obras en marcha].
+    *   **Planeamiento**: [PGOU, nuevos desarrollos].
+    *   **Riesgos Ambientales**: [Ruido, inundabilidad (SNCZI)].
+    
+    ### 👥 **Demografía y Social**
+    *   **Población**: [Edad media, crecimiento].
+    *   **Economía**: [Tasa de paro, renta media].
+    *   **Seguridad**: [Datos reales u okupación].
+    
+    ### ⚠️ **Riesgos y Oportunidades**
+    *   🔹 **Riesgos**: [Listado de riesgos objetivos].
+    *   🔹 **Oportunidades**: [Factores de revalorización o alta demanda].
+    
+    ### ✅ **Conclusión Final**
+    [Síntesis de los factores principales encontrados. SÓLO HECHOS. Sin recomendación.]
     
     ---
-    Al final de todo, incluye una sección:
+    Al final de todo, incluye la sección:
     ### 🔗 **Fuentes Consultadas**
     - [Título Fuente 1](URL)
     - [Título Fuente 2](URL)
@@ -161,6 +185,11 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
         # Check if response has valid text
         if response.text:
             report_text = response.text
+            
+            # SLICE: Start from the first '# ' to avoid meta-commentary
+            first_hash = report_text.find('#')
+            if first_hash != -1:
+                report_text = report_text[first_hash:]
             
             # Extract citations from metadata to ensure they are present
             try:
