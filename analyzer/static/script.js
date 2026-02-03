@@ -573,6 +573,59 @@ function setupDistrictReport() {
 // ... existing showDistrictReports ...
 // ... existing renderDistrictContent ...
 // ... existing modal interaction ...
+function showDistrictReports(districts) {
+    const section = document.getElementById('districtReportSection');
+    const select = document.getElementById('districtSelect');
+    const content = document.getElementById('districtReportContent');
+
+    section.classList.remove('hidden');
+    select.innerHTML = '';
+
+    districts.forEach(dist => {
+        if (availableDistrictReports[dist]) {
+            const opt = document.createElement('option');
+            opt.value = dist;
+            opt.textContent = dist;
+            select.appendChild(opt);
+        }
+    });
+
+    if (select.options.length > 0) {
+        select.selectedIndex = 0;
+        renderDistrictContent(select.value);
+    } else {
+        content.innerHTML = "No se pudieron generar informes.";
+    }
+
+    select.onchange = () => {
+        renderDistrictContent(select.value);
+    };
+
+    section.scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderDistrictContent(distName) {
+    const content = document.getElementById('districtReportContent');
+    const markdown = availableDistrictReports[distName];
+    if (markdown) {
+        content.innerHTML = marked.parse(markdown);
+    }
+}
+
+// Modal Interaction
+const modal = document.getElementById('reportModal');
+const closeBtn = document.querySelector('.close-modal');
+const generateBtn = document.getElementById('btnGenerateReport');
+const reportOutput = document.getElementById('reportOutput');
+
+closeBtn.onclick = () => {
+    modal.classList.add('hidden');
+};
+window.onclick = (e) => {
+    if (e.target == modal) {
+        modal.classList.add('hidden');
+    }
+}
 
 // Generate button handler (Unified Logic with Dropdown)
 generateBtn.onclick = async () => {
