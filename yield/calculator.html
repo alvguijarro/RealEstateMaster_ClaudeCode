@@ -941,54 +941,40 @@
                                                 data-tooltip="Beneficio neto (ingresos - gastos) dividido por la inversión total.">i</span>
                                         </div>
                                     </td>
-                                    <td id="rentNetaP">0%</td>
-                                    <td id="rentNetaO">0%</td>
+                                    <td id="rentNetaP_cell"><span id="rentNetaP">0%</span> <span class="info-icon"
+                                            data-tooltip="Beneficio anual (después de imp.) / Precio entrada (vivienda + gastos + ITP)">i</span>
+                                    </td>
+                                    <td id="rentNetaO_cell"><span id="rentNetaO">0%</span> <span class="info-icon"
+                                            data-tooltip="(Beneficio anual (después de imp.) + Periodos vacantes + Gastos mantenim.) / Precio entrada (vivienda + gastos + ITP)">i</span>
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td>
                                         <div class="label-row" style="justify-content:flex-start;">
                                             Cashflow anual
+                                            <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                                data-tooltip="Dinero real en el bolsillo tras pagar gastos y cuota hipotecaria.">i</span>
                                         </div>
                                     </td>
-                                    <td>
-                                        <div style="display:flex; align-items:center; justify-content:center;">
-                                            <span id="cashflowP">0 €</span>
-                                            <span class="info-icon"
-                                                style="margin-left:5px; width:14px; height:14px; font-size:10px;"
-                                                data-tooltip="Beneficio (después de imp.) - Devol. capital">i</span>
-                                        </div>
+                                    <td><span id="cashflowP">0 €</span> <span class="info-icon"
+                                            data-tooltip="Beneficio anual (después de imp.) - Devol. capital anual">i</span>
                                     </td>
-                                    <td>
-                                        <div style="display:flex; align-items:center; justify-content:center;">
-                                            <span id="cashflowO">0 €</span>
-                                            <span class="info-icon"
-                                                style="margin-left:5px; width:14px; height:14px; font-size:10px;"
-                                                data-tooltip="Cashflow anual (prudente) + Periodos vacantes + Gastos mantenim.">i</span>
-                                        </div>
+                                    <td><span id="cashflowO">0 €</span> <span class="info-icon"
+                                            data-tooltip="Cashflow anual (prudente) + Periodos vacantes + Gastos mantenim.">i</span>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>
                                         <div class="label-row" style="justify-content:flex-start;">
                                             ROCE
+                                            <span class="info-icon" style="margin-left:5px; margin-right:0;"
+                                                data-tooltip="ROCE (Return on Capital Employed): Cashflow sobre capital aportado.">i</span>
                                         </div>
                                     </td>
-                                    <td>
-                                        <div style="display:flex; align-items:center; justify-content:center;">
-                                            <span id="roceP">0%</span>
-                                            <span class="info-icon"
-                                                style="margin-left:5px; width:14px; height:14px; font-size:10px;"
-                                                data-tooltip="Cashflow anual (prudente) / Capital propio">i</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div style="display:flex; align-items:center; justify-content:center;">
-                                            <span id="roceO">0%</span>
-                                            <span class="info-icon"
-                                                style="margin-left:5px; width:14px; height:14px; font-size:10px;"
-                                                data-tooltip="Cashflow anual (optimista) / Capital propio">i</span>
-                                        </div>
-                                    </td>
+                                    <td><span id="roceP">0%</span> <span class="info-icon"
+                                            data-tooltip="Cashflow anual (prudente) / Capital propio">i</span></td>
+                                    <td><span id="roceO">0%</span> <span class="info-icon"
+                                            data-tooltip="Cashflow anual (optimista) / Capital propio">i</span></td>
                                 </tr>
                             </tbody>
                         </table>

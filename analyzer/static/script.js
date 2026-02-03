@@ -298,6 +298,9 @@ async function pollLogs() {
 let currentResults = [];
 let currentSort = { col: 'Puntuación', dir: -1 }; // -1: descending
 
+// Global variable to store current analysis province
+let currentAnalysisProvince = null;
+
 async function loadResults() {
     try {
         const res = await fetch('/api/results');
@@ -309,6 +312,17 @@ async function loadResults() {
         }
 
         currentResults = response.data || [];
+
+        // Extract Province/City from filename (Salidas/resultado_Valencia_...)
+        currentAnalysisProvince = null;
+        if (response.file) {
+            const parts = response.file.split('_');
+            if (parts.length >= 2) {
+                // parts[1] is typically the city name
+                currentAnalysisProvince = parts[1];
+            }
+        }
+
         renderResults();
 
         document.getElementById('resultCount').textContent = `${currentResults.length} Oportunidades encontradas`;
@@ -316,6 +330,113 @@ async function loadResults() {
     } catch (e) {
         console.error("Error loading results", e);
     }
+}
+
+// Full Map of 50 Provinces to Calculator Code
+function getComunidadByProvince(prov) {
+    if (!prov) return null;
+    const p = prov.toLowerCase().trim();
+
+    const map = {
+        // Andalucía (0.07)
+        'almería': 'andalucia', 'almeria': 'andalucia',
+        'cádiz': 'andalucia', 'cadiz': 'andalucia',
+        'córdoba': 'andalucia', 'cordoba': 'andalucia',
+        'granada': 'andalucia',
+        'huelva': 'andalucia',
+        'jaén': 'andalucia', 'jaen': 'andalucia',
+        'málaga': 'andalucia', 'malaga': 'andalucia',
+        'sevilla': 'andalucia',
+
+        // Aragón (0.08)
+        'huesca': 'aragon',
+        'teruel': 'aragon',
+        'zaragoza': 'aragon',
+
+        // Asturias (0.08)
+        'asturias': 'asturias', 'oviedo': 'asturias', 'gijón': 'asturias', 'gijon': 'asturias',
+
+        // Baleares (0.08)
+        'baleares': 'baleares', 'mallorca': 'baleares', 'menorca': 'baleares', 'ibiza': 'baleares', 'palma': 'baleares',
+
+        // Canarias (0.065)
+        'las palmas': 'canarias', 'canarias': 'canarias', 'tenerife': 'canarias',
+        'santa cruz de tenerife': 'canarias',
+
+        // Cantabria (0.10)
+        'cantabria': 'cantabria', 'santander': 'cantabria',
+
+        // Castilla - La Mancha (0.09)
+        'albacete': 'castillamancha',
+        'ciudad real': 'castillamancha',
+        'cuenca': 'castillamancha',
+        'guadalajara': 'castillamancha',
+        'toledo': 'castillamancha',
+
+        // Castilla León (0.08)
+        'ávila': 'castillaleon', 'avila': 'castillaleon',
+        'burgos': 'castillaleon',
+        'león': 'castillaleon', 'leon': 'castillaleon',
+        'palencia': 'castillaleon',
+        'salamanca': 'castillaleon',
+        'segovia': 'castillaleon',
+        'soria': 'castillaleon',
+        'valladolid': 'castillaleon',
+        'zamora': 'castillaleon',
+
+        // Cataluña (0.10)
+        'barcelona': 'cataluna',
+        'girona': 'cataluna', 'gerona': 'cataluna',
+        'lleida': 'cataluna', 'lérida': 'cataluna',
+        'tarragona': 'cataluna',
+
+        // Ceuta (0.06)
+        'ceuta': 'ceuta',
+
+        // Madrid (0.06)
+        'madrid': 'madrid',
+
+        // Comunidad Valenciana (0.10)
+        'alicante': 'valenciana', 'alacant': 'valenciana',
+        'castellón': 'valenciana', 'castellon': 'valenciana',
+        'valencia': 'valenciana', 'valència': 'valenciana',
+
+        // Extremadura (0.08)
+        'badajoz': 'extremadura',
+        'cáceres': 'extremadura', 'caceres': 'extremadura',
+
+        // Galicia (0.08)
+        'a coruña': 'galicia', 'la coruña': 'galicia', 'coruña': 'galicia',
+        'lugo': 'galicia',
+        'ourense': 'galicia', 'orense': 'galicia',
+        'pontevedra': 'galicia',
+
+        // La Rioja (0.07)
+        'la rioja': 'rioja', 'rioja': 'rioja', 'logroño': 'rioja',
+
+        // Melilla (0.06)
+        'melilla': 'melilla',
+
+        // Murcia (0.08)
+        'murcia': 'murcia',
+
+        // Navarra (0.06)
+        'navarra': 'navarra', 'pamplona': 'navarra',
+
+        // País Vasco (0.04)
+        'álava': 'paisvasco', 'alava': 'paisvasco', 'araba': 'paisvasco', 'vitoria': 'paisvasco',
+        'guipúzcoa': 'paisvasco', 'gipuzkoa': 'paisvasco', 'san sebastián': 'paisvasco', 'donostia': 'paisvasco',
+        'vizcaya': 'paisvasco', 'bizkaia': 'paisvasco', 'bilbao': 'paisvasco'
+    };
+
+    // Partial Match Check
+    for (const key in map) {
+        if (p.includes(key)) {
+            return map[key];
+        }
+    }
+
+    return null;
 }
 
 function renderResults() {
@@ -365,28 +486,20 @@ function renderResults() {
             ? `<a href="#" class="link-icon consultar-link" data-idx="${arrIdx}" style="color: var(--accent-color);">Consultar</a>`
             : '<span style="color: #888;">-</span>';
 
-        // Map distrito/ciudad to Comunidad Autónoma code for calculator
-        const distrito = (opp.Distrito || '').toLowerCase();
-        let comunidad = 'madrid'; // Default
-        // Simple mapping based on common cities
-        if (distrito.includes('barcelona') || distrito.includes('tarragona') || distrito.includes('girona') || distrito.includes('lleida')) comunidad = 'cataluna';
-        else if (distrito.includes('valencia') || distrito.includes('alicante') || distrito.includes('castellón')) comunidad = 'valenciana';
-        else if (distrito.includes('sevilla') || distrito.includes('málaga') || distrito.includes('córdoba') || distrito.includes('granada') || distrito.includes('cádiz')) comunidad = 'andalucia';
-        else if (distrito.includes('bilbao') || distrito.includes('san sebastián') || distrito.includes('vitoria')) comunidad = 'paisvasco';
-        else if (distrito.includes('zaragoza') || distrito.includes('huesca') || distrito.includes('teruel')) comunidad = 'aragon';
-        else if (distrito.includes('toledo') || distrito.includes('ciudad real') || distrito.includes('guadalajara') || distrito.includes('cuenca') || distrito.includes('albacete')) comunidad = 'castillamancha';
-        else if (distrito.includes('valladolid') || distrito.includes('salamanca') || distrito.includes('león') || distrito.includes('burgos') || distrito.includes('segovia')) comunidad = 'castillaleon';
-        else if (distrito.includes('palma') || distrito.includes('mallorca') || distrito.includes('ibiza') || distrito.includes('menorca')) comunidad = 'baleares';
-        else if (distrito.includes('las palmas') || distrito.includes('tenerife') || distrito.includes('canarias')) comunidad = 'canarias';
-        else if (distrito.includes('murcia') || distrito.includes('cartagena')) comunidad = 'murcia';
-        else if (distrito.includes('oviedo') || distrito.includes('gijón') || distrito.includes('asturias')) comunidad = 'asturias';
-        else if (distrito.includes('a coruña') || distrito.includes('vigo') || distrito.includes('santiago') || distrito.includes('galicia')) comunidad = 'galicia';
-        else if (distrito.includes('pamplona') || distrito.includes('navarra')) comunidad = 'navarra';
-        else if (distrito.includes('santander') || distrito.includes('cantabria')) comunidad = 'cantabria';
-        else if (distrito.includes('logroño') || distrito.includes('rioja')) comunidad = 'rioja';
-        else if (distrito.includes('mérida') || distrito.includes('badajoz') || distrito.includes('cáceres') || distrito.includes('extremadura')) comunidad = 'extremadura';
-        else if (distrito.includes('ceuta')) comunidad = 'ceuta';
-        else if (distrito.includes('melilla')) comunidad = 'melilla';
+        // --- INTELLIGENT REGION DETECTION ---
+        // 1. Try mapping the global file province
+        let comunidad = getComunidadByProvince(currentAnalysisProvince);
+
+        // 2. Fallback: Try mapping the district name (for files with "Unknown" or generic names)
+        if (!comunidad) {
+            const distrito = (opp.Distrito || '').toLowerCase();
+            comunidad = getComunidadByProvince(distrito);
+        }
+
+        // 3. Fallback: Default to Madrid
+        if (!comunidad) {
+            comunidad = 'madrid';
+        }
 
         const calcBtn = `
             <button class="btn-calc" onclick="openCalc(${opp.Precio}, ${opp['Renta_estimada/mes'] || 0}, '${comunidad}')" 
