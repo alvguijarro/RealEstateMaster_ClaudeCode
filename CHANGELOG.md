@@ -17,10 +17,25 @@
     - `analyzer/static/script.js` now extracts City and Province from filenames (e.g., `API_BATCH_Melilla...` -> Melilla).
     - Ensures "Generar informe con IA" and "Deep Research" use the correct geographical context.
 - **Library Upgrade**: Upgraded from `google-generativeai` to `google-genai` (v1.61.0) for better tool support.
-- **Model Upgrade**: Switched Deep Research model to `gemini-3-flash-preview` for latest capabilities.
+- **Model Upgrade**: Switched Deep Research model to `gemini-2.0-flash` for high-speed, cited reports.
 - **Feature Unification**: Merged "Generar informe con IA" and "Deep Research".
     - The "Generar informe" button now triggers the Deep Research engine directly for the top district.
     - Prompts unified to combine "Visual Analyst" styling with Deep Research data depth.
+
+### Fixed
+- **Analyzer Fatal Error**: Fixed a crash in `analysis.py` when filtering resulted in empty or small datasets (< 2 properties) by adding data point checks and broader exception handling in the ML phase.
+- **Deep Research API Key**: Resolved `GOOGLE_API_KEY` detection issue where the script failed to find the key in certain execution contexts.
+- **UI/UX Aesthetics & Alignment**:
+    - **Premium Button Style**: Forced "Generar informe con IA" button to a purple gradient (`#667eea` to `#764ba2`) using high-specificity CSS.
+    - **Table Border Fix**: Corrected misaligned bottom borders in the "Principales oportunidades" table for sticky columns.
+    - **Modal Contrast**: Improved visibility in the district selection modal with a high-contrast theme (white background, black text).
+    - **UI Cleanup**: Removed redundant "Ver distrito" dropdown from results to streamline the interface.
+
+### Improved
+- **AI Report Citations & Verifiability**:
+    - **Inline [Link] Formatting**: Reports now include high-transparency `[Link]` tags next to every factual claim, linking directly to the source.
+    - **Metadata Extraction**: Implemented a secondary source extractor that parses Gemini's grounding metadata to ensure a "Fuentes Consultadas" section is always present.
+- **Report Cleanliness**: Implemented response slicing to eliminate AI meta-commentary (introductory text like "Aquí tienes el informe...") and prevented duplicated report outputs.
 
 ### Changed
 - **Frontend Fix**: Fixed "BATCH" appearing in district names by correctly parsing `API_BATCH_` filenames (index 2 for City).
