@@ -203,6 +203,12 @@ input:focus {
     color: #e2e8f0;
     background-clip: padding-box;
     /* Prevents background from eating borders */
+    white-space: nowrap;
+    /* FORCE SINGLE LINE: Prevents wrapping wrapping row height mismatch */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+    /* Safety cap for extremely long titles */
 }
 
 .results-table th {
