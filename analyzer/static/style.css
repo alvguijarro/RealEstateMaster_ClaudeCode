@@ -190,7 +190,8 @@ input:focus {
 /* Tables */
 .results-table {
     width: 100%;
-    border-collapse: separate; /* Changed from collapse to fix sticky borders */
+    border-collapse: separate;
+    /* Changed from collapse to fix sticky borders */
     border-spacing: 0;
     min-width: 800px;
 }
@@ -219,21 +220,29 @@ input:focus {
 .results-table td:first-child {
     position: sticky;
     left: 0;
-    background-color: #1e293b; /* Match card-bg */
-    z-index: 15; /* Above normal content */
-    box-shadow: 2px 0 5px rgba(0,0,0,0.2); /* Shadow for depth */
-    border-right: 1px solid var(--border); /* Explicit right border */
+    background-color: #1e293b;
+    /* Match card-bg */
+    z-index: 15;
+    /* Above normal content */
+    /* REMOVED border-right and box-shadow as requested */
+    border-right: none;
+    box-shadow: none;
+    /* FIX: prevents background from overlapping the border */
+    background-clip: padding-box;
 }
 
 /* Ensure Header First Child sits on top */
 .results-table th:first-child {
     z-index: 20;
-    border-bottom: 2px solid var(--border); /* Maintain header border weight */
+    border-bottom: 2px solid var(--border);
+    /* Maintain header border weight */
 }
 
-/* Hover effect needs to be applied to the sticky cell manually since tr hover won't affect it effectively if it's on top */
+/* Hover effect needs to be applied to the sticky cell manually */
 .results-table tr:hover td:first-child {
-    background-color: #263345; /* Darker hover state matching row hover */
+    background-color: #263345;
+    /* Darker hover state matching row hover */
+    background-clip: padding-box;
 }
 
 .results-table th.sort-active {
