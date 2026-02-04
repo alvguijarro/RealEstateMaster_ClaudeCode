@@ -7,15 +7,20 @@
 - **Empty Row Prevention**: Implemented a mandatory data integrity check during enrichment. If essential fields (Title/Price) are missing, the scraper now raises a `BlockedException` instead of saving a corrupted empty row to history.
 - **Improved "Not Found" Handling**: Pages showing "No encontramos lo que estás buscando" (ad removed/expired) are now correctly identified as **Inactive** with a "desconocida" down date, preventing them from being flagged as errors.
 - **History Cleanup Script**: Created `scripts/clean_history.py` to identify and remove incomplete or corrupted entries from `enriched_history.json`, enabling seamless re-processing of failed items.
+- **Enhanced Stealth (Browser Rotation)**:
+    - **Viewport Randomization**: The browser now launches with randomized widths (1200-1600px) and heights (800-1000px) to vary the digital fingerprint.
+    - **Hard Block Recovery**: When "Uso Indebido" is detected, the current stealth profile directory is now explicitly cleared to ensure the next session starts with a completely fresh identity.
 
 ### Fixed
 - **Infinite Loop Bug**: Fixed a critical issue where `start_index` was not updated when skipping URLs. Previously, if the scraper skipped items and then encountered a block, it would restart from the same point, resulting in an infinite loop of skips and restarts.
 - **Redundant Filename Suffixes**: Output filename logic now detects if a file already has the `_updated` suffix before adding it again, preventing recursive filenames (e.g., `_updated_updated.xlsx`).
+- **Python Syntax Error**: Resolved an invalid syntax error in `update_urls.py` where variable assignments were incorrectly placed inside a function call argument list.
 
 ### Improved
 - **Log Aesthetic & Compatibility**: 
-    - Removed incompatible Unicode emojis (💾) from console logs for better Windows compatibility.
-    - Simplified field count log format by removing redundant leading hyphens.
+    - Full removal of Unicode emojis (💾, 🛑, 🔄, 🤖, ⚠️, ✅) from console logs to prevent "odd characters" on Windows consoles.
+    - Simplified field count log format: *"Fila original: X campos. Fila final: Y campos (Z nuevos)."*
+- **Clarified Status Messages**: Updated the confusing "No journal found" warning to a clearer message: *"No interrupted session found. Starting fresh (History check will still apply)."*
 
 ## [2026-02-03]
 
