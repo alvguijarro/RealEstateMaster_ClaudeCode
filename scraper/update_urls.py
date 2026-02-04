@@ -205,7 +205,10 @@ def save_history(history_data):
 
 async def save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs):
     """Save the current progress to the Excel file."""
-    output_xlsx = excel_file.replace('.xlsx', '_updated.xlsx')
+    if '_updated' in excel_file:
+        output_xlsx = excel_file
+    else:
+        output_xlsx = excel_file.replace('.xlsx', '_updated.xlsx')
     emit_to_ui('INFO', f'💾 Creating checkpoint: {os.path.basename(output_xlsx)} ...')
     
     try:
@@ -666,7 +669,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     
     # 5. Save to Excel
     # 5. Save to Excel with Multisheet Support
-    output_xlsx = excel_file.replace('.xlsx', '_updated.xlsx')
+    if '_updated' in excel_file:
+        output_xlsx = excel_file
+    else:
+        output_xlsx = excel_file.replace('.xlsx', '_updated.xlsx')
     emit_to_ui('INFO', f'Saving to: {os.path.basename(output_xlsx)}')
     
     try:
