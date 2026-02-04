@@ -39,6 +39,9 @@ from idealista_scraper.config import (
     FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE,
     STEALTH_CARD_DELAY_RANGE, STEALTH_POST_CARD_DELAY_RANGE,
     EXTRA_STEALTH_CARD_DELAY_RANGE, EXTRA_STEALTH_POST_CARD_DELAY_RANGE,
+    EXTRA_STEALTH_SESSION_LIMIT, EXTRA_STEALTH_REST_DURATION_RANGE,
+    EXTRA_STEALTH_COFFEE_BREAK_RANGE, EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY,
+    SCROLL_STEPS, EXTRA_STEALTH_SCROLL_PAUSE_RANGE,
     USER_AGENTS
 )
 from playwright.async_api import async_playwright
@@ -129,6 +132,38 @@ async def detect_captcha(page) -> bool:
         return False
     except:
         return False
+
+async def variable_scroll(page):
+    """Perform variable scroll pattern (Extra Stealth)."""
+    # Sometimes scroll up a bit first
+    if random.random() < 0.3:
+        try:
+            await page.evaluate('window.scrollBy(0, -150)')
+            await asyncio.sleep(random.uniform(0.3, 0.8))
+        except: pass
+    
+    # Variable scroll amounts
+    for step in range(SCROLL_STEPS):
+        try:
+            scroll_amount = random.randint(200, 500)
+            await page.evaluate(f'window.scrollBy(0, {scroll_amount})')
+            
+            # Use stealth pause range
+            pause = random.uniform(*EXTRA_STEALTH_SCROLL_PAUSE_RANGE)
+            await asyncio.sleep(pause)
+            
+            # Occasionally pause mid-scroll as if reading
+            if random.random() < 0.2:
+                pause_time = random.uniform(1.0, 3.0)
+                await asyncio.sleep(pause_time)
+        except: pass
+    
+    # Sometimes scroll back up slightly
+    if random.random() < 0.2:
+        try:
+            await page.evaluate('window.scrollBy(0, -100)')
+            await asyncio.sleep(random.uniform(0.2, 0.5))
+        except: pass
 
 def save_to_journal(filename, row):
     """Append a row to the journal file."""
@@ -395,6 +430,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     HISTORY = load_history() # Load history once at start of browser session (or refresh?)
                     pending_history = {} # Local buffer for history updates
                     
+                    # Stealth Counters
+                    session_property_count = 0
+                    next_coffee_break = random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
+                    
                     # --- PROCESSING LOOP ---
                     for i, url in enumerate(urls[start_index:], start_index + 1):
                         current_list_idx = i - 1 
@@ -453,6 +492,34 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 card_delay = FAST_CARD_DELAY_RANGE
                                 post_delay = FAST_POST_CARD_DELAY_RANGE
                                 
+                                posts_delay = FAST_POST_CARD_DELAY_RANGE
+                                
+                            # --- STEALTH: Coffee Break & Session Rest ---
+                            if os.path.exists(STEALTH_FLAG_FILE):
+                                # 1. Coffee Break
+                                if session_property_count >= next_coffee_break:
+                                    break_duration = random.uniform(*EXTRA_STEALTH_COFFEE_BREAK_RANGE)
+                                    emit_to_ui('INFO', f'☕ Coffee break: Pausing for {int(break_duration)}s...')
+                                    await asyncio.sleep(break_duration)
+                                    next_coffee_break = session_property_count + random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
+
+                                # 2. Session Rest (Long Pause)
+                                if session_property_count >= EXTRA_STEALTH_SESSION_LIMIT:
+                                    rest_duration = random.uniform(*EXTRA_STEALTH_REST_DURATION_RANGE)
+                                    rest_mins = int(rest_duration / 60)
+                                    emit_to_ui('WARN', f'💤 Session limit reached ({EXTRA_STEALTH_SESSION_LIMIT}). Resting for {rest_mins} mins...')
+                                    
+                                    # Countdown log
+                                    remaining = rest_duration
+                                    while remaining > 0:
+                                        if remaining % 60 == 0: # Log every minute
+                                             emit_to_ui('INFO', f'💤 Resting... {int(remaining/60)} mins remaining.')
+                                        await asyncio.sleep(min(10, remaining))
+                                        remaining -= 10
+                                    
+                                    session_property_count = 0 # Reset counter
+                                    emit_to_ui('INFO', '💤 Rest complete. Resuming session.')
+
                             await asyncio.sleep(random.uniform(*card_delay))
                             
                             # Navigate
@@ -463,7 +530,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             if "uso indebido" in page_text or "se ha bloqueado" in page_text:
                                 raise BlockedException("Uso Indebido detected")
                                 
-                            await simulate_human_interaction(page)
+                            # Enhanced Stealth Scroll
+                            if os.path.exists(STEALTH_FLAG_FILE):
+                                await variable_scroll(page)
+                            else:
+                                await simulate_human_interaction(page)
+                                
                             await asyncio.sleep(random.uniform(*post_delay))
                             
                             # Extract
@@ -601,6 +673,8 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
 
                             save_to_journal(excel_file, final_row)
                             updated_rows.append(final_row)
+                            
+                            session_property_count += 1 # Increment stealth counter
                             
                             # --- HISTORY UPDATE ---
                             # Clean final_row for history? Convert types?

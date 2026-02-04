@@ -10,6 +10,10 @@
 - **Enhanced Stealth (Browser Rotation)**:
     - **Viewport Randomization**: The browser now launches with randomized widths (1200-1600px) and heights (800-1000px) to vary the digital fingerprint.
     - **Hard Block Recovery**: When "Uso Indebido" is detected, the current stealth profile directory is now explicitly cleared to ensure the next session starts with a completely fresh identity.
+    - **Full Parity with Scraper Tool**: Ported advanced human emulation logic to the Enrichment module:
+        - **Coffee Breaks**: Random short pauses (30-90s) every 10-18 properties.
+        - **Session Rests**: Mandatory long pauses (10-15 mins) after 50 properties to reset the "bot score".
+        - **Variable Scroll**: Implemented the advanced scroll algorithm with mid-page reading pauses and back-scrolls.
 
 ### Fixed
 - **Infinite Loop Bug**: Fixed a critical issue where `start_index` was not updated when skipping URLs. Previously, if the scraper skipped items and then encountered a block, it would restart from the same point, resulting in an infinite loop of skips and restarts.
