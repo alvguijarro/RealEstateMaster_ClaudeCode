@@ -477,7 +477,17 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                          else:
                                              # If really no data, maybe it's just a failure? 
                                              # But we shouldn't save it as "Active" with empty data.
-                                             # Raise exception to trigger retry or skip without saving bad data.
+                                             # If active=No (because extractor detected it, e.g. "anuncio desactivado"), that's fine.
+                                             # But if simply empty, we check for "No encontramos lo que estás buscando"
+                                             page_not_found_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+                                             if "No encontramos lo que estás buscando" in page_not_found_text or "el anuncio ya no está en nuestra base de datos" in page_not_found_text:
+                                                  # Explicitly not found = Inactive
+                                                  if not d: d = {}
+                                                  d['Anuncio activo'] = 'No'
+                                                  d['Baja anuncio'] = 'desconocida'
+                                             else:
+                                                  # Raise exception to trigger retry or skip without saving bad data.
+                                                  raise Exception("Extraction returned empty data (Title/Price missing)")
                                              raise Exception("Extraction returned empty data (Title/Price missing)")
                                     
                                     break
