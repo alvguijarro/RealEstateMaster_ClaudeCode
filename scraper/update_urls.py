@@ -331,7 +331,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                      start_index = 0 # Can reset or exit? Reset for now.
                      updated_rows = []
         else:
-            emit_to_ui('WARN', 'No journal found to resume from.')
+            emit_to_ui('WARN', 'No interrupted session found. Starting fresh (History check will still apply).')
     
     active_count = 0
     inactive_count = 0
@@ -363,7 +363,11 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                         headless=False,
                         args=browser_args,
                         ignore_default_args=["--enable-automation", "--no-sandbox"],
-                        viewport={"width": 1280, "height": 900},
+                        # Randomize viewport slightly to avoid identical fingerprint
+                        width = random.randint(1200, 1600)
+                        height = random.randint(800, 1000)
+                        
+                        viewport={"width": width, "height": height},
                         user_agent=random.choice(USER_AGENTS)
                     )
                     
@@ -506,10 +510,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                     raise BlockedException("Uso Indebido detected")
                                 
                                 emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado.')
-                                emit_to_ui('INFO', '🤖 Intentando resolver CAPTCHA automáticamente...')
+                                emit_to_ui('INFO', 'Intentando resolver CAPTCHA automáticamente...')
                                 if await solve_slider_captcha(page):
                                      if not await detect_captcha(page):
-                                          emit_to_ui('OK', '✅ CAPTCHA resuelto automáticamente!')
+                                          emit_to_ui('OK', 'CAPTCHA resuelto automáticamente!')
                                           d = await extract_detail_fields(page, debug_items=False)
                                           if d and d.get('isBlocked'):
                                               raise BlockedException("Uso Indebido detected (via extractor)")
@@ -654,14 +658,23 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
 
 
         except BlockedException:
-            emit_to_ui('ERR', '🛑 HARD STOP: Scraper bloqueado ("Uso Indebido").')
-            handle_blocked_profile()
+            emit_to_ui('ERR', 'HARD STOP: Scraper bloqueado ("Uso Indebido").')
+            handle_blocked_profile() # This renames the bad profile so next run is fresh
+            
+            # Additional cleanup: Explicitly remove current stealth dir content to force fresh start
+            import shutil
+            if os.path.exists(STEALTH_PROFILE_DIR):
+                try:
+                    shutil.rmtree(STEALTH_PROFILE_DIR)
+                    emit_to_ui('INFO', 'Profile directory cleared for fresh identity.')
+                except:
+                    pass
             
             wait_time = random.randint(60, 180)
-            emit_to_ui('WARN', f'🔄 Reiniciando sesión en {wait_time} segundos...')
+            emit_to_ui('WARN', f'Reiniciando sesión en {wait_time} segundos...')
             await asyncio.sleep(wait_time)
             
-            emit_to_ui('INFO', '🔄 Retomando proceso...')
+            emit_to_ui('INFO', 'Retomando proceso...')
             continue # Loop back and restart browser
 
         except Exception as e:
