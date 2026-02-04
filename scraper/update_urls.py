@@ -597,7 +597,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             new_fields = max(0, final_field_count - pre_count)
                             
                             if not is_inactive:
-                                emit_to_ui('INFO', f'{pre_count} campos pre-existentes, {new_fields} campos nuevos/actualizados.')
+                                emit_to_ui('INFO', f'Fila original: {pre_count} campos. Fila final: {final_field_count} campos ({new_fields} nuevos).')
 
                             save_to_journal(excel_file, final_row)
                             updated_rows.append(final_row)
