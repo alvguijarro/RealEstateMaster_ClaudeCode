@@ -123,6 +123,8 @@ async def detect_captcha(page) -> bool:
         text_lower = page_text.lower()
         if "uso indebido" in text_lower or "se ha bloqueado" in text_lower or "access denied" in text_lower:
              return True
+        if "recibiendo muchas peticiones" in text_lower or "desliza hacia la derecha" in text_lower:
+             return True
              
         return False
     except:
@@ -462,6 +464,19 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                     d = await extract_detail_fields(page, debug_items=False)
                                     if d and d.get('isBlocked'):
                                         raise BlockedException("Uso Indebido detected (via extractor)")
+                                    
+                                    # Check data integrity - if empty, we might be blocked or page failed to load
+                                    if not d or (not d.get('Titulo') and not d.get('price')):
+                                         # If page loaded but no title/price, it's likely a captcha we missed or a broken page
+                                         # Let's check captcha one more time
+                                         if await detect_captcha(page):
+                                             raise BlockedException("Hidden CAPTCHA detected")
+                                         else:
+                                             # If really no data, maybe it's just a failure? 
+                                             # But we shouldn't save it as "Active" with empty data.
+                                             # Raise exception to trigger retry or skip without saving bad data.
+                                             raise Exception("Extraction returned empty data (Title/Price missing)")
+                                    
                                     break
                                 except BlockedException:
                                     raise 
@@ -623,13 +638,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     if start_index >= len(urls):
                         break
 
-                finally:
-                    # Close context
-                    try:
-                        await context.close()
-                    except:
-                        pass
-                        
+
         except BlockedException:
             emit_to_ui('ERR', '🛑 HARD STOP: Scraper bloqueado ("Uso Indebido").')
             handle_blocked_profile()
