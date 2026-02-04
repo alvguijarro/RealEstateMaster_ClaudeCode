@@ -209,7 +209,7 @@ async def save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs):
         output_xlsx = excel_file
     else:
         output_xlsx = excel_file.replace('.xlsx', '_updated.xlsx')
-    emit_to_ui('INFO', f'💾 Creating checkpoint: {os.path.basename(output_xlsx)} ...')
+    emit_to_ui('INFO', f'Creating checkpoint: {os.path.basename(output_xlsx)} ...')
     
     try:
         # Reconstruct sheets logic (same as final save)
@@ -231,7 +231,7 @@ async def save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs):
                      # The current logic only saves touched rows.
                      # Ideally a checkpoint should look like the final file.
                      pass 
-        emit_to_ui('OK', '💾 Checkpoint saved.')
+        emit_to_ui('OK', 'Checkpoint saved.')
     except Exception as e:
         emit_to_ui('WARN', f"⚠️ Checkpoint failed (file open?): {e}")
 
@@ -591,7 +591,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             new_fields = max(0, final_field_count - pre_count)
                             
                             if not is_inactive:
-                                emit_to_ui('INFO', f'   - {pre_count} campos pre-existentes, {new_fields} campos nuevos/actualizados.')
+                                emit_to_ui('INFO', f'{pre_count} campos pre-existentes, {new_fields} campos nuevos/actualizados.')
 
                             save_to_journal(excel_file, final_row)
                             updated_rows.append(final_row)
