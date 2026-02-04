@@ -1,5 +1,22 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-04]
+
+### Added
+- **Intelligent CAPTCHA Detection**: Expanded detection logic in `update_urls.py` to recognize specific Spanish block messages like "recibiendo muchas peticiones" and "desliza hacia la derecha".
+- **Empty Row Prevention**: Implemented a mandatory data integrity check during enrichment. If essential fields (Title/Price) are missing, the scraper now raises a `BlockedException` instead of saving a corrupted empty row to history.
+- **Improved "Not Found" Handling**: Pages showing "No encontramos lo que estás buscando" (ad removed/expired) are now correctly identified as **Inactive** with a "desconocida" down date, preventing them from being flagged as errors.
+- **History Cleanup Script**: Created `scripts/clean_history.py` to identify and remove incomplete or corrupted entries from `enriched_history.json`, enabling seamless re-processing of failed items.
+
+### Fixed
+- **Infinite Loop Bug**: Fixed a critical issue where `start_index` was not updated when skipping URLs. Previously, if the scraper skipped items and then encountered a block, it would restart from the same point, resulting in an infinite loop of skips and restarts.
+- **Redundant Filename Suffixes**: Output filename logic now detects if a file already has the `_updated` suffix before adding it again, preventing recursive filenames (e.g., `_updated_updated.xlsx`).
+
+### Improved
+- **Log Aesthetic & Compatibility**: 
+    - Removed incompatible Unicode emojis (💾) from console logs for better Windows compatibility.
+    - Simplified field count log format by removing redundant leading hyphens.
+
 ## [2026-02-03]
 
 ### Added
