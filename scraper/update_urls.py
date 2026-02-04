@@ -436,6 +436,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             updated_rows.append(final_row)
                             emit_progress(i, len(urls))
                             # Don't sleep if skipping
+                            start_index = i
                             continue
 
                         try:
