@@ -356,6 +356,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     "--disable-popup-blocking",
                 ]
                 
+                # Randomize viewport slightly to avoid identical fingerprint
+                width = random.randint(1200, 1600)
+                height = random.randint(800, 1000)
+
                 # Launch PERSISTENT context
                 try:
                     context = await pw.chromium.launch_persistent_context(
@@ -363,9 +367,6 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                         headless=False,
                         args=browser_args,
                         ignore_default_args=["--enable-automation", "--no-sandbox"],
-                        # Randomize viewport slightly to avoid identical fingerprint
-                        width = random.randint(1200, 1600)
-                        height = random.randint(800, 1000)
                         
                         viewport={"width": width, "height": height},
                         user_agent=random.choice(USER_AGENTS)
