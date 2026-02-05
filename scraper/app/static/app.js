@@ -120,7 +120,8 @@ async function loadExcelFiles() {
                     const option = document.createElement('option');
                     option.value = file.path;
                     const countDisplay = (file.count !== undefined && file.count !== null) ? file.count : '?';
-                    option.textContent = `${file.name} (${countDisplay} propiedades)`;
+                    const dateStr = file.mtime ? ` - [${formatMtime(file.mtime)}]` : '';
+                    option.textContent = `${file.name} (${countDisplay} props)${dateStr}`;
                     updateExcelSelect.appendChild(option);
                 });
             } else {
@@ -1158,14 +1159,39 @@ function escapeHtml(text) {
 }
 
 // History Functions
+// History Functions
 async function loadHistory() {
+    const tableBody = document.getElementById('historyBody');
+    const emptyState = document.getElementById('historyEmptyState');
+    if (!tableBody || !emptyState) return;
+
     try {
-        const response = await fetch('/api/history');
+        // Use the file list API instead of database history for Enrichment History
+        const response = await fetch('/api/salidas-files?limit=50');
         const data = await response.json();
 
-        if (data.history && data.history.length > 0) {
-            historyEmptyState.style.display = 'none';
-            data.history.forEach(entry => addHistoryRow(entry, false));
+        // Filter only _updated.xlsx files (Completed enrichments)
+        const historyFiles = (data.files || []).filter(f => f.name.endsWith('_updated.xlsx'));
+
+        tableBody.innerHTML = '';
+
+        if (historyFiles.length > 0) {
+            emptyState.style.display = 'none';
+            historyFiles.forEach(file => {
+                const row = document.createElement('tr');
+                const dateStr = formatMtime(file.mtime);
+                const count = file.count !== undefined ? file.count : '?';
+
+                row.innerHTML = `
+                    <td>${dateStr}</td>
+                    <td title="${file.name}" style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</td>
+                    <td>${count}</td>
+                    <td><a href="/api/download?file=${file.name}" class="btn-xs">📥 Excel</a></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        } else {
+            emptyState.style.display = 'block';
         }
     } catch (error) {
         console.error('Error loading history:', error);
@@ -1452,7 +1478,9 @@ const batchStartBtn = document.getElementById('batchStartBtn');
 const batchPauseBtn = document.getElementById('batchPauseBtn');
 const batchResumeBtn = document.getElementById('batchResumeBtn');
 const batchStopBtn = document.getElementById('batchStopBtn');
-const batchFileList = document.getElementById('batchFileList');
+// const batchFileList = document.getElementById('batchFileList'); // Removed, now split
+const batchPendingList = document.getElementById('batchPendingList');
+const batchCompletedList = document.getElementById('batchCompletedList');
 const batchProgressText = document.getElementById('batchProgressText');
 const batchCurrentFile = document.getElementById('batchCurrentFile');
 const batchSelectedCount = document.getElementById('batchSelectedCount');
@@ -1467,66 +1495,126 @@ if (clearBatchLogsBtn) {
 
 let batchFiles = []; // Stores file objects {path, name}
 
+/**
+ * Formats Unix timestamp to DD/MM HH:mm
+ */
+function formatMtime(mtime) {
+    if (!mtime) return '';
+    const d = new Date(mtime * 1000);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month} ${hours}:${minutes}`;
+}
+
 // Load files for Batch List
 async function loadBatchFiles() {
-    if (!batchFileList) return;
+    if (!batchPendingList || !batchCompletedList) return;
 
     try {
         const response = await fetch('/api/salidas-files?limit=100');
         const data = await response.json();
 
-        batchFileList.innerHTML = '';
+        batchPendingList.innerHTML = '';
+        batchCompletedList.innerHTML = '';
         batchFiles = data.files || [];
 
         if (batchFiles.length === 0) {
-            batchFileList.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No hay archivos en scraper/salidas</div>';
+            batchPendingList.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No hay archivos</div>';
             return;
         }
 
+        let pendingCount = 0;
+        let completedCount = 0;
+
         batchFiles.forEach((f, index) => {
+            const dateStr = formatMtime(f.mtime);
+            const isCompleted = f.name.endsWith('_updated.xlsx');
+
             const item = document.createElement('div');
             item.className = 'batch-file-item';
-            item.style.cssText = 'display:flex; align-items:center; padding:6px; background:rgba(255,255,255,0.02); border-bottom:1px solid rgba(255,255,255,0.05);';
-            item.innerHTML = `
-                <input type="checkbox" id="bf-${index}" value="${f.path}" style="margin-right:10px; cursor:pointer;">
-                <label for="bf-${index}" style="cursor:pointer; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.85rem;">${f.name}</label>
-            `;
-            batchFileList.appendChild(item);
 
-            // Add change listener for count update
-            const cb = item.querySelector('input');
-            cb.addEventListener('change', updateBatchCount);
+            // Common Style
+            item.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:rgba(255,255,255,0.02); border-bottom:1px solid rgba(255,255,255,0.05);';
+
+            if (isCompleted) {
+                // RIGHT COLUMN: Read-only, No Checkbox
+                // Add green tint
+                item.style.background = 'rgba(16, 185, 129, 0.05)';
+                item.style.borderLeft = '3px solid #10b981';
+
+                item.innerHTML = `
+                    <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+                        <span style="font-size:0.85rem; color: #a7f3d0;" title="${f.name}">${f.name}</span>
+                    </div>
+                    <span style="font-size:0.75rem; color:var(--text-muted); font-family:monospace;">${dateStr}</span>
+                `;
+                batchCompletedList.appendChild(item);
+                completedCount++;
+            } else {
+                // LEFT COLUMN: Pending, Selectable
+                // If it's a Partial, add yellow tint
+                const isPartial = f.name.includes('_partial');
+                if (isPartial) {
+                    item.style.borderLeft = '3px solid #f59e0b';
+                    item.style.background = 'rgba(245, 158, 11, 0.05)';
+                } else {
+                    // Standard color for source files
+                }
+
+                item.innerHTML = `
+                    <div style="display:flex; align-items:center; flex:1; overflow:hidden;">
+                        <input type="checkbox" id="bf-${index}" value="${f.path}" style="margin-right:10px; cursor:pointer;">
+                        <label for="bf-${index}" style="cursor:pointer; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.85rem;" title="${f.name}">${f.name}</label>
+                    </div>
+                    <span style="font-size:0.7rem; color:var(--text-muted); margin-left:10px; font-family:monospace; white-space:nowrap;">${dateStr}</span>
+                `;
+                batchPendingList.appendChild(item);
+
+                // Add change listener
+                const cb = item.querySelector('input');
+                cb.addEventListener('change', updateBatchCount);
+                pendingCount++;
+            }
         });
+
+        if (pendingCount === 0) batchPendingList.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No hay archivos pendientes</div>';
+        if (completedCount === 0) batchCompletedList.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">-- Vacío --</div>';
 
         updateBatchCount();
 
     } catch (e) {
         console.error("Error loading batch files", e);
-        batchFileList.innerHTML = `<div style="color:var(--danger)">Error al cargar archivos: ${e.message}</div>`;
+        if (batchPendingList) batchPendingList.innerHTML = `<div style="color:var(--danger)">Error: ${e.message}</div>`;
     }
 }
 
 
 function updateBatchCount() {
-    if (!batchSelectedCount) return;
-    const count = batchFileList.querySelectorAll('input[type="checkbox"]:checked').length;
+    if (!batchSelectedCount || !batchPendingList) return;
+    const count = batchPendingList.querySelectorAll('input[type="checkbox"]:checked').length;
     batchSelectedCount.textContent = `${count} archivos seleccionados`;
     validateBatchButton();
 }
 
 function toggleBatchFiles(selectAll) {
-    if (!batchFileList) return;
-    const cbs = batchFileList.querySelectorAll('input[type="checkbox"]');
+    if (!batchPendingList) return;
+    const cbs = batchPendingList.querySelectorAll('input[type="checkbox"]');
     cbs.forEach(cb => cb.checked = selectAll);
     updateBatchCount();
 }
 
 function validateBatchButton() {
     if (!batchStartBtn) return;
-    // Don't enable if we are already running
-    if (batchStartBtn.disabled && batchProgressText.textContent !== "Inactivo") return;
 
-    const count = batchFileList.querySelectorAll('input[type="checkbox"]:checked').length;
+    // Check Status Text cleanly
+    // If text says "Inactivo" (with any whitespace), we allow enabling if selection > 0
+    const statusText = batchProgressText.textContent.trim();
+    if (batchStartBtn.disabled && statusText !== "Inactivo" && statusText !== "") return;
+
+    if (!batchPendingList) return;
+    const count = batchPendingList.querySelectorAll('input[type="checkbox"]:checked').length;
     if (count > 0) {
         batchStartBtn.disabled = false;
         batchStartBtn.style.opacity = '1';
@@ -1541,7 +1629,8 @@ function validateBatchButton() {
 // Batch Actions
 if (batchStartBtn) {
     batchStartBtn.addEventListener('click', async () => {
-        const checked = Array.from(batchFileList.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+        if (!batchPendingList) return;
+        const checked = Array.from(batchPendingList.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
 
         if (checked.length === 0) {
             alert("Por favor, selecciona al menos un archivo.");
@@ -1565,8 +1654,8 @@ if (batchStartBtn) {
 
             if (statCurrentProps) statCurrentProps.textContent = '0';
             if (statTotalProps) statTotalProps.textContent = '0';
-            if (statCurrentEnriched) statCurrentEnriched.textContent = '0';
-            if (statTotalEnriched) statTotalEnriched.textContent = '0';
+            // if (statCurrentEnriched) statCurrentEnriched.textContent = '0';
+            // if (statTotalEnriched) statTotalEnriched.textContent = '0';
 
             const data = await res.json();
 
@@ -1688,6 +1777,31 @@ function setupBatchSocketListeners() {
         if (batchCurrentFile) batchCurrentFile.style.display = 'none'; // We use the big box now
 
         setBatchUIState('running'); // Ensure UI is in sync
+    });
+
+    socket.on('property_scraped', (data) => {
+        // 1. Update Counters
+        const current = parseInt(statCurrentProps.textContent || '0') + 1;
+        statCurrentProps.textContent = current;
+
+        const total = parseInt(statTotalProps.textContent || '0') + 1;
+        statTotalProps.textContent = total;
+
+        // Track per-file max for batch logic
+        if (current > maxEnrichedInCurrentFile) maxEnrichedInCurrentFile = current;
+
+        // 2. Add Row to Table
+        // Use standard addResultRow but ensure it handles dynamic columns if needed
+        addResultRow(data);
+
+        // 3. Update Results Count text
+        if (resultsCount) resultsCount.textContent = `${total} propiedades`;
+
+        // 4. Hide empty state
+        if (emptyState) emptyState.style.display = 'none';
+
+        // 5. Ensure "Running" state
+        setBatchUIState('running');
     });
 
     socket.on('batch_completed', (data) => {

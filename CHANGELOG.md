@@ -11,6 +11,12 @@ All notable changes to this project will be documented in this file.
 - **Git:** Optimized `.gitignore` to exclude `stealth_profile/` and temporary journal files, preventing repository bloat and protecting session privacy.
 - **Maintenance:** Confirmed persistence of `enriched_history.json` for multi-session caching.
 
+## [2026-02-05] - Enrichment UI Sync & Split View
+- **UI:** Split Enricher file list into "Pending" (left) and "Completed" (right) columns for better workflow visibility.
+- **Fix:** Resolved "Start Batch" button validation bug preventing execution.
+- **Fix:** Fixed dead UI counters and empty results table by implementing missing `property_scraped` WebSocket listener.
+- **Fix:** Corrected "Enrichment History" table to correctly filter and display only `_updated.xlsx` files from the output directory.
+
 ## [2026-02-05] - Enrichment UI Refinements
 - **UI:** Removed emojis from logs for cleaner, Mojibake-free output.
 - **UI:** Enhanced batch progress display with detailed file, district, and property counts.

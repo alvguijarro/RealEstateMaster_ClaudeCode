@@ -431,7 +431,8 @@ def get_excel_files():
                     files.append({
                         'name': f.name,
                         'path': str(f.resolve()),
-                        'count': count
+                        'count': count,
+                        'mtime': f.stat().st_mtime
                     })
     
     # Deduplicate by path

@@ -855,7 +855,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
             except: pass
     else:
         output_xlsx = base.replace('.xlsx', '_updated_partial.xlsx')
-        emit_to_ui('WARN', f'Process incomplete ({len(updated_rows)}/{len(urls)}). Saving as partial.')
+        if os.path.exists(STOP_FLAG_FILE):
+             emit_to_ui('WARN', f'🛑 Process STOPPED by user. Saving {len(updated_rows)} URLs to: {os.path.basename(output_xlsx)}')
+        else:
+             emit_to_ui('WARN', f'Process incomplete ({len(updated_rows)}/{len(urls)}). Saving as partial.')
 
     emit_to_ui('INFO', f'Saving to: {os.path.basename(output_xlsx)}')
     
