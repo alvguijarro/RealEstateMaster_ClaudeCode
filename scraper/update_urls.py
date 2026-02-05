@@ -18,6 +18,7 @@ from pathlib import Path
 
 # Pause flag file
 PAUSE_FLAG_FILE = "update_paused.flag"
+STOP_FLAG_FILE = "update_stop.flag"
 STEALTH_FLAG_FILE = "update_stealth.flag"
 JOURNAL_FILE = "update_progress.jsonl"
 ENRICHED_HISTORY_FILE = "enriched_history.json" # Local cache of enriched data
@@ -241,11 +242,11 @@ def save_history(history_data):
         emit_to_ui('ERR', f"Error saving history: {e}")
 
 async def save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs):
-    """Save the current progress to the Excel file."""
-    if '_updated' in excel_file:
-        output_xlsx = excel_file
-    else:
-        output_xlsx = excel_file.replace('.xlsx', '_updated.xlsx')
+    """Save the current progress to the Excel file (always as _partial)."""
+    # Normalize base filename (strip any existing _updated or _updated_partial suffix)
+    base = excel_file.replace('_updated_partial.xlsx', '.xlsx').replace('_updated.xlsx', '.xlsx')
+    output_xlsx = base.replace('.xlsx', '_updated_partial.xlsx')
+    
     emit_to_ui('INFO', f'Creating checkpoint: {os.path.basename(output_xlsx)} ...')
     
     try:
@@ -263,10 +264,6 @@ async def save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs):
                 if rows:
                     pd.DataFrame(rows).to_excel(writer, sheet_name=sheet_name, index=False)
                 elif sheet_name in dfs:
-                     # Preserve original if empty?
-                     # If we are midway, we might want to preserve UNTOUCHED rows?
-                     # The current logic only saves touched rows.
-                     # Ideally a checkpoint should look like the final file.
                      pass 
         emit_to_ui('OK', 'Checkpoint saved.')
     except Exception as e:
@@ -491,10 +488,17 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                         # Handle Pause
                         was_paused = False
                         while os.path.exists(PAUSE_FLAG_FILE):
+                             if os.path.exists(STOP_FLAG_FILE):
+                                 break
                              if not was_paused:
                                  emit_to_ui('INFO', '[STATUS] paused')
                                  was_paused = True
                              await asyncio.sleep(1)
+                        
+                        if os.path.exists(STOP_FLAG_FILE):
+                            emit_to_ui('WARN', 'Stop signal received. Saving partial progress...')
+                            break 
+                            
                         if was_paused:
                             emit_to_ui('INFO', '[STATUS] running')
                             
@@ -833,11 +837,26 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
         return
     
     # 5. Save to Excel
-    # 5. Save to Excel with Multisheet Support
-    if '_updated' in excel_file:
-        output_xlsx = excel_file
+    # 5. Save to Excel
+    # Normalize base filename
+    base = excel_file.replace('_updated_partial.xlsx', '.xlsx').replace('_updated.xlsx', '.xlsx')
+    
+    # Check if we completed all URLs
+    is_complete = (len(updated_rows) >= len(urls)) # If we have same number of updated rows as source urls
+    
+    if is_complete:
+        output_xlsx = base.replace('.xlsx', '_updated.xlsx')
+        # If promoting to full, remove partial if exists
+        partial_name = base.replace('.xlsx', '_updated_partial.xlsx')
+        if os.path.exists(partial_name):
+            try:
+                os.remove(partial_name)
+                emit_to_ui('INFO', f'Promoted partial file to full: {os.path.basename(partial_name)} -> {os.path.basename(output_xlsx)}')
+            except: pass
     else:
-        output_xlsx = excel_file.replace('.xlsx', '_updated.xlsx')
+        output_xlsx = base.replace('.xlsx', '_updated_partial.xlsx')
+        emit_to_ui('WARN', f'Process incomplete ({len(updated_rows)}/{len(urls)}). Saving as partial.')
+
     emit_to_ui('INFO', f'Saving to: {os.path.basename(output_xlsx)}')
     
     try:

@@ -637,22 +637,35 @@ def resume_update():
 
 @app.route('/api/update/stop', methods=['POST'])
 def stop_update_process():
-    """Stop the update process."""
+    """Stop the update process gracefully to allow saving."""
     global update_process
     update_script = Path(__file__).parent.parent / "update_urls.py"
     
     try:
         if update_process:
+            # 1. Create Stop Flag for graceful shutdown
+            stop_flag = update_script.parent / "update_stop.flag"
+            stop_flag.touch()
+            
+            # 2. Wait for process to exit (it should see flag and break loop)
+            # Give it 5-8 seconds to save Excel
             try:
-                update_process.terminate()
-            except:
-                pass
+                update_process.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                # 3. Force kill if it's stuck
+                try:
+                    update_process.terminate()
+                    print("Force terminated update process.")
+                except: pass
+            
             update_process = None
             
-        # Clean flag
+        # Clean flags
         flag_file = update_script.parent / "update_paused.flag"
-        if flag_file.exists():
-            flag_file.unlink()
+        if flag_file.exists(): flag_file.unlink()
+        
+        stop_flag = update_script.parent / "update_stop.flag"
+        if stop_flag.exists(): stop_flag.unlink()
             
         return jsonify({'status': 'stopped'})
     except Exception as e:

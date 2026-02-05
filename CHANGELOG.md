@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2026-02-05] - Graceful Exit & Partial Naming
+- **Feature:** Implemented `_updated_partial.xlsx` suffix for intermediate and incomplete enrichment saves.
+- **Feature:** Automated promotion of `_partial` files to `_updated.xlsx` upon 100% completion.
+- **Core:** Implemented `update_stop.flag` for graceful shutdown, ensuring the scraper saves progress before exiting when stopped via UI.
+- **Git:** Optimized `.gitignore` to exclude `stealth_profile/` and temporary journal files, preventing repository bloat and protecting session privacy.
+- **Maintenance:** Confirmed persistence of `enriched_history.json` for multi-session caching.
+
 ## [2026-02-05] - Enrichment UI Refinements
 - **UI:** Removed emojis from logs for cleaner, Mojibake-free output.
 - **UI:** Enhanced batch progress display with detailed file, district, and property counts.
