@@ -12,7 +12,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 :: Run the batch scan script with operation sale
-python scripts/batch_api_scan.py --operation sale --max-pages 300 --resume
+python scripts/batch_api_scan.py --operation sale --max-pages 2000 --resume
 
 echo =======================================
 echo Scan process finished.

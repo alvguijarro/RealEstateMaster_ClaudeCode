@@ -10,7 +10,6 @@ import asyncio
 import threading
 import json
 import subprocess
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -109,7 +108,7 @@ def emit_property(data: dict):
 
 def emit_progress(data: dict):
     """Send progress update (pages/properties) to all connected clients."""
-    socketio.emit('progress', data)
+    socketio.emit('progress_update', data)
 
 
 def emit_browser_closed():
@@ -431,8 +430,7 @@ def get_excel_files():
                     files.append({
                         'name': f.name,
                         'path': str(f.resolve()),
-                        'count': count,
-                        'mtime': f.stat().st_mtime
+                        'count': count
                     })
     
     # Deduplicate by path
@@ -506,7 +504,7 @@ def update_urls():
             # Run script with the Excel file path and sheets as arguments
             sheets_json = json_module.dumps(sheets) if sheets else '[]'
             
-            cmd = [sys.executable, '-u', str(update_script), excel_file, '--sheets', sheets_json]
+            cmd = ['python', '-u', str(update_script), excel_file, '--sheets', sheets_json]
             if resume:
                 cmd.append('--resume')
 
@@ -638,35 +636,22 @@ def resume_update():
 
 @app.route('/api/update/stop', methods=['POST'])
 def stop_update_process():
-    """Stop the update process gracefully to allow saving."""
+    """Stop the update process."""
     global update_process
     update_script = Path(__file__).parent.parent / "update_urls.py"
     
     try:
         if update_process:
-            # 1. Create Stop Flag for graceful shutdown
-            stop_flag = update_script.parent / "update_stop.flag"
-            stop_flag.touch()
-            
-            # 2. Wait for process to exit (it should see flag and break loop)
-            # Give it 5-8 seconds to save Excel
             try:
-                update_process.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                # 3. Force kill if it's stuck
-                try:
-                    update_process.terminate()
-                    print("Force terminated update process.")
-                except: pass
-            
+                update_process.terminate()
+            except:
+                pass
             update_process = None
             
-        # Clean flags
+        # Clean flag
         flag_file = update_script.parent / "update_paused.flag"
-        if flag_file.exists(): flag_file.unlink()
-        
-        stop_flag = update_script.parent / "update_stop.flag"
-        if stop_flag.exists(): stop_flag.unlink()
+        if flag_file.exists():
+            flag_file.unlink()
             
         return jsonify({'status': 'stopped'})
     except Exception as e:
@@ -783,12 +768,7 @@ def start_api_import():
 @socketio.on('progress')
 def handle_progress(data):
     """Forward progress events from update_urls.py to UI."""
-    socketio.emit('progress', data)
-
-@socketio.on('property_scraped')
-def handle_property(data):
-    """Forward property events from update_urls.py to UI."""
-    socketio.emit('property_scraped', data)
+    socketio.emit('progress_update', data)
 
 
 def run_server(host='127.0.0.1', port=5003):
@@ -801,183 +781,6 @@ def run_server(host='127.0.0.1', port=5003):
 # =============================================================================
 # API & DATABASE DASHBOARD ENDPOINTS
 # =============================================================================
-
-# =============================================================================
-# BATCH ENRICHMENT MANAGER
-# =============================================================================
-
-class BatchManager:
-    def __init__(self):
-        self.queue = []      # List of file paths to process
-        self.completed = []  # List of successfully processed files
-        self.failed = []     # List of failed files
-        self.current_idx = -1
-        self.is_running = False
-        self.thread = None
-        self.stop_requested = False
-        
-    def start_batch(self, files):
-        """Start a new batch process with the given files."""
-        if self.is_running:
-            return False, "Batch already running"
-            
-        self.queue = files
-        self.completed = []
-        self.failed = []
-        self.current_idx = 0
-        self.stop_requested = False
-        self.is_running = True
-        
-        # Start worker thread
-        self.thread = threading.Thread(target=self._worker_loop, daemon=True)
-        self.thread.start()
-        
-        return True, "Batch started"
-        
-    def stop_batch(self):
-        """Stop the current batch."""
-        self.stop_requested = True
-        self.is_running = False
-        # Also kill the current subprocess if exists
-        stop_update_process() 
-        emit_status('batch_stopped')
-        
-    def _worker_loop(self):
-        """Main loop processing files one by one."""
-        # emit_status, emit_log are in global scope
-        
-        total = len(self.queue)
-        emit_log('INFO', f'STARTING BATCH ENRICHMENT: {total} files')
-        
-        while self.current_idx < total and not self.stop_requested:
-            current_file = self.queue[self.current_idx]
-            file_name = os.path.basename(current_file)
-            
-            emit_log('INFO', f'[{self.current_idx + 1}/{total}] Processing: {file_name}')
-            emit_status('batch_progress', current=self.current_idx + 1, total=total, file=file_name)
-            
-            # --- EXECUTE update_urls.py ---
-            # We reuse the logic from update_urls endpoint but synchronous here
-            success = self._run_update_sync(current_file)
-            
-            if self.stop_requested: 
-                break
-                
-            if success:
-                self.completed.append(current_file)
-                emit_log('OK', f'Finished: {file_name}')
-            else:
-                self.failed.append(current_file)
-                emit_log('ERR', f'Failed: {file_name}')
-                
-            self.current_idx += 1
-            
-            # Small delay between files
-            if self.current_idx < total:
-                emit_log('INFO', 'Cooling down 5s before next file...')
-                time.sleep(5)
-                
-        self.is_running = False
-        
-        if self.stop_requested:
-            emit_log('WARN', 'Batch Stopped by User.')
-        else:
-            emit_log('OK', f'BATCH COMPLETED! {len(self.completed)}/{total} files processed.')
-            emit_status('batch_completed', completed=len(self.completed), total=total)
-
-    def _run_update_sync(self, excel_file):
-        """Run update_urls.py specifically for this file and wait for it."""
-        global update_process
-        import subprocess
-        import json as json_module
-        
-        update_script = Path(__file__).parent.parent / 'update_urls.py'
-        
-        # Ensure we always try to RESUME in batch mode to match user expectation (resume from left off)
-        # But for new files it just starts from 0.
-        cmd = [sys.executable, '-u', str(update_script), excel_file, '--resume']
-        
-        # NOTE: We force logic to create STEALTH flag if not present?
-        # User requested "Stealth" mode.
-        flag_file = update_script.parent / "update_stealth.flag"
-        if not flag_file.exists():
-            flag_file.touch()
-            
-        try:
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                cwd=str(update_script.parent)
-            )
-            update_process = process # Set global so pause/stop endpoints works
-            
-            # Stream output
-            for line in iter(process.stdout.readline, ''):
-                if self.stop_requested:
-                    process.terminate()
-                    return False
-                    
-                line = line.strip()
-                if not line: continue
-                
-                # Forward specific logs
-                if '[STATUS]' in line:
-                    status = line.split('[STATUS]')[1].strip().lower()
-                    emit_status(status) # Forward paused/resumed status
-                elif '[ERR]' in line or 'ERROR' in line:
-                    emit_log('ERR', line.replace('[ERR]', '').strip())
-                elif '[WARN]' in line:
-                    emit_log('WARN', line.replace('[WARN]', '').strip())
-                elif '[OK]' in line or 'SUCCESS' in line:
-                    emit_log('OK', line.replace('[OK]', '').strip())
-                elif '[INFO]' in line:
-                    emit_log('INFO', line.replace('[INFO]', '').strip())
-                else:
-                    # Capture untagged output (like tracebacks)
-                    emit_log('INFO', line)
-                
-            process.wait()
-            update_process = None
-            return process.returncode == 0
-            
-        except Exception as e:
-            emit_log('ERR', f"Subprocess exception: {e}")
-            return False
-
-# Initialize Global Manager
-batch_manager = BatchManager()
-
-@app.route('/api/batch/start', methods=['POST'])
-def batch_start():
-    data = request.json
-    files = data.get('files', []) # List of full paths
-    
-    if not files:
-        return jsonify({'error': 'No files provided'}), 400
-        
-    success, msg = batch_manager.start_batch(files)
-    if success:
-        return jsonify({'status': 'started', 'message': msg})
-    else:
-        return jsonify({'error': msg}), 400
-
-@app.route('/api/batch/stop', methods=['POST'])
-def batch_stop():
-    batch_manager.stop_batch()
-    return jsonify({'status': 'stopped'})
-
-@app.route('/api/batch/status', methods=['GET'])
-def batch_status():
-    return jsonify({
-        'is_running': batch_manager.is_running,
-        'current_idx': batch_manager.current_idx,
-        'total': len(batch_manager.queue),
-        'current_file': batch_manager.queue[batch_manager.current_idx] if batch_manager.is_running and 0 <= batch_manager.current_idx < len(batch_manager.queue) else None
-    })
-
 
 # List of supported provinces (INE Codes)
 PROVINCES_LIST = [

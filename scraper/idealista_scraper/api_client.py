@@ -214,10 +214,11 @@ def fetch_data_generator(location_id: str, operation: str = "rent", max_pages: i
         }
         
         # Check pagination
-        total_pages_api = json_data.get('totalPages', max_pages)
-        if p >= total_pages_api:
-            if on_log: on_log("INFO", f"Reached last page ({p}).")
-            break
+        # USER REQUEST: IGNORE API pagination limits ("totalPages") and try to fetch until empty.
+        # total_pages_api = json_data.get('totalPages', max_pages)
+        # if p >= total_pages_api:
+        #    if on_log: on_log("INFO", f"Reached last page ({p}).")
+        #    break
             
         time.sleep(0.5) # Rate limit courtesy
         

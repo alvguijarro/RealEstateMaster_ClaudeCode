@@ -12,7 +12,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 :: Run the batch scan script
-python scripts/batch_api_scan.py --operation rent --max-pages 300 --resume
+python scripts/batch_api_scan.py --operation rent --max-pages 2000 --resume
 
 echo ================================
 echo Scan process finished.
