@@ -75,10 +75,50 @@ class BlockedException(Exception):
     pass
 
 
-def emit_to_ui(level: str, message: str):
+def emit_to_ui(level: str, message: str, **kwargs):
     """Emit log message to both console and UI (if connected)."""
-    print(f"[{level}] {message}")
-    pass
+    # print(f"[{level}] {message}")
+    if HAS_SOCKET and sio.connected:
+        try:
+            sio.emit('log_message', {'level': level, 'message': message, **kwargs})
+        except: pass
+    else:
+        print(f"[{level}] {message}")
+
+def save_merged_excel(output_path, dfs, updated_rows_list):
+    """
+    Saves data to Excel by merging updated rows into the original dataframes.
+    Ensures ALL original sheets and rows are preserved.
+    """
+    # 1. Group updated rows by URL for fast lookup
+    updates_by_url = {row['URL']: row for row in updated_rows_list if row.get('URL')}
+    
+    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        # 2. Iterate over ALL original sheets from the source file
+        for sheet_name, df_orig in dfs.items():
+            # Convert original dataframe to list of dicts
+            original_data = df_orig.to_dict('records')
+            merged_data = []
+            
+            # 3. Merge process
+            for row in original_data:
+                url = row.get('URL')
+                # If we have an update for this URL, use the updated row
+                # But ensure we keep any original columns that might not be in the update?
+                # In this scraper logic, 'final_row' is constructed carefully to include preserved cols.
+                # So we can safely use the updated row.
+                if url and url in updates_by_url:
+                    merged_data.append(updates_by_url[url])
+                else:
+                    merged_data.append(row)
+            
+            # 4. Write sheet
+            if merged_data:
+                pd.DataFrame(merged_data).to_excel(writer, sheet_name=sheet_name, index=False)
+            else:
+                # Should not happen if original had data, but just in case
+                pd.DataFrame(original_data).to_excel(writer, sheet_name=sheet_name, index=False)
+    return True
 
 def emit_progress(current, total, sheet_name=None, excel_file=None):
     """Emit progress event to UI."""
@@ -250,21 +290,8 @@ async def save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs):
     emit_to_ui('INFO', f'Creating checkpoint: {os.path.basename(output_xlsx)} ...')
     
     try:
-        # Reconstruct sheets logic (same as final save)
-        sheet_data = {s: [] for s in dfs.keys()} 
-        for row in updated_rows:
-            u = row.get('URL')
-            sheet = url_to_sheet.get(u, 'oportunidades') 
-            if sheet not in sheet_data:
-                sheet_data[sheet] = []
-            sheet_data[sheet].append(row)
-            
-        with pd.ExcelWriter(output_xlsx, engine='openpyxl') as writer:
-            for sheet_name, rows in sheet_data.items():
-                if rows:
-                    pd.DataFrame(rows).to_excel(writer, sheet_name=sheet_name, index=False)
-                elif sheet_name in dfs:
-                     pass 
+        # Use Safe Merge Save
+        save_merged_excel(output_xlsx, dfs, updated_rows)
         emit_to_ui('OK', 'Checkpoint saved.')
     except Exception as e:
         emit_to_ui('WARN', f"Checkpoint failed (file open?): {e}")
@@ -862,43 +889,20 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
 
     emit_to_ui('INFO', f'Saving to: {os.path.basename(output_xlsx)}')
     
+    emit_to_ui('INFO', f'Saving to: {os.path.basename(output_xlsx)}')
+    
     try:
-        # Reconstruct sheets
-        sheet_data = {s: [] for s in dfs.keys()} # Initialize with empty lists for known sheets
-
-        for row in updated_rows:
-            u = row.get('URL')
-            sheet = url_to_sheet.get(u, 'oportunidades') 
-            if sheet not in sheet_data:
-                sheet_data[sheet] = []
-            sheet_data[sheet].append(row)
-            
-        # Write to Excel
+        # Write to Excel with Retry logic
         while True:
             try:
-                with pd.ExcelWriter(output_xlsx, engine='openpyxl') as writer:
-                    for sheet_name, rows in sheet_data.items():
-                        if rows:
-                            pd.DataFrame(rows).to_excel(writer, sheet_name=sheet_name, index=False)
-                        elif sheet_name in dfs and not rows:
-                             # If we have no updated rows, we might missed them?
-                             # Or they were filtered out? 
-                             # If "dfs" contains original raw dataframes, we can write them back?
-                             # But "dfs" was loaded at start.
-                             # If we didn't process rows from a sheet, they won't be in updated_rows?
-                             # Logic: only selected_sheets were loaded into dfs?
-                             # If selected_sheets was [], dfs has all sheets.
-                             # If start_index > 0 (resume), updated_rows has everything?
-                             # Check resume logic: "updated_rows = restored_data".
-                             # Yes, if we resume transparency, we have full history.
-                             pass
+                save_merged_excel(output_xlsx, dfs, updated_rows)
                 break
             except PermissionError:
                  emit_to_ui('WARN', f'⚠️ No se puede escribir en "{os.path.basename(output_xlsx)}". Archivo abierto.')
                  await asyncio.sleep(10)
 
         emit_to_ui('OK', f'✅ Finished: {os.path.basename(excel_file)}')
-        emit_to_ui('INFO', f'🎉 saved {len(updated_rows)} properties across {len(sheet_data)} sheets.')
+        emit_to_ui('INFO', f'🎉 saved {len(updated_rows)} properties, merged with original data.')
         
     except Exception as e:
         emit_to_ui('ERR', f"Error saving Excel (FATAL): {e}")
