@@ -1871,65 +1871,135 @@ const originalInitSocket = window.initializeSocket;
 // I'll make a separate tool call to inject the call inside `initializeSocket`.
 
 
-// ============ PERIODIC LOW-COST SCRAPER ============
-const runPeriodicBtn = document.getElementById('runPeriodicBtn');
-const periodicStatus = document.getElementById('periodicStatus');
+// ============ PERIODIC LOW-COST SCRAPER MODULE ============
+// UI Elements
+const periodicStartBtn = document.getElementById('periodicStartBtn');
+const periodicPauseBtn = document.getElementById('periodicPauseBtn');
+const periodicResumeBtn = document.getElementById('periodicResumeBtn');
+const periodicStopBtn = document.getElementById('periodicStopBtn');
+const periodicLogContainer = document.getElementById('periodicLogContainer');
+const periodicResultsBody = document.getElementById('periodicResultsBody');
+const periodicMainStatus = document.getElementById('periodicMainStatus');
 
-if (runPeriodicBtn) {
-    runPeriodicBtn.addEventListener('click', async () => {
+// Stats Elements
+const statProv = document.getElementById('periodicStatProvinces');
+const statSucc = document.getElementById('periodicStatSuccess');
+const statErr = document.getElementById('periodicStatErrors');
+
+let periodicLogs = [];
+
+if (periodicStartBtn) {
+    // START
+    periodicStartBtn.addEventListener('click', async () => {
+        setPeriodicState('running');
+        addPeriodicLog("Iniciando escaneo nacional...", 'info');
+
         try {
-            runPeriodicBtn.disabled = true;
-            runPeriodicBtn.innerHTML = '<span class="btn-icon">⏳</span> Iniciando...';
-
-            const response = await fetch('/api/periodic-lowcost/start', { method: 'POST' });
-            const data = await response.json();
-
-            if (response.ok) {
-                addLog('OK', 'Escaneo periódico iniciado en segundo plano.');
-                updatePeriodicStatusUI('running');
-                startPeriodicPolling();
-            } else {
-                addLog('ERR', data.error || 'Error al iniciar escaneo.');
-                runPeriodicBtn.disabled = false;
-                runPeriodicBtn.innerHTML = '<span class="btn-icon">🚀</span> Lanzar Escaneo Nacional';
-            }
-        } catch (err) {
-            addLog('ERR', 'Error de conexión: ' + err.message);
-            runPeriodicBtn.disabled = false;
-            runPeriodicBtn.innerHTML = '<span class="btn-icon">🚀</span> Lanzar Escaneo Nacional';
+            const res = await fetch('/api/periodic-lowcost/start', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Error desconocido');
+        } catch (e) {
+            addPeriodicLog("Error al iniciar: " + e.message, 'error');
+            setPeriodicState('idle');
         }
     });
+
+    // STOP
+    periodicStopBtn.addEventListener('click', async () => {
+        if (!confirm("¿Seguro que quieres detener el escaneo?")) return;
+        setPeriodicState('idle'); // Optimistic UI update
+        try {
+            await fetch('/api/periodic-lowcost/stop', { method: 'POST' });
+            addPeriodicLog("Proceso detenido por el usuario.", 'warning');
+        } catch (e) {
+            console.error(e);
+        }
+    });
+
+    // PAUSE/RESUME (Future implementation if supported by backend)
+    periodicPauseBtn.addEventListener('click', () => alert("Pausa no implementada aún en backend."));
+    periodicResumeBtn.addEventListener('click', () => alert("Reanudación no implementada aún en backend."));
 }
 
-function updatePeriodicStatusUI(status) {
-    if (!periodicStatus) return;
+function setPeriodicState(state) {
+    if (!periodicStartBtn) return;
 
-    if (status === 'running') {
-        periodicStatus.innerHTML = '<span style="color: var(--green);">🔄</span> Ejecutando...';
-    } else if (status === 'completed') {
-        periodicStatus.innerHTML = '<span style="color: var(--green);">✅</span> Completado';
-        if (runPeriodicBtn) {
-            runPeriodicBtn.disabled = false;
-            runPeriodicBtn.innerHTML = '<span class="btn-icon">🚀</span> Lanzar Escaneo Nacional';
-        }
+    if (state === 'running') {
+        periodicStartBtn.disabled = true;
+        periodicStartBtn.style.display = 'none';
+        periodicStopBtn.disabled = false;
+        periodicStopBtn.style.display = 'inline-flex';
+
+        periodicMainStatus.textContent = "EJECUTANDO";
+        periodicMainStatus.className = "status-badge-inline status-active";
+        periodicMainStatus.style.background = "var(--green)";
+        periodicMainStatus.style.color = "#000";
     } else {
-        periodicStatus.innerHTML = '<span style="color: var(--yellow);">⏸</span> No ejecutado aún';
+        periodicStartBtn.disabled = false;
+        periodicStartBtn.style.display = 'inline-flex';
+        periodicStopBtn.disabled = true;
+        periodicStopBtn.style.display = 'none';
+
+        periodicMainStatus.textContent = "INACTIVO";
+        periodicMainStatus.className = "status-badge-inline";
+        periodicMainStatus.style.background = "var(--bg-card)";
+        periodicMainStatus.style.color = "var(--text-muted)";
     }
 }
 
-function startPeriodicPolling() {
-    const pollInterval = setInterval(async () => {
-        try {
-            const response = await fetch('/api/periodic-lowcost/status');
-            const data = await response.json();
+function addPeriodicLog(msg, type = 'info') {
+    if (!periodicLogContainer) return;
 
-            if (data.status === 'completed' || data.status === 'not_started') {
-                clearInterval(pollInterval);
-                updatePeriodicStatusUI('completed');
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.style.fontFamily = "Consolas, monospace";
+    div.style.marginBottom = "4px";
+
+    const time = new Date().toLocaleTimeString();
+
+    if (type === 'error') div.style.color = '#ff6b6b';
+    else if (type === 'warning') div.style.color = '#f1c40f';
+    else if (type === 'success') div.style.color = '#2ecc71';
+    else div.style.color = '#8b949e'; // Default gray
+
+    // Parse progress to update stats
+    if (msg.includes("Processing:")) {
+        // "[5/52] Processing: Madrid"
+        try {
+            const parts = msg.match(/\[(\d+)\/(\d+)\]/);
+            if (parts) {
+                statProv.textContent = `${parts[1]}/${parts[2]}`;
             }
-        } catch (err) {
-            // Silent fail
-        }
-    }, 10000); // Poll every 10 seconds
+        } catch (e) { }
+    }
+
+    div.innerText = `[${time}] ${msg}`;
+    periodicLogContainer.appendChild(div);
+    periodicLogContainer.scrollTop = periodicLogContainer.scrollHeight;
 }
 
+function setupPeriodicSocketListeners() {
+    if (!socket) return;
+
+    socket.on('periodic_log', (data) => {
+        let type = 'info';
+        if (data.level === 'ERR') type = 'error';
+        if (data.level === 'WARN') type = 'warning';
+        if (data.level === 'OK') type = 'success';
+        addPeriodicLog(data.message, type);
+    });
+
+    socket.on('periodic_status', (data) => {
+        setPeriodicState(data.status === 'running' || data.status === 'started' ? 'running' : 'idle');
+    });
+}
+
+// Hook into initialization if socket exists, or wait for DOMContentLoaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        if (socket) setupPeriodicSocketListeners();
+    });
+} else {
+    // Already loaded
+    if (socket) setupPeriodicSocketListeners();
+}

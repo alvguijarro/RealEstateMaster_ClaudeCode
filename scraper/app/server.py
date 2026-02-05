@@ -350,11 +350,39 @@ def get_status():
 
 # Periodic Low-Cost Scraper Process
 periodic_process = None
+periodic_thread = None
+
+def monitor_periodic_process(proc):
+    """Monitor stdout of periodic process and emit logs via WebSocket."""
+    if not proc: return
+    
+    # Read stdout line by line
+    for line in iter(proc.stdout.readline, b''):
+        try:
+            msg = line.decode('utf-8', errors='replace').strip()
+            if msg:
+                print(f"[PERIODIC] {msg}") # Server log
+                
+                # Determine level
+                level = "INFO"
+                if "[ERR]" in msg: level = "ERR"
+                elif "[WARN]" in msg: level = "WARN"
+                elif "[OK]" in msg: level = "OK"
+                
+                socketio.emit('periodic_log', {'level': level, 'message': msg})
+        except: pass
+        
+    proc.stdout.close()
+    
+    # Process finished
+    proc.wait()
+    socketio.emit('periodic_status', {'status': 'completed', 'exit_code': proc.returncode})
+    socketio.emit('periodic_log', {'level': 'INFO', 'message': f"Process finished with exit code {proc.returncode}"})
 
 @app.route('/api/periodic-lowcost/start', methods=['POST'])
 def start_periodic_lowcost():
     """Launch the periodic low-cost scraper in a background process."""
-    global periodic_process
+    global periodic_process, periodic_thread
     
     if periodic_process and periodic_process.poll() is None:
         return jsonify({'error': 'Periodic scan already running'}), 400
@@ -364,18 +392,43 @@ def start_periodic_lowcost():
     if not script_path.exists():
         return jsonify({'error': f'Script not found: {script_path}'}), 500
     
-    # Launch in background
-    periodic_process = subprocess.Popen(
-        [sys.executable, str(script_path)],
-        cwd=str(script_path.parent.parent),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-    )
-    
-    emit_log("INFO", "Periodic Low-Cost Scraper started in background.")
-    return jsonify({'status': 'started', 'pid': periodic_process.pid})
+    try:
+        # Launch in background with stdout PIPE
+        # Note: 'bufsize=1' for line buffering, universal_newlines=False (binary) to use iter(readline)
+        periodic_process = subprocess.Popen(
+            [sys.executable, "-u", str(script_path)], # -u for unbuffered python output
+            cwd=str(script_path.parent.parent),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, # Merge stderr into stdout
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        )
+        
+        # Start monitoring thread
+        periodic_thread = threading.Thread(target=monitor_periodic_process, args=(periodic_process,), daemon=True)
+        periodic_thread.start()
+        
+        emit_log("INFO", "Periodic Low-Cost Scraper started in background.")
+        return jsonify({'status': 'started', 'pid': periodic_process.pid})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
+@app.route('/api/periodic-lowcost/stop', methods=['POST'])
+def stop_periodic_lowcost():
+    """Stop the periodic low-cost scraper."""
+    global periodic_process
+    
+    if periodic_process and periodic_process.poll() is None:
+        periodic_process.terminate() # Try SIGTERM
+        try:
+            periodic_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            periodic_process.kill() # Force kill
+            
+        emit_log("WARN", "Periodic Scraper stopped by user.")
+        return jsonify({'status': 'stopped'})
+    else:
+        return jsonify({'status': 'not_running'})
 
 @app.route('/api/periodic-lowcost/status', methods=['GET'])
 def get_periodic_status():
@@ -383,7 +436,7 @@ def get_periodic_status():
     global periodic_process
     
     if periodic_process is None:
-        return jsonify({'status': 'not_started'})
+        return jsonify({'status': 'idle'})
     
     poll = periodic_process.poll()
     if poll is None:

@@ -17,8 +17,10 @@
 - **Periodic Scraper Implementation**: Full implementation of monthly automated scraper:
     - New script `scripts/run_periodic_low_cost.py` iterates 52 provinces.
     - New UI panel "Escaneo Mensual (< 300k)" in Scraper Tool tab.
-    - API endpoints `/api/periodic-lowcost/start` and `/status`.
-    - Windows Task Scheduler batch file: `RUN_PERIODIC_LOW_COST.bat`.
+- **Periodic Scraper UI Refactor**: Moved periodic scraper to a dedicated tab with advanced controls.
+    - **Real-time Console**: Added streaming logs window to view scraping progress live.
+    - **Control Panel**: Added Stop button functionality to kill the background process.
+    - **Stats Dashboard**: Live counters for processed provinces and errors.
 
 ## [2026-02-03]
 

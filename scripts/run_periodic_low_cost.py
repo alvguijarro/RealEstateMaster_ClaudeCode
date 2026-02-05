@@ -32,7 +32,7 @@ BLOCK_WAIT_TIME = 900  # 15 minutes
 def log(msg: str):
     timestamp = datetime.now().strftime("%H:%M:%S")
     line = f"[{timestamp}] {msg}"
-    print(line)
+    print(line, flush=True) # Ensure immediate flush for subprocess monitoring
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(line + "\n")
 
