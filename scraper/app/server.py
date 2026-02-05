@@ -348,6 +348,50 @@ def get_status():
     })
 
 
+# Periodic Low-Cost Scraper Process
+periodic_process = None
+
+@app.route('/api/periodic-lowcost/start', methods=['POST'])
+def start_periodic_lowcost():
+    """Launch the periodic low-cost scraper in a background process."""
+    global periodic_process
+    
+    if periodic_process and periodic_process.poll() is None:
+        return jsonify({'error': 'Periodic scan already running'}), 400
+    
+    script_path = Path(__file__).parent.parent.parent / "scripts" / "run_periodic_low_cost.py"
+    
+    if not script_path.exists():
+        return jsonify({'error': f'Script not found: {script_path}'}), 500
+    
+    # Launch in background
+    periodic_process = subprocess.Popen(
+        [sys.executable, str(script_path)],
+        cwd=str(script_path.parent.parent),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+    )
+    
+    emit_log("INFO", "Periodic Low-Cost Scraper started in background.")
+    return jsonify({'status': 'started', 'pid': periodic_process.pid})
+
+
+@app.route('/api/periodic-lowcost/status', methods=['GET'])
+def get_periodic_status():
+    """Get status of the periodic low-cost scraper."""
+    global periodic_process
+    
+    if periodic_process is None:
+        return jsonify({'status': 'not_started'})
+    
+    poll = periodic_process.poll()
+    if poll is None:
+        return jsonify({'status': 'running', 'pid': periodic_process.pid})
+    else:
+        return jsonify({'status': 'completed', 'exit_code': poll})
+
+
 @app.route('/api/download', methods=['GET'])
 def download_file():
     """Download the generated Excel file."""

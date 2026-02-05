@@ -14,6 +14,11 @@
     - "desliza hacia la derecha" (Slider CAPTCHA)
 - **Immediate Block Response**: Scraper now triggers recovery mode **immediately** upon detecting block messages, without waiting for consecutive failures.
 - **Periodic Scraper Preparation (< 300k)**: Added `low_cost_provinces.json` with URLs for all 52 Spanish provinces for low-cost housing searches.
+- **Periodic Scraper Implementation**: Full implementation of monthly automated scraper:
+    - New script `scripts/run_periodic_low_cost.py` iterates 52 provinces.
+    - New UI panel "Escaneo Mensual (< 300k)" in Scraper Tool tab.
+    - API endpoints `/api/periodic-lowcost/start` and `/status`.
+    - Windows Task Scheduler batch file: `RUN_PERIODIC_LOW_COST.bat`.
 
 ## [2026-02-03]
 

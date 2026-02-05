@@ -120,6 +120,37 @@
                         </div>
                     </section>
 
+                    <!-- Periodic Low-Cost Scraper Module -->
+                    <section class="panel periodic-scraper-panel">
+                        <h3
+                            style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                            <span style="margin-right:8px;">📅</span> Escaneo Mensual (< 300k) </h3>
+
+                                <p
+                                    style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+                                    Escanea las 52 provincias españolas para viviendas < 300.000€. Cada provincia genera
+                                        un fichero Excel individual. </p>
+
+                                        <div class="input-group" style="margin-bottom: 15px;">
+                                            <label>Estado</label>
+                                            <div id="periodicStatus"
+                                                style="padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 6px; font-size: 13px; color: var(--text-secondary);">
+                                                <span style="color: var(--yellow);">⏸</span> No ejecutado aún
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <button class="btn btn-primary" id="runPeriodicBtn" style="width: 100%;">
+                                                <span class="btn-icon">🚀</span> Lanzar Escaneo Nacional
+                                            </button>
+                                        </div>
+                                        <small
+                                            style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 10px;">
+                                            💡 Para programar mensualmente, usa el Programador de Tareas de Windows con
+                                            el archivo <code>RUN_PERIODIC_LOW_COST.bat</code>.
+                                        </small>
+                    </section>
+
                     <!-- URL Update Module -->
                     <section class="panel url-update-panel">
                         <h3

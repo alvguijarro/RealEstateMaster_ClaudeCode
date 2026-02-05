@@ -1869,3 +1869,67 @@ const originalInitSocket = window.initializeSocket;
 
 // Let's modify the ORIGINAL `initializeSocket` to call `setupBatchSocketListeners`.
 // I'll make a separate tool call to inject the call inside `initializeSocket`.
+
+
+// ============ PERIODIC LOW-COST SCRAPER ============
+const runPeriodicBtn = document.getElementById('runPeriodicBtn');
+const periodicStatus = document.getElementById('periodicStatus');
+
+if (runPeriodicBtn) {
+    runPeriodicBtn.addEventListener('click', async () => {
+        try {
+            runPeriodicBtn.disabled = true;
+            runPeriodicBtn.innerHTML = '<span class="btn-icon">⏳</span> Iniciando...';
+
+            const response = await fetch('/api/periodic-lowcost/start', { method: 'POST' });
+            const data = await response.json();
+
+            if (response.ok) {
+                addLog('OK', 'Escaneo periódico iniciado en segundo plano.');
+                updatePeriodicStatusUI('running');
+                startPeriodicPolling();
+            } else {
+                addLog('ERR', data.error || 'Error al iniciar escaneo.');
+                runPeriodicBtn.disabled = false;
+                runPeriodicBtn.innerHTML = '<span class="btn-icon">🚀</span> Lanzar Escaneo Nacional';
+            }
+        } catch (err) {
+            addLog('ERR', 'Error de conexión: ' + err.message);
+            runPeriodicBtn.disabled = false;
+            runPeriodicBtn.innerHTML = '<span class="btn-icon">🚀</span> Lanzar Escaneo Nacional';
+        }
+    });
+}
+
+function updatePeriodicStatusUI(status) {
+    if (!periodicStatus) return;
+
+    if (status === 'running') {
+        periodicStatus.innerHTML = '<span style="color: var(--green);">🔄</span> Ejecutando...';
+    } else if (status === 'completed') {
+        periodicStatus.innerHTML = '<span style="color: var(--green);">✅</span> Completado';
+        if (runPeriodicBtn) {
+            runPeriodicBtn.disabled = false;
+            runPeriodicBtn.innerHTML = '<span class="btn-icon">🚀</span> Lanzar Escaneo Nacional';
+        }
+    } else {
+        periodicStatus.innerHTML = '<span style="color: var(--yellow);">⏸</span> No ejecutado aún';
+    }
+}
+
+function startPeriodicPolling() {
+    const pollInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/periodic-lowcost/status');
+            const data = await response.json();
+
+            if (data.status === 'completed' || data.status === 'not_started') {
+                clearInterval(pollInterval);
+                updatePeriodicStatusUI('completed');
+            }
+        } catch (err) {
+            // Silent fail
+        }
+    }, 10000); // Poll every 10 seconds
+}
+
