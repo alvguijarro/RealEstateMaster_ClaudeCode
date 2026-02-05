@@ -1,5 +1,333 @@
 [
   {
+    "timestamp": "2026-02-05T22:28:24.942205",
+    "seed_url": "BATCH:0-EU-ES-50",
+    "properties_count": 1600,
+    "category": "Zaragoza_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Zaragoza_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Zaragoza_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T22:25:57.924330",
+    "seed_url": "BATCH:0-EU-ES-47",
+    "properties_count": 240,
+    "category": "Valladolid_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Valladolid_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Valladolid_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T22:25:30.080462",
+    "seed_url": "BATCH:0-EU-ES-46",
+    "properties_count": 11760,
+    "category": "Valencia_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Valencia_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Valencia_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T22:09:27.749283",
+    "seed_url": "BATCH:0-EU-ES-45",
+    "properties_count": 3120,
+    "category": "Toledo_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Toledo_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Toledo_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T22:05:26.307558",
+    "seed_url": "BATCH:0-EU-ES-43",
+    "properties_count": 7200,
+    "category": "Tarragona_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Tarragona_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Tarragona_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:56:04.161962",
+    "seed_url": "BATCH:0-EU-ES-41",
+    "properties_count": 4760,
+    "category": "Sevilla_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Sevilla_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Sevilla_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:50:28.216093",
+    "seed_url": "BATCH:0-EU-ES-40",
+    "properties_count": 1017,
+    "category": "Segovia_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Segovia_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Segovia_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:49:17.593189",
+    "seed_url": "BATCH:0-EU-ES-39",
+    "properties_count": 3960,
+    "category": "Cantabria_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Cantabria_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Cantabria_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:44:18.135566",
+    "seed_url": "BATCH:0-EU-ES-38",
+    "properties_count": 3840,
+    "category": "Santa_Cruz_de_Tenerife_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Santa_Cruz_de_Tenerife_sale_20260205_1904.xlsx",
+    "filename": "API_BATCH_Santa_Cruz_de_Tenerife_sale_20260205_1904.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:38:55.425019",
+    "seed_url": "BATCH:0-EU-ES-37",
+    "properties_count": 3080,
+    "category": "Salamanca_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Salamanca_sale_20260205_1904.xlsx",
+    "filename": "API_BATCH_Salamanca_sale_20260205_1904.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:35:30.085247",
+    "seed_url": "BATCH:0-EU-ES-36",
+    "properties_count": 1880,
+    "category": "Pontevedra_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Pontevedra_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Pontevedra_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:33:14.052871",
+    "seed_url": "BATCH:0-EU-ES-35",
+    "properties_count": 1360,
+    "category": "Las_Palmas_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Las_Palmas_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Las_Palmas_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:31:04.724955",
+    "seed_url": "BATCH:0-EU-ES-33",
+    "properties_count": 3960,
+    "category": "Asturias_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Asturias_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Asturias_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:26:09.984744",
+    "seed_url": "BATCH:0-EU-ES-32",
+    "properties_count": 1760,
+    "category": "Ourense_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Ourense_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Ourense_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:24:06.941318",
+    "seed_url": "BATCH:0-EU-ES-31",
+    "properties_count": 40,
+    "category": "Navarra_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Navarra_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Navarra_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:23:53.354565",
+    "seed_url": "BATCH:0-EU-ES-30",
+    "properties_count": 10560,
+    "category": "Murcia_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Murcia_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Murcia_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:11:41.618006",
+    "seed_url": "BATCH:0-EU-ES-29",
+    "properties_count": 9040,
+    "category": "Malaga_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Malaga_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Malaga_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T21:00:59.474263",
+    "seed_url": "BATCH:0-EU-ES-28",
+    "properties_count": 6320,
+    "category": "Madrid_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Madrid_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Madrid_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:53:24.711735",
+    "seed_url": "BATCH:0-EU-ES-27",
+    "properties_count": 920,
+    "category": "Lugo_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Lugo_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Lugo_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:52:08.126539",
+    "seed_url": "BATCH:0-EU-ES-26",
+    "properties_count": 920,
+    "category": "La_Rioja_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_La_Rioja_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_La_Rioja_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:50:58.587803",
+    "seed_url": "BATCH:0-EU-ES-25",
+    "properties_count": 880,
+    "category": "Lleida_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Lleida_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Lleida_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:49:48.462402",
+    "seed_url": "BATCH:0-EU-ES-24",
+    "properties_count": 2360,
+    "category": "Leon_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Leon_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Leon_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:47:09.115919",
+    "seed_url": "BATCH:0-EU-ES-23",
+    "properties_count": 2720,
+    "category": "Jaen_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Jaen_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Jaen_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:43:29.745646",
+    "seed_url": "BATCH:0-EU-ES-21",
+    "properties_count": 840,
+    "category": "Huelva_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Huelva_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Huelva_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:42:14.073282",
+    "seed_url": "BATCH:0-EU-ES-19",
+    "properties_count": 40,
+    "category": "Guadalajara_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Guadalajara_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Guadalajara_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:42:00.202726",
+    "seed_url": "BATCH:0-EU-ES-18",
+    "properties_count": 6480,
+    "category": "Granada_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Granada_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Granada_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:34:35.998746",
+    "seed_url": "BATCH:0-EU-ES-17",
+    "properties_count": 5720,
+    "category": "Girona_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Girona_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Girona_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:27:57.753143",
+    "seed_url": "BATCH:0-EU-ES-15",
+    "properties_count": 3000,
+    "category": "A_Coruna_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_A_Coruna_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_A_Coruna_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:24:14.673307",
+    "seed_url": "BATCH:0-EU-ES-14",
+    "properties_count": 1840,
+    "category": "Cordoba_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Cordoba_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Cordoba_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:22:00.129728",
+    "seed_url": "BATCH:0-EU-ES-13",
+    "properties_count": 3120,
+    "category": "Ciudad_Real_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Ciudad_Real_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Ciudad_Real_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:18:21.684627",
+    "seed_url": "BATCH:0-EU-ES-12",
+    "properties_count": 5760,
+    "category": "Castellon_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Castellon_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Castellon_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:11:33.260948",
+    "seed_url": "BATCH:0-EU-ES-11",
+    "properties_count": 3880,
+    "category": "Cadiz_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Cadiz_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Cadiz_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:07:01.821573",
+    "seed_url": "BATCH:0-EU-ES-10",
+    "properties_count": 1760,
+    "category": "Caceres_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Caceres_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Caceres_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:04:55.310623",
+    "seed_url": "BATCH:0-EU-ES-09",
+    "properties_count": 1360,
+    "category": "Burgos_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Burgos_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Burgos_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T20:03:11.599558",
+    "seed_url": "BATCH:0-EU-ES-08",
+    "properties_count": 18960,
+    "category": "Barcelona_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Barcelona_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Barcelona_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T19:41:11.426423",
+    "seed_url": "BATCH:0-EU-ES-07",
+    "properties_count": 40,
+    "category": "Baleares_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Baleares_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Baleares_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T19:40:52.978073",
+    "seed_url": "BATCH:0-EU-ES-06",
+    "properties_count": 1480,
+    "category": "Badajoz_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Badajoz_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Badajoz_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T19:38:53.880017",
+    "seed_url": "BATCH:0-EU-ES-04",
+    "properties_count": 5480,
+    "category": "Almeria_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Almeria_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Almeria_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T19:32:23.233951",
+    "seed_url": "BATCH:0-EU-ES-03",
+    "properties_count": 21480,
+    "category": "Alicante_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Alicante_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Alicante_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T19:06:23.355855",
+    "seed_url": "BATCH:0-EU-ES-02",
+    "properties_count": 1080,
+    "category": "Albacete_sale",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Albacete_sale_20260202_1345.xlsx",
+    "filename": "API_BATCH_Albacete_sale_20260202_1345.xlsx"
+  },
+  {
+    "timestamp": "2026-02-05T19:04:55.503883",
+    "seed_url": "BATCH:0-EU-ES-01",
+    "properties_count": 1,
+    "category": "Alava_rent",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Alava_rent_20260202_1246.xlsx",
+    "filename": "API_BATCH_Alava_rent_20260202_1246.xlsx"
+  },
+  {
     "timestamp": "2026-02-05T18:58:23.619372",
     "seed_url": "BATCH:0-EU-ES-03",
     "properties_count": 6520,

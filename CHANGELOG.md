@@ -8,6 +8,12 @@
 - **Enricher Auto-Restart**: Implemented a 15-minute recursive recovery loop for CAPTCHA/Soft Ban blocks.
 - **UI Sync Fixes**: Corrected port mismatch (5000 -> 5003) and event name alignment for real-time progress updates.
 - **Repair Scripts**: Added `RE-RUN_TRUNCATED_ALQUILER.bat` and `RE-RUN_TRUNCATED_VENTA.bat` to specifically re-scan provinces that hit the previous 2,000 item limit.
+- **CAPTCHA Detection Improvements**: Enhanced `detect_captcha` in `update_urls.py` to check HTML source (`page.content()`) for:
+    - "recibiendo muchas peticiones tuyas" (Soft Block)
+    - "el acceso se ha bloqueado" (Hard Block)
+    - "desliza hacia la derecha" (Slider CAPTCHA)
+- **Immediate Block Response**: Scraper now triggers recovery mode **immediately** upon detecting block messages, without waiting for consecutive failures.
+- **Periodic Scraper Preparation (< 300k)**: Added `low_cost_provinces.json` with URLs for all 52 Spanish provinces for low-cost housing searches.
 
 ## [2026-02-03]
 

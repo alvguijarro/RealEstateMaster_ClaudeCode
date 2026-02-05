@@ -153,25 +153,33 @@ def handle_blocked_profile():
             emit_to_ui("ERR", f"Failed to archive profile: {e}")
 
 async def detect_captcha(page) -> bool:
-    """Check if page shows CAPTCHA/bot protection based on page title and body."""
+    """Check if page shows CAPTCHA/bot protection based on page title and content."""
     try:
+        # Check source content for hidden/overlay text
+        content = (await page.content() or "").lower()
         title = (await page.title() or "").lower()
+        
+        # 1. Hard Block / IP Block
+        if "el acceso se ha bloqueado" in content or "access denied" in title or "uso indebido" in content:
+             return True
+             
+        # 2. Soft Block / "Many Requests" (Requires Restart)
+        if "recibiendo muchas peticiones tuyas" in content or "many requests" in content:
+             return True
+             
+        # 3. Standard CAPTCHA / Slider
+        if "desliza hacia la derecha" in content or "slide to secure" in content:
+             return True
+             
+        # 4. Title keywords
         is_captcha_title = any(kw in title for kw in [
             "attention", "moment", "challenge", "robot", "captcha",
-            "access denied", "security", "peticiones", "verificación", "verification"
+            "security", "peticiones", "verificación", "verification"
         ])
         
         if is_captcha_title:
              return True
 
-        # Check body text for "uso indebido"
-        page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
-        text_lower = page_text.lower()
-        if "uso indebido" in text_lower or "se ha bloqueado" in text_lower or "access denied" in text_lower:
-             return True
-        if "recibiendo muchas peticiones" in text_lower or "desliza hacia la derecha" in text_lower:
-             return True
-             
         return False
     except:
         return False
@@ -668,9 +676,14 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
 
                             # Check Block again
                             if await detect_captcha(page):
-                                if "uso indebido" in (await page.evaluate("() => document.body ? document.body.innerText : ''")).lower():
-                                    raise BlockedException("Uso Indebido detected")
+                                content = (await page.content() or "").lower()
                                 
+                                # CRITICAL CHECK: User requested immediate restart for these messages
+                                if "recibiendo muchas peticiones" in content:
+                                    raise BlockedException("Soft Block: 'Recibiendo muchas peticiones' detected")
+                                if "uso indebido" in content or "el acceso se ha bloqueado" in content:
+                                    raise BlockedException("Hard Block: 'Uso indebido' detected")
+
                                 emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado.')
                                 emit_to_ui('INFO', 'Intentando resolver CAPTCHA automáticamente...')
                                 if await solve_slider_captcha(page):
