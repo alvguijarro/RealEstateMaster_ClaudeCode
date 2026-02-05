@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - **UI:** Fixed real-time synchronization of counters (Provincias/Propiedades) and Results table via `property_scraped` WebSocket listener.
 - **UI:** Corrected "Enrichment History" to filter for relevant processed files (`_updated.xlsx`).
 - **Fix:** Resolved "Start Batch" button activation bug.
+- **UI:** Wired up missing `progress` WebSocket listener to revive dead "Progreso del lote" text and Scorecards updates during enrichment.
 - **Fix:** Removed emojis from backend logs to prevent encoding/Mojibake issues in Windows/UTF-8.
 - **Git:** Optimized `.gitignore` for stealth profiles and temporary journal files.
 

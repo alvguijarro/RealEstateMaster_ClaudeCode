@@ -1804,6 +1804,25 @@ function setupBatchSocketListeners() {
         setBatchUIState('running');
     });
 
+    // Handle detailed progress updates (for Scorecards and Text)
+    socket.on('progress', (data) => {
+        // data = { current_properties, total_properties, current_page, total_pages, sheet_name, excel_file }
+
+        // Update Property Counters
+        statCurrentProps.textContent = data.current_properties;
+        statTotalProps.textContent = data.total_properties;
+
+        // Update Text
+        if (data.excel_file) {
+            batchProgressText.innerHTML = `
+                Procesando: <strong>${data.excel_file}</strong><br>
+                <span style="font-size:0.9em; color:var(--text-muted)">
+                   Hoja: ${data.sheet_name || '?'} | Progreso: ${data.current_properties}/${data.total_properties}
+                </span>
+            `;
+        }
+    });
+
     socket.on('batch_completed', (data) => {
         addLog('OK', `Lote completado: ${data.completed}/${data.total} archivos.`);
         setBatchUIState('idle');
