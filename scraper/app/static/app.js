@@ -1872,134 +1872,177 @@ const originalInitSocket = window.initializeSocket;
 
 
 // ============ PERIODIC LOW-COST SCRAPER MODULE ============
-// UI Elements
-const periodicStartBtn = document.getElementById('periodicStartBtn');
-const periodicPauseBtn = document.getElementById('periodicPauseBtn');
-const periodicResumeBtn = document.getElementById('periodicResumeBtn');
-const periodicStopBtn = document.getElementById('periodicStopBtn');
-const periodicLogContainer = document.getElementById('periodicLogContainer');
+// Tab Switching Logic
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        // Remove active class from all buttons and panes
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+
+        // Activate clicked
+        btn.classList.add('active');
+        const tabId = btn.getAttribute('data-tab');
+        const pane = document.getElementById(`tab-${tabId}`);
+        if (pane) {
+            pane.style.display = tabId === 'scraper' ? 'contents' : 'block';
+        }
+    });
+});
+
+// Periodic Controls
+const runPeriodicBtn = document.getElementById('runPeriodicBtn');
+const stopPeriodicBtn = document.getElementById('stopPeriodicBtn');
+const periodicStatusText = document.getElementById('periodicStatusText');
+const periodicStatusIcon = document.getElementById('periodicStatusIcon');
+const periodicLogsContainer = document.getElementById('periodicLogsContainer');
 const periodicResultsBody = document.getElementById('periodicResultsBody');
-const periodicMainStatus = document.getElementById('periodicMainStatus');
+const clearPeriodicLogsBtn = document.getElementById('clearPeriodicLogsBtn');
 
-// Stats Elements
-const statProv = document.getElementById('periodicStatProvinces');
-const statSucc = document.getElementById('periodicStatSuccess');
-const statErr = document.getElementById('periodicStatErrors');
-
-let periodicLogs = [];
-
-if (periodicStartBtn) {
-    // START
-    periodicStartBtn.addEventListener('click', async () => {
-        setPeriodicState('running');
-        addPeriodicLog("Iniciando escaneo nacional...", 'info');
-
-        try {
-            const res = await fetch('/api/periodic-lowcost/start', { method: 'POST' });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Error desconocido');
-        } catch (e) {
-            addPeriodicLog("Error al iniciar: " + e.message, 'error');
-            setPeriodicState('idle');
-        }
-    });
-
-    // STOP
-    periodicStopBtn.addEventListener('click', async () => {
-        if (!confirm("¿Seguro que quieres detener el escaneo?")) return;
-        setPeriodicState('idle'); // Optimistic UI update
-        try {
-            await fetch('/api/periodic-lowcost/stop', { method: 'POST' });
-            addPeriodicLog("Proceso detenido por el usuario.", 'warning');
-        } catch (e) {
-            console.error(e);
-        }
-    });
-
-    // PAUSE/RESUME (Future implementation if supported by backend)
-    periodicPauseBtn.addEventListener('click', () => alert("Pausa no implementada aún en backend."));
-    periodicResumeBtn.addEventListener('click', () => alert("Reanudación no implementada aún en backend."));
+// Add specific styles if needed
+if (periodicLogsContainer) {
+    periodicLogsContainer.style.fontFamily = "'Consolas', monospace";
+    periodicLogsContainer.style.fontSize = "0.85rem";
 }
 
-function setPeriodicState(state) {
-    if (!periodicStartBtn) return;
-
-    if (state === 'running') {
-        periodicStartBtn.disabled = true;
-        periodicStartBtn.style.display = 'none';
-        periodicStopBtn.disabled = false;
-        periodicStopBtn.style.display = 'inline-flex';
-
-        periodicMainStatus.textContent = "EJECUTANDO";
-        periodicMainStatus.className = "status-badge-inline status-active";
-        periodicMainStatus.style.background = "var(--green)";
-        periodicMainStatus.style.color = "#000";
-    } else {
-        periodicStartBtn.disabled = false;
-        periodicStartBtn.style.display = 'inline-flex';
-        periodicStopBtn.disabled = true;
-        periodicStopBtn.style.display = 'none';
-
-        periodicMainStatus.textContent = "INACTIVO";
-        periodicMainStatus.className = "status-badge-inline";
-        periodicMainStatus.style.background = "var(--bg-card)";
-        periodicMainStatus.style.color = "var(--text-muted)";
-    }
+if (clearPeriodicLogsBtn) {
+    clearPeriodicLogsBtn.addEventListener('click', () => {
+        if (periodicLogsContainer) periodicLogsContainer.innerHTML = '';
+    });
 }
 
-function addPeriodicLog(msg, type = 'info') {
-    if (!periodicLogContainer) return;
-
+function addPeriodicLog(msg) {
+    if (!periodicLogsContainer) return;
+    const now = new Date().toLocaleTimeString('es-ES');
     const div = document.createElement('div');
     div.className = 'log-entry';
-    div.style.fontFamily = "Consolas, monospace";
-    div.style.marginBottom = "4px";
+    div.innerHTML = `<span class="log-time">${now}</span> <span class="log-message">${msg}</span>`;
+    periodicLogsContainer.appendChild(div);
+    periodicLogsContainer.scrollTop = periodicLogsContainer.scrollHeight;
+}
 
-    const time = new Date().toLocaleTimeString();
+function updatePeriodicUI(status) {
+    if (!periodicStatusText) return;
 
-    if (type === 'error') div.style.color = '#ff6b6b';
-    else if (type === 'warning') div.style.color = '#f1c40f';
-    else if (type === 'success') div.style.color = '#2ecc71';
-    else div.style.color = '#8b949e'; // Default gray
+    if (status === 'running') {
+        periodicStatusText.textContent = 'En Ejecución';
+        periodicStatusText.style.color = 'var(--success)';
+        periodicStatusIcon.textContent = '🔄';
+        periodicStatusIcon.className = 'spin'; // Add css spin if available
+        if (runPeriodicBtn) {
+            runPeriodicBtn.disabled = true;
+            runPeriodicBtn.innerHTML = '<span class="btn-icon">⏳</span> Ejecutando...';
+        }
+        if (stopPeriodicBtn) stopPeriodicBtn.disabled = false;
 
-    // Parse progress to update stats
-    if (msg.includes("Processing:")) {
-        // "[5/52] Processing: Madrid"
-        try {
-            const parts = msg.match(/\[(\d+)\/(\d+)\]/);
-            if (parts) {
-                statProv.textContent = `${parts[1]}/${parts[2]}`;
-            }
-        } catch (e) { }
+    } else if (status === 'paused') {
+        periodicStatusText.textContent = 'Pausado';
+        periodicStatusText.style.color = 'var(--warning)';
+        periodicStatusIcon.textContent = '⏸';
+        if (runPeriodicBtn) {
+            runPeriodicBtn.disabled = false;
+            runPeriodicBtn.innerHTML = '<span class="btn-icon">▶</span> Reanudar';
+        }
+
+    } else if (status === 'completed') {
+        periodicStatusText.textContent = 'Completado';
+        periodicStatusText.style.color = 'var(--text-main)';
+        periodicStatusIcon.textContent = '✅';
+        resetPeriodicButtons();
+
+    } else {
+        periodicStatusText.textContent = 'Inactivo';
+        periodicStatusText.style.color = 'var(--text-muted)';
+        periodicStatusIcon.textContent = '⏸';
+        resetPeriodicButtons();
     }
-
-    div.innerText = `[${time}] ${msg}`;
-    periodicLogContainer.appendChild(div);
-    periodicLogContainer.scrollTop = periodicLogContainer.scrollHeight;
 }
 
-function setupPeriodicSocketListeners() {
-    if (!socket) return;
+function resetPeriodicButtons() {
+    if (runPeriodicBtn) {
+        runPeriodicBtn.disabled = false;
+        runPeriodicBtn.innerHTML = '<span class="btn-icon">🚀</span> Iniciar Escaneo';
+    }
+    if (stopPeriodicBtn) {
+        stopPeriodicBtn.disabled = true;
+    }
+}
 
+// Button Listeners
+if (runPeriodicBtn) {
+    runPeriodicBtn.addEventListener('click', async () => {
+        // Check if we are resuming or starting
+        const isResuming = runPeriodicBtn.innerHTML.includes('Reanudar');
+        const endpoint = isResuming ? '/api/periodic-lowcost/resume' : '/api/periodic-lowcost/start';
+
+        try {
+            await fetch(endpoint, { method: 'POST' });
+        } catch (e) {
+            addPeriodicLog("Error de conexión: " + e.message);
+        }
+    });
+}
+
+if (stopPeriodicBtn) {
+    stopPeriodicBtn.addEventListener('click', async () => {
+        if (confirm('¿Seguro que quieres detener el escaneo mensual?')) {
+            try {
+                await fetch('/api/periodic-lowcost/stop', { method: 'POST' });
+            } catch (e) {
+                addPeriodicLog("Error al detener: " + e.message);
+            }
+        }
+    });
+}
+
+// Socket Listeners for Periodic
+// (These should technically be inside initializeSocket, but we can append them safely)
+if (typeof socket !== 'undefined' && socket) {
     socket.on('periodic_log', (data) => {
-        let type = 'info';
-        if (data.level === 'ERR') type = 'error';
-        if (data.level === 'WARN') type = 'warning';
-        if (data.level === 'OK') type = 'success';
-        addPeriodicLog(data.message, type);
+        addPeriodicLog(data.message);
     });
 
-    socket.on('periodic_status', (data) => {
-        setPeriodicState(data.status === 'running' || data.status === 'started' ? 'running' : 'idle');
-    });
-}
+    socket.on('periodic_table_update', (data) => {
+        // data = { province: 'Madrid', status: 'Completado' }
+        if (!periodicResultsBody) return;
 
-// Hook into initialization if socket exists, or wait for DOMContentLoaded
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        if (socket) setupPeriodicSocketListeners();
+        // Find existing row
+        let row = Array.from(periodicResultsBody.children).find(r => r.getAttribute('data-prov') === data.province);
+
+        if (!row) {
+            // Remove empty state if present
+            if (periodicResultsBody.querySelector('.empty-state')) {
+                periodicResultsBody.innerHTML = '';
+            }
+            row = document.createElement('tr');
+            row.setAttribute('data-prov', data.province);
+            row.innerHTML = `
+                <td>${data.province}</td>
+                <td class="status-cell">${data.status}</td>
+                <td>--</td>
+                <td>--</td>
+            `;
+            periodicResultsBody.insertBefore(row, periodicResultsBody.firstChild);
+        } else {
+            row.querySelector('.status-cell').textContent = data.status;
+        }
     });
 } else {
-    // Already loaded
-    if (socket) setupPeriodicSocketListeners();
+    // Retry attaching if socket not ready
+    setTimeout(() => {
+        if (typeof socket !== 'undefined' && socket) {
+            socket.on('periodic_log', (data) => addPeriodicLog(data.message));
+        }
+    }, 2000);
 }
+
+// Poll initial status
+async function checkPeriodicStatus() {
+    try {
+        const res = await fetch('/api/periodic-lowcost/status');
+        const data = await res.json();
+        updatePeriodicUI(data.status);
+    } catch (e) { }
+}
+
+setInterval(checkPeriodicStatus, 5000);
+checkPeriodicStatus();

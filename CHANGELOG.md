@@ -14,13 +14,12 @@
     - "desliza hacia la derecha" (Slider CAPTCHA)
 - **Immediate Block Response**: Scraper now triggers recovery mode **immediately** upon detecting block messages, without waiting for consecutive failures.
 - **Periodic Scraper Preparation (< 300k)**: Added `low_cost_provinces.json` with URLs for all 52 Spanish provinces for low-cost housing searches.
-- **Periodic Scraper Implementation**: Full implementation of monthly automated scraper:
-    - New script `scripts/run_periodic_low_cost.py` iterates 52 provinces.
-    - New UI panel "Escaneo Mensual (< 300k)" in Scraper Tool tab.
-- **Periodic Scraper UI Refactor**: Moved periodic scraper to a dedicated tab with advanced controls.
-    - **Real-time Console**: Added streaming logs window to view scraping progress live.
-    - **Control Panel**: Added Stop button functionality to kill the background process.
-    - **Stats Dashboard**: Live counters for processed provinces and errors.
+- **Periodic Scraper Evolution (Dedicated Tab)**: Refactored the monthly low-cost scraper into a standalone module:
+    - **Dedicated Tab**: Moved to a new "Escaneo Mensual <300k" tab for better workspace organization.
+    - **Real-time Monitoring**: Implemented real-time log streaming from the background script to the UI via SocketIO.
+    - **Full Controls**: Added Start, Stop, Pause, and Resume controls with backend signal handling (flag-based).
+    - **Dynamic Progress Table**: Added a results table that tracks the status and progress of all 52 provinces in real-time.
+    - **Backend Streaming**: Refactored `server.py` to use a monitor thread for capturing and emitting `subprocess` output.
 
 ## [2026-02-03]
 

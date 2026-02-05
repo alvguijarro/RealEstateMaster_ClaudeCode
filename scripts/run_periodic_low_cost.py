@@ -29,18 +29,39 @@ DELAY_BETWEEN_PROVINCES = (30, 60)  # seconds
 MAX_RETRIES_PER_PROVINCE = 2
 BLOCK_WAIT_TIME = 900  # 15 minutes
 
+# Signal flags
+STOP_FLAG = SCRIPT_DIR / "PERIODIC_STOP.flag"
+PAUSE_FLAG = SCRIPT_DIR / "PERIODIC_PAUSE.flag"
+
+def check_signals():
+    """Check for pause/stop flags."""
+    if STOP_FLAG.exists():
+        log("[SIGNAL] Stop flag detected. Exiting...")
+        try: os.remove(STOP_FLAG) 
+        except: pass
+        sys.exit(0)
+        
+    while PAUSE_FLAG.exists():
+        log("[SIGNAL] Paused... Waiting for resume.")
+        time.sleep(5)
+        if STOP_FLAG.exists():
+            return # Exit loop to handle stop
+
 def log(msg: str):
     timestamp = datetime.now().strftime("%H:%M:%S")
     line = f"[{timestamp}] {msg}"
-    print(line, flush=True) # Ensure immediate flush for subprocess monitoring
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+    print(line, flush=True)
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except: pass
 
 def run_scraper(province_name: str, url: str) -> bool:
     """
     Launch the Scraper Tool for a single province URL.
     Returns True on success, False on failure/block.
     """
+    check_signals()
     # Build the command
     # We need to run the main scraper. The existing scraper_wrapper expects a browser.
     # For a CLI batch run, we need to use the server's API or a dedicated runner.
@@ -160,7 +181,11 @@ def main():
             import random
             delay = random.randint(*DELAY_BETWEEN_PROVINCES)
             log(f"Waiting {delay}s before next province...")
-            time.sleep(delay)
+            
+            # Sleep with signal check
+            for _ in range(delay):
+                check_signals()
+                time.sleep(1)
     
     log("\n" + "=" * 60)
     log(f"PERIODIC SCRAPER COMPLETE")

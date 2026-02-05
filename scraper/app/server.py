@@ -352,32 +352,30 @@ def get_status():
 periodic_process = None
 periodic_thread = None
 
-def monitor_periodic_process(proc):
-    """Monitor stdout of periodic process and emit logs via WebSocket."""
-    if not proc: return
-    
-    # Read stdout line by line
-    for line in iter(proc.stdout.readline, b''):
-        try:
-            msg = line.decode('utf-8', errors='replace').strip()
-            if msg:
-                print(f"[PERIODIC] {msg}") # Server log
+def periodic_log_monitor(process):
+    """Refined monitor to stream logs via specific socket event."""
+    try:
+        # Read stdout line by line
+        for line in iter(process.stdout.readline, b''):
+            decoded = line.decode('utf-8', errors='replace').strip()
+            if decoded:
+                socketio.emit('periodic_log', {'message': decoded})
                 
-                # Determine level
-                level = "INFO"
-                if "[ERR]" in msg: level = "ERR"
-                elif "[WARN]" in msg: level = "WARN"
-                elif "[OK]" in msg: level = "OK"
-                
-                socketio.emit('periodic_log', {'level': level, 'message': msg})
-        except: pass
-        
-    proc.stdout.close()
-    
-    # Process finished
-    proc.wait()
-    socketio.emit('periodic_status', {'status': 'completed', 'exit_code': proc.returncode})
-    socketio.emit('periodic_log', {'level': 'INFO', 'message': f"Process finished with exit code {proc.returncode}"})
+                # Try to parse structure for table updates (Simple parsing for now)
+                # Example: "[OK] Scrape completed for Madrid."
+                if "[OK] Scrape completed for" in decoded:
+                    prov = decoded.split("for")[-1].strip().replace(".", "")
+                    socketio.emit('periodic_table_update', {'province': prov, 'status': 'Completado'})
+                elif "Processing:" in decoded:
+                    prov = decoded.split("Processing:")[-1].strip()
+                    socketio.emit('periodic_table_update', {'province': prov, 'status': 'Procesando...'})
+                elif "[ERR]" in decoded:
+                    # simplistic error mapping
+                     pass
+
+        process.stdout.close()
+    except Exception as e:
+        print(f"Monitor error: {e}")
 
 @app.route('/api/periodic-lowcost/start', methods=['POST'])
 def start_periodic_lowcost():
@@ -388,61 +386,72 @@ def start_periodic_lowcost():
         return jsonify({'error': 'Periodic scan already running'}), 400
     
     script_path = Path(__file__).parent.parent.parent / "scripts" / "run_periodic_low_cost.py"
+    scraper_dir = script_path.parent.parent / "scraper"
+    
+    # Cleanup flags
+    stop_flag = scraper_dir / "PERIODIC_STOP.flag"
+    pause_flag = scraper_dir / "PERIODIC_PAUSE.flag"
+    if stop_flag.exists(): os.remove(stop_flag)
+    if pause_flag.exists(): os.remove(pause_flag)
     
     if not script_path.exists():
         return jsonify({'error': f'Script not found: {script_path}'}), 500
     
-    try:
-        # Launch in background with stdout PIPE
-        # Note: 'bufsize=1' for line buffering, universal_newlines=False (binary) to use iter(readline)
-        periodic_process = subprocess.Popen(
-            [sys.executable, "-u", str(script_path)], # -u for unbuffered python output
-            cwd=str(script_path.parent.parent),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, # Merge stderr into stdout
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-        )
-        
-        # Start monitoring thread
-        periodic_thread = threading.Thread(target=monitor_periodic_process, args=(periodic_process,), daemon=True)
-        periodic_thread.start()
-        
-        emit_log("INFO", "Periodic Low-Cost Scraper started in background.")
-        return jsonify({'status': 'started', 'pid': periodic_process.pid})
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    # Launch in background with PIPE for logging
+    periodic_process = subprocess.Popen(
+        [sys.executable, str(script_path)],
+        cwd=str(script_path.parent.parent),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, # Merge stderr to stdout
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+    )
+    
+    # Start monitor thread
+    periodic_thread = threading.Thread(target=periodic_log_monitor, args=(periodic_process,), daemon=True)
+    periodic_thread.start()
+    
+    return jsonify({'status': 'started', 'pid': periodic_process.pid})
+
 
 @app.route('/api/periodic-lowcost/stop', methods=['POST'])
 def stop_periodic_lowcost():
-    """Stop the periodic low-cost scraper."""
-    global periodic_process
-    
-    if periodic_process and periodic_process.poll() is None:
-        periodic_process.terminate() # Try SIGTERM
-        try:
-            periodic_process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            periodic_process.kill() # Force kill
-            
-        emit_log("WARN", "Periodic Scraper stopped by user.")
-        return jsonify({'status': 'stopped'})
-    else:
-        return jsonify({'status': 'not_running'})
+    scraper_dir = Path(__file__).parent.parent.parent / "scraper"
+    flag = scraper_dir / "PERIODIC_STOP.flag"
+    with open(flag, 'w') as f: f.write("STOP")
+    return jsonify({'status': 'stopping'})
+
+@app.route('/api/periodic-lowcost/pause', methods=['POST'])
+def pause_periodic_lowcost():
+    scraper_dir = Path(__file__).parent.parent.parent / "scraper"
+    flag = scraper_dir / "PERIODIC_PAUSE.flag"
+    with open(flag, 'w') as f: f.write("PAUSE")
+    return jsonify({'status': 'paused'})
+
+@app.route('/api/periodic-lowcost/resume', methods=['POST'])
+def resume_periodic_lowcost():
+    scraper_dir = Path(__file__).parent.parent.parent / "scraper"
+    flag = scraper_dir / "PERIODIC_PAUSE.flag"
+    if flag.exists(): os.remove(flag)
+    return jsonify({'status': 'resumed'})
 
 @app.route('/api/periodic-lowcost/status', methods=['GET'])
 def get_periodic_status():
     """Get status of the periodic low-cost scraper."""
     global periodic_process
     
-    if periodic_process is None:
-        return jsonify({'status': 'idle'})
-    
-    poll = periodic_process.poll()
-    if poll is None:
-        return jsonify({'status': 'running', 'pid': periodic_process.pid})
-    else:
-        return jsonify({'status': 'completed', 'exit_code': poll})
+    status = 'not_started'
+    if periodic_process:
+        poll = periodic_process.poll()
+        if poll is None:
+            status = 'running'
+            # Check pause
+            scraper_dir = Path(__file__).parent.parent.parent / "scraper"
+            if (scraper_dir / "PERIODIC_PAUSE.flag").exists():
+                status = 'paused'
+        else:
+            status = 'completed'
+            
+    return jsonify({'status': status})
 
 
 @app.route('/api/download', methods=['GET'])

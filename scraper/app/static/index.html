@@ -33,8 +33,9 @@
             <!-- Tab Navigation -->
             <div class="tabs-nav">
                 <button class="tab-btn active" data-tab="scraper">🕷️ Scraper Tool</button>
-                <button class="tab-btn" data-tab="api-db">🔄 API & Database</button>
-                <button class="tab-btn" data-tab="periodic">📅 Escaneo Mensual (<300k)< /button>
+                <button class="tab-btn" data-tab="periodic">📅 Escaneo Mensual <300k< /button>
+                        <button class="tab-btn" data-tab="api-db">🔄 API & Database</button>
+                        <button class="tab-btn" data-tab="enricher">✨ Enricher Tool</button>
             </div>
 
             <!-- Top Controls Grid -->
@@ -120,8 +121,6 @@
                         </div>
                     </section>
 
-
-
                     <!-- URL Update Module -->
                     <section class="panel url-update-panel">
                         <h3
@@ -172,366 +171,377 @@
 
                 </div> <!-- End Tab Scraper -->
 
-                </section>
-            </div>
+                <!-- Tab: Periodic Scraper (New) -->
+                <div id="tab-periodic" class="tab-pane" style="display: none; width: 100%;">
 
-            <!-- Tab: Periodic Scraper (New) -->
-            <div id="tab-periodic" class="tab-pane" style="display: none;">
-                <section class="panel periodic-main-panel" style="grid-column: 1 / -1;">
-                    <div class="panel-header"
-                        style="justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <div>
-                            <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">
-                                📅 Escaneo Mensual (< 300k) <span class="status-badge-inline" id="periodicMainStatus">
-                                    Inactivo</span>
-                            </h2>
-                            <p style="margin: 5px 0 0 0; color: var(--text-muted); font-size: 0.9em;">
-                                Automatización para las 52 provincias españolas. Viviendas < 300.000€. </p>
-                        </div>
-                        <div class="periodic-controls" style="display: flex; gap: 10px;">
-                            <button class="btn btn-primary" id="periodicStartBtn">
-                                <span class="btn-icon">▶</span> Iniciar Todo
-                            </button>
-                            <button class="btn btn-warning" id="periodicPauseBtn" disabled>
-                                <span class="btn-icon">⏸</span> Pausar
-                            </button>
-                            <button class="btn btn-info" id="periodicResumeBtn" style="display: none;">
-                                <span class="btn-icon">▶</span> Reanudar
-                            </button>
-                            <button class="btn btn-danger" id="periodicStopBtn" disabled>
-                                <span class="btn-icon">⏹</span> Detener
-                            </button>
-                        </div>
-                    </div>
+                    <!-- Top Controls Panel -->
+                    <section class="panel" style="margin-bottom: 20px;">
+                        <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">
+                            <span style="margin-right:8px;">📅</span> Escaneo Mensual (< 300k) </h3>
 
-                    <div class="periodic-layout" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
 
-                        <!-- Col 1: Progress & Logs -->
-                        <div class="periodic-col-left">
-                            <div class="stats-card-row" style="margin-bottom: 15px;">
-                                <div class="stat-card">
-                                    <div class="stat-value" id="periodicStatProvinces">0/52</div>
-                                    <div class="stat-label">Provincias</div>
+                                    <div style="flex: 1; min-width: 300px;">
+                                        <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: var(--text-muted);">
+                                            Estado del proceso:
+                                        </p>
+                                        <div id="periodicStatusBadge"
+                                            style="font-size: 1.1rem; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 10px;">
+                                            <span id="periodicStatusIcon" style="color: var(--text-muted);">⏸</span>
+                                            <span id="periodicStatusText">Inactivo</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="action-buttons" style="margin-top: 0;">
+                                        <button class="btn btn-primary" id="runPeriodicBtn">
+                                            <span class="btn-icon">🚀</span> Iniciar Escaneo
+                                        </button>
+                                        <!-- Future Pause/Stop Implementation -->
+                                        <button class="btn btn-danger" id="stopPeriodicBtn" disabled>
+                                            <span class="btn-icon">⏹</span> Detener
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="stat-card">
-                                    <div class="stat-value" id="periodicStatSuccess">0</div>
-                                    <div class="stat-label">Completadas</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-value" id="periodicStatErrors" style="color: var(--red);">0</div>
-                                    <div class="stat-label">Errores</div>
+                    </section>
+
+                    <!-- Logs & Output Grid -->
+                    <div class="content-grid" style="height: 600px;">
+
+                        <!-- Real-Time Log -->
+                        <section class="panel logs-panel">
+                            <div class="panel-header">
+                                <h2>📜 Registro en Tiempo Real</h2>
+                                <button class="btn-icon-only" id="clearPeriodicLogsBtn"
+                                    title="Limpiar logs">🗑️</button>
+                            </div>
+                            <div class="logs-container" id="periodicLogsContainer">
+                                <div class="log-entry log-info">
+                                    <span class="log-time">--:--:--</span>
+                                    <span class="log-message">Esperando comandos...</span>
                                 </div>
                             </div>
+                        </section>
 
-                            <h3 style="font-size: 1rem; margin-bottom: 10px;">Progreso en Tiempo Real</h3>
-                            <div class="console-log-container" id="periodicLogContainer"
-                                style="height: 400px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 12px; color: #c9d1d9;">
-                                <div class="log-entry" style="color: #8b949e;">Esperando inicio...</div>
+                        <!-- Results Table (Placeholder for now, will populate with finished files) -->
+                        <section class="panel results-panel">
+                            <div class="panel-header">
+                                <h2>📂 Resultados por Provincia</h2>
                             </div>
-                        </div>
-
-                        <!-- Col 2: Results List -->
-                        <div class="periodic-col-right">
-                            <h3 style="font-size: 1rem; margin-bottom: 10px;">Resultados por Provincia</h3>
-                            <div class="table-container" style="height: 400px; overflow-y: auto;">
-                                <table class="data-table" style="font-size: 13px;">
+                            <div class="table-container">
+                                <table class="results-table">
                                     <thead>
                                         <tr>
                                             <th>Provincia</th>
-                                            <th style="width: 80px;">Estado</th>
+                                            <th>Estado</th>
+                                            <th>Propiedades</th>
                                             <th>Archivo</th>
                                         </tr>
                                     </thead>
                                     <tbody id="periodicResultsBody">
-                                        <!-- Populated via JS -->
+                                        <!-- Rows will be added here -->
+                                        <tr>
+                                            <td colspan="4" class="empty-state">
+                                                Sin resultados recientes
+                                            </td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
+                        </section>
+                    </div>
+
+                </div>
+                <!-- Tab: API & Database (New) -->
+                <div id="tab-api-db" class="tab-pane" style="display: none;">
+                    <section class="panel api-db-panel" style="grid-column: 1 / -1;">
+                        <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">
+                            <span style="margin-right:8px;">🚀</span> API & Database Operations
+                        </h3>
+
+                        <div class="api-db-grid">
+                            <!-- API Scanning -->
+                            <div class="api-group">
+                                <h4>📥 Descarga API (Batch)</h4>
+                                <p class="desc-text">Escaneo completo por provincias.</p>
+
+                                <div class="premium-select-group">
+                                    <label class="premium-label">Filtrar Provincias</label>
+                                    <input type="text" id="provinceSearch"
+                                        placeholder="🔍 Teclea para filtrar la lista..." class="premium-select"
+                                        style="margin-bottom: 8px; height: 40px; font-size: 0.9rem;">
+
+                                    <select id="apiProvinces" class="premium-select" multiple
+                                        style="height: 160px; font-size: 0.9rem;">
+                                        <option value="">Cargando provincias...</option>
+                                    </select>
+
+                                    <div style="display:flex; justify-content:space-between; margin-top: 6px;">
+                                        <small id="selectedCount" style="color: var(--text-muted); font-size: 0.7rem;">0
+                                            seleccionadas</small>
+                                        <div style="display: flex; gap: 10px;">
+                                            <a href="#" onclick="selectAllProvinces(); return false;"
+                                                style="font-size: 0.7rem; color: var(--accent); text-decoration: none; font-weight: 500;">SEL.
+                                                FILTRADAS</a>
+                                            <a href="#"
+                                                onclick="document.getElementById('apiProvinces').selectedIndex = -1; updateProvinceCount(); return false;"
+                                                style="font-size: 0.7rem; color: var(--text-muted); text-decoration: none;">LIMPIAR</a>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="btn-group-vertical">
+                                    <button class="btn btn-primary" onclick="runApiTask('batch-scan', 'sale')">
+                                        <span class="btn-icon">🏠</span> LANZAR VENTA
+                                    </button>
+                                    <button class="btn btn-info" onclick="runApiTask('batch-scan', 'rent')">
+                                        <span class="btn-icon">🔑</span> LANZAR ALQUILER
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Database -->
+                            <div class="api-group">
+                                <h4>☁️ Base de Datos</h4>
+                                <p class="desc-text">Gestión de Supabase y BigQuery.</p>
+                                <div class="btn-group-vertical">
+                                    <button class="btn btn-success" onclick="runApiTask('db/upload', null)">
+                                        <span class="btn-icon">⬆️</span> Subir a Supabase
+                                    </button>
+                                    <button class="btn btn-warning" onclick="runApiTask('db/sync-bq', null)">
+                                        <span class="btn-icon">🔄</span> Sincronizar BigQuery
+                                    </button>
+                                    <button class="btn btn-danger"
+                                        onclick="if(confirm('¿Seguro que quieres BORRAR TODO?')) runApiTask('db/delete', null)">
+                                        <span class="btn-icon">🗑️</span> Borrar Supabase
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Tab: Enricher Tool (New) -->
+                <div id="tab-enricher" class="tab-pane" style="display: none;">
+                    <section class="panel control-panel-main">
+                        <div class="input-section">
+                            <h3
+                                style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                                ✨ Batch Enrichment Tool
+                            </h3>
+                            <p
+                                style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+                                Selecciona archivos de <code>scraper/salidas</code> para enriquecerlos secuencialmente
+                                en modo Stealth.
+                            </p>
+
+                            <!-- File List Container Two-Column -->
+                            <div class="input-group">
+                                <div
+                                    style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:5px;">
+                                    <label>Gestión de Archivos</label>
+                                    <div>
+                                        <a href="#" onclick="toggleBatchFiles(true); return false;"
+                                            style="font-size:0.8rem; color:var(--text-main);">Sel. Pendientes</a> |
+                                        <a href="#" onclick="toggleBatchFiles(false); return false;"
+                                            style="font-size:0.8rem; color:var(--text-muted);">Ninguno</a>
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; gap: 10px; height: 350px;">
+                                    <!-- Pending Files Column -->
+                                    <div style="flex: 1; display:flex; flex-direction:column;">
+                                        <div
+                                            style="padding:5px; background:rgba(255,255,255,0.05); font-weight:600; font-size:0.85rem; border-radius:4px 4px 0 0;">
+                                            📂 Pendientes</div>
+                                        <div id="batchPendingList"
+                                            style="flex:1; overflow-y:auto; border:1px solid var(--border); padding:5px; background:rgba(0,0,0,0.2); border-radius:0 0 4px 4px; display:flex; flex-direction:column; gap:5px;">
+                                            <div style="text-align:center; padding:10px; color:var(--text-muted);">
+                                                Cargando...</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Completed Files Column -->
+                                    <div style="flex: 1; display:flex; flex-direction:column;">
+                                        <div
+                                            style="padding:5px; background:rgba(16, 185, 129, 0.1); color: #10b981; font-weight:600; font-size:0.85rem; border-radius:4px 4px 0 0;">
+                                            ✅ Completados (Histórico)</div>
+                                        <div id="batchCompletedList"
+                                            style="flex:1; overflow-y:auto; border:1px solid var(--border); border-color: rgba(16, 185, 129, 0.3); padding:5px; background:rgba(0,0,0,0.2); border-radius:0 0 4px 4px; display:flex; flex-direction:column; gap:5px;">
+                                            <div style="text-align:center; padding:10px; color:var(--text-muted);">--
+                                                Vacío --</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="text-align:right; margin-top:5px;">
+                                    <small id="batchSelectedCount" style="color:var(--text-muted);">0 archivos
+                                        seleccionados</small>
+                                </div>
+                            </div>
+
+                            <!-- Status Info -->
+                            <div class="batch-status"
+                                style="margin-top:15px; padding:12px; background:rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius:4px; font-size:0.9rem;">
+                                <div
+                                    style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                    <strong>Progreso del Lote:</strong>
+                                    <button class="btn-icon-only" id="clearBatchLogsBtn" title="Limpiar logs del lote"
+                                        style="font-size:14px; padding:2px 6px; background:transparent; border:none; color:var(--text-muted); cursor:pointer;">
+                                        🗑️
+                                    </button>
+                                </div>
+                                <div id="batchProgressText"
+                                    style="font-family:monospace; font-weight:bold; white-space: pre-wrap; line-height: 1.5; color: var(--text-main);">
+                                    Inactivo
+                                </div>
+                                <div id="batchCurrentFile" style="display:none"></div>
+                            </div>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button class="btn btn-primary" id="batchStartBtn">
+                                <span class="btn-icon">▶</span> Iniciar Lote
+                            </button>
+                            <button class="btn btn-warning" id="batchPauseBtn" disabled>
+                                <span class="btn-icon">⏸</span> Pausar
+                            </button>
+                            <button class="btn btn-info" id="batchResumeBtn" style="display:none;">
+                                <span class="btn-icon">⏩</span> Reanudar
+                            </button>
+                            <button class="btn btn-danger" id="batchStopBtn" disabled>
+                                <span class="btn-icon">⏹</span> Detener
+                            </button>
+                        </div>
+                    </section>
+                </div>
+
+
+            </div>
+
+            <!-- Stats Bar -->
+            <section class="stats-bar" id="statsBar">
+                <div class="stat-item">
+                    <span class="stat-value"><span id="statCurrentPage">0</span> / <span
+                            id="statTotalPages">0</span></span>
+                    <span class="stat-label">Provincias</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value"><span id="statCurrentProps">0</span> / <span
+                            id="statTotalProps">0</span></span>
+                    <span class="stat-label">Propiedades</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="statTime">00:00</span>
+                    <span class="stat-label">Tiempo</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="statMode">-</span>
+                    <span class="stat-label">Modo</span>
+                </div>
+            </section>
+
+            <!-- Two Column Layout -->
+            <div class="content-grid">
+                <!-- Logs Panel -->
+                <section class="panel logs-panel">
+                    <div class="panel-header">
+                        <h2>📋 Log en vivo</h2>
+                        <div class="panel-header-actions">
+                            <button class="btn-icon-only" id="toggleAutoScrollBtn"
+                                title="Pausar auto-scroll">⏸️</button>
+                            <button class="btn-icon-only" id="clearLogsBtn" title="Limpiar logs">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="logs-container" id="logsContainer">
+                        <div class="log-entry log-info">
+                            <span class="log-time">--:--:--</span>
+                            <span class="log-message">Esperando inicio del scraping...</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Results Panel -->
+                <section class="panel results-panel">
+                    <div class="panel-header">
+                        <h2>📊 Resultados</h2>
+                        <div class="panel-actions">
+                            <span class="results-count" id="resultsCount">0 propiedades</span>
+                            <a href="#" class="btn btn-success" id="downloadBtn" style="display: none;">
+                                <span class="btn-icon">📥</span>
+                                Descargar Excel
+                            </a>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="results-table" id="resultsTable">
+                            <thead>
+                                <tr id="tableHeader">
+                                    <!-- Headers will be populated dynamically -->
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                                <!-- Data will be populated dynamically -->
+                            </tbody>
+                        </table>
+                        <div class="empty-state" id="emptyState">
+                            <span class="empty-icon">🏘️</span>
+                            <p>Las propiedades aparecerán aquí mientras se realiza el scraping</p>
                         </div>
                     </div>
                 </section>
             </div>
-            <section class="panel api-db-panel" style="grid-column: 1 / -1;">
-                <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">
-                    <span style="margin-right:8px;">🚀</span> API & Database Operations
-                </h3>
 
-                <div class="api-db-grid">
-                    <!-- API Scanning -->
-                    <div class="api-group">
-                        <h4>📥 Descarga API (Batch)</h4>
-                        <p class="desc-text">Escaneo completo por provincias.</p>
-
-                        <div class="premium-select-group">
-                            <label class="premium-label">Filtrar Provincias</label>
-                            <input type="text" id="provinceSearch" placeholder="🔍 Teclea para filtrar la lista..."
-                                class="premium-select" style="margin-bottom: 8px; height: 40px; font-size: 0.9rem;">
-
-                            <select id="apiProvinces" class="premium-select" multiple
-                                style="height: 160px; font-size: 0.9rem;">
-                                <option value="">Cargando provincias...</option>
-                            </select>
-
-                            <div style="display:flex; justify-content:space-between; margin-top: 6px;">
-                                <small id="selectedCount" style="color: var(--text-muted); font-size: 0.7rem;">0
-                                    seleccionadas</small>
-                                <div style="display: flex; gap: 10px;">
-                                    <a href="#" onclick="selectAllProvinces(); return false;"
-                                        style="font-size: 0.7rem; color: var(--accent); text-decoration: none; font-weight: 500;">SEL.
-                                        FILTRADAS</a>
-                                    <a href="#"
-                                        onclick="document.getElementById('apiProvinces').selectedIndex = -1; updateProvinceCount(); return false;"
-                                        style="font-size: 0.7rem; color: var(--text-muted); text-decoration: none;">LIMPIAR</a>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="btn-group-vertical">
-                            <button class="btn btn-primary" onclick="runApiTask('batch-scan', 'sale')">
-                                <span class="btn-icon">🏠</span> LANZAR VENTA
-                            </button>
-                            <button class="btn btn-info" onclick="runApiTask('batch-scan', 'rent')">
-                                <span class="btn-icon">🔑</span> LANZAR ALQUILER
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Database -->
-                    <div class="api-group">
-                        <h4>☁️ Base de Datos</h4>
-                        <p class="desc-text">Gestión de Supabase y BigQuery.</p>
-                        <div class="btn-group-vertical">
-                            <button class="btn btn-success" onclick="runApiTask('db/upload', null)">
-                                <span class="btn-icon">⬆️</span> Subir a Supabase
-                            </button>
-                            <button class="btn btn-warning" onclick="runApiTask('db/sync-bq', null)">
-                                <span class="btn-icon">🔄</span> Sincronizar BigQuery
-                            </button>
-                            <button class="btn btn-danger"
-                                onclick="if(confirm('¿Seguro que quieres BORRAR TODO?')) runApiTask('db/delete', null)">
-                                <span class="btn-icon">🗑️</span> Borrar Supabase
-                            </button>
-                        </div>
+            <!-- Scrape History Section -->
+            <section class="panel history-panel">
+                <div class="panel-header">
+                    <h2>📜 Historial de Enriquecimiento</h2>
+                    <button class="btn-icon-only" id="clearHistoryBtn" title="Limpiar historial">🗑️</button>
+                </div>
+                <div class="history-table-container">
+                    <table class="history-table" id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>Fecha/Hora</th>
+                                <th>URL semilla</th>
+                                <th>Propiedades</th>
+                                <th>Archivo Excel</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody">
+                            <!-- History entries will be populated dynamically -->
+                        </tbody>
+                    </table>
+                    <div class="empty-state" id="historyEmptyState">
+                        <span class="empty-icon">📋</span>
+                        <p>El historial de scrapes aparecerá aquí</p>
                     </div>
                 </div>
             </section>
-    </div>
+        </main>
 
-    <!-- Tab: Enricher Tool (New) -->
-    <div id="tab-enricher" class="tab-pane" style="display: none;">
-        <section class="panel control-panel-main">
-            <div class="input-section">
-                <h3
-                    style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-                    ✨ Batch Enrichment Tool
-                </h3>
-                <p style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
-                    Selecciona archivos de <code>scraper/salidas</code> para enriquecerlos secuencialmente
-                    en modo Stealth.
-                </p>
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Idealista Scraper v1.0</p>
+        </footer>
 
-                <!-- File List Container Two-Column -->
-                <div class="input-group">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:5px;">
-                        <label>Gestión de Archivos</label>
-                        <div>
-                            <a href="#" onclick="toggleBatchFiles(true); return false;"
-                                style="font-size:0.8rem; color:var(--text-main);">Sel. Pendientes</a> |
-                            <a href="#" onclick="toggleBatchFiles(false); return false;"
-                                style="font-size:0.8rem; color:var(--text-muted);">Ninguno</a>
-                        </div>
-                    </div>
-
-                    <div style="display: flex; gap: 10px; height: 350px;">
-                        <!-- Pending Files Column -->
-                        <div style="flex: 1; display:flex; flex-direction:column;">
-                            <div
-                                style="padding:5px; background:rgba(255,255,255,0.05); font-weight:600; font-size:0.85rem; border-radius:4px 4px 0 0;">
-                                📂 Pendientes</div>
-                            <div id="batchPendingList"
-                                style="flex:1; overflow-y:auto; border:1px solid var(--border); padding:5px; background:rgba(0,0,0,0.2); border-radius:0 0 4px 4px; display:flex; flex-direction:column; gap:5px;">
-                                <div style="text-align:center; padding:10px; color:var(--text-muted);">
-                                    Cargando...</div>
-                            </div>
-                        </div>
-
-                        <!-- Completed Files Column -->
-                        <div style="flex: 1; display:flex; flex-direction:column;">
-                            <div
-                                style="padding:5px; background:rgba(16, 185, 129, 0.1); color: #10b981; font-weight:600; font-size:0.85rem; border-radius:4px 4px 0 0;">
-                                ✅ Completados (Histórico)</div>
-                            <div id="batchCompletedList"
-                                style="flex:1; overflow-y:auto; border:1px solid var(--border); border-color: rgba(16, 185, 129, 0.3); padding:5px; background:rgba(0,0,0,0.2); border-radius:0 0 4px 4px; display:flex; flex-direction:column; gap:5px;">
-                                <div style="text-align:center; padding:10px; color:var(--text-muted);">--
-                                    Vacío --</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="text-align:right; margin-top:5px;">
-                        <small id="batchSelectedCount" style="color:var(--text-muted);">0 archivos
-                            seleccionados</small>
-                    </div>
-                </div>
-
-                <!-- Status Info -->
-                <div class="batch-status"
-                    style="margin-top:15px; padding:12px; background:rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius:4px; font-size:0.9rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                        <strong>Progreso del Lote:</strong>
-                        <button class="btn-icon-only" id="clearBatchLogsBtn" title="Limpiar logs del lote"
-                            style="font-size:14px; padding:2px 6px; background:transparent; border:none; color:var(--text-muted); cursor:pointer;">
-                            🗑️
-                        </button>
-                    </div>
-                    <div id="batchProgressText"
-                        style="font-family:monospace; font-weight:bold; white-space: pre-wrap; line-height: 1.5; color: var(--text-main);">
-                        Inactivo
-                    </div>
-                    <div id="batchCurrentFile" style="display:none"></div>
+        <!-- Browser Closed Modal -->
+        <div class="modal-overlay" id="browserClosedModal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-icon">⚠️</div>
+                <h3>Navegador cerrado</h3>
+                <p>El navegador Chromium fue cerrado. El scraping está pausado.</p>
+                <p>¿Qué deseas hacer?</p>
+                <div class="modal-buttons">
+                    <button class="btn btn-primary" id="modalResumeBtn">
+                        <span class="btn-icon">▶</span> Reanudar
+                    </button>
+                    <button class="btn btn-danger" id="modalStopBtn">
+                        <span class="btn-icon">⏹</span> Detener y guardar
+                    </button>
                 </div>
             </div>
-
-            <div class="action-buttons">
-                <button class="btn btn-primary" id="batchStartBtn">
-                    <span class="btn-icon">▶</span> Iniciar Lote
-                </button>
-                <button class="btn btn-warning" id="batchPauseBtn" disabled>
-                    <span class="btn-icon">⏸</span> Pausar
-                </button>
-                <button class="btn btn-info" id="batchResumeBtn" style="display:none;">
-                    <span class="btn-icon">⏩</span> Reanudar
-                </button>
-                <button class="btn btn-danger" id="batchStopBtn" disabled>
-                    <span class="btn-icon">⏹</span> Detener
-                </button>
-            </div>
-        </section>
-    </div>
-
-
-    </div>
-
-    <!-- Stats Bar -->
-    <section class="stats-bar" id="statsBar">
-        <div class="stat-item">
-            <span class="stat-value"><span id="statCurrentPage">0</span> / <span id="statTotalPages">0</span></span>
-            <span class="stat-label">Provincias</span>
         </div>
-        <div class="stat-item">
-            <span class="stat-value"><span id="statCurrentProps">0</span> / <span id="statTotalProps">0</span></span>
-            <span class="stat-label">Propiedades</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value" id="statTime">00:00</span>
-            <span class="stat-label">Tiempo</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value" id="statMode">-</span>
-            <span class="stat-label">Modo</span>
-        </div>
-    </section>
-
-    <!-- Two Column Layout -->
-    <div class="content-grid">
-        <!-- Logs Panel -->
-        <section class="panel logs-panel">
-            <div class="panel-header">
-                <h2>📋 Log en vivo</h2>
-                <div class="panel-header-actions">
-                    <button class="btn-icon-only" id="toggleAutoScrollBtn" title="Pausar auto-scroll">⏸️</button>
-                    <button class="btn-icon-only" id="clearLogsBtn" title="Limpiar logs">🗑️</button>
-                </div>
-            </div>
-            <div class="logs-container" id="logsContainer">
-                <div class="log-entry log-info">
-                    <span class="log-time">--:--:--</span>
-                    <span class="log-message">Esperando inicio del scraping...</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- Results Panel -->
-        <section class="panel results-panel">
-            <div class="panel-header">
-                <h2>📊 Resultados</h2>
-                <div class="panel-actions">
-                    <span class="results-count" id="resultsCount">0 propiedades</span>
-                    <a href="#" class="btn btn-success" id="downloadBtn" style="display: none;">
-                        <span class="btn-icon">📥</span>
-                        Descargar Excel
-                    </a>
-                </div>
-            </div>
-            <div class="table-container">
-                <table class="results-table" id="resultsTable">
-                    <thead>
-                        <tr id="tableHeader">
-                            <!-- Headers will be populated dynamically -->
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody">
-                        <!-- Data will be populated dynamically -->
-                    </tbody>
-                </table>
-                <div class="empty-state" id="emptyState">
-                    <span class="empty-icon">🏘️</span>
-                    <p>Las propiedades aparecerán aquí mientras se realiza el scraping</p>
-                </div>
-            </div>
-        </section>
-    </div>
-
-    <!-- Scrape History Section -->
-    <section class="panel history-panel">
-        <div class="panel-header">
-            <h2>📜 Historial de Enriquecimiento</h2>
-            <button class="btn-icon-only" id="clearHistoryBtn" title="Limpiar historial">🗑️</button>
-        </div>
-        <div class="history-table-container">
-            <table class="history-table" id="historyTable">
-                <thead>
-                    <tr>
-                        <th>Fecha/Hora</th>
-                        <th>URL semilla</th>
-                        <th>Propiedades</th>
-                        <th>Archivo Excel</th>
-                    </tr>
-                </thead>
-                <tbody id="historyBody">
-                    <!-- History entries will be populated dynamically -->
-                </tbody>
-            </table>
-            <div class="empty-state" id="historyEmptyState">
-                <span class="empty-icon">📋</span>
-                <p>El historial de scrapes aparecerá aquí</p>
-            </div>
-        </div>
-    </section>
-    </main>
-
-    <!-- Footer -->
-    <footer class="footer">
-        <p>Idealista Scraper v1.0</p>
-    </footer>
-
-    <!-- Browser Closed Modal -->
-    <div class="modal-overlay" id="browserClosedModal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-icon">⚠️</div>
-            <h3>Navegador cerrado</h3>
-            <p>El navegador Chromium fue cerrado. El scraping está pausado.</p>
-            <p>¿Qué deseas hacer?</p>
-            <div class="modal-buttons">
-                <button class="btn btn-primary" id="modalResumeBtn">
-                    <span class="btn-icon">▶</span> Reanudar
-                </button>
-                <button class="btn btn-danger" id="modalStopBtn">
-                    <span class="btn-icon">⏹</span> Detener y guardar
-                </button>
-            </div>
-        </div>
-    </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
