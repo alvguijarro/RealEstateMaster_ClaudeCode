@@ -7,6 +7,7 @@
 - **Extended Scanning**: Increased default scanning limits in `.bat` files from 300 pages to 2,000 pages (up to 80,000 properties per province).
 - **Enricher Auto-Restart**: Implemented a 15-minute recursive recovery loop for CAPTCHA/Soft Ban blocks.
 - **UI Sync Fixes**: Corrected port mismatch (5000 -> 5003) and event name alignment for real-time progress updates.
+- **Repair Scripts**: Added `RE-RUN_TRUNCATED_ALQUILER.bat` and `RE-RUN_TRUNCATED_VENTA.bat` to specifically re-scan provinces that hit the previous 2,000 item limit.
 
 ## [2026-02-03]
 

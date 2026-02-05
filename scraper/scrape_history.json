@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-05T18:58:23.619372",
+    "seed_url": "BATCH:0-EU-ES-03",
+    "properties_count": 6520,
+    "category": "Alicante_rent",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Alicante_rent_20260205_1850.xlsx",
+    "filename": "API_BATCH_Alicante_rent_20260205_1850.xlsx"
+  },
+  {
     "timestamp": "2026-02-02T17:25:34.557571",
     "seed_url": "BATCH:0-EU-ES-52",
     "properties_count": 20,
