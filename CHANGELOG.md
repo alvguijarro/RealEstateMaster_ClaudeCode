@@ -15,6 +15,10 @@ All notable changes to this project will be documented in this file.
   3. Wipes the browser profile to ensure a fresh identity (new `user-data-dir`).
   4. Enters a **15-minute cool-down loop**.
   5. Retries the failed URL indefinitely until successful, effectively bypassing long-duration IP/Session blocks without human intervention.
+- **Fix:** Corrected **Enrichment UI Synchronization** issues:
+    - Fixed Port Mismatch: `update_urls.py` now connects to port **5003** (was 5000), restoring WebSocket communication.
+    - Fixed Event Name Mismatch: Server now correctly emits `progress` event (was `progress_update`) to match frontend listener.
+    - Result: "Progreso del lote", Scorecards, and Results Table now update in real-time.
 - **UI:** Connected missing `progress` and `property_scraped` WebSocket listeners to revive real-time updates for:
     - **Scorecards:** Correct live count for "Provincias" and "Propiedades".
     - **Results Table:** Live row insertion with highlighted new fields.

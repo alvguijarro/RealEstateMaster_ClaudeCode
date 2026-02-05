@@ -308,7 +308,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
             sys.stdout = io.StringIO()
             sys.stderr = io.StringIO()
             try:
-                sio.connect('http://127.0.0.1:5000', wait_timeout=5)
+                sio.connect('http://127.0.0.1:5003', wait_timeout=5)
             finally:
                 sys.stdout = old_stdout
                 sys.stderr = old_stderr

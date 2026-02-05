@@ -109,7 +109,7 @@ def emit_property(data: dict):
 
 def emit_progress(data: dict):
     """Send progress update (pages/properties) to all connected clients."""
-    socketio.emit('progress_update', data)
+    socketio.emit('progress', data)
 
 
 def emit_browser_closed():
@@ -783,7 +783,7 @@ def start_api_import():
 @socketio.on('progress')
 def handle_progress(data):
     """Forward progress events from update_urls.py to UI."""
-    socketio.emit('progress_update', data)
+    socketio.emit('progress', data)
 
 @socketio.on('property_scraped')
 def handle_property(data):
