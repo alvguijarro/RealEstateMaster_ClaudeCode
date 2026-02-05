@@ -4,17 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [2026-02-05] - Enrichment Overhaul (UI, Consistency & Stealth)
-- **Core:** Implemented "Mother File" detection to automatically use original source Excel when a partial result is selected, ensuring 100% data preservation.
-- **Core:** Integrated robust "Safe Merge Save" logic to prevent data loss or worksheet dropping in intermediate saves.
-- **Core:** Implemented `update_stop.flag` for graceful shutdown and progress preservation.
-- **UI:** Split file list into "Pendientes" and "Completados" with visual status cues (yellow/green).
-- **UI:** Fixed real-time synchronization of counters (Provincias/Propiedades) and Results table via `property_scraped` WebSocket listener.
-- **UI:** Corrected "Enrichment History" to filter for relevant processed files (`_updated.xlsx`).
-- **Fix:** Resolved "Start Batch" button activation bug.
-- **UI:** Wired up missing `progress` WebSocket listener to revive dead "Progreso del lote" text and Scorecards updates during enrichment.
-- **Fix:** Removed emojis from backend logs to prevent encoding/Mojibake issues in Windows/UTF-8.
-- **Git:** Optimized `.gitignore` for stealth profiles and temporary journal files.
+## [2026-02-05] - Enrichment Overhaul & Data Integrity Fixes
+- **Core:** Implemented "Mother File" detection to automatically detect and use the original Excel source when selecting partial results, ensuring 100% data preservation and correct progress tracking.
+- **Core:** Developed "Safe Merge Save" logic to prevent worksheet loss and ensure all original data is preserved during enrichment saves.
+- **Core:** Implemented `update_stop.flag` for graceful shutdown and robust progress storage.
+- **UI:** Split file management into "Pendientes" and "Completados" columns with real-time status highlighting (yellow for partials, green for finished).
+- **UI:** Connected missing `progress` and `property_scraped` WebSocket listeners to revive real-time updates for:
+    - **Scorecards:** Correct live count for "Provincias" and "Propiedades".
+    - **Results Table:** Live row insertion with highlighted new fields.
+    - **Status Bar:** Detailed "Progreso del lote" text showing current file and sheet info.
+- **UI:** Refined "Enrichment History" to filter out noise, showing only completed `_updated.xlsx` results.
+- **Fix:** Resolved critical bug preventing "Iniciar Lote" button from activating.
+- **Fix:** Removed emojis from backend logs to solve Windows encoding/Mojibake issues.
+- **Git:** Hardened `.gitignore` to exclude stealth browser profiles and temporary journal files.
 
 ## [2026-02-04] - Advanced Human Emulation for Enrichment
 - **Core:** Ported 'Coffee Break' logic to Enrichment module.
