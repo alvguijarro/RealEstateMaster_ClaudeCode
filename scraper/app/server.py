@@ -771,6 +771,11 @@ def handle_progress(data):
     """Forward progress events from update_urls.py to UI."""
     socketio.emit('progress_update', data)
 
+@socketio.on('property_scraped')
+def handle_property(data):
+    """Forward property events from update_urls.py to UI."""
+    socketio.emit('property_scraped', data)
+
 
 def run_server(host='127.0.0.1', port=5003):
     """Run the Flask-SocketIO server."""
@@ -828,13 +833,13 @@ class BatchManager:
         # emit_status, emit_log are in global scope
         
         total = len(self.queue)
-        emit_log('INFO', f'🚀 STARTING BATCH ENRICHMENT: {total} files')
+        emit_log('INFO', f'STARTING BATCH ENRICHMENT: {total} files')
         
         while self.current_idx < total and not self.stop_requested:
             current_file = self.queue[self.current_idx]
             file_name = os.path.basename(current_file)
             
-            emit_log('INFO', f'📂 [{self.current_idx + 1}/{total}] Processing: {file_name}')
+            emit_log('INFO', f'[{self.current_idx + 1}/{total}] Processing: {file_name}')
             emit_status('batch_progress', current=self.current_idx + 1, total=total, file=file_name)
             
             # --- EXECUTE update_urls.py ---
@@ -846,24 +851,24 @@ class BatchManager:
                 
             if success:
                 self.completed.append(current_file)
-                emit_log('OK', f'✅ Finished: {file_name}')
+                emit_log('OK', f'Finished: {file_name}')
             else:
                 self.failed.append(current_file)
-                emit_log('ERR', f'❌ Failed: {file_name}')
+                emit_log('ERR', f'Failed: {file_name}')
                 
             self.current_idx += 1
             
             # Small delay between files
             if self.current_idx < total:
-                emit_log('INFO', '⏳ Cooling down 5s before next file...')
+                emit_log('INFO', 'Cooling down 5s before next file...')
                 time.sleep(5)
                 
         self.is_running = False
         
         if self.stop_requested:
-            emit_log('WARN', '🛑 Batch Stopped by User.')
+            emit_log('WARN', 'Batch Stopped by User.')
         else:
-            emit_log('OK', f'🎉 BATCH COMPLETED! {len(self.completed)}/{total} files processed.')
+            emit_log('OK', f'BATCH COMPLETED! {len(self.completed)}/{total} files processed.')
             emit_status('batch_completed', completed=len(self.completed), total=total)
 
     def _run_update_sync(self, excel_file):

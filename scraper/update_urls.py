@@ -79,7 +79,7 @@ def emit_to_ui(level: str, message: str):
     print(f"[{level}] {message}")
     pass
 
-def emit_progress(current, total):
+def emit_progress(current, total, sheet_name=None, excel_file=None):
     """Emit progress event to UI."""
     if HAS_SOCKET and sio.connected:
         try:
@@ -87,7 +87,9 @@ def emit_progress(current, total):
                 'current_properties': current,
                 'total_properties': total,
                 'current_page': 1,
-                'total_pages': 1
+                'total_pages': 1,
+                'sheet_name': sheet_name,
+                'excel_file': excel_file
             })
         except:
             pass
@@ -99,13 +101,13 @@ def handle_blocked_profile():
     backup_name = f"stealth_profile_BLOCKED_{timestamp}"
     backup_path = os.path.join(os.path.dirname(STEALTH_PROFILE_DIR), backup_name)
     
-    emit_to_ui("WARN", "☣️  PROFILE POISONED: Dealing with blocked profile...")
+    emit_to_ui("WARN", "PROFILE POISONED: Dealing with blocked profile...")
     
     if os.path.exists(STEALTH_PROFILE_DIR):
         try:
             shutil.move(STEALTH_PROFILE_DIR, backup_path)
-            emit_to_ui("WARN", f"♻️  Moved poisoned profile to: {backup_name}")
-            emit_to_ui("OK", "✨ Next run will generate a fresh, clean profile.")
+            emit_to_ui("WARN", f"Moved poisoned profile to: {backup_name}")
+            emit_to_ui("OK", "Next run will generate a fresh, clean profile.")
         except Exception as e:
             emit_to_ui("ERR", f"Failed to archive profile: {e}")
 
@@ -268,7 +270,7 @@ async def save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs):
                      pass 
         emit_to_ui('OK', 'Checkpoint saved.')
     except Exception as e:
-        emit_to_ui('WARN', f"⚠️ Checkpoint failed (file open?): {e}")
+        emit_to_ui('WARN', f"Checkpoint failed (file open?): {e}")
 
 
 async def update_urls(excel_file: str, selected_sheets: list = None, resume: bool = False):
@@ -395,6 +397,55 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                 width = random.randint(1200, 1600)
                 height = random.randint(800, 1000)
 
+                # --- PRE-SCAN FOR HISTORY/EXISTING --
+                # To ensure UI reflects progress immediately (e.g. "34/100" if 34 are already done),
+                # we scan HEAD of the list for contiguous enriched items.
+                HISTORY = load_history()
+                pending_history = {}
+                
+                scan_idx = start_index 
+                pre_processed_rows = []
+                skipped_count = 0
+
+                # Helper to check if row is "enriched enough" (basic check)
+                def is_enriched(r):
+                    # If it has Price and m2 and isn't empty, it's likely enriched. 
+                    # Or we rely on HISTORY presence.
+                    # User request explicitly mentions "scraper skips", which refers to HISTORY logic.
+                    return False 
+
+                for k, url in enumerate(urls[start_index:], start_index):
+                    # Check History
+                    in_history = url in HISTORY
+                    
+                    if in_history:
+                        emit_to_ui('INFO', f'({k+1}/{len(urls)}) [SKIP] Enriched in history: {url}')
+                        
+                        # Add to updated_rows logic
+                        d_history = HISTORY.get(url, {})
+                        orig_row = url_to_row.get(url, {})
+                        final_row = orig_row.copy()
+                        final_row['URL'] = url
+                        final_row.update(d_history)
+                        
+                        updated_rows.append(final_row)
+                        scan_idx += 1
+                        skipped_count += 1
+                    else:
+                        # Stop at first non-enriched to maintain sequence 
+                        # (or we could skip non-contiguously, but start_index implies linear start)
+                        # Actually, the scraping loop iterates linearly. 
+                        # If we have [Done, Done, Todo, Done], catching the first 2 is good.
+                        # Catching the 4th is harder with 'start_index' logic unless we complexify.
+                        # Let's stick to contiguous prefix for 'start_index' optimization.
+                        break
+                
+                if skipped_count > 0:
+                    emit_to_ui('INFO', f'Skipping {skipped_count} previously enriched properties...')
+                    emit_progress(scan_idx, len(urls), "Pre-processing...", os.path.basename(excel_file))
+                    start_index = scan_idx
+                # ------------------------------------
+
                 # Launch PERSISTENT context
                 try:
                     context = await pw.chromium.launch_persistent_context(
@@ -427,8 +478,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     
 
                     # --- PROCESSING LOOP ---
-                    HISTORY = load_history() # Load history once at start of browser session (or refresh?)
-                    pending_history = {} # Local buffer for history updates
+                    # HISTORY loaded above
                     
                     # Stealth Counters
                     session_property_count = 0
@@ -478,7 +528,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             final_row.update(d_history)
                             
                             updated_rows.append(final_row)
-                            emit_progress(i, len(urls))
+                            emit_progress(i, len(urls), url_to_sheet.get(url, 'Unknown'), os.path.basename(excel_file))
                             # Don't sleep if skipping
                             start_index = i
                             continue
@@ -499,7 +549,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 # 1. Coffee Break
                                 if session_property_count >= next_coffee_break:
                                     break_duration = random.uniform(*EXTRA_STEALTH_COFFEE_BREAK_RANGE)
-                                    emit_to_ui('INFO', f'☕ Coffee break: Pausing for {int(break_duration)}s...')
+                                    emit_to_ui('INFO', f'Coffee break: Pausing for {int(break_duration)}s...')
                                     await asyncio.sleep(break_duration)
                                     next_coffee_break = session_property_count + random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
 
@@ -507,18 +557,18 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 if session_property_count >= EXTRA_STEALTH_SESSION_LIMIT:
                                     rest_duration = random.uniform(*EXTRA_STEALTH_REST_DURATION_RANGE)
                                     rest_mins = int(rest_duration / 60)
-                                    emit_to_ui('WARN', f'💤 Session limit reached ({EXTRA_STEALTH_SESSION_LIMIT}). Resting for {rest_mins} mins...')
+                                    emit_to_ui('WARN', f'Session limit reached ({EXTRA_STEALTH_SESSION_LIMIT}). Resting for {rest_mins} mins...')
                                     
                                     # Countdown log
                                     remaining = rest_duration
                                     while remaining > 0:
                                         if remaining % 60 == 0: # Log every minute
-                                             emit_to_ui('INFO', f'💤 Resting... {int(remaining/60)} mins remaining.')
+                                             emit_to_ui('INFO', f'Resting... {int(remaining/60)} mins remaining.')
                                         await asyncio.sleep(min(10, remaining))
                                         remaining -= 10
                                     
                                     session_property_count = 0 # Reset counter
-                                    emit_to_ui('INFO', '💤 Rest complete. Resuming session.')
+                                    emit_to_ui('INFO', 'Rest complete. Resuming session.')
 
                             await asyncio.sleep(random.uniform(*card_delay))
                             
@@ -664,12 +714,36 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 if 'Baja anuncio' in final_row:
                                     del final_row['Baja anuncio']
                             
-                            # Count final fields
+                            # Helper to clean types
+                            def clean_for_json(obj):
+                                if isinstance(obj, (pd.Timestamp, pd.Timedelta)):
+                                    return str(obj)
+                                if pd.isna(obj):
+                                    return None
+                                return obj
+
+                            # Count final fields & identify new keys
                             final_field_count = sum(1 for k, v in final_row.items() if pd.notna(v) and str(v).strip() != "")
-                            new_fields = max(0, final_field_count - pre_count)
+                            new_keys = []
+                            for k, v in final_row.items():
+                                if pd.notna(v) and str(v).strip() != "":
+                                    orig_v = orig_row.get(k)
+                                    if pd.isna(orig_v) or str(orig_v).strip() == "":
+                                        new_keys.append(k)
+                            
+                            new_fields = len(new_keys)
                             
                             if not is_inactive:
                                 emit_to_ui('INFO', f'Fila original: {pre_count} campos. Fila final: {final_field_count} campos ({new_fields} nuevos).')
+                                
+                                # Emit to UI with metadata about new fields
+                                if HAS_SOCKET and sio.connected:
+                                    try:
+                                        payload = final_row.copy()
+                                        payload['_new_fields'] = new_keys
+                                        payload = {k: clean_for_json(v) for k, v in payload.items()}
+                                        sio.emit('property_scraped', payload)
+                                    except: pass
 
                             save_to_journal(excel_file, final_row)
                             updated_rows.append(final_row)
@@ -678,20 +752,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             
                             # --- HISTORY UPDATE ---
                             # Clean final_row for history? Convert types?
-                            # json.dumps expects standard types. Pandas objects (Timestamp, etc) might fail.
-                            # We should convert row to compatible dict.
-                            def clean_for_json(obj):
-                                if isinstance(obj, (pd.Timestamp, pd.Timedelta)):
-                                    return str(obj)
-                                if pd.isna(obj):
-                                    return None
-                                return obj
                             
                             history_entry = {k: clean_for_json(v) for k, v in final_row.items()}
                             pending_history[url] = history_entry
                             HISTORY[url] = history_entry # Update in-memory copy for subsequent lookups if dupes exist
 
-                            emit_progress(i, len(urls))
+                            emit_progress(i, len(urls), url_to_sheet.get(url, 'Unknown'), os.path.basename(excel_file))
                             
                             start_index = i 
                             

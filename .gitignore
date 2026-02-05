@@ -38,5 +38,10 @@ python_portable/.deps_installed
 
 # Scraper internals
 scraper/stealth_profile/
+stealth_profile/
 scraper/python/
 scraper/app/resume_state.json
+update_progress.jsonl
+update_paused.flag
+update_stealth.flag
+enriched_history.json

@@ -40,7 +40,12 @@ let properties = [];
 let socket = null;
 let isUpdateMode = false;
 let audioCtx = null;
-let autoScrollEnabled = true;  // Log auto-scroll toggle
+let autoScrollEnabled = true;
+
+// Batch Global State
+let batchPriorEnriched = 0;
+let maxEnrichedInCurrentFile = 0;
+let batchStartTime = null;
 
 // Column definitions (matches ORDERED_BASE in Python for consistency)
 const COLUMNS_STANDARD = [
@@ -628,13 +633,31 @@ function initializeSocket() {
     });
 
     socket.on('progress_update', (data) => {
-        // Update page progress (e.g., "02 / 68")
-        statCurrentPage.textContent = String(data.current_page || 0).padStart(2, '0');
-        statTotalPages.textContent = String(data.total_pages || 0).padStart(2, '0');
+        // Enrichment Mode (Detailed)
+        if (data.excel_file) {
+            // Update Max for this file
+            if (data.current_properties > maxEnrichedInCurrentFile) {
+                maxEnrichedInCurrentFile = data.current_properties;
+            }
 
-        // Update property progress (e.g., "980 / 2055")
-        statCurrentProps.textContent = data.current_properties || 0;
-        statTotalProps.textContent = data.total_properties || 0;
+            // Update Scorecards (Global Batch Count)
+            const globalCurrent = batchPriorEnriched + data.current_properties;
+            const globalTotal = batchPriorEnriched + data.total_properties; // Running total estimate
+
+            statCurrentProps.textContent = globalCurrent;
+            statTotalProps.textContent = globalTotal;
+
+            // Update Batch Progress Box
+            if (batchProgressText) {
+                batchProgressText.innerHTML = `Enriqueciendo '${data.excel_file}'\nDistrito: '${data.sheet_name || 'Generando...'}'\nProgreso: ${data.current_properties} / ${data.total_properties}`;
+            }
+        } else {
+            // Standard Scraper Mode / API Import
+            statCurrentPage.textContent = String(data.current_page || 0).padStart(2, '0');
+            statTotalPages.textContent = String(data.total_pages || 0).padStart(2, '0');
+            statCurrentProps.textContent = data.current_properties || 0;
+            statTotalProps.textContent = data.total_properties || 0;
+        }
     });
 
     socket.on('browser_closed', (data) => {
@@ -832,6 +855,8 @@ function addProperty(data) {
     emptyState.style.display = 'none';
 
     // Add table row
+    const newFields = new Set(data._new_fields || []);
+
     const row = document.createElement('tr');
     row.innerHTML = currentColumns.map(col => {
         let value = data[col];
@@ -844,11 +869,16 @@ function addProperty(data) {
                 value = value.toLocaleString('es-ES');
             }
         }
+
+        // Highlight style
+        const isNew = newFields.has(col);
+        const style = isNew ? 'color: #4ade80; font-weight: 500;' : '';
+
         // Make URL clickable
         if (col === 'URL' && value) {
             return `<td><a href="${escapeHtml(value)}" target="_blank" style="color: var(--primary);">${escapeHtml(value)}</a></td>`;
         }
-        return `<td title="${escapeHtml(String(value))}">${escapeHtml(String(value))}</td>`;
+        return `<td style="${style}" title="${escapeHtml(String(value))}">${escapeHtml(String(value))}</td>`;
     }).join('');
 
     tableBody.appendChild(row);
@@ -1095,9 +1125,15 @@ function stopTimer() {
 }
 
 function updateTimer() {
-    if (!startTime) return;
+    let start = startTime;
+    // Prefer batch timer if active (and override standard timer)
+    if (batchStartTime) {
+        start = batchStartTime;
+    }
 
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    if (!start) return;
+
+    const elapsed = Math.floor((Date.now() - start) / 1000);
     const days = Math.floor(elapsed / 86400);
     const hours = Math.floor((elapsed % 86400) / 3600);
     const minutes = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
@@ -1111,7 +1147,8 @@ function updateTimer() {
     if (days > 0) {
         timeStr = `${days}d:${timeStr}`;
     }
-    statTime.textContent = timeStr;
+    // Update both timers if they exist (batch one might be different element later, but for now reuse statTime)
+    if (statTime) statTime.textContent = timeStr;
 }
 
 function escapeHtml(text) {
@@ -1419,6 +1456,14 @@ const batchFileList = document.getElementById('batchFileList');
 const batchProgressText = document.getElementById('batchProgressText');
 const batchCurrentFile = document.getElementById('batchCurrentFile');
 const batchSelectedCount = document.getElementById('batchSelectedCount');
+const clearBatchLogsBtn = document.getElementById('clearBatchLogsBtn');
+
+if (clearBatchLogsBtn) {
+    clearBatchLogsBtn.addEventListener('click', () => {
+        clearLogs();
+        addLog('INFO', 'Logs de lote limpiados.');
+    });
+}
 
 let batchFiles = []; // Stores file objects {path, name}
 
@@ -1504,7 +1549,7 @@ if (batchStartBtn) {
         }
 
         setBatchUIState('running');
-        addLog('INFO', `🚀 Iniciando lote con ${checked.length} archivos...`);
+        addLog('INFO', `Iniciando lote con ${checked.length} archivos...`);
 
         try {
             const res = await fetch('/api/batch/start', {
@@ -1512,6 +1557,17 @@ if (batchStartBtn) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ files: checked })
             });
+
+            // Reset Batch Global Vars
+            batchPriorEnriched = 0;
+            maxEnrichedInCurrentFile = 0;
+            batchStartTime = Date.now(); // Start Timer
+
+            if (statCurrentProps) statCurrentProps.textContent = '0';
+            if (statTotalProps) statTotalProps.textContent = '0';
+            if (statCurrentEnriched) statCurrentEnriched.textContent = '0';
+            if (statTotalEnriched) statTotalEnriched.textContent = '0';
+
             const data = await res.json();
 
             if (!res.ok) {
@@ -1529,7 +1585,7 @@ if (batchStopBtn) {
     batchStopBtn.addEventListener('click', async () => {
         if (!confirm("¿Seguro que quieres detener todo el lote?")) return;
 
-        addLog('WARN', '🛑 Deteniendo lote...');
+        addLog('WARN', 'Deteniendo lote...');
         try {
             await fetch('/api/batch/stop', { method: 'POST' });
             setBatchUIState('idle');
@@ -1540,7 +1596,7 @@ if (batchStopBtn) {
 if (batchPauseBtn) {
     batchPauseBtn.addEventListener('click', async () => {
         // We reuse the update urls pause endpoint
-        addLog('INFO', '⏸️ Pausando proceso actual...');
+        addLog('INFO', 'Pausando proceso actual...');
         try {
             await fetch('/api/update/pause', { method: 'POST' });
             setBatchUIState('paused'); // Toggle buttons
@@ -1550,7 +1606,7 @@ if (batchPauseBtn) {
 
 if (batchResumeBtn) {
     batchResumeBtn.addEventListener('click', async () => {
-        addLog('INFO', '▶️ Reanudando proceso...');
+        addLog('INFO', 'Reanudando proceso...');
         try {
             await fetch('/api/update/resume', { method: 'POST' });
             setBatchUIState('running');
@@ -1619,19 +1675,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function setupBatchSocketListeners() {
     socket.on('batch_progress', (data) => {
-        batchProgressText.textContent = `Archivo ${data.current} de ${data.total}`;
-        batchCurrentFile.textContent = `📄 ${data.file}`;
+        // Accumulate previous file's max
+        batchPriorEnriched += maxEnrichedInCurrentFile;
+        maxEnrichedInCurrentFile = 0; // Reset for new file
+
+        // Update Files Scorecard (Provincias)
+        statCurrentPage.textContent = String(data.current).padStart(2, '0');
+        statTotalPages.textContent = String(data.total).padStart(2, '0');
+
+        // Update Text
+        batchProgressText.innerHTML = `Iniciando archivo...`;
+        if (batchCurrentFile) batchCurrentFile.style.display = 'none'; // We use the big box now
+
         setBatchUIState('running'); // Ensure UI is in sync
     });
 
     socket.on('batch_completed', (data) => {
-        addLog('OK', `🎉 Lote completado: ${data.completed}/${data.total} archivos.`);
+        addLog('OK', `Lote completado: ${data.completed}/${data.total} archivos.`);
         setBatchUIState('idle');
         alert("Batch Enrichment Completed!");
+        batchStartTime = null; // Stop timer
     });
 
     socket.on('batch_stopped', () => {
         setBatchUIState('idle');
+        batchStartTime = null; // Stop timer
     });
 
     // Also listen for legacy status if paused manually

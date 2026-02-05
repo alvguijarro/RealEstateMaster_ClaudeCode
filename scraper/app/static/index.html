@@ -279,15 +279,19 @@
                             <!-- Status Info -->
                             <div class="batch-status"
                                 style="margin-top:15px; padding:12px; background:rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius:4px; font-size:0.9rem;">
-                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div
+                                    style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                                     <strong>Progreso del Lote:</strong>
-                                    <span id="batchProgressText"
-                                        style="font-family:monospace; font-weight:bold;">Inactivo</span>
+                                    <button class="btn-icon-only" id="clearBatchLogsBtn" title="Limpiar logs del lote"
+                                        style="font-size:14px; padding:2px 6px; background:transparent; border:none; color:var(--text-muted); cursor:pointer;">
+                                        🗑️
+                                    </button>
                                 </div>
-                                <div id="batchCurrentFile"
-                                    style="margin-top:5px; font-size:0.8rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                    -
+                                <div id="batchProgressText"
+                                    style="font-family:monospace; font-weight:bold; white-space: pre-wrap; line-height: 1.5; color: var(--text-main);">
+                                    Inactivo
                                 </div>
+                                <div id="batchCurrentFile" style="display:none"></div>
                             </div>
                         </div>
 
@@ -316,7 +320,7 @@
                 <div class="stat-item">
                     <span class="stat-value"><span id="statCurrentPage">0</span> / <span
                             id="statTotalPages">0</span></span>
-                    <span class="stat-label">Páginas</span>
+                    <span class="stat-label">Provincias</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-value"><span id="statCurrentProps">0</span> / <span
@@ -387,7 +391,7 @@
             <!-- Scrape History Section -->
             <section class="panel history-panel">
                 <div class="panel-header">
-                    <h2>📜 Historial de scrapes</h2>
+                    <h2>📜 Historial de Enriquecimiento</h2>
                     <button class="btn-icon-only" id="clearHistoryBtn" title="Limpiar historial">🗑️</button>
                 </div>
                 <div class="history-table-container">
