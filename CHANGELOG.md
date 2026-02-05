@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 - **Core:** Developed "Safe Merge Save" logic to prevent worksheet loss and ensure all original data is preserved during enrichment saves.
 - **Core:** Implemented `update_stop.flag` for graceful shutdown and robust progress storage.
 - **UI:** Split file management into "Pendientes" and "Completados" columns with real-time status highlighting (yellow for partials, green for finished).
+- **Core:** Implemented **Auto-Restart & Recovery Mode** for CAPTCHA/Soft Bans:
+  1. Detects "Uso Indebido" or CAPTCHA blocks.
+  2. Safeguards progress with a checkpoint save.
+  3. Wipes the browser profile to ensure a fresh identity (new `user-data-dir`).
+  4. Enters a **15-minute cool-down loop**.
+  5. Retries the failed URL indefinitely until successful, effectively bypassing long-duration IP/Session blocks without human intervention.
 - **UI:** Connected missing `progress` and `property_scraped` WebSocket listeners to revive real-time updates for:
     - **Scorecards:** Correct live count for "Provincias" and "Propiedades".
     - **Results Table:** Live row insertion with highlighted new fields.

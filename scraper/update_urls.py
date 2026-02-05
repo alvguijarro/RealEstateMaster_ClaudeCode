@@ -838,24 +838,29 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
 
 
         except BlockedException:
-            emit_to_ui('ERR', 'HARD STOP: Scraper bloqueado ("Uso Indebido").')
-            handle_blocked_profile() # This renames the bad profile so next run is fresh
+            emit_to_ui('ERR', 'HARD STOP: Scraper blocked. Entering recovery mode...')
+            handle_blocked_profile() # Backup bad profile
             
-            # Additional cleanup: Explicitly remove current stealth dir content to force fresh start
+            # Explicitly nuke the directory to force fresh browser identity
             import shutil
             if os.path.exists(STEALTH_PROFILE_DIR):
                 try:
                     shutil.rmtree(STEALTH_PROFILE_DIR)
-                    emit_to_ui('INFO', 'Profile directory cleared for fresh identity.')
+                    emit_to_ui('INFO', 'Identity wiped. Next run will use a fresh fingerprint.')
                 except:
                     pass
             
-            wait_time = random.randint(60, 180)
-            emit_to_ui('WARN', f'Reiniciando sesión en {wait_time} segundos...')
+            # 15 Minute Wait Loop (Recursive Strategy)
+            wait_time = 900 # 15 minutes
+            emit_to_ui('WARN', f'RECOVERY: Pausing for {wait_time/60:.0f} minutes...')
+            emit_to_ui('WARN', 'Process will automatically resume after cooldown.')
+            
             await asyncio.sleep(wait_time)
             
-            emit_to_ui('INFO', 'Retomando proceso...')
-            continue # Loop back and restart browser
+            emit_to_ui('INFO', 'Cooldown complete. Resuming session...')
+            continue # Retry the exact same URL that failed (start_index wasn't incremented)
+            
+
 
         except Exception as e:
             emit_to_ui('ERR', f"Critical Session Error: {e}")
