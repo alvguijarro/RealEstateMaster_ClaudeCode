@@ -1,5 +1,17 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-06]
+
+### Added
+- **Infinite Batch Retries**: Updated `run_batch.py` to remove the retry limit. The scraper now persists indefinitely, waiting 15 minutes between attempts if a CAPTCHA block is detected.
+- **Robust CAPTCHA Recovery**: Implemented a 30-second wait-and-check loop in `scraper_wrapper.py` before aborting. If the block persists, it performs a clean shutdown with a saved checkpoint, signaling the batch runner for a full restart.
+- **Scraper Thread Safety**: Added comprehensive exception handling to the scraper's background thread in `server.py`, ensuring status updates (e.g., `blocked`) reach the UI even on fatal errors.
+- **UI UX Polish**: Updated the first scorecard label in the Scraper Tool from "Provincias" to "**Páginas**" to correctly reflect the scraping progress per page.
+
+### Fixed
+- **Critical Bugfix**: Resolved an `IndentationError` in `scraper_wrapper.py` that was preventing the scraper service from starting and causing "Service timeout" errors in the dashboard.
+
+
 ## [2026-02-05]
 
 ### Added

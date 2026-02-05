@@ -33,9 +33,8 @@
             <!-- Tab Navigation -->
             <div class="tabs-nav">
                 <button class="tab-btn active" data-tab="scraper">🕷️ Scraper Tool</button>
-                <button class="tab-btn" data-tab="periodic">📅 Escaneo Mensual <300k< /button>
-                        <button class="tab-btn" data-tab="api-db">🔄 API & Database</button>
-                        <button class="tab-btn" data-tab="enricher">✨ Enricher Tool</button>
+                <button class="tab-btn" data-tab="api-db">🔄 API & Database</button>
+                <button class="tab-btn" data-tab="enricher">✨ Enricher Tool</button>
             </div>
 
             <!-- Top Controls Grid -->
@@ -50,6 +49,48 @@
                                 <input type="url" id="seedUrl"
                                     placeholder="https://www.idealista.com/alquiler-viviendas/madrid-madrid/"
                                     autocomplete="off">
+                            </div>
+
+                            <!-- NEW: Multi-Province Selectors (Managed by app.js) -->
+                            <div class="multi-select-container"
+                                style="display: flex; gap: 15px; margin-top: 10px; margin-bottom: 20px;">
+                                <!-- VENTA -->
+                                <div class="custom-dropdown-group" style="flex: 1; position: relative; z-index: 101;">
+                                    <label
+                                        style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Provincias
+                                        (Venta < 300k)</label>
+                                            <div class="dropdown-trigger" id="triggerVenta" tabindex="0">
+                                                <span id="selectedTextVenta">Selecciona provincias...</span>
+                                                <span class="arrow">▼</span>
+                                            </div>
+                                            <div class="dropdown-overlay" id="dropdownVenta">
+                                                <div class="dropdown-search">
+                                                    <input type="text" placeholder="Buscar..." id="searchVenta">
+                                                </div>
+                                                <div class="dropdown-options" id="listVenta">
+                                                    <!-- JS will populate -->
+                                                </div>
+                                            </div>
+                                </div>
+
+                                <!-- ALQUILER -->
+                                <div class="custom-dropdown-group" style="flex: 1; position: relative; z-index: 101;">
+                                    <label
+                                        style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Provincias
+                                        (Alquiler)</label>
+                                    <div class="dropdown-trigger" id="triggerAlquiler" tabindex="0">
+                                        <span id="selectedTextAlquiler">Selecciona provincias...</span>
+                                        <span class="arrow">▼</span>
+                                    </div>
+                                    <div class="dropdown-overlay" id="dropdownAlquiler">
+                                        <div class="dropdown-search">
+                                            <input type="text" placeholder="Buscar..." id="searchAlquiler">
+                                        </div>
+                                        <div class="dropdown-options" id="listAlquiler">
+                                            <!-- JS will populate -->
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="input-group">
@@ -171,87 +212,6 @@
 
                 </div> <!-- End Tab Scraper -->
 
-                <!-- Tab: Periodic Scraper (New) -->
-                <div id="tab-periodic" class="tab-pane" style="display: none; width: 100%;">
-
-                    <!-- Top Controls Panel -->
-                    <section class="panel" style="margin-bottom: 20px;">
-                        <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">
-                            <span style="margin-right:8px;">📅</span> Escaneo Mensual (< 300k) </h3>
-
-                                <div
-                                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
-
-                                    <div style="flex: 1; min-width: 300px;">
-                                        <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: var(--text-muted);">
-                                            Estado del proceso:
-                                        </p>
-                                        <div id="periodicStatusBadge"
-                                            style="font-size: 1.1rem; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 10px;">
-                                            <span id="periodicStatusIcon" style="color: var(--text-muted);">⏸</span>
-                                            <span id="periodicStatusText">Inactivo</span>
-                                        </div>
-                                    </div>
-
-                                    <div class="action-buttons" style="margin-top: 0;">
-                                        <button class="btn btn-primary" id="runPeriodicBtn">
-                                            <span class="btn-icon">🚀</span> Iniciar Escaneo
-                                        </button>
-                                        <!-- Future Pause/Stop Implementation -->
-                                        <button class="btn btn-danger" id="stopPeriodicBtn" disabled>
-                                            <span class="btn-icon">⏹</span> Detener
-                                        </button>
-                                    </div>
-                                </div>
-                    </section>
-
-                    <!-- Logs & Output Grid -->
-                    <div class="content-grid" style="height: 600px;">
-
-                        <!-- Real-Time Log -->
-                        <section class="panel logs-panel">
-                            <div class="panel-header">
-                                <h2>📜 Registro en Tiempo Real</h2>
-                                <button class="btn-icon-only" id="clearPeriodicLogsBtn"
-                                    title="Limpiar logs">🗑️</button>
-                            </div>
-                            <div class="logs-container" id="periodicLogsContainer">
-                                <div class="log-entry log-info">
-                                    <span class="log-time">--:--:--</span>
-                                    <span class="log-message">Esperando comandos...</span>
-                                </div>
-                            </div>
-                        </section>
-
-                        <!-- Results Table (Placeholder for now, will populate with finished files) -->
-                        <section class="panel results-panel">
-                            <div class="panel-header">
-                                <h2>📂 Resultados por Provincia</h2>
-                            </div>
-                            <div class="table-container">
-                                <table class="results-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Provincia</th>
-                                            <th>Estado</th>
-                                            <th>Propiedades</th>
-                                            <th>Archivo</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="periodicResultsBody">
-                                        <!-- Rows will be added here -->
-                                        <tr>
-                                            <td colspan="4" class="empty-state">
-                                                Sin resultados recientes
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </section>
-                    </div>
-
-                </div>
                 <!-- Tab: API & Database (New) -->
                 <div id="tab-api-db" class="tab-pane" style="display: none;">
                     <section class="panel api-db-panel" style="grid-column: 1 / -1;">
@@ -331,7 +291,8 @@
                             </h3>
                             <p
                                 style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
-                                Selecciona archivos de <code>scraper/salidas</code> para enriquecerlos secuencialmente
+                                Selecciona archivos de <code>scraper/salidas</code> para enriquecerlos
+                                secuencialmente
                                 en modo Stealth.
                             </p>
 
@@ -342,7 +303,8 @@
                                     <label>Gestión de Archivos</label>
                                     <div>
                                         <a href="#" onclick="toggleBatchFiles(true); return false;"
-                                            style="font-size:0.8rem; color:var(--text-main);">Sel. Pendientes</a> |
+                                            style="font-size:0.8rem; color:var(--text-main);">Sel.
+                                            Pendientes</a> |
                                         <a href="#" onclick="toggleBatchFiles(false); return false;"
                                             style="font-size:0.8rem; color:var(--text-muted);">Ninguno</a>
                                     </div>
@@ -368,14 +330,16 @@
                                             ✅ Completados (Histórico)</div>
                                         <div id="batchCompletedList"
                                             style="flex:1; overflow-y:auto; border:1px solid var(--border); border-color: rgba(16, 185, 129, 0.3); padding:5px; background:rgba(0,0,0,0.2); border-radius:0 0 4px 4px; display:flex; flex-direction:column; gap:5px;">
-                                            <div style="text-align:center; padding:10px; color:var(--text-muted);">--
+                                            <div style="text-align:center; padding:10px; color:var(--text-muted);">
+                                                --
                                                 Vacío --</div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div style="text-align:right; margin-top:5px;">
-                                    <small id="batchSelectedCount" style="color:var(--text-muted);">0 archivos
+                                    <small id="batchSelectedCount" style="color:var(--text-muted);">0
+                                        archivos
                                         seleccionados</small>
                                 </div>
                             </div>
@@ -424,7 +388,7 @@
                 <div class="stat-item">
                     <span class="stat-value"><span id="statCurrentPage">0</span> / <span
                             id="statTotalPages">0</span></span>
-                    <span class="stat-label">Provincias</span>
+                    <span class="stat-label">Páginas</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-value"><span id="statCurrentProps">0</span> / <span

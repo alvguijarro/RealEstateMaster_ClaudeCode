@@ -84,6 +84,12 @@ const COLUMNS_HABITACIONES = [
 let currentColumns = COLUMNS_STANDARD;
 
 
+// Multi-Province Scraper State
+let allProvincesList = [];
+let selectedVenta = new Set();
+let selectedAlquiler = new Set();
+let isBatchMode = false;
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initializeSocket();
@@ -93,6 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory();
     checkResumeState();  // Check if there's a saved session to resume
     loadExcelFiles();    // Load Excel files for URL update dropdown
+    loadProvincesList(); // Load provinces for multi-select
+    setupMultiSelectUI(); // Setup dropdown listeners
 });
 
 // URL Update Elements
@@ -733,6 +741,12 @@ function initializeUI() {
         toggleAutoScrollBtn.addEventListener('click', toggleAutoScroll);
     }
 
+    // URL validation for Dual Mode and Start Button
+    seedUrlInput.addEventListener('input', () => {
+        validateDualMode();
+        validateStartButton();
+    });
+
     // Enter key to start
     seedUrlInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !isRunning) {
@@ -740,8 +754,8 @@ function initializeUI() {
         }
     });
 
-    // URL validation for Dual Mode
-    seedUrlInput.addEventListener('input', validateDualMode);
+    // Initial validation
+    validateStartButton();
 }
 
 function validateDualMode() {
@@ -985,6 +999,36 @@ async function startScraping(isDualMode = false) {
         await audioCtx.resume();
     }
 
+    // BATCH MODE CHECK
+    if (isBatchMode) {
+        const urls = [];
+        selectedVenta.forEach(slug => {
+            urls.push(`https://www.idealista.com/venta-viviendas/${slug}/con-precio-hasta_300000/`);
+        });
+        selectedAlquiler.forEach(slug => {
+            urls.push(`https://www.idealista.com/alquiler-viviendas/${slug}/`);
+        });
+
+        if (urls.length === 0) return;
+
+        addLog('INFO', `🚀 Iniciando Batch Scraping de ${urls.length} provincias...`);
+
+        try {
+            const resp = await fetch('/api/start-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ urls: urls, mode: currentMode })
+            });
+            const data = await resp.json();
+            if (data.status === 'started') {
+                addLog('OK', `Batch iniciado (PID: ${data.pid})`);
+            } else {
+                addLog('ERR', data.error);
+            }
+        } catch (e) { addLog('ERR', e.message); }
+        return;
+    }
+
     const seedUrl = seedUrlInput.value.trim();
 
     if (!seedUrl) {
@@ -1099,7 +1143,7 @@ function resetUIState() {
     isRunning = false;
     isPaused = false;
     isUpdateMode = false;
-    startBtn.disabled = false;
+    validateStartButton();
     startBtn.title = "";
     pauseBtn.disabled = true;
     stopBtn.disabled = true;
@@ -2046,3 +2090,181 @@ async function checkPeriodicStatus() {
 
 setInterval(checkPeriodicStatus, 5000);
 checkPeriodicStatus();
+
+/* Multi-Province Helpers */
+
+async function loadProvincesList() {
+    try {
+        const res = await fetch('/api/provinces-list');
+        const data = await res.json();
+        if (data.provinces) {
+            allProvincesList = data.provinces.sort((a, b) => a.name.localeCompare(b.name));
+            populateDropdown('listVenta', 'venta');
+            populateDropdown('listAlquiler', 'alquiler');
+        }
+    } catch (e) { console.error(e); }
+}
+
+function populateDropdown(listId, type) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    list.innerHTML = '';
+
+    // Select All option
+    const allDiv = document.createElement('div');
+    allDiv.className = 'dropdown-item';
+    allDiv.innerHTML = '<input type=\'checkbox\' class=\'select-all-\' + type> <strong>Todos</strong>';
+    allDiv.onclick = (e) => {
+        if (e.target.tagName !== 'INPUT') {
+            const cb = allDiv.querySelector('input');
+            cb.checked = !cb.checked;
+            toggleAll(type, cb.checked);
+        } else {
+            toggleAll(type, e.target.checked);
+        }
+    };
+    list.appendChild(allDiv);
+
+    allProvincesList.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item';
+        item.innerHTML = '<input type=\'checkbox\' value=\'' + p.slug + '\' data-type=\'' + type + '\'> ' + p.name;
+        item.onclick = (e) => {
+            if (e.target.tagName !== 'INPUT') {
+                const cb = item.querySelector('input');
+                cb.checked = !cb.checked;
+                handleSelectionChange(p.slug, type, cb.checked);
+            } else {
+                handleSelectionChange(p.slug, type, e.target.checked);
+            }
+        };
+        list.appendChild(item);
+    });
+}
+
+function toggleAll(type, checked) {
+    const list = document.getElementById(type === 'venta' ? 'listVenta' : 'listAlquiler');
+    const cbs = list.querySelectorAll('input[type=\'checkbox\']:not([class^=\'select-all\'])');
+    cbs.forEach(cb => {
+        cb.checked = checked;
+        handleSelectionChange(cb.value, type, checked);
+    });
+}
+
+function handleSelectionChange(slug, type, checked) {
+    const set = type === 'venta' ? selectedVenta : selectedAlquiler;
+    if (checked) set.add(slug);
+    else set.delete(slug);
+
+    updateSelectionUI();
+}
+
+function updateSelectionUI() {
+    // Upate trigger texts
+    const vCount = selectedVenta.size;
+    const aCount = selectedAlquiler.size;
+
+    const textV = document.getElementById('selectedTextVenta');
+    const textA = document.getElementById('selectedTextAlquiler');
+    if (textV) textV.textContent = vCount > 0 ? vCount + ' seleccionadas' : 'Selecciona provincias...';
+    if (textA) textA.textContent = aCount > 0 ? aCount + ' seleccionadas' : 'Selecciona provincias...';
+
+    // Logic for Seed URL Input
+    const total = vCount + aCount;
+    if (total > 1) {
+        isBatchMode = true;
+        seedUrlInput.value = '[MODO BATCH] ' + total + ' provincias seleccionadas';
+        seedUrlInput.disabled = true;
+
+    } else if (total === 1) {
+        isBatchMode = false;
+        seedUrlInput.disabled = false;
+        // Generate URL
+        let url = '';
+        if (vCount === 1) {
+            const slug = [...selectedVenta][0];
+            url = 'https://www.idealista.com/venta-viviendas/' + slug + '/con-precio-hasta_300000/';
+        } else {
+            const slug = [...selectedAlquiler][0];
+            url = 'https://www.idealista.com/alquiler-viviendas/' + slug + '/';
+        }
+        seedUrlInput.value = url;
+    } else {
+        isBatchMode = false;
+        seedUrlInput.disabled = false;
+        // If 0 selected, user can type manually. Use placeholder.
+        if (seedUrlInput.value.startsWith('[MODO BATCH]')) {
+            seedUrlInput.value = '';
+        }
+    }
+
+    validateStartButton();
+}
+
+/**
+ * Validates if the "Start Scraping" button should be enabled.
+ * Enabled if:
+ * 1. Seed URL input has a valid Idealista URL (venta, alquiler, or habitaciones)
+ * OR
+ * 2. Multi-province batch mode has at least one selection (indicated by isBatchMode or selections)
+ */
+function validateStartButton() {
+    if (isRunning || isPaused) return; // Don't enable if already running/paused
+
+    const url = seedUrlInput.value.trim();
+    const hasValidUrl = url.includes('idealista.com/') &&
+        (url.includes('/alquiler-') || url.includes('/venta-') || url.includes('/habitacion-'));
+
+    const hasProvinceSelection = selectedVenta.size > 0 || selectedAlquiler.size > 0;
+
+    // In batch mode, the URL input is disabled and contains "[MODO BATCH]"
+    const isBatchActive = isBatchMode && hasProvinceSelection;
+
+    if (hasValidUrl || isBatchActive) {
+        startBtn.disabled = false;
+        startBtn.title = "";
+    } else {
+        startBtn.disabled = true;
+        startBtn.title = "Introduce una URL válida de Idealista o selecciona provincias arriba.";
+    }
+}
+
+function setupMultiSelectUI() {
+    ['Venta', 'Alquiler'].forEach(type => {
+        const trigger = document.getElementById('trigger' + type);
+        const overlay = document.getElementById('dropdown' + type);
+        const search = document.getElementById('search' + type);
+
+        if (trigger) {
+            trigger.addEventListener('click', () => {
+                // Close others
+                document.querySelectorAll('.dropdown-overlay').forEach(el => {
+                    if (el !== overlay) el.classList.remove('active');
+                });
+                if (overlay) overlay.classList.toggle('active');
+            });
+        }
+
+        if (search) {
+            search.addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase();
+                const list = document.getElementById('list' + type);
+                if (list) {
+                    const items = list.querySelectorAll('.dropdown-item:not(:first-child)');
+                    items.forEach(item => {
+                        const text = item.textContent.toLowerCase();
+                        item.style.display = text.includes(term) ? 'flex' : 'none';
+                    });
+                }
+            });
+        }
+    });
+
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.custom-dropdown-group')) {
+            document.querySelectorAll('.dropdown-overlay').forEach(el => el.classList.remove('active'));
+        }
+    });
+}
+

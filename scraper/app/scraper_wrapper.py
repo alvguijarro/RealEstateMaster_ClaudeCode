@@ -1344,43 +1344,39 @@ class ScraperController:
                                         self._pause_evt.clear()  # Pause the scraper
                                         wait_start = asyncio.get_running_loop().time()
                                 
-                                        while not self._stop_evt.is_set():
-                                            # Play alarm
-                                            play_captcha_alert()
+                                    # CAPTCHA DETECTED - AUTO RESTART STRATEGY
+                                    self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA DETECTED - Waiting 30s then aborting for auto-restart...")
                                     
-                                            # Wait up to 10 seconds for resume signal
-                                            for _ in range(100):  # 100 x 0.1s = 10 seconds
-                                                if self._pause_evt.is_set() or self._stop_evt.is_set():
-                                                    break
-                                                await asyncio.sleep(0.1)
-                                    
-                                            if self._stop_evt.is_set():
-                                                self.save_state(page_num, target_file)
-                                                break
-                                    
-                                            if not self._pause_evt.is_set():
-                                                continue  # Still paused, loop to play alarm again
-                                    
-                                            # User resumed - retry extraction
+                                    # Wait briefly to see if it clears (e.g. passive solve)
+                                    for _ in range(3): # 3 * 10s = 30s
+                                        if self._stop_evt.is_set(): break
+                                        await asyncio.sleep(10.0)
+                                        # Retry extraction check
+                                        try:
                                             d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                                             row = {"URL": key, **d}
-                                            miss = missing_fields(row, is_room_mode=self._is_room_mode)
+                                            if not missing_fields(row, is_room_mode=self._is_room_mode):
+                                                 self.log("OK", "CAPTCHA cleared! Resuming...")
+                                                 miss = False
+                                                 break 
+                                        except: pass
+
+                                    if miss:
+                                        self.log("ERR", "CAPTCHA_BLOCK_DETECTED")
+                                        try:
+                                             if len(additions) > self._last_checkpoint_idx and target_file:
+                                                  await self._save_checkpoint(additions, target_file, existing_df, set())
+                                        except: pass
+                                        raise Exception("CAPTCHA_BLOCK_DETECTED")
                                     
-                                            if not miss:
-                                                elapsed = int(asyncio.get_running_loop().time() - wait_start)
-                                                self.log("OK", f"CAPTCHA resuelto! (esperado {elapsed}s)")
-                                                if self.on_status:
-                                                    self.on_status("running")
-                                                break
-                                            else:
-                                                # Still CAPTCHA - pause again
-                                                self.log("WARN", "CAPTCHA aun presente. Resuelve y pulsa Resume de nuevo.")
-                                                if self.on_status:
-                                                    self.on_status("captcha")
-                                                self._pause_evt.clear()
+                                    # If cleared, proceed (miss is False)
+                                    if not miss:
+                                         elapsed = 30
+                                         if self.on_status: self.on_status("running")
+
                                 
-                                        if miss and self._stop_evt.is_set():
-                                            self.log("WARN", f"First property CAPTCHA - stopped by user: {key}")
+                                    if miss and self._stop_evt.is_set():
+                                        self.log("WARN", f"First property CAPTCHA - stopped by user: {key}")
                             
                                     if not miss:
                                         # Add scraping date
@@ -1443,52 +1439,35 @@ class ScraperController:
                                     if self.on_status:
                                         self.on_status("captcha")
                             
-                                    # Pause and wait for user to solve CAPTCHA, with repeating alarm
-                                    self._pause_evt.clear()  # Pause the scraper
-                                    wait_start = asyncio.get_running_loop().time()
-                            
-                                    while not self._stop_evt.is_set():
-                                        # Play alarm
-                                        play_captcha_alert()
-                                
-                                        # Wait up to 10 seconds for resume signal
-                                        for _ in range(100):  # 100 x 0.1s = 10 seconds
-                                            if self._pause_evt.is_set() or self._stop_evt.is_set():
-                                                break
-                                            await asyncio.sleep(0.1)
-                                
-                                        if self._stop_evt.is_set():
-                                            self.save_state(page_num, target_file)
-                                            break
-                                
-                                        if not self._pause_evt.is_set():
-                                            continue  # Still paused, loop to play alarm again
-                                
-                                        # User resumed - retry extraction
-                                        d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
-                                        row = {"URL": key, **d}
-                                        miss = missing_fields(row, is_room_mode=self._is_room_mode)
-                                
-                                        if not miss:
-                                            elapsed = int(asyncio.get_running_loop().time() - wait_start)
-                                            self.log("OK", f"({property_idx}/{self.total_properties_expected}) CAPTCHA resuelto! (esperado {elapsed}s)")
-                                            if self.on_status:
-                                                self.on_status("running")
-                                            break
-                                        else:
-                                            # Still CAPTCHA - pause again
-                                            self.log("WARN", "CAPTCHA aun presente. Resuelve y pulsa Resume de nuevo.")
-                                            if self.on_status:
-                                                self.on_status("captcha")
-                                            self._pause_evt.clear()
-                            
-                                    if self._stop_evt.is_set():
-                                        break
-                            
+                                    # CAPTCHA DETECTED - AUTO RESTART STRATEGY
+                                    self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA DETECTED - Waiting 30s then aborting for auto-restart...")
+                                    
+                                    # Wait briefly to see if it clears (e.g. passive solve)
+                                    for _ in range(3): # 3 * 10s = 30s
+                                        if self._stop_evt.is_set(): break
+                                        await asyncio.sleep(10.0)
+                                        # Retry extraction check
+                                        try:
+                                            d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
+                                            row = {"URL": key, **d}
+                                            if not missing_fields(row, is_room_mode=self._is_room_mode):
+                                                 self.log("OK", "CAPTCHA cleared! Resuming...")
+                                                 miss = False
+                                                 break 
+                                        except: pass
+
                                     if miss:
-                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA - stopped: {key}")
-                                        self._processed.add(key)
-                                        continue
+                                        self.log("ERR", "CAPTCHA_BLOCK_DETECTED")
+                                        try:
+                                             if len(additions) > self._last_checkpoint_idx and target_file:
+                                                  await self._save_checkpoint(additions, target_file, existing_df, set())
+                                        except: pass
+                                        raise Exception("CAPTCHA_BLOCK_DETECTED")
+                                    
+                                    # If cleared, proceed (miss is False)
+                                    if not miss:
+                                         if self.on_status: self.on_status("running")
+
                         
                                 # Add scraping date in dd/mm/yyyy format
                                 from datetime import datetime
@@ -1536,6 +1515,8 @@ class ScraperController:
                                 self.save_state(page_num, target_file)
                                 break
                             except Exception as e:
+                                if str(e) == "CAPTCHA_BLOCK_DETECTED":
+                                    raise e
                                 self.log("ERR", f"({property_idx}/{self.total_properties_expected}) {key} -> {e}")
                                 self._processed.add(key)
                 

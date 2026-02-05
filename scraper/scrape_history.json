@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-06T00:15:00.507506",
+    "seed_url": "https://www.idealista.com/venta-viviendas/a-coruna-provincia/con-precio-hasta_300000/",
+    "properties_count": 158,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_A_Coruña_venta.xlsx",
+    "filename": "idealista_A_Coruña_venta.xlsx"
+  },
+  {
     "timestamp": "2026-02-05T22:28:24.942205",
     "seed_url": "BATCH:0-EU-ES-50",
     "properties_count": 1600,

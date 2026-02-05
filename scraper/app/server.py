@@ -202,9 +202,24 @@ def start_scraping():
         try:
             # Run scraper (handles both phases internally if dual_mode_url is set)
             loop.run_until_complete(scraper_controller.run())
+        except Exception as e:
+            emit_log("ERR", f"Scraper thread failed: {e}")
+            if "CAPTCHA_BLOCK_DETECTED" in str(e):
+                if scraper_controller: scraper_controller.status = "blocked"
+                emit_status("blocked", message="Scraper blocked by CAPTCHA")
+            else:
+                if scraper_controller: scraper_controller.status = "error" 
+                emit_status("error", message=str(e))
         finally:
             loop.close()
-    
+            # Ensure browser is closed
+            if scraper_controller and scraper_controller.is_running:
+                 try:
+                     # This requires a slightly different way to call shutdown if loop is closed?
+                     # ScraperController.stop() usually sets event.
+                     pass
+                 except: pass
+
     thread = threading.Thread(target=run_scraper, daemon=True)
     thread.start()
     
@@ -548,6 +563,79 @@ def get_excel_files():
             unique_files.append(f)
     
     return jsonify({'files': unique_files})
+
+
+@app.route('/api/provinces-list', methods=['GET'])
+def get_provinces_list():
+    """Return list of Spanish provinces with their slugs."""
+    try:
+        json_path = Path(__file__).parent.parent / "low_cost_provinces.json"
+        if not json_path.exists():
+            return jsonify({'error': 'Provinces file not found'}), 404
+            
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            
+        # Transform: Extract slug from URL
+        # URL format: .../venta-viviendas/{slug}/...
+        provinces = []
+        for item in data:
+            url = item.get('url', '')
+            if 'venta-viviendas/' in url:
+                slug = url.split('venta-viviendas/')[1].split('/')[0]
+                provinces.append({'name': item['name'], 'slug': slug})
+        
+        return jsonify({'provinces': provinces})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/start-batch', methods=['POST'])
+def start_batch_scraping():
+    """Start a batch scraping process for a list of URLs."""
+    global periodic_process, periodic_thread
+    
+    data = request.json
+    urls = data.get('urls', [])
+    mode = data.get('mode', 'fast')
+    
+    if not urls:
+        return jsonify({'error': 'No URLs provided'}), 400
+        
+    if periodic_process and periodic_process.poll() is None:
+        return jsonify({'error': 'A batch process is already running'}), 400
+        
+    # Write queue to file
+    queue_file = Path(__file__).parent.parent / "batch_queue.json"
+    with open(queue_file, 'w', encoding='utf-8') as f:
+        json.dump({'urls': urls, 'mode': mode}, f)
+        
+    # Spawn runner
+    script_path = Path(__file__).parent.parent.parent / "scripts" / "run_batch.py"
+    if not script_path.exists():
+        # Fallback create if not exists (we will create it next)
+        pass 
+        
+    scraper_dir = Path(__file__).parent.parent
+    
+    # Reset flags
+    stop_flag = scraper_dir / "BATCH_STOP.flag"
+    pause_flag = scraper_dir / "BATCH_PAUSE.flag"
+    if stop_flag.exists(): os.remove(stop_flag)
+    if pause_flag.exists(): os.remove(pause_flag)
+
+    periodic_process = subprocess.Popen(
+        [sys.executable, str(script_path)],
+        cwd=str(scraper_dir),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+    )
+    
+    # Reuse periodic log monitor (renamed mentally to batch monitor)
+    periodic_thread = threading.Thread(target=periodic_log_monitor, args=(periodic_process,), daemon=True)
+    periodic_thread.start()
+    
+    return jsonify({'status': 'started', 'pid': periodic_process.pid, 'count': len(urls)})
 
 
 @app.route('/api/excel-worksheets', methods=['GET'])

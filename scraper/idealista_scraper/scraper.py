@@ -93,25 +93,26 @@ async def _goto_with_retry(page, url: str) -> None:
                     else:
                         log("WARN", "❌ Automatic solver could not find slider.")
 
-                    log("WARN", ">>> PLEASE SOLVE THE CAPTCHA MANUALLY IN THE BROWSER <<<")
+                    log("WARN", ">>> CAPTCHA DETECTED - WAITING 30s THEN ABORTING FOR AUTO-RESTART <<<")
                     
-                    # Loop until resolved
-                    while True:
-                        play_captcha_alert()
+                    # Wait briefly to see if it clears (e.g. manual solve)
+                    for _ in range(3):
                         await asyncio.sleep(10.0)
-                        
                         try:
-                            # Check title again
-                            new_title = await page.title()
-                            nt_lower = new_title.lower()
-                            # If title looks like normal Idealista page, assume solved
+                            nt_lower = (await page.title()).lower()
                             if "idealista" in nt_lower and "captcha" not in nt_lower and "attention" not in nt_lower:
                                 log("OK", "CAPTCHA solved! Resuming...")
-                                break
-                        except Exception:
-                            pass
+                                return
+                        except: pass
+                    
+                    # If we reach here, CAPTCHA persists. 
+                    # We MUST exit to allow the batch runner to restart us.
+                    log("ERR", "CAPTCHA_BLOCK_DETECTED")
+                    raise Exception("CAPTCHA_BLOCK_DETECTED")
+
             except Exception as e:
-                # If checking title fails, just ignore
+                # If checking title fails, just ignore/log
+                if str(e) == "CAPTCHA_BLOCK_DETECTED": raise e
                 pass
 
             # Wait a fixed time for JavaScript to render content
