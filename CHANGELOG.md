@@ -4,32 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [2026-02-05] - Graceful Exit & Partial Naming
-- **Feature:** Implemented `_updated_partial.xlsx` suffix for intermediate and incomplete enrichment saves.
-- **Feature:** Automated promotion of `_partial` files to `_updated.xlsx` upon 100% completion.
-- **Core:** Implemented `update_stop.flag` for graceful shutdown, ensuring the scraper saves progress before exiting when stopped via UI.
-- **Git:** Optimized `.gitignore` to exclude `stealth_profile/` and temporary journal files, preventing repository bloat and protecting session privacy.
-- **Maintenance:** Confirmed persistence of `enriched_history.json` for multi-session caching.
-
-## [2026-02-05] - Enrichment Mother File & Data Consistency
-- **Core:** Implemented "Mother File" detection to automatically use the original source Excel when a partial result is selected, ensuring 100% data preservation across all worksheets.
-- **Fix:** Prevented incorrect "Complete" promotion when processing partial files by verifying total counts against the original source file.
-- **Fix:** Removed emojis from backend logs to prevent encoding/Mojibake issues in Windows environments.
-
-## [2026-02-05] - Enrichment UI Sync & Split View
-- **UI:** Split Enricher file list into "Pending" (left) and "Completed" (right) columns for better workflow visibility.
-- **Fix:** Resolved "Start Batch" button validation bug preventing execution.
-- **Fix:** Fixed dead UI counters and empty results table by implementing missing `property_scraped` WebSocket listener.
-- **Fix:** Corrected "Enrichment History" table to correctly filter and display only `_updated.xlsx` files from the output directory.
-
-## [2026-02-05] - Enrichment UI Refinements
-- **UI:** Removed emojis from logs for cleaner, Mojibake-free output.
-- **UI:** Enhanced batch progress display with detailed file, district, and property counts.
-- **UI:** Added real-time green highlighting for new fields in the Results table.
-- **UI:** Added elapsed time timer for batch processes.
-- **UI:** Renamed "Páginas" scorecard to "Provincias" and "Scrapes History" to "Enrichment History".
-- **UI:** Added hover effect to Pause button and Trash icon for batch logs.
-- **Core:** Improved skipped item handling to reflect pre-enriched progress immediately.
+## [2026-02-05] - Enrichment Overhaul (UI, Consistency & Stealth)
+- **Core:** Implemented "Mother File" detection to automatically use original source Excel when a partial result is selected, ensuring 100% data preservation.
+- **Core:** Integrated robust "Safe Merge Save" logic to prevent data loss or worksheet dropping in intermediate saves.
+- **Core:** Implemented `update_stop.flag` for graceful shutdown and progress preservation.
+- **UI:** Split file list into "Pendientes" and "Completados" with visual status cues (yellow/green).
+- **UI:** Fixed real-time synchronization of counters (Provincias/Propiedades) and Results table via `property_scraped` WebSocket listener.
+- **UI:** Corrected "Enrichment History" to filter for relevant processed files (`_updated.xlsx`).
+- **Fix:** Resolved "Start Batch" button activation bug.
+- **Fix:** Removed emojis from backend logs to prevent encoding/Mojibake issues in Windows/UTF-8.
+- **Git:** Optimized `.gitignore` for stealth profiles and temporary journal files.
 
 ## [2026-02-04] - Advanced Human Emulation for Enrichment
 - **Core:** Ported 'Coffee Break' logic to Enrichment module.
