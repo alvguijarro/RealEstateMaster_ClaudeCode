@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
 - **Git:** Optimized `.gitignore` to exclude `stealth_profile/` and temporary journal files, preventing repository bloat and protecting session privacy.
 - **Maintenance:** Confirmed persistence of `enriched_history.json` for multi-session caching.
 
+## [2026-02-05] - Enrichment Mother File & Data Consistency
+- **Core:** Implemented "Mother File" detection to automatically use the original source Excel when a partial result is selected, ensuring 100% data preservation across all worksheets.
+- **Fix:** Prevented incorrect "Complete" promotion when processing partial files by verifying total counts against the original source file.
+- **Fix:** Removed emojis from backend logs to prevent encoding/Mojibake issues in Windows environments.
+
 ## [2026-02-05] - Enrichment UI Sync & Split View
 - **UI:** Split Enricher file list into "Pending" (left) and "Completed" (right) columns for better workflow visibility.
 - **Fix:** Resolved "Start Batch" button validation bug preventing execution.

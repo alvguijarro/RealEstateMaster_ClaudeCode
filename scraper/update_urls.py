@@ -319,6 +319,14 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     if not os.path.exists(excel_file):
         emit_to_ui('ERR', f'File not found: {excel_file}')
         return
+
+    # SOURCE NORMALIZATION: If user selected a result/partial file, switch to the "Mother" (Base) file
+    # This ensures we have all original sheets and don't "finish" early if pages were missing.
+    base_file = excel_file.replace('_updated_partial.xlsx', '.xlsx').replace('_updated.xlsx', '.xlsx')
+    if base_file != excel_file and os.path.exists(base_file):
+        emit_to_ui('INFO', f'RESULT FILE DETECTED. Switching to Base file to ensure all original sheets are preserved.')
+        emit_to_ui('INFO', f'Base: {os.path.basename(base_file)}')
+        excel_file = base_file
     
     emit_to_ui('INFO', f'Loading URLs from: {os.path.basename(excel_file)}')
     
@@ -883,7 +891,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     else:
         output_xlsx = base.replace('.xlsx', '_updated_partial.xlsx')
         if os.path.exists(STOP_FLAG_FILE):
-             emit_to_ui('WARN', f'🛑 Process STOPPED by user. Saving {len(updated_rows)} URLs to: {os.path.basename(output_xlsx)}')
+             emit_to_ui('WARN', f'Process STOPPED by user. Saving {len(updated_rows)} URLs to: {os.path.basename(output_xlsx)}')
         else:
              emit_to_ui('WARN', f'Process incomplete ({len(updated_rows)}/{len(urls)}). Saving as partial.')
 
@@ -898,11 +906,11 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                 save_merged_excel(output_xlsx, dfs, updated_rows)
                 break
             except PermissionError:
-                 emit_to_ui('WARN', f'⚠️ No se puede escribir en "{os.path.basename(output_xlsx)}". Archivo abierto.')
+                 emit_to_ui('WARN', f'File is busy: {os.path.basename(output_xlsx)}. Please close it.')
                  await asyncio.sleep(10)
 
-        emit_to_ui('OK', f'✅ Finished: {os.path.basename(excel_file)}')
-        emit_to_ui('INFO', f'🎉 saved {len(updated_rows)} properties, merged with original data.')
+        emit_to_ui('OK', f'DONE: {os.path.basename(excel_file)}')
+        emit_to_ui('INFO', f'Saved {len(updated_rows)} properties, merged with original data.')
         
     except Exception as e:
         emit_to_ui('ERR', f"Error saving Excel (FATAL): {e}")
