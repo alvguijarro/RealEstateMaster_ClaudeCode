@@ -229,6 +229,9 @@ class ScraperController:
     sheet_name: str = "idealista"
     output_dir: str = DEFAULT_OUTPUT_DIR  # Configurable output directory
     dual_mode_url: Optional[str] = None  # Second URL for DUAL MODE (same browser session)
+    use_vpn: bool = False
+    rotate_every: int = 5  # Rotate every N properties or pages? User said provinces, but here we only have one URL.
+    # For standard scraper, maybe rotate every N pages.
     
     # Callbacks
     on_log: Optional[Callable[[str, str], None]] = None
@@ -260,6 +263,7 @@ class ScraperController:
     _detected_city: Optional[str] = None  # City extracted from listing h1 header
     _is_room_mode: bool = False  # True if scraping habitaciones (room rentals)
     _browser_closed: bool = False
+    _pages_scraped: int = 0
     
     # Extra Stealth state
     _session_property_count: int = 0  # Properties scraped this session (for rest breaks)
@@ -280,6 +284,7 @@ class ScraperController:
         self._inflight = set()
         self._recent = {}
         self._index_map = {}
+        self._stopped_by_user = False
     
     def log(self, level: str, message: str):
         """Log a message and send to callback if set."""
@@ -501,6 +506,7 @@ class ScraperController:
     
     def stop(self):
         """Stop scraping and trigger export."""
+        self._stopped_by_user = True
         self._stop_evt.set()
         self._pause_evt.set()  # Unpause to allow graceful stop
         self.status = "stopping"
@@ -883,6 +889,7 @@ class ScraperController:
         self.unauthorized_restart_count = 0  # Track "uso no autorizado" restarts
         
         while not self._stop_evt.is_set():
+            target_file = self.output_file # Initialize safe default
             try:
                 async with async_playwright() as pw:
                     self.log("INFO", "Launching browser...")
@@ -1043,18 +1050,42 @@ class ScraperController:
                             else:
                                 self.log("WARN", f"H1 extraction failed after 4 attempts: {e}")
             
-                    # If still no count after all retries, log error and exit cleanly
+                    # If still no count after all retries, likely a block/CAPTCHA
                     if total_count == 0:
-                        self.log("ERR", "Deteniendo scraping. URL no válida (0 inmuebles encontrados)")
-                        await browser.close() if browser else await ctx.close()
-                        self.log("INFO", "✅ Browser closed successfully.")
-                        self.is_running = False
-                        self.status = "error"
-                        self.log("INFO", "Scraper stopped.")
+                        self.log("WARN", "⚠️ Se ha detectado un bloqueo (0 inmuebles encontrados en página).")
+                        self.log("WARN", "Guardando estado y esperando 15 minutos antes de reintentar...")
+                        
+                        # Save state for resume
+                        self.save_state(1, target_file)
+                        
+                        # Close browser
+                        try:
+                            await (browser.close() if browser else ctx.close())
+                            self.log("OK", "✅ Browser closed. Starting 15-minute wait...")
+                        except:
+                            pass
+                        
                         if self.on_status:
-                            self.on_status("error", error="0 inmuebles encontrados")
-                        self._stop_evt.set() # Ensure we exit the main recovery loop
-                        break
+                            self.on_status("blocked", message="Esperando 15 minutos para reintentar...")
+                        
+                        # Countdown (15 minutes)
+                        for remaining in range(15, 0, -1):
+                            if self._stop_evt.is_set():
+                                break
+                            # Wait in 5-second chunks to allow stop detection
+                            for _ in range(12):  # 12 * 5s = 60s
+                                if self._stop_evt.is_set():
+                                    break
+                                await asyncio.sleep(5)
+                        
+                        if self._stop_evt.is_set():
+                            self.log("INFO", "Retry cancelled by user.")
+                            self.is_running = False
+                            self.status = "stopped"
+                            break
+                        
+                        self.log("OK", "🔄 Reintentando ahora...")
+                        continue  # Loop back to restart browser
 
             
                     # Detect alquiler/venta from h1 text
@@ -1147,8 +1178,8 @@ class ScraperController:
                         await self._wait_for_pause()
                         if self._stop_evt.is_set():
                             break
-                
-                        # Navigate to listing page
+
+                        self.current_page = page_num
                         list_url = build_paginated_url(self.seed_url, page_num)
                         self.log("INFO", f"Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
                 
@@ -1516,6 +1547,9 @@ class ScraperController:
                                 break
                             except Exception as e:
                                 if str(e) == "CAPTCHA_BLOCK_DETECTED":
+                                    # Save state for resume before failing
+                                    self.log("WARN", "Saving resume state due to CAPTCHA block")
+                                    self.save_state(page_num, target_file)
                                     raise e
                                 self.log("ERR", f"({property_idx}/{self.total_properties_expected}) {key} -> {e}")
                                 self._processed.add(key)
@@ -1541,6 +1575,7 @@ class ScraperController:
                             await asyncio.sleep(2.0)
                             # Explicitly advance to next page
                             page_num += 1
+                            self._pages_scraped += 1
                             continue
 
                         # Case 3: Max pages reached
@@ -1552,6 +1587,7 @@ class ScraperController:
 
                         # Default: Next page
                         page_num += 1
+                        self._pages_scraped += 1
                 
                     # After phase 1 loop completes successfully
                     self.log("INFO", f"Summary: {new_scraped} new, {updated} updated, {skipped} skipped, {len(expired_urls)} expired")
@@ -1808,6 +1844,8 @@ class ScraperController:
             
             except BlockedException:
                 self.log("ERR", "🛑 HARD STOP: Scraper blocked by Idealista (Uso Indebido).")
+                self.save_state(self.current_page or 1, target_file)
+                self.log("WARN", "Resume state saved for later retry.")
                 self.handle_blocked_profile()
                 
                 # Auto-Restart Logic
@@ -1826,6 +1864,16 @@ class ScraperController:
                 except:
                     pass
                 
+                # === VPN IP Rotation on Block ===
+                if self.use_vpn:
+                    self.log("INFO", "🌐 VPN: Rotating IP after block detection...")
+                    try:
+                        from idealista_scraper.nordvpn import rotate_ip
+                        rotate_ip()
+                        self.log("OK", "🌐 VPN: IP rotated successfully.")
+                    except Exception as vpn_err:
+                        self.log("WARN", f"VPN: IP rotation failed: {vpn_err}. Continuing with cooldown...")
+                
                 # Wait cooldown
                 await self._interruptible_sleep(wait_time)
                 
@@ -1834,11 +1882,56 @@ class ScraperController:
                     
                 self.log("INFO", "🔄 Restarting browser now...")
                 continue # Loop back to start (and reuse persistent profile handling which will be fresh)
+
+            except Exception as e:
+                # Catch generic CAPTCHA blocks raised mid-scrape
+                err_str = str(e).upper()
+                if "CAPTCHA" in err_str:
+                    self.log("WARN", "⚠️ Se ha detectado un bloqueo por CAPTCHA durante el scraping.")
+                    self.log("WARN", "Guardando estado y esperando 15 minutos antes de reintentar...")
+                    
+                    if target_file and self.current_page:
+                         self.save_state(self.current_page, target_file)
+                    
+                    # Close browser
+                    try:
+                        if browser: await browser.close()
+                        elif ctx: await ctx.close()
+                    except: pass
+
+                    # === VPN IP Rotation on CAPTCHA ===
+                    if self.use_vpn:
+                        self.log("INFO", "🌐 VPN: Rotating IP after CAPTCHA detection...")
+                        try:
+                            from idealista_scraper.nordvpn import rotate_ip
+                            rotate_ip()
+                            self.log("OK", "🌐 VPN: IP rotated successfully.")
+                        except Exception as vpn_err:
+                            self.log("WARN", f"VPN: IP rotation failed: {vpn_err}. Continuing with wait...")
+
+                    if self.on_status:
+                         self.on_status("blocked", message="Esperando 15 minutos para reintentar...")
+
+                    self.log("OK", "✅ Browser closed. Starting 15-minute wait...")
+
+                    # 15 min wait
+                    for _ in range(15 * 60 // 5): # 15 mins in 5s chunks
+                         if self._stop_evt.is_set(): break
+                         await asyncio.sleep(5)
+                    
+                    if self._stop_evt.is_set():
+                         self.log("INFO", "Retry cancelled by user.")
+                         break
+                    
+                    self.log("OK", "🔄 Reintentando ahora...")
+                    continue
+
+                # Re-raise other unexpected errors
+                raise e
         
                 # Reset self.is_running = False etc will happen at the very end of run()
             
             self.log("INFO", "Scraping finished.")
-            self.log("INFO", "Closing browser...")
             # Close browser/context properly based on mode (if not already closed)
             try:
                 if browser is not None:
@@ -1853,15 +1946,18 @@ class ScraperController:
         # Clear resume state file ONLY on successful completion (not manual stop)
         if not self._stop_evt.is_set():
             self.clear_state()
+            self.status = "completed"
             self.log("INFO", "Resume state cleared (scraping completed successfully)")
-        else:
+        elif self._stopped_by_user:
+            self.status = "stopped"
             self.log("INFO", "Scraper stopped by user. State preserved for resume.")
+        else:
+            # Automatic stop (error, blocked, etc.)
+            # Preserve existing status if it's already an error/block/captcha
+            if self.status not in ["error", "blocked", "captcha"]:
+                self.status = "error"
         
         self.is_running = False
-        self.status = "completed" if not self._stop_evt.is_set() else "stopped"
-        
-        # Explicit confirmation that scraper is fully stopped
-        self.log("INFO", "Scraper completely stopped. Browser closed.")
         
         if self.on_status:
             self.on_status(self.status, file=self.output_file, count=len(self.scraped_properties))

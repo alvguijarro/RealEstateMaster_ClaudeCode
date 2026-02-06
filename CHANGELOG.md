@@ -3,6 +3,11 @@
 ## [2026-02-06]
 
 ### Added
+- **NordVPN Automatic IP Rotation**: Integrated NordVPN CLI into the scraper for automatic IP rotation.
+    - A new toggle "Rotar IP con NordVPN al detectar bloqueo" in the UI (disabled by default).
+    - If enabled, when a CAPTCHA or block is detected, the scraper closes the browser, rotates the IP, and relaunches automatically.
+    - **API Endpoints**: `/api/nordvpn/status` and `/api/nordvpn/rotate` for real-time monitoring and manual rotation.
+    - **VPN Status Badge**: Header badge displays current NordVPN connection status (Connected/Disconnected).
 - **Infinite Batch Retries**: Updated `run_batch.py` to remove the retry limit. The scraper now persists indefinitely, waiting 15 minutes between attempts if a CAPTCHA block is detected.
 - **Robust CAPTCHA Recovery**: Implemented a 30-second wait-and-check loop in `scraper_wrapper.py` before aborting. If the block persists, it performs a clean shutdown with a saved checkpoint, signaling the batch runner for a full restart.
 - **Scraper Thread Safety**: Added comprehensive exception handling to the scraper's background thread in `server.py`, ensuring status updates (e.g., `blocked`) reach the UI even on fatal errors.

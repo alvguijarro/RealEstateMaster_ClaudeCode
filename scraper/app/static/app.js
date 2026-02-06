@@ -30,6 +30,10 @@ const historyBody = document.getElementById('historyBody');
 const historyEmptyState = document.getElementById('historyEmptyState');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
+const vpnBadge = document.getElementById('vpnBadge');
+const rotateVpnBtn = document.getElementById('rotateVpnBtn');
+const useVpnToggle = document.getElementById('useVpnToggle');
+
 // State
 let currentMode = 'fast';
 let isPaused = false;
@@ -90,6 +94,64 @@ let selectedVenta = new Set();
 let selectedAlquiler = new Set();
 let isBatchMode = false;
 
+// ==========================================
+// NordVPN UI LOGIC
+// ==========================================
+
+function initializeVpn() {
+    // Initial check
+    updateVpnStatus();
+    // Poll every 30 seconds
+    setInterval(updateVpnStatus, 30000);
+}
+
+async function updateVpnStatus() {
+    if (!vpnBadge) return;
+
+    try {
+        const response = await fetch('/api/nordvpn/status');
+        const data = await response.json();
+        const status = data.status || 'Unknown';
+
+        const badgeText = vpnBadge.querySelector('.status-text');
+        badgeText.textContent = `NordVPN: ${status}`;
+
+        vpnBadge.classList.remove('connected', 'disconnected');
+        if (status === 'Connected') {
+            vpnBadge.classList.add('connected');
+        } else if (status === 'Disconnected') {
+            vpnBadge.classList.add('disconnected');
+        }
+    } catch (error) {
+        console.error('Error updating VPN status:', error);
+    }
+}
+
+async function manualVpnRotate() {
+    if (rotateVpnBtn.classList.contains('rotating')) return;
+
+    rotateVpnBtn.classList.add('rotating');
+    addLog('INFO', 'Solicitando rotación de IP...');
+
+    try {
+        const response = await fetch('/api/nordvpn/rotate', { method: 'POST' });
+        if (response.ok) {
+            addLog('OK', 'Proceso de rotación iniciado.');
+            // Status will update via logs from server too
+        } else {
+            addLog('ERR', 'Error al solicitar rotación.');
+        }
+    } catch (error) {
+        addLog('ERR', 'Error de conexión para rotación.');
+    } finally {
+        // Keep spinning for 15s or until status updates? 
+        // Let's just half-fake it for visual feedback
+        setTimeout(() => {
+            rotateVpnBtn.classList.remove('rotating');
+            updateVpnStatus();
+        }, 15000);
+    }
+}
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initializeSocket();
@@ -101,6 +163,9 @@ document.addEventListener('DOMContentLoaded', () => {
     loadExcelFiles();    // Load Excel files for URL update dropdown
     loadProvincesList(); // Load provinces for multi-select
     setupMultiSelectUI(); // Setup dropdown listeners
+
+    // VPN Initialization
+    initializeVpn();
 });
 
 // URL Update Elements
@@ -392,6 +457,7 @@ window.runApiTask = async function (endpoint, operation) {
         if (operation) body.operation = operation;
 
         if (endpoint === 'batch-scan') {
+            body.use_vpn = useVpnToggle ? useVpnToggle.checked : false;
             const select = document.getElementById('apiProvinces');
             if (select && select.selectedOptions.length > 0) {
                 const selected = Array.from(select.selectedOptions).map(opt => opt.value);
@@ -617,6 +683,7 @@ function initializeSocket() {
     socket.on('connect', () => {
         addLog('INFO', 'Conectado al servidor');
         updateServerButtons(true);
+        syncStatus();
     });
 
     socket.on('disconnect', () => {
@@ -642,31 +709,7 @@ function initializeSocket() {
     });
 
     socket.on('progress_update', (data) => {
-        // Enrichment Mode (Detailed)
-        if (data.excel_file) {
-            // Update Max for this file
-            if (data.current_properties > maxEnrichedInCurrentFile) {
-                maxEnrichedInCurrentFile = data.current_properties;
-            }
-
-            // Update Scorecards (Global Batch Count)
-            const globalCurrent = batchPriorEnriched + data.current_properties;
-            const globalTotal = batchPriorEnriched + data.total_properties; // Running total estimate
-
-            statCurrentProps.textContent = globalCurrent;
-            statTotalProps.textContent = globalTotal;
-
-            // Update Batch Progress Box
-            if (batchProgressText) {
-                batchProgressText.innerHTML = `Enriqueciendo '${data.excel_file}'\nDistrito: '${data.sheet_name || 'Generando...'}'\nProgreso: ${data.current_properties} / ${data.total_properties}`;
-            }
-        } else {
-            // Standard Scraper Mode / API Import
-            statCurrentPage.textContent = String(data.current_page || 0).padStart(2, '0');
-            statTotalPages.textContent = String(data.total_pages || 0).padStart(2, '0');
-            statCurrentProps.textContent = data.current_properties || 0;
-            statTotalProps.textContent = data.total_properties || 0;
-        }
+        handleProgressUpdate(data);
     });
 
     socket.on('browser_closed', (data) => {
@@ -677,6 +720,34 @@ function initializeSocket() {
     // Initialize Batch Listeners if function exists (it's defined at bottom)
     if (typeof setupBatchSocketListeners === 'function') {
         setupBatchSocketListeners();
+    }
+}
+
+function handleProgressUpdate(data) {
+    // Enrichment Mode (Detailed)
+    if (data.excel_file) {
+        // Update Max for this file
+        if (data.current_properties > maxEnrichedInCurrentFile) {
+            maxEnrichedInCurrentFile = data.current_properties;
+        }
+
+        // Update Scorecards (Global Batch Count)
+        const globalCurrent = parseInt(batchPriorEnriched || 0) + parseInt(data.current_properties || 0);
+        const globalTotal = parseInt(batchPriorEnriched || 0) + parseInt(data.total_properties || 0); // Running total estimate
+
+        if (statCurrentProps) statCurrentProps.textContent = globalCurrent;
+        if (statTotalProps) statTotalProps.textContent = globalTotal;
+
+        // Update Batch Progress Box
+        if (batchProgressText) {
+            batchProgressText.innerHTML = `Enriqueciendo '${data.excel_file}'\nDistrito: '${data.sheet_name || 'Generando...'}'\nProgreso: ${data.current_properties} / ${data.total_properties}`;
+        }
+    } else {
+        // Standard Scraper Mode / API Import
+        if (statCurrentPage) statCurrentPage.textContent = String(data.current_page || 0).padStart(2, '0');
+        if (statTotalPages) statTotalPages.textContent = String(data.total_pages || 0).padStart(2, '0');
+        if (statCurrentProps) statCurrentProps.textContent = data.current_properties || 0;
+        if (statTotalProps) statTotalProps.textContent = data.total_properties || 0;
     }
 }
 
@@ -739,6 +810,11 @@ function initializeUI() {
     const toggleAutoScrollBtn = document.getElementById('toggleAutoScrollBtn');
     if (toggleAutoScrollBtn) {
         toggleAutoScrollBtn.addEventListener('click', toggleAutoScroll);
+    }
+
+    // NordVPN Rotate Button
+    if (rotateVpnBtn) {
+        rotateVpnBtn.addEventListener('click', manualVpnRotate);
     }
 
     // URL validation for Dual Mode and Start Button
@@ -1080,7 +1156,8 @@ async function startScraping(isDualMode = false) {
             body: JSON.stringify({
                 seed_url: seedUrl,
                 mode: currentMode,
-                dual_mode: isDualMode
+                dual_mode: isDualMode,
+                use_vpn: useVpnToggle ? useVpnToggle.checked : false
             })
         });
 
@@ -1461,12 +1538,52 @@ const stopServerBtn = document.getElementById('stopServerBtn');
 const restartServerBtn = document.getElementById('restartServerBtn');
 
 function updateServerButtons(isConnected) {
-    // If connected, server is running -> Start disabled
-    // If disconnected, server is stopped -> Start enabled (status)
-    // If connected, server is running -> Stop/Restart enabled
-    // If disconnected, server is stopped -> Stop/Restart disabled
     if (stopServerBtn) stopServerBtn.disabled = !isConnected;
     if (restartServerBtn) restartServerBtn.disabled = !isConnected;
+
+    // Also disable scraper action buttons if disconnected
+    if (!isConnected) {
+        if (pauseBtn) pauseBtn.disabled = true;
+        if (stopBtn) stopBtn.disabled = true;
+    }
+}
+
+async function syncStatus() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+
+        // If server says idle but UI thinks it's running, the session was lost
+        if (data.status === 'idle' && isRunning) {
+            addLog('WARN', 'Sesión de scraping perdida (el servidor parece haberse reiniciado).');
+            resetUIState();
+        } else if (data.status === 'running' || data.status === 'paused' || data.status === 'captcha' || data.status === 'blocked') {
+            // Restore UI state if server is active (e.g. after a page refresh)
+            isRunning = true;
+            isPaused = (data.status === 'paused' || data.status === 'captcha' || data.status === 'blocked');
+
+            startBtn.disabled = true;
+            if (dualModeBtn) dualModeBtn.disabled = true;
+            pauseBtn.disabled = false;
+            stopBtn.disabled = false;
+
+            if (data.status === 'paused') {
+                pauseBtn.innerHTML = '<span class="btn-icon">▶</span> Reanudar';
+            } else if (data.status === 'captcha' || data.status === 'blocked') {
+                pauseBtn.disabled = true;
+                pauseBtn.innerHTML = '<span class="btn-icon">⏱️</span> Esperando...';
+            } else {
+                pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
+            }
+
+            // Re-sync progress
+            if (data.progress) {
+                handleProgressUpdate(data.progress);
+            }
+        }
+    } catch (e) {
+        console.error("Error syncing status:", e);
+    }
 }
 
 

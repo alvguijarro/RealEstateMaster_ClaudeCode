@@ -627,6 +627,62 @@ select:focus {
     }
 }
 
+/* NordVPN Badge */
+.vpn-badge {
+    margin-left: 10px;
+    background: rgba(0, 0, 0, 0.4);
+    transition: all 0.5s ease;
+}
+
+.vpn-badge.connected {
+    border-color: rgba(34, 197, 94, 0.4);
+}
+
+.vpn-badge.connected .status-dot {
+    background: var(--success);
+    box-shadow: 0 0 10px var(--success);
+}
+
+.vpn-badge.disconnected {
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.vpn-badge.disconnected .status-dot {
+    background: var(--danger);
+    box-shadow: 0 0 10px var(--danger);
+}
+
+#rotateVpnBtn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 2px 5px;
+    margin-left: 5px;
+    border-radius: 4px;
+    transition: 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#rotateVpnBtn:hover {
+    color: var(--accent);
+    background: rgba(255, 255, 255, 0.1);
+    transform: rotate(180deg);
+}
+
+#rotateVpnBtn.rotating {
+    animation: spin 1s linear infinite;
+    color: var(--accent);
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .api-group {
     flex: 1;
     min-width: 250px;

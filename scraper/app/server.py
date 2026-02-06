@@ -20,6 +20,7 @@ from flask_socketio import SocketIO
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.scraper_wrapper import ScraperController, DEFAULT_OUTPUT_DIR
+from idealista_scraper.nordvpn import rotate_ip, get_status as get_vpn_status
 
 app = Flask(__name__, static_folder='static', template_folder='static')
 app.config['SECRET_KEY'] = 'idealista-scraper-secret'
@@ -148,6 +149,29 @@ def get_config():
     })
 
 
+@app.route('/api/nordvpn/status', methods=['GET'])
+def vpn_status():
+    """Get NordVPN status."""
+    return jsonify({'status': get_vpn_status()})
+
+
+@app.route('/api/nordvpn/rotate', methods=['POST'])
+def vpn_rotate():
+    """Rotate NordVPN IP."""
+    try:
+        # Avoid blocking the main thread
+        def do_rotate():
+            emit_log('INFO', '🌐 NordVPN: IP rotation started...')
+            rotate_ip()
+            emit_log('OK', '🌐 NordVPN: IP rotation complete.')
+        
+        thread = threading.Thread(target=do_rotate, daemon=True)
+        thread.start()
+        return jsonify({'status': 'rotating'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/start', methods=['POST'])
 def start_scraping():
     """Start a new scraping session."""
@@ -158,6 +182,8 @@ def start_scraping():
     mode = data.get('mode', 'stealth')  # 'stealth' or 'fast'
     dual_mode = data.get('dual_mode', False)
     output_dir = data.get('output_dir', '').strip() or DEFAULT_OUTPUT_DIR
+    use_vpn = data.get('use_vpn', False)
+    rotate_every = data.get('rotate_every', 5)
     
     if not seed_url:
         return jsonify({'error': 'Seed URL is required'}), 400
@@ -186,6 +212,8 @@ def start_scraping():
         output_dir=output_dir,
         mode=mode,
         dual_mode_url=dual_mode_url,  # Pass second URL for same-browser execution
+        use_vpn=use_vpn,
+        rotate_every=rotate_every,
         on_log=emit_log,
         on_property=emit_property,
         on_status=emit_status,
@@ -225,6 +253,13 @@ def start_scraping():
     
     return jsonify({'status': 'started', 'mode': mode, 'dual_mode': dual_mode})
 
+
+@app.route('/api/debug/simulate_block', methods=['POST'])
+def simulate_block():
+    if scraper_controller:
+        scraper_controller.status = "blocked"
+        emit_status("blocked", message="Simulated CAPTCHA block")
+    return jsonify({'status': 'blocked'})
 
 @app.route('/api/set_mode', methods=['POST'])
 def set_mode():
@@ -384,9 +419,21 @@ def periodic_log_monitor(process):
                 elif "Processing:" in decoded:
                     prov = decoded.split("Processing:")[-1].strip()
                     socketio.emit('periodic_table_update', {'province': prov, 'status': 'Procesando...'})
-                elif "[ERR]" in decoded:
-                    # simplistic error mapping
-                     pass
+                
+                # ALSO emit to main console log for visibility
+                level = 'INFO'
+                msg = decoded
+                if '[ERR]' in decoded: 
+                    level = 'ERR'
+                    msg = decoded.replace('[ERR]', '').strip()
+                elif '[WARN]' in decoded: 
+                    level = 'WARN'
+                    msg = decoded.replace('[WARN]', '').strip()
+                elif '[OK]' in decoded: 
+                    level = 'OK'
+                    msg = decoded.replace('[OK]', '').strip()
+                
+                emit_log(level, msg)
 
         process.stdout.close()
     except Exception as e:
@@ -628,6 +675,8 @@ def start_batch_scraping():
         cwd=str(scraper_dir),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        text=True, # Critical for line buffering
+        bufsize=1, # Line buffered
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
     )
     
@@ -1047,10 +1096,13 @@ def run_batch_scan():
     data = request.json or {}
     operation = data.get('operation', 'rent') # rent or sale
     provinces = data.get('provinces', []) # List of strings
+    use_vpn = data.get('use_vpn', False)
     
     script_path = (Path(__file__).parent.parent.parent / "scripts" / "batch_api_scan.py").resolve()
     
     cmd = [sys.executable, str(script_path), "--operation", operation, "--resume"]
+    if use_vpn:
+        cmd.append("--nordvpn")
     
     if provinces:
         # Pass comma-separated list

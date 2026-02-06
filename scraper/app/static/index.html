@@ -25,6 +25,12 @@
                     <span class="status-dot"></span>
                     <span class="status-text">Inactivo</span>
                 </div>
+                <!-- NordVPN Badge -->
+                <div class="status-badge vpn-badge" id="vpnBadge" title="Estado de NordVPN">
+                    <span class="status-dot"></span>
+                    <span class="status-text">NordVPN: Llenando...</span>
+                    <button id="rotateVpnBtn" title="Rotar IP ahora">🔄</button>
+                </div>
             </div>
         </header>
 
@@ -115,6 +121,14 @@
                                         <span class="mode-desc">Más lento (aprox. 1 propiedad/min), sin captchas</span>
                                     </button>
                                 </div>
+                            </div>
+
+                            <div class="input-group" style="margin-top: 15px;">
+                                <label class="checkbox-container"
+                                    style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.9rem;">
+                                    <input type="checkbox" id="useVpnToggle" style="width: auto;">
+                                    <span>Rotar IP con NordVPN al detectar bloqueo</span>
+                                </label>
                             </div>
                         </div>
 

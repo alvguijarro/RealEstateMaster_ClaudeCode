@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from scraper.idealista_scraper.api_client import fetch_data_generator
 from scraper.idealista_scraper.excel_writer import export_split_by_distrito
 from scraper.idealista_scraper.utils import sanitize_filename_part, log
+from scraper.idealista_scraper.nordvpn import rotate_ip
 from scraper.app.server import add_history_entry, DEFAULT_OUTPUT_DIR
 import pandas as pd
 
@@ -77,7 +78,7 @@ PROVINCES_TO_SCAN = [
     {"id": "0-EU-ES-52", "name": "Melilla"},
 ]
 
-def run_batch_scan(operation="rent", max_pages=50, delay_between=10, resume=False):
+def run_batch_scan(operation="rent", max_pages=50, delay_between=10, resume=False, use_vpn=False, rotate_every=5):
     """Run scanning process for all defined locations."""
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -108,6 +109,14 @@ def run_batch_scan(operation="rent", max_pages=50, delay_between=10, resume=Fals
     start_time = time.time()
 
     for i, loc in enumerate(PROVINCES_TO_SCAN):
+        # Handle VPN Rotation
+        if use_vpn and i > 0 and i % rotate_every == 0:
+            file_log("INFO", f"VPN: Periodic IP rotation scheduled (every {rotate_every} provinces)...")
+            try:
+                rotate_ip()
+            except Exception as e:
+                file_log("WARN", f"VPN: IP rotation failed: {e}. Continuing anyway.")
+
         loc_id = loc["id"]
         loc_name = loc["name"]
         loc_clean = sanitize_filename_part(loc_name)
@@ -275,6 +284,8 @@ if __name__ == "__main__":
     parser.add_argument("--filter", type=str, help="Filter provinces by name or ID (substring)")
     parser.add_argument("--provinces", type=str, help="Comma-separated list of province IDs or Names (exact matchish)")
     parser.add_argument("--resume", action="store_true", help="Resume from latest file if exists")
+    parser.add_argument("--nordvpn", action="store_true", help="Use NordVPN to rotate IP periodically")
+    parser.add_argument("--rotate-every", type=int, default=5, help="Rotate IP every N provinces")
     
     args = parser.parse_args()
     
@@ -303,4 +314,4 @@ if __name__ == "__main__":
         PROVINCES_TO_SCAN = filtered
         print(f"Selected {len(PROVINCES_TO_SCAN)} provinces from list: {args.provinces}")
 
-    run_batch_scan(operation=args.operation, max_pages=args.max_pages, resume=args.resume)
+    run_batch_scan(operation=args.operation, max_pages=args.max_pages, resume=args.resume, use_vpn=args.nordvpn, rotate_every=args.rotate_every)

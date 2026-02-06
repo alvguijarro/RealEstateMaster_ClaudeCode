@@ -22,9 +22,10 @@ DELAY_BETWEEN = (10, 30)  # seconds
 MAX_RETRIES = 2
 BLOCK_WAIT_TIME = 900  # 15 min if blocked
 
-def log(msg: str):
+def log(msg: str, level: str = "INFO"):
     timestamp = datetime.now().strftime("%H:%M:%S")
-    line = f"[{timestamp}] {msg}"
+    prefix = f"[{level}] " if level in ["INFO", "WARN", "ERR", "OK"] else ""
+    line = f"{prefix}[{timestamp}] {msg}"
     print(line, flush=True)
 
 def check_signals():
@@ -88,8 +89,8 @@ def run_single_url(url: str, mode: str) -> bool:
                     if current_status == "idle" or current_status == "completed":
                         log(f"[OK] Completed: {target_prov}")
                         return True
-                    elif current_status == "blocked" or current_status == "captcha":
-                        log(f"[WARN] Blocked/Captcha on {target_prov}")
+                    elif current_status in ["blocked", "captcha", "error", "stopped"] or "CAPTCHA" in str(status_data):
+                        log(f"[WARN] Blocked/Captcha/Error/Stopped on {target_prov}")
                         return False
                 else:
                     log("[WARN] Status check failed.")
@@ -128,8 +129,14 @@ def main():
         while not success:
             success = run_single_url(url, mode)
             if not success:
-                log(f"Blocked or error. Retrying in {BLOCK_WAIT_TIME}s... (persisting until success)")
-                time.sleep(BLOCK_WAIT_TIME)
+                log("Se ha detectado un bloqueo. El proceso se pausara durante 15 minutos para evitar baneos permanentes. Reiniciando automaticamente tras la espera.", "WARN")
+                # Countdown timer
+                for remaining in range(BLOCK_WAIT_TIME // 60, 0, -1):
+                    # Wait 1 minute in 5-sec chunks to check signals
+                    for _ in range(12): 
+                        time.sleep(5)
+                        check_signals()
+                log("Wait complete. Retrying now...", "OK")
         
         if success: success_count += 1
         

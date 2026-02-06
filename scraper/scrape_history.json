@@ -1,5 +1,21 @@
 [
   {
+    "timestamp": "2026-02-06T13:08:03.732422",
+    "seed_url": "https://www.idealista.com/venta-viviendas/a-coruna-provincia/con-precio-hasta_300000/",
+    "properties_count": 1294,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_A_Coruña_venta.xlsx",
+    "filename": "idealista_A_Coruña_venta.xlsx"
+  },
+  {
+    "timestamp": "2026-02-06T00:35:32.384104",
+    "seed_url": "https://www.idealista.com/venta-viviendas/a-coruna-provincia/con-precio-hasta_300000/pagina-6.htm",
+    "properties_count": 22,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_A_Coruña_venta.xlsx",
+    "filename": "idealista_A_Coruña_venta.xlsx"
+  },
+  {
     "timestamp": "2026-02-06T00:15:00.507506",
     "seed_url": "https://www.idealista.com/venta-viviendas/a-coruna-provincia/con-precio-hasta_300000/",
     "properties_count": 158,
