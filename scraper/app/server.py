@@ -149,6 +149,12 @@ def get_config():
     })
 
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Simple health check endpoint for background scripts."""
+    return jsonify({'status': 'ok'})
+
+
 @app.route('/api/nordvpn/status', methods=['GET'])
 def vpn_status():
     """Get NordVPN status."""
@@ -438,14 +444,17 @@ def periodic_log_monitor(process):
         process.stdout.close()
         process.wait()
         
-        # Emit completion status
+        # Emit completion status with more detail
         if process.returncode == 0:
+            emit_log('OK', "✅ Proceso background finalizado correctamente.")
             emit_status('completed', message="Proceso batch finalizado correctamente")
         else:
+            emit_log('ERR', f"❌ Proceso background falló (Código {process.returncode}).")
             emit_status('error', message=f"Proceso finalizado con errores (Código {process.returncode})")
             
     except Exception as e:
         print(f"Monitor error: {e}")
+        emit_log('ERR', f"❌ Error en monitor de logs: {str(e)}")
         emit_status('error', message=f"Error en monitor: {str(e)}")
 
 @app.route('/api/periodic-lowcost/start', methods=['POST'])

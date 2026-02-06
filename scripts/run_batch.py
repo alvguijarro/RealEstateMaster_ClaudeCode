@@ -54,18 +54,25 @@ def run_single_url(url: str, mode: str) -> bool:
     
     check_signals()
     
-    # Check server health
-    try:
-        requests.get("http://localhost:5003/health", timeout=3)
-    except:
-        log("[ERR] Scraper server not running. Aborting.")
-        return False
+    # Check server health with retries
+    max_health_retries = 3
+    for attempt in range(max_health_retries):
+        try:
+            requests.get("http://localhost:5003/health", timeout=3)
+            break
+        except:
+            if attempt < max_health_retries - 1:
+                log(f"[WARN] Scraper server not responding (attempt {attempt+1}/{max_health_retries}). Retrying...")
+                time.sleep(2)
+            else:
+                log("[ERR] Scraper server not running after multiple attempts. Aborting.")
+                return False
         
     # Start Scrape via API
     payload = {
-        "url": url,
+        "seed_url": url,
         "mode": mode,
-        "max_pages": 2000 # High limit for batch
+        "max_pages": 4000 # High limit for batch
     }
     
     try:
