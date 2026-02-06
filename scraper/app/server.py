@@ -436,8 +436,17 @@ def periodic_log_monitor(process):
                 emit_log(level, msg)
 
         process.stdout.close()
+        process.wait()
+        
+        # Emit completion status
+        if process.returncode == 0:
+            emit_status('completed', message="Proceso batch finalizado correctamente")
+        else:
+            emit_status('error', message=f"Proceso finalizado con errores (Código {process.returncode})")
+            
     except Exception as e:
         print(f"Monitor error: {e}")
+        emit_status('error', message=f"Error en monitor: {str(e)}")
 
 @app.route('/api/periodic-lowcost/start', methods=['POST'])
 def start_periodic_lowcost():
@@ -685,6 +694,34 @@ def start_batch_scraping():
     periodic_thread.start()
     
     return jsonify({'status': 'started', 'pid': periodic_process.pid, 'count': len(urls)})
+
+
+@app.route('/api/batch/stop', methods=['POST'])
+def stop_batch_scraping():
+    """Stop the batch scraping process."""
+    scraper_dir = Path(__file__).parent.parent
+    flag = scraper_dir / "BATCH_STOP.flag"
+    with open(flag, 'w') as f: f.write("STOP")
+    return jsonify({'status': 'stopping'})
+
+
+@app.route('/api/batch/pause', methods=['POST'])
+def pause_batch_scraping():
+    """Pause the batch scraping process."""
+    scraper_dir = Path(__file__).parent.parent
+    flag = scraper_dir / "BATCH_PAUSE.flag"
+    with open(flag, 'w') as f: f.write("PAUSE")
+    return jsonify({'status': 'paused'})
+
+
+@app.route('/api/batch/resume', methods=['POST'])
+def resume_batch_scraping():
+    """Resume the batch scraping process."""
+    scraper_dir = Path(__file__).parent.parent
+    flag = scraper_dir / "BATCH_PAUSE.flag"
+    if flag.exists(): os.remove(flag)
+    return jsonify({'status': 'resumed'})
+
 
 
 @app.route('/api/excel-worksheets', methods=['GET'])

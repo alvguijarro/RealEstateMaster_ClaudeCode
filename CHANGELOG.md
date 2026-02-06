@@ -15,6 +15,10 @@
 
 ### Fixed
 - **Critical Bugfix**: Resolved an `IndentationError` in `scraper_wrapper.py` that was preventing the scraper service from starting and causing "Service timeout" errors in the dashboard.
+- **Batch Scraping UI Fixes**: Batch Scraping now correctly updates Start/Pause/Stop interaction button states upon launch.
+    - Added specific API endpoints `/api/batch/stop`, `/api/batch/pause`, `/api/batch/resume` to control the background batch process via flags.
+    - Frontend now detects batch mode and routes pause/stop actions to the correct batch endpoints.
+- **VPN Control Refactor**: Disabled automatic NordVPN status polling on page load. Now requires explicit user activation via the checkbox toggle.
 
 
 ## [2026-02-05]

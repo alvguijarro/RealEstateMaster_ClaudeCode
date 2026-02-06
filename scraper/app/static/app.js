@@ -1122,6 +1122,24 @@ async function startScraping(isDualMode = false) {
             const data = await resp.json();
             if (data.status === 'started') {
                 addLog('OK', `Batch iniciado (PID: ${data.pid})`);
+
+                // Update UI state for batch mode
+                isRunning = true;
+                isPaused = false;
+                startBtn.disabled = true;
+                pauseBtn.disabled = false;
+                stopBtn.disabled = false;
+                pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
+                seedUrlInput.disabled = true;
+                if (dualModeBtn) dualModeBtn.disabled = true;
+                if (startApiImportBtn) startApiImportBtn.disabled = true;
+
+                // Update status badge
+                statusBadge.className = 'status-badge running';
+                statusBadge.querySelector('.status-text').textContent = 'Ejecutando (Batch)';
+
+                // Start timer
+                startTimer();
             } else {
                 addLog('ERR', data.error);
             }
@@ -1206,7 +1224,9 @@ async function startScraping(isDualMode = false) {
 
 async function togglePause() {
     let endpoint;
-    if (isUpdateMode) {
+    if (isBatchMode) {
+        endpoint = isPaused ? '/api/batch/resume' : '/api/batch/pause';
+    } else if (isUpdateMode) {
         endpoint = isPaused ? '/api/update/resume' : '/api/update/pause';
     } else {
         endpoint = isPaused ? '/api/resume' : '/api/pause';
@@ -1226,7 +1246,15 @@ async function togglePause() {
 
 async function stopScraping() {
     addLog('INFO', 'Deteniendo...');
-    const endpoint = isUpdateMode ? '/api/update/stop' : '/api/stop';
+
+    let endpoint;
+    if (isBatchMode) {
+        endpoint = '/api/batch/stop';
+    } else if (isUpdateMode) {
+        endpoint = '/api/update/stop';
+    } else {
+        endpoint = '/api/stop';
+    }
 
     try {
         const response = await fetch(endpoint, { method: 'POST' });
