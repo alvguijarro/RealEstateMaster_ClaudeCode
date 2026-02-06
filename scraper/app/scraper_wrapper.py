@@ -1578,7 +1578,14 @@ class ScraperController:
                             self._pages_scraped += 1
                             continue
 
-                        # Case 3: Max pages reached
+                        # Case 3: Exceeded expected pages based on H1 count
+                        if self.total_pages_expected > 0 and page_num >= self.total_pages_expected:
+                            self.log("INFO", f"Reached expected page limit ({self.total_pages_expected} pages). Finishing scrape.")
+                            self.clear_state()
+                            scraping_finished = True
+                            break
+
+                        # Case 4: Max pages reached (hard limit to avoid infinite loops)
                         if page_num >= 60:
                             self.log("INFO", f"Reached page {page_num} (maximum listing pages). Finishing scrape.")
                             self.clear_state()

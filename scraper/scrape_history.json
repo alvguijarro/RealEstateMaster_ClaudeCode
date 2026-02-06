@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-06T17:06:11.822056",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/a-coruna-provincia/pagina-7.htm",
+    "properties_count": 1273,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_A_Coruña_alquiler.xlsx",
+    "filename": "idealista_A_Coruña_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-06T13:08:03.732422",
     "seed_url": "https://www.idealista.com/venta-viviendas/a-coruna-provincia/con-precio-hasta_300000/",
     "properties_count": 1294,

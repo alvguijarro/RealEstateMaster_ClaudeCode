@@ -1,43 +1,40 @@
 import subprocess
 import time
 import os
-from scraper.idealista_scraper.utils import log
+import random
 
-NORDVPN_PATH = r"C:\Program Files\NordVPN\NordVPN.exe"
+# Robust import for log function
+try:
+    from .utils import log
+except ImportError:
+    try:
+        from idealista_scraper.utils import log
+    except ImportError:
+        # Fallback: define a simple log function
+        def log(level, msg):
+            print(f"[{level}] {msg}")
+
+NORDVPN_PATH = r"C:\Program Files\NordVPN\nordvpn.exe"
 
 def run_nordvpn(args):
     """Run NordVPN CLI command and return output."""
     if not os.path.exists(NORDVPN_PATH):
-        # Fallback to search in PATH if not in default location
-        try:
-            result = subprocess.run(["where", "nordvpn"], capture_output=True, text=True, check=False)
-            if result.returncode == 0:
-                path = result.stdout.strip().split("\n")[0]
-            else:
-                log("ERR", f"NordVPN not found at {NORDVPN_PATH} and not in PATH")
-                return None
-        except:
-            log("ERR", f"NordVPN not found at {NORDVPN_PATH}")
-            return None
-    else:
-        path = NORDVPN_PATH
-    
-    cmd = [path] + args
-    try:
-        # We use a shortcut to avoid hanging if the app opens a GUI or something
-        # But usually CLI commands return quickly.
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=30)
-        return result.stdout
-    except subprocess.TimeoutExpired:
-        log("WARN", f"NordVPN command timed out: {' '.join(args)}")
+        log("ERR", f"NordVPN not found at {NORDVPN_PATH}")
         return None
+    
+    cmd = [NORDVPN_PATH] + args
+    try:
+        # Use shell=True for Windows might be needed if it's a batch wrapper, 
+        # but nordvpn.exe is a binary.
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        return result.stdout
     except Exception as e:
         log("ERR", f"Error running NordVPN command: {e}")
         return None
 
 def disconnect():
     """Disconnect from NordVPN."""
-    log("INFO", "🌐 NordVPN: Disconnecting...")
+    log("INFO", "NordVPN: Disconnecting...")
     return run_nordvpn(["-d"])
 
 def connect(group=None):
@@ -46,32 +43,34 @@ def connect(group=None):
     if group:
         args += ["-g", group]
     
-    log("INFO", f"🌐 NordVPN: Connecting{' to ' + group if group else ''}...")
+    log("INFO", f"NordVPN: Connecting{' to ' + group if group else ''}...")
     return run_nordvpn(args)
 
-def rotate_ip(group="Spain"):
+def rotate_ip(group=None):
     """Disconnect and reconnect to change IP."""
-    log("INFO", "🔄 Rotating IP via NordVPN...")
     disconnect()
-    time.sleep(3)
+    time.sleep(2)
     result = connect(group)
-    # Wait a bit for the connection to stabilize and network to resume
-    log("INFO", "⌛ Waiting 10s for connection to stabilize...")
-    time.sleep(10)
+    # Wait a bit for the connection to stabilize
+    time.sleep(5)
     return result
 
 def get_status():
-    """Check NordVPN status."""
-    # Running without args usually shows status on Windows
-    output = run_nordvpn([]) 
+    """Check if NordVPN is connected (heuristic based on output)."""
+    # Note: 'nordvpn' command with no args or --status usually gives status
+    # The search results didn't explicitly say how to get status, 
+    # but usually it's `nordvpn` or `nordvpn status`.
+    output = run_nordvpn([]) # Try empty or status
     if not output:
         return "Unknown"
     
-    if "connected" in output.lower():
+    if "Connected" in output:
         return "Connected"
-    elif "disconnected" in output.lower():
+    elif "Disconnected" in output:
         return "Disconnected"
-    return output.strip()
+    return "Unknown"
 
 if __name__ == "__main__":
-    print(f"Status: {get_status()}")
+    # Test
+    print("NordVPN status:", get_status())
+    # rotate_ip()
