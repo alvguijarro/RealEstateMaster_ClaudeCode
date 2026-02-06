@@ -98,11 +98,35 @@ let isBatchMode = false;
 // NordVPN UI LOGIC
 // ==========================================
 
+let vpnPollInterval = null;
+
 function initializeVpn() {
-    // Initial check
-    updateVpnStatus();
-    // Poll every 30 seconds
-    setInterval(updateVpnStatus, 30000);
+    if (!useVpnToggle) return;
+
+    // Add listener to the toggle
+    useVpnToggle.addEventListener('change', () => {
+        if (useVpnToggle.checked) {
+            updateVpnStatus();
+            if (!vpnPollInterval) {
+                vpnPollInterval = setInterval(updateVpnStatus, 30000);
+            }
+        } else {
+            if (vpnPollInterval) {
+                clearInterval(vpnPollInterval);
+                vpnPollInterval = null;
+            }
+            // Reset badge to a neutral state
+            const badgeText = vpnBadge.querySelector('.status-text');
+            if (badgeText) badgeText.textContent = 'NordVPN: Inactivo';
+            vpnBadge.classList.remove('connected', 'disconnected');
+        }
+    });
+
+    // Only do initial check if already checked on load (unlikely as it's disabled by default)
+    if (useVpnToggle.checked) {
+        updateVpnStatus();
+        vpnPollInterval = setInterval(updateVpnStatus, 30000);
+    }
 }
 
 async function updateVpnStatus() {
