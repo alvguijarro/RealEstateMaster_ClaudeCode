@@ -149,12 +149,6 @@ def get_config():
     })
 
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Simple health check endpoint for background scripts."""
-    return jsonify({'status': 'ok'})
-
-
 @app.route('/api/nordvpn/status', methods=['GET'])
 def vpn_status():
     """Get NordVPN status."""
@@ -412,8 +406,8 @@ def periodic_log_monitor(process):
     """Refined monitor to stream logs via specific socket event."""
     try:
         # Read stdout line by line
-        for line in iter(process.stdout.readline, b''):
-            decoded = line.decode('utf-8', errors='replace').strip()
+        for line in iter(process.stdout.readline, ''):
+            decoded = line.strip()
             if decoded:
                 socketio.emit('periodic_log', {'message': decoded})
                 
@@ -654,6 +648,46 @@ def get_provinces_list():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def expand_batch_urls(urls):
+    """Expands provincial URLs into sub-zone URLs if defined in mapping."""
+    try:
+        mapping_path = Path(__file__).parent / "province_zones.json"
+        if not mapping_path.exists():
+            return urls
+        
+        with open(mapping_path, 'r', encoding='utf-8') as f:
+            mapping = json.load(f)
+            
+        expanded = []
+        for url in urls:
+            operation = None
+            slug = None
+            suffix = ""
+            
+            if 'alquiler-viviendas/' in url:
+                operation = 'alquiler'
+                parts = url.split('alquiler-viviendas/')[1].split('/')
+                slug = parts[0]
+            elif 'venta-viviendas/' in url:
+                operation = 'venta'
+                parts = url.split('venta-viviendas/')[1].split('/')
+                slug = parts[0]
+                if len(parts) > 1 and parts[1]:
+                    suffix = parts[1] + "/"
+            
+            if slug and slug in mapping:
+                print(f"Expanding provincial URL: {url} -> {len(mapping[slug])} zones")
+                for zone in mapping[slug]:
+                    new_url = f"https://www.idealista.com/{operation}-viviendas/{zone['path']}{suffix}"
+                    expanded.append(new_url)
+            else:
+                expanded.append(url)
+                
+        return expanded
+    except Exception as e:
+        print(f"Error expanding URLs: {e}")
+        return urls
+
 @app.route('/api/start-batch', methods=['POST'])
 def start_batch_scraping():
     """Start a batch scraping process for a list of URLs."""
@@ -668,6 +702,12 @@ def start_batch_scraping():
         
     if periodic_process and periodic_process.poll() is None:
         return jsonify({'error': 'A batch process is already running'}), 400
+        
+    # Expand provincial URLs if needed
+    original_count = len(urls)
+    urls = expand_batch_urls(urls)
+    if len(urls) > original_count:
+        print(f"Batch expanded from {original_count} to {len(urls)} URLs")
         
     # Write queue to file
     queue_file = Path(__file__).parent.parent / "batch_queue.json"

@@ -1121,7 +1121,7 @@ async function startScraping(isDualMode = false) {
             });
             const data = await resp.json();
             if (data.status === 'started') {
-                addLog('OK', `Batch iniciado (PID: ${data.pid})`);
+                addLog('OK', `Batch iniciado (PID: ${data.pid}, URLs totales: ${data.count})`);
 
                 // Update UI state for batch mode
                 isRunning = true;

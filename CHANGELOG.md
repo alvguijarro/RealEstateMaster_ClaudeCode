@@ -1,5 +1,20 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-07]
+
+### Added
+- **Provincial URL Expansion (Batch Search)**: Implemented a new engine that automatically desegregates provincial URLs into smaller, sequential sub-zone batches.
+    - Added `province_zones.json` mapping for 25 high-volume Spanish provinces (Madrid, Barcelona, Valencia, etc.).
+    - When starting a batch scrape for a province, the backend automatically expands it into its constituent districts/towns (e.g., Madrid -> Madrid Capital, Corredor del Henares, etc.).
+    - This bypasses Idealista's 2,000-property display limit, ensuring 100% data coverage for entire provinces.
+- **Dynamic Batch UI**: The frontend log now displays the expanded URL count total (e.g., "Batch iniciado, URLs totales: 12").
+
+### Fixed
+- **Province URL Patterns**: Resolved 404 errors for special-case provinces that do not use the `-provincia` suffix in Idealista's routing.
+    - Corrected slugs for: Álava, Asturias, Baleares, Cantabria, Guipúzcoa, La Rioja, Las Palmas, Navarra, Santa Cruz de Tenerife, and Vizcaya.
+    - Fixed Ceuta and Melilla patterns to use the specific `[city]-[city]` format (e.g., `ceuta-ceuta`).
+- **Data Integrity**: Province expansion ensures more granular results, reducing the likelihood of hitting "soft blocks" by spreading the load across smaller search segments.
+
 ## [2026-02-06]
 
 ### Added

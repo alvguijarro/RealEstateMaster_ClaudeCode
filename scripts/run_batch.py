@@ -136,14 +136,14 @@ def main():
         while not success:
             success = run_single_url(url, mode)
             if not success:
-                log("Se ha detectado un bloqueo. El proceso se pausara durante 15 minutos para evitar baneos permanentes. Reiniciando automaticamente tras la espera.", "WARN")
-                # Countdown timer
-                for remaining in range(BLOCK_WAIT_TIME // 60, 0, -1):
-                    # Wait 1 minute in 5-sec chunks to check signals
-                    for _ in range(12): 
-                        time.sleep(5)
-                        check_signals()
-                log("Wait complete. Retrying now...", "OK")
+                log(f"Esperando {BLOCK_WAIT_TIME // 60} minutos para recuperación de IP...", "WARN")
+                # Countdown timer - more responsive signal checking
+                for second in range(BLOCK_WAIT_TIME):
+                    time.sleep(1)
+                    if second % 60 == 0 and second > 0:
+                        log(f"Faltan { (BLOCK_WAIT_TIME - second) // 60 } minutos...")
+                    check_signals()
+                log("Tiempo de espera finalizado. Reintentando...", "OK")
         
         if success: success_count += 1
         
