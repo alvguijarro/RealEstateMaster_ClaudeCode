@@ -20,9 +20,13 @@
 - **Dynamic Batch UI**: The frontend log now displays the expanded URL count total (e.g., "Batch iniciado, URLs totales: 12").
 - **Advanced Anti-Bot Evasion (Phases 1 & 2)**: Comprehensive countermeasures against Idealista's bot detection:
     - **Deep Fingerprint Spoofing**: Injected JavaScript that masks Chrome DevTools Protocol (CDP) signatures, spoofs WebGL vendor/renderer to match real NVIDIA GPU, adds realistic navigator.plugins, patches Permissions API, and randomizes timing functions.
-    - **Human Warmup Routine**: New pre-scrape session that visits Google first (establishing trusted referrer), performs random mouse movements, types search queries with human-like delays, navigates to Idealista, scrolls homepage naturally, and hovers over random elements.
+    - **Randomized GPU Fingerprints**: Each session now uses a randomly selected GPU from a pool (NVIDIA RTX 3060, GTX 1660 Ti, AMD RX 6700 XT, Intel UHD 630, etc.) instead of static values.
+    - **Enhanced Chromium Launch Args**: Added 12 new anti-automation arguments including `--disable-blink-features=AutomationControlled`, `--disable-features=IsolateOrigins`, `--force-color-profile=srgb`, etc.
+    - **Playwright-Stealth Plugin**: Integrated for additional 30+ automation indicator patches.
     - **Continuous Mouse Jitter**: Background task that subtly moves the mouse at random intervals during page loads to maintain "human presence".
     - **Realistic HTTP Headers**: Added Accept-Language (es-ES), DNT, and Upgrade-Insecure-Requests headers to match real browser behavior.
+    - **Google Warmup Removed**: Eliminated the pre-scrape Google navigation (added delay without evading detection).
+    - **NordVPN Periodic Rotation Removed**: VPN now only rotates IP when a block is detected, not proactively every N provinces.
 
 ### Fixed
 - **Province URL Patterns**: Resolved 404 errors for special-case provinces that do not use the `-provincia` suffix in Idealista's routing.

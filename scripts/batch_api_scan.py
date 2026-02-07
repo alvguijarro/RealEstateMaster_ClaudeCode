@@ -109,13 +109,8 @@ def run_batch_scan(operation="rent", max_pages=50, delay_between=10, resume=Fals
     start_time = time.time()
 
     for i, loc in enumerate(PROVINCES_TO_SCAN):
-        # Handle VPN Rotation
-        if use_vpn and i > 0 and i % rotate_every == 0:
-            file_log("INFO", f"VPN: Periodic IP rotation scheduled (every {rotate_every} provinces)...")
-            try:
-                rotate_ip()
-            except Exception as e:
-                file_log("WARN", f"VPN: IP rotation failed: {e}. Continuing anyway.")
+        # NOTE: Periodic VPN rotation removed (2026-02-07)
+        # VPN rotation now only happens when a block is detected in scraper_wrapper.py
 
         loc_id = loc["id"]
         loc_name = loc["name"]

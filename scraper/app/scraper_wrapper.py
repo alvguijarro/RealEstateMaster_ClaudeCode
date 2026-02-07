@@ -242,141 +242,168 @@ def set_last_engine(engine: str) -> None:
 # ADVANCED ANTI-BOT EVASION (Phase 1 & 2)
 # =============================================================================
 
+# GPU fingerprints pool for randomization (common real GPUs)
+GPU_FINGERPRINTS = [
+    ("NVIDIA Corporation", "NVIDIA GeForce RTX 3060/PCIe/SSE2"),
+    ("NVIDIA Corporation", "NVIDIA GeForce GTX 1660 Ti/PCIe/SSE2"),
+    ("NVIDIA Corporation", "NVIDIA GeForce RTX 2070 SUPER/PCIe/SSE2"),
+    ("AMD", "AMD Radeon RX 6700 XT"),
+    ("AMD", "AMD Radeon RX 580 Series"),
+    ("Intel", "Intel(R) UHD Graphics 630"),
+    ("Intel", "Intel(R) Iris(R) Xe Graphics"),
+    ("NVIDIA Corporation", "NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2"),
+    ("AMD", "AMD Radeon RX 5700 XT"),
+]
+
+def get_random_gpu():
+    """Select a random GPU fingerprint for this session."""
+    import random
+    return random.choice(GPU_FINGERPRINTS)
+
+# Generate GPU values at module load (per session)
+_GPU_VENDOR, _GPU_RENDERER = get_random_gpu()
+
 # Deep fingerprint spoofing script - injected before any page load
-DEEP_STEALTH_SCRIPT = """
+# Uses f-string to inject randomized GPU values
+def generate_stealth_script():
+    """Generate stealth script with randomized GPU fingerprint."""
+    return f'''
 // ==================== PHASE 1: DEEP FINGERPRINT SPOOFING ====================
 
 // 1. Remove Chrome DevTools Protocol (CDP) signatures
-try {
+try {{
     // Delete chrome.runtime which is a CDP indicator
-    if (window.chrome && window.chrome.runtime) {
+    if (window.chrome && window.chrome.runtime) {{
         delete window.chrome.runtime;
-    }
+    }}
     
     // Hide cdc_ variables (ChromeDriver signature)
     const originalCall = Function.prototype.call;
-    Function.prototype.call = function(...args) {
-        if (args[0] && typeof args[0] === 'object') {
+    Function.prototype.call = function(...args) {{
+        if (args[0] && typeof args[0] === 'object') {{
             const str = String(args[0]);
-            if (str.includes('cdc_') || str.includes('$cdc_')) {
+            if (str.includes('cdc_') || str.includes('$cdc_')) {{
                 return undefined;
-            }
-        }
+            }}
+        }}
         return originalCall.apply(this, args);
-    };
-} catch (e) {}
+    }};
+}} catch (e) {{}}
 
-// 2. Spoof WebGL to match a real GPU (not SwiftShader/llvmpipe)
-try {
+// 2. Spoof WebGL to match a real GPU (randomized per session)
+try {{
     const getParameterProto = WebGLRenderingContext.prototype.getParameter;
-    WebGLRenderingContext.prototype.getParameter = function(param) {
+    WebGLRenderingContext.prototype.getParameter = function(param) {{
         // UNMASKED_VENDOR_WEBGL
-        if (param === 37445) return 'NVIDIA Corporation';
+        if (param === 37445) return '{_GPU_VENDOR}';
         // UNMASKED_RENDERER_WEBGL  
-        if (param === 37446) return 'NVIDIA GeForce GTX 1660 Ti/PCIe/SSE2';
+        if (param === 37446) return '{_GPU_RENDERER}';
         return getParameterProto.call(this, param);
-    };
+    }};
     
     // Also patch WebGL2
-    if (typeof WebGL2RenderingContext !== 'undefined') {
+    if (typeof WebGL2RenderingContext !== 'undefined') {{
         const getParameter2Proto = WebGL2RenderingContext.prototype.getParameter;
-        WebGL2RenderingContext.prototype.getParameter = function(param) {
-            if (param === 37445) return 'NVIDIA Corporation';
-            if (param === 37446) return 'NVIDIA GeForce GTX 1660 Ti/PCIe/SSE2';
+        WebGL2RenderingContext.prototype.getParameter = function(param) {{
+            if (param === 37445) return '{_GPU_VENDOR}';
+            if (param === 37446) return '{_GPU_RENDERER}';
             return getParameter2Proto.call(this, param);
-        };
-    }
-} catch (e) {}
+        }};
+    }}
+}} catch (e) {{}}
 
 // 3. Add realistic navigator.plugins (automated browsers often have empty plugins)
-try {
-    Object.defineProperty(navigator, 'plugins', {
-        get: () => {
-            const plugins = {
-                0: {type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format', name: 'Chrome PDF Plugin'},
-                1: {type: 'application/pdf', suffixes: 'pdf', description: '', name: 'Chrome PDF Viewer'},
-                2: {type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable', name: 'Native Client'},
+try {{
+    Object.defineProperty(navigator, 'plugins', {{
+        get: () => {{
+            const plugins = {{
+                0: {{type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format', name: 'Chrome PDF Plugin'}},
+                1: {{type: 'application/pdf', suffixes: 'pdf', description: '', name: 'Chrome PDF Viewer'}},
+                2: {{type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable', name: 'Native Client'}},
                 length: 3,
                 item: (i) => plugins[i],
                 namedItem: (name) => Object.values(plugins).find(p => p.name === name),
-                refresh: () => {}
-            };
+                refresh: () => {{}}
+            }};
             return plugins;
-        }
-    });
-} catch (e) {}
+        }}
+    }});
+}} catch (e) {{}}
 
 // 4. Fix navigator.languages (should be array, not frozen)
-try {
-    Object.defineProperty(navigator, 'languages', {
+try {{
+    Object.defineProperty(navigator, 'languages', {{
         get: () => ['es-ES', 'es', 'en-US', 'en']
-    });
-} catch (e) {}
+    }});
+}} catch (e) {{}}
 
 // 5. Patch Permissions API (automation often lacks notifications permission)
-try {
+try {{
     const originalQuery = window.navigator.permissions.query;
-    window.navigator.permissions.query = (params) => {
-        if (params.name === 'notifications') {
-            return Promise.resolve({state: 'denied', onchange: null});
-        }
+    window.navigator.permissions.query = (params) => {{
+        if (params.name === 'notifications') {{
+            return Promise.resolve({{state: 'denied', onchange: null}});
+        }}
         return originalQuery.call(window.navigator.permissions, params);
-    };
-} catch (e) {}
+    }};
+}} catch (e) {{}}
 
 // 6. Add slight randomization to timing functions (defeats timing analysis)
-try {
+try {{
     const originalNow = Date.now;
     const randomOffset = Math.floor(Math.random() * 50);
-    Date.now = function() {
+    Date.now = function() {{
         return originalNow() + randomOffset;
-    };
+    }};
     
     const originalPerfNow = performance.now;
-    performance.now = function() {
+    performance.now = function() {{
         return originalPerfNow.call(performance) + (Math.random() * 0.1);
-    };
-} catch (e) {}
+    }};
+}} catch (e) {{}}
 
 // 7. Override connection info (automation often has different values)
-try {
-    Object.defineProperty(navigator, 'connection', {
-        get: () => ({
+try {{
+    Object.defineProperty(navigator, 'connection', {{
+        get: () => ({{
             effectiveType: '4g',
             rtt: 50,
             downlink: 10,
             saveData: false
-        })
-    });
-} catch (e) {}
+        }})
+    }});
+}} catch (e) {{}}
 
 // 8. Hide automation indicators in window object
-try {
+try {{
     // Remove common automation flags
     delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
     delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
     delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
     
     // Ensure navigator.webdriver is undefined
-    Object.defineProperty(navigator, 'webdriver', {
+    Object.defineProperty(navigator, 'webdriver', {{
         get: () => undefined
-    });
-} catch (e) {}
+    }});
+}} catch (e) {{}}
 
 // 9. Realistic screen properties 
-try {
-    Object.defineProperty(screen, 'availWidth', { get: () => window.innerWidth });
-    Object.defineProperty(screen, 'availHeight', { get: () => window.innerHeight + 40 });
-} catch (e) {}
+try {{
+    Object.defineProperty(screen, 'availWidth', {{ get: () => window.innerWidth }});
+    Object.defineProperty(screen, 'availHeight', {{ get: () => window.innerHeight + 40 }});
+}} catch (e) {{}}
 
 // 10. Override deviceMemory (headless often has unusual values)
-try {
-    Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
-    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
-} catch (e) {}
+try {{
+    Object.defineProperty(navigator, 'deviceMemory', {{ get: () => 8 }});
+    Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => 8 }});
+}} catch (e) {{}}
 
-console.log('[STEALTH] Deep fingerprint spoofing active');
-"""
+console.log('[STEALTH] Deep fingerprint spoofing active - GPU: {_GPU_RENDERER}');
+'''
+
+# For backward compatibility, generate the script at module load
+DEEP_STEALTH_SCRIPT = generate_stealth_script()
 
 
 async def human_warmup_routine(page, log_func=None):
@@ -1327,6 +1354,7 @@ class ScraperController:
                     self.log("INFO", f"Launching browser: {engine.upper()}...")
                     
                     # Browser args for stealth and performance (Chromium-specific)
+                    # Enhanced args for 2026 anti-detection
                     chromium_args = [
                         "--start-minimized",
                         "--window-size=1280,900",
@@ -1336,6 +1364,18 @@ class ScraperController:
                         "--no-first-run",
                         "--no-default-browser-check",
                         "--disable-popup-blocking",
+                        # Anti-automation detection
+                        "--disable-blink-features=AutomationControlled",
+                        "--disable-features=IsolateOrigins,site-per-process",
+                        "--disable-site-isolation-trials",
+                        "--disable-features=VizDisplayCompositor",
+                        "--disable-ipc-flooding-protection",
+                        "--enable-features=NetworkService,NetworkServiceInProcess",
+                        "--force-color-profile=srgb",
+                        "--metrics-recording-only",
+                        "--password-store=basic",
+                        "--use-mock-keychain",
+                        "--export-tagged-pdf",
                     ]
                     
                     # Firefox-specific args (different format)
@@ -1391,8 +1431,8 @@ class ScraperController:
                         })
                         
                         # ========== PHASE 2: HUMAN BEHAVIOR SIMULATION ==========
-                        # Run the warmup routine to establish "human" session
-                        await human_warmup_routine(page, self.log)
+                        # NOTE: Google warmup removed (2026-02-07) - added delay without evading detection
+                        # Keeping only mouse jitter for human presence simulation
                         
                         # Start background mouse jitter task (maintains human presence)
                         mouse_jitter_task = asyncio.create_task(

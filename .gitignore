@@ -38,6 +38,8 @@ python_portable/.deps_installed
 
 # Scraper internals
 scraper/stealth_profile/
+scraper/stealth_profile_chromium/
+scraper/stealth_profile_firefox/
 stealth_profile/
 scraper/python/
 scraper/app/resume_state.json
