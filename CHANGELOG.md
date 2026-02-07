@@ -8,6 +8,11 @@
     - When starting a batch scrape for a province, the backend automatically expands it into its constituent districts/towns (e.g., Madrid -> Madrid Capital, Corredor del Henares, etc.).
     - This bypasses Idealista's 2,000-property display limit, ensuring 100% data coverage for entire provinces.
 - **Dynamic Batch UI**: The frontend log now displays the expanded URL count total (e.g., "Batch iniciado, URLs totales: 12").
+- **Advanced Anti-Bot Evasion (Phases 1 & 2)**: Comprehensive countermeasures against Idealista's bot detection:
+    - **Deep Fingerprint Spoofing**: Injected JavaScript that masks Chrome DevTools Protocol (CDP) signatures, spoofs WebGL vendor/renderer to match real NVIDIA GPU, adds realistic navigator.plugins, patches Permissions API, and randomizes timing functions.
+    - **Human Warmup Routine**: New pre-scrape session that visits Google first (establishing trusted referrer), performs random mouse movements, types search queries with human-like delays, navigates to Idealista, scrolls homepage naturally, and hovers over random elements.
+    - **Continuous Mouse Jitter**: Background task that subtly moves the mouse at random intervals during page loads to maintain "human presence".
+    - **Realistic HTTP Headers**: Added Accept-Language (es-ES), DNT, and Upgrade-Insecure-Requests headers to match real browser behavior.
 
 ### Fixed
 - **Province URL Patterns**: Resolved 404 errors for special-case provinces that do not use the `-provincia` suffix in Idealista's routing.

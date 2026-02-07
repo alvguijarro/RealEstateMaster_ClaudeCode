@@ -93,6 +93,281 @@ SCRAPE_HISTORY_FILE = str(Path(DEFAULT_OUTPUT_DIR) / "scrape_history.json")
 STEALTH_PROFILE_DIR = str(Path(__file__).parent.parent / "stealth_profile")
 
 
+# =============================================================================
+# ADVANCED ANTI-BOT EVASION (Phase 1 & 2)
+# =============================================================================
+
+# Deep fingerprint spoofing script - injected before any page load
+DEEP_STEALTH_SCRIPT = """
+// ==================== PHASE 1: DEEP FINGERPRINT SPOOFING ====================
+
+// 1. Remove Chrome DevTools Protocol (CDP) signatures
+try {
+    // Delete chrome.runtime which is a CDP indicator
+    if (window.chrome && window.chrome.runtime) {
+        delete window.chrome.runtime;
+    }
+    
+    // Hide cdc_ variables (ChromeDriver signature)
+    const originalCall = Function.prototype.call;
+    Function.prototype.call = function(...args) {
+        if (args[0] && typeof args[0] === 'object') {
+            const str = String(args[0]);
+            if (str.includes('cdc_') || str.includes('$cdc_')) {
+                return undefined;
+            }
+        }
+        return originalCall.apply(this, args);
+    };
+} catch (e) {}
+
+// 2. Spoof WebGL to match a real GPU (not SwiftShader/llvmpipe)
+try {
+    const getParameterProto = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function(param) {
+        // UNMASKED_VENDOR_WEBGL
+        if (param === 37445) return 'NVIDIA Corporation';
+        // UNMASKED_RENDERER_WEBGL  
+        if (param === 37446) return 'NVIDIA GeForce GTX 1660 Ti/PCIe/SSE2';
+        return getParameterProto.call(this, param);
+    };
+    
+    // Also patch WebGL2
+    if (typeof WebGL2RenderingContext !== 'undefined') {
+        const getParameter2Proto = WebGL2RenderingContext.prototype.getParameter;
+        WebGL2RenderingContext.prototype.getParameter = function(param) {
+            if (param === 37445) return 'NVIDIA Corporation';
+            if (param === 37446) return 'NVIDIA GeForce GTX 1660 Ti/PCIe/SSE2';
+            return getParameter2Proto.call(this, param);
+        };
+    }
+} catch (e) {}
+
+// 3. Add realistic navigator.plugins (automated browsers often have empty plugins)
+try {
+    Object.defineProperty(navigator, 'plugins', {
+        get: () => {
+            const plugins = {
+                0: {type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format', name: 'Chrome PDF Plugin'},
+                1: {type: 'application/pdf', suffixes: 'pdf', description: '', name: 'Chrome PDF Viewer'},
+                2: {type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable', name: 'Native Client'},
+                length: 3,
+                item: (i) => plugins[i],
+                namedItem: (name) => Object.values(plugins).find(p => p.name === name),
+                refresh: () => {}
+            };
+            return plugins;
+        }
+    });
+} catch (e) {}
+
+// 4. Fix navigator.languages (should be array, not frozen)
+try {
+    Object.defineProperty(navigator, 'languages', {
+        get: () => ['es-ES', 'es', 'en-US', 'en']
+    });
+} catch (e) {}
+
+// 5. Patch Permissions API (automation often lacks notifications permission)
+try {
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (params) => {
+        if (params.name === 'notifications') {
+            return Promise.resolve({state: 'denied', onchange: null});
+        }
+        return originalQuery.call(window.navigator.permissions, params);
+    };
+} catch (e) {}
+
+// 6. Add slight randomization to timing functions (defeats timing analysis)
+try {
+    const originalNow = Date.now;
+    const randomOffset = Math.floor(Math.random() * 50);
+    Date.now = function() {
+        return originalNow() + randomOffset;
+    };
+    
+    const originalPerfNow = performance.now;
+    performance.now = function() {
+        return originalPerfNow.call(performance) + (Math.random() * 0.1);
+    };
+} catch (e) {}
+
+// 7. Override connection info (automation often has different values)
+try {
+    Object.defineProperty(navigator, 'connection', {
+        get: () => ({
+            effectiveType: '4g',
+            rtt: 50,
+            downlink: 10,
+            saveData: false
+        })
+    });
+} catch (e) {}
+
+// 8. Hide automation indicators in window object
+try {
+    // Remove common automation flags
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+    
+    // Ensure navigator.webdriver is undefined
+    Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined
+    });
+} catch (e) {}
+
+// 9. Realistic screen properties 
+try {
+    Object.defineProperty(screen, 'availWidth', { get: () => window.innerWidth });
+    Object.defineProperty(screen, 'availHeight', { get: () => window.innerHeight + 40 });
+} catch (e) {}
+
+// 10. Override deviceMemory (headless often has unusual values)
+try {
+    Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+} catch (e) {}
+
+console.log('[STEALTH] Deep fingerprint spoofing active');
+"""
+
+
+async def human_warmup_routine(page, log_func=None):
+    """
+    Simulate human-like browser warm-up before scraping.
+    
+    This routine:
+    1. Starts from Google (natural referrer)
+    2. Performs random mouse movements
+    3. Navigates to Idealista via search-like behavior
+    4. Scrolls and interacts with homepage
+    """
+    import random
+    import asyncio
+    
+    def log(level, msg):
+        if log_func:
+            log_func(level, msg)
+    
+    log("STEALTH", "Starting human warm-up routine...")
+    
+    try:
+        # Step 1: Visit Google first (establishes natural referrer chain)
+        log("STEALTH", "Visiting search engine...")
+        await page.goto('https://www.google.es', wait_until='domcontentloaded', timeout=30000)
+        await asyncio.sleep(random.uniform(2, 4))
+        
+        # Step 2: Random mouse movements (humans always move mouse)
+        log("STEALTH", "Simulating natural mouse movement...")
+        for _ in range(random.randint(4, 8)):
+            x = random.randint(100, 1000)
+            y = random.randint(100, 600)
+            await page.mouse.move(x, y, steps=random.randint(10, 25))
+            await asyncio.sleep(random.uniform(0.1, 0.4))
+        
+        # Step 3: Click on search box and type (simulates real user)
+        try:
+            search_box = page.locator('textarea[name="q"], input[name="q"]').first
+            await search_box.click()
+            await asyncio.sleep(random.uniform(0.3, 0.8))
+            
+            # Type with human-like delays
+            search_query = "idealista pisos"
+            for char in search_query:
+                await page.keyboard.type(char, delay=random.randint(50, 150))
+                if random.random() < 0.1:  # 10% chance of small pause
+                    await asyncio.sleep(random.uniform(0.1, 0.3))
+            
+            await asyncio.sleep(random.uniform(0.5, 1.5))
+            
+            # Press Enter or click search (don't actually search, just simulate typing)
+            await page.keyboard.press('Escape')  # Cancel search, we'll go direct
+        except Exception:
+            pass  # Search interaction is optional
+        
+        # Step 4: Navigate to Idealista (with Google as referrer)
+        log("STEALTH", "Navigating to Idealista with trusted referrer...")
+        await asyncio.sleep(random.uniform(1, 2))
+        await page.goto('https://www.idealista.com', wait_until='domcontentloaded', timeout=30000)
+        await asyncio.sleep(random.uniform(3, 5))
+        
+        # Step 5: Accept cookies if present
+        try:
+            await page.evaluate("""() => {
+                const btn = document.querySelector('#didomi-notice-agree-button, [id*="accept"], .onetrust-accept-btn');
+                if (btn && btn.offsetParent !== null) btn.click();
+            }""")
+            await asyncio.sleep(random.uniform(0.5, 1))
+        except Exception:
+            pass
+        
+        # Step 6: Scroll homepage naturally
+        log("STEALTH", "Browsing homepage naturally...")
+        for _ in range(random.randint(2, 4)):
+            scroll_amount = random.randint(150, 400)
+            await page.mouse.wheel(0, scroll_amount)
+            await asyncio.sleep(random.uniform(0.8, 2.0))
+            
+            # Random mouse movement while "reading"
+            x = random.randint(200, 900)
+            y = random.randint(200, 500)
+            await page.mouse.move(x, y, steps=random.randint(5, 15))
+        
+        # Step 7: Random hover on elements (simulates interest)
+        try:
+            links = await page.locator('a[href*="/venta-viviendas/"], a[href*="/alquiler-viviendas/"]').all()
+            if links:
+                random_link = random.choice(links[:min(5, len(links))])
+                await random_link.hover()
+                await asyncio.sleep(random.uniform(0.5, 1.5))
+        except Exception:
+            pass
+        
+        log("OK", "Human warm-up complete - session established")
+        return True
+        
+    except Exception as e:
+        log("WARN", f"Warm-up partial: {e}")
+        return False
+
+
+async def continuous_mouse_jitter(page, stop_event):
+    """
+    Background task that subtly moves the mouse at random intervals.
+    Helps maintain "human presence" during page loads.
+    """
+    import random
+    import asyncio
+    
+    while not stop_event.is_set():
+        try:
+            await asyncio.sleep(random.uniform(3, 8))
+            
+            if stop_event.is_set():
+                break
+                
+            # Small random movement
+            x_offset = random.randint(-30, 30)
+            y_offset = random.randint(-30, 30)
+            
+            # Get current position and add offset (stay within bounds)
+            try:
+                await page.mouse.move(
+                    random.randint(300, 900),
+                    random.randint(200, 600),
+                    steps=random.randint(3, 8)
+                )
+            except Exception:
+                pass  # Page might be navigating
+                
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            pass
+
+
 def normalize_seed_url(url: str) -> str:
     """Normalize a seed URL for consistent registry lookup.
     
@@ -921,36 +1196,34 @@ class ScraperController:
                         )
                         browser = None  # No separate browser object with persistent context
                         
-                        # Explicitly mask webdriver property (safety net for stealth)
-                        await ctx.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                        # ========== PHASE 1: DEEP FINGERPRINT SPOOFING ==========
+                        # Inject comprehensive anti-detection script BEFORE any navigation
+                        await ctx.add_init_script(DEEP_STEALTH_SCRIPT)
+                        self.log("STEALTH", "Deep fingerprint spoofing injected")
                         
                         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
                         self.log("OK", f"Browser launched with persistent profile: {os.path.basename(STEALTH_PROFILE_DIR)}")
                         
-                        # Apply playwright-stealth patches
+                        # Apply playwright-stealth patches (additional layer)
                         if HAS_STEALTH and stealth_async:
                             await stealth_async(page)
-                            self.log("STEALTH", "Anti-detection patches applied")
+                            self.log("STEALTH", "playwright-stealth patches applied")
                         
-                        # Initial delay only for Stealth mode startup
-                        if self.mode == "stealth":
-                            settling_delay = random.randint(5, 12)
-                            self.log("STEALTH", f"Initial settling delay: {settling_delay}s")
-                            await self._interruptible_sleep(settling_delay)
+                        # Add realistic HTTP headers
+                        await ctx.set_extra_http_headers({
+                            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+                            'DNT': '1',
+                            'Upgrade-Insecure-Requests': '1',
+                        })
                         
-                        # Warm-up: Navigate to Idealista homepage if no cookies yet
-                        self.log("INFO", "Preparing session...")
-                        try:
-                            await page.goto("https://www.idealista.com", wait_until="domcontentloaded", timeout=30000)
-                            await asyncio.sleep(2)
-                            
-                            # Accept cookies
-                            await page.evaluate(r"""() => {
-                                const acceptBtn = document.querySelector('#didomi-notice-agree-button, [id*="accept"], .onetrust-accept-btn');
-                                if (acceptBtn && acceptBtn.offsetParent !== null) acceptBtn.click();
-                            }""")
-                        except Exception:
-                            pass
+                        # ========== PHASE 2: HUMAN BEHAVIOR SIMULATION ==========
+                        # Run the warmup routine to establish "human" session
+                        await human_warmup_routine(page, self.log)
+                        
+                        # Start background mouse jitter task (maintains human presence)
+                        mouse_jitter_task = asyncio.create_task(
+                            continuous_mouse_jitter(page, self._stop_evt)
+                        )
                         
                     except Exception as e:
                         self.log("ERR", f"Could not launch browser: {e}")
@@ -1058,8 +1331,10 @@ class ScraperController:
                         # Save state for resume
                         self.save_state(1, target_file)
                         
-                        # Close browser
+                        # Cancel mouse jitter task and close browser
                         try:
+                            if 'mouse_jitter_task' in dir() and mouse_jitter_task:
+                                mouse_jitter_task.cancel()
                             await (browser.close() if browser else ctx.close())
                             self.log("OK", "✅ Browser closed. Starting 15-minute wait...")
                         except:
@@ -1643,6 +1918,8 @@ class ScraperController:
                             self.log("OK", "Opened second seed URL")
                         except Exception as e:
                             self.log("ERR", f"Could not open second seed URL: {e}")
+                            if 'mouse_jitter_task' in dir() and mouse_jitter_task:
+                                mouse_jitter_task.cancel()
                             await (browser.close() if browser else ctx.close())
                             self.log("INFO", "✅ Browser closed successfully.")
                             self._stop_evt.set()
@@ -1864,6 +2141,8 @@ class ScraperController:
                 
                 # Close browser explicitly
                 try:
+                    if 'mouse_jitter_task' in dir() and mouse_jitter_task:
+                        mouse_jitter_task.cancel()
                     if browser:
                         await browser.close()
                     elif ctx:
@@ -1902,6 +2181,8 @@ class ScraperController:
                     
                     # Close browser
                     try:
+                        if 'mouse_jitter_task' in dir() and mouse_jitter_task:
+                            mouse_jitter_task.cancel()
                         if browser: await browser.close()
                         elif ctx: await ctx.close()
                     except: pass
@@ -1941,6 +2222,8 @@ class ScraperController:
             self.log("INFO", "Scraping finished.")
             # Close browser/context properly based on mode (if not already closed)
             try:
+                if 'mouse_jitter_task' in dir() and mouse_jitter_task:
+                    mouse_jitter_task.cancel()
                 if browser is not None:
                     await browser.close()
                 elif ctx is not None:
