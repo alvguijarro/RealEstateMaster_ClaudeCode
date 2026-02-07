@@ -136,21 +136,33 @@ h1 {
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     width: 100%;
-    align-items: start;
-    /* Align to top */
+    align-items: stretch;
+    /* Both columns stretch to match the tallest */
 }
 
-/* Right Column: Stacked Panels */
+/* Left Panel: Main Controls */
+.control-panel-main {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Right Column: Stacked Panels (50/50 split) */
 .right-panel-stack {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    height: 100%;
+    /* Fill the grid cell height */
 }
 
 .province-selection-panel,
 .excel-update-panel {
-    flex: none;
-    /* Don't stretch */
+    flex: 1;
+    /* Each takes 50% of the available height */
+    overflow-y: auto;
+    /* Scroll if content exceeds the allocated height */
+    min-height: 0;
+    /* Required for flex overflow to work */
 }
 
 /* Global Action Buttons Row */
@@ -169,6 +181,18 @@ h1 {
 @media (max-width: 900px) {
     .scraper-layout-row {
         grid-template-columns: 1fr;
+    }
+
+    .right-panel-stack {
+        height: auto;
+        /* Auto height on mobile */
+    }
+
+    .province-selection-panel,
+    .excel-update-panel {
+        flex: none;
+        /* Don't stretch on mobile */
+        overflow-y: visible;
     }
 }
 
