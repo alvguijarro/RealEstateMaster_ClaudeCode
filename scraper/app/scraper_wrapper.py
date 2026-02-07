@@ -1499,42 +1499,71 @@ class ScraperController:
             
                     # If still no count after all retries, likely a block/CAPTCHA
                     if total_count == 0:
-                        self.log("WARN", "⚠️ Se ha detectado un bloqueo (0 inmuebles encontrados en página).")
-                        self.log("WARN", "Guardando estado y esperando 15 minutos antes de reintentar...")
+                        self.log("WARN", "⚠️ BLOCK DETECTED: 0 properties found on page (CAPTCHA/Block)")
+                        
+                        # Mark current profile as blocked
+                        current_engine = self.browser_engine
+                        mark_profile_blocked(current_engine)
+                        self.log("WARN", f"⏳ Profile '{current_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
                         
                         # Save state for resume
                         self.save_state(1, target_file)
                         
-                        # Cancel mouse jitter task and close browser
+                        # Cancel mouse jitter and close browser
                         try:
                             if 'mouse_jitter_task' in dir() and mouse_jitter_task:
                                 mouse_jitter_task.cancel()
                             await (browser.close() if browser else ctx.close())
-                            self.log("OK", "✅ Browser closed. Starting 15-minute wait...")
                         except:
                             pass
                         
-                        if self.on_status:
-                            self.on_status("blocked", message="Esperando 15 minutos para reintentar...")
+                        # ROTATION: Try to switch to a different engine immediately
+                        next_engine = select_next_engine(current_engine)
                         
-                        # Countdown (15 minutes)
-                        for remaining in range(15, 0, -1):
+                        if next_engine and next_engine != current_engine:
+                            self.log("INFO", f"🔄 ROTATION: Switching to fresh engine '{next_engine.upper()}' for immediate retry!")
+                            self.browser_engine = next_engine
+                            wait_time = random.randint(5, 15)
+                            
+                            if self.on_status:
+                                self.on_status("blocked", message=f"Rotando a {next_engine.upper()} en {wait_time}s...")
+                            
+                            await self._interruptible_sleep(float(wait_time))
+                            
                             if self._stop_evt.is_set():
+                                self.log("INFO", "Retry cancelled by user.")
+                                self.is_running = False
+                                self.status = "stopped"
                                 break
-                            # Wait in 5-second chunks to allow stop detection
-                            for _ in range(12):  # 12 * 5s = 60s
+                            
+                            self.log("OK", f"🔄 Restarting with {next_engine.upper()}...")
+                            continue  # Loop back to restart with new browser
+                        else:
+                            # All engines blocked - must wait for cooldown
+                            cooldown_remaining = get_cooldown_remaining(current_engine)
+                            wait_minutes = max(cooldown_remaining, 1)
+                            self.log("WARN", f"⚠️ All browser profiles blocked. Waiting {wait_minutes} min for cooldown...")
+                            
+                            if self.on_status:
+                                self.on_status("blocked", message=f"Esperando {wait_minutes} minutos para reintentar...")
+                            
+                            # Countdown
+                            for remaining in range(wait_minutes, 0, -1):
                                 if self._stop_evt.is_set():
                                     break
-                                await asyncio.sleep(5)
-                        
-                        if self._stop_evt.is_set():
-                            self.log("INFO", "Retry cancelled by user.")
-                            self.is_running = False
-                            self.status = "stopped"
-                            break
-                        
-                        self.log("OK", "🔄 Reintentando ahora...")
-                        continue  # Loop back to restart browser
+                                for _ in range(12):  # 12 * 5s = 60s
+                                    if self._stop_evt.is_set():
+                                        break
+                                    await asyncio.sleep(5)
+                            
+                            if self._stop_evt.is_set():
+                                self.log("INFO", "Retry cancelled by user.")
+                                self.is_running = False
+                                self.status = "stopped"
+                                break
+                            
+                            self.log("OK", "🔄 Reintentando ahora...")
+                            continue  # Loop back to restart browser
 
             
                     # Detect alquiler/venta from h1 text

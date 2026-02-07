@@ -1,2 +1,3 @@
-2026/02/07-09:59:32.506 9b2c Creating DB C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile_chromium\Default\shared_proto_db since it was missing.
-2026/02/07-09:59:32.665 9b2c Reusing MANIFEST C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile_chromium\Default\shared_proto_db/MANIFEST-000001
+2026/02/07-10:08:32.172 7498 Reusing MANIFEST C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile_chromium\Default\shared_proto_db/MANIFEST-000001
+2026/02/07-10:08:32.173 7498 Recovering log #3
+2026/02/07-10:08:32.173 7498 Reusing old log C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile_chromium\Default\shared_proto_db/000003.log 

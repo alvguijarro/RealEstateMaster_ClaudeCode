@@ -1,2 +1,3 @@
-2026/02/07-09:59:31.701 a914 Creating DB C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile_chromium\Default\Sync Data\LevelDB since it was missing.
-2026/02/07-09:59:32.170 a914 Reusing MANIFEST C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile_chromium\Default\Sync Data\LevelDB/MANIFEST-000001
+2026/02/07-10:08:31.580 7498 Reusing MANIFEST C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile_chromium\Default\Sync Data\LevelDB/MANIFEST-000001
+2026/02/07-10:08:31.582 7498 Recovering log #3
+2026/02/07-10:08:31.582 7498 Reusing old log C:\Users\alvgu\.gemini\antigravity\playground\RealEstateMaster\scraper\stealth_profile_chromium\Default\Sync Data\LevelDB/000003.log 
