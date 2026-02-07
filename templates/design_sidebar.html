@@ -382,7 +382,7 @@
             'scraper': 5003,
             'analyzer': 5001,
             'metrics': 5004,
-            'merger': 5001,
+            'merger': 5002,
             'calculator': 5001
         };
 
@@ -463,7 +463,7 @@
 
                 // 3. Service is ready, set iframe src with cache-busting
                 let path = '';
-                if (service === 'merger') path = '/merger';
+                if (service === 'merger') path = '';  // Merger now serves at root
                 if (service === 'calculator') path = '/calculator';
 
                 const url = `http://127.0.0.1:${PORTS[service]}${path}?_t=${Date.now()}`;
@@ -522,7 +522,7 @@
 
                 // Service is ready, load with timestamp (only first time)
                 let path = '';
-                if (viewName === 'merger') path = '/merger';
+                if (viewName === 'merger') path = '';  // Merger now serves at root
                 if (viewName === 'calculator') path = '/calculator';
                 const url = `http://127.0.0.1:${PORTS[viewName]}${path}?_t=${Date.now()}`;
                 frame.src = url;

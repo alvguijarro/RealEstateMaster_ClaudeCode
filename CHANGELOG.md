@@ -34,6 +34,22 @@
     - Fixed Ceuta and Melilla patterns to use the specific `[city]-[city]` format (e.g., `ceuta-ceuta`).
 - **Data Integrity**: Province expansion ensures more granular results, reducing the likelihood of hitting "soft blocks" by spreading the load across smaller search segments.
 
+## [2026-02-07]
+
+### Added
+- **Merger Tool Overhaul**: Complete refactor of the Excel Merger utility (`merger/app.py`).
+    - **Advanced Sorting**: Added functionality to sort the file list by Name (A-Z), Modification Date (Newest/Oldest), and File Size.
+    - **Detailed Statistics**: The merge result screen now provides a comprehensive breakdown:
+        - Unique properties and districts for *File 1*.
+        - Unique properties and districts for *File 2*.
+        - Final unique count and total **duplicates removed** in the merged file.
+    - **Flexible Validation**: Updated backend logic to accept both English ("rent", "sale") and Spanish ("alquiler", "venta") keywords in filenames.
+    - **Output Naming**: Standardized output filenames to end in `_MERGED.xlsx` (previously `_MERGE.xlsx`).
+- **Batch Data Consolidation**: Implemented and executed a one-off batch script (`batch_merger.py`) to consolidate all historical scattered files in `scraper/salidas`.
+    - Merged multiple "updated" batches into unified files.
+    - Merged API-only batches with Idealista-scraped files for A Coruña, Alicante, Álava, and Toledo.
+    - Cleaned up the workspace by moving 30+ intermediate/original files to `scraper/salidas/old`.
+
 ## [2026-02-06]
 
 ### Added

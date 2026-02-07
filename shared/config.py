@@ -12,6 +12,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 SCRAPER_DIR = PROJECT_ROOT / "scraper"
 ANALYZER_DIR = PROJECT_ROOT / "analyzer"
 DASHBOARD_DIR = PROJECT_ROOT / "dashboard"
+MERGER_DIR = PROJECT_ROOT / "merger"
 OUTPUT_DIR = SCRAPER_DIR / "salidas"
 
 # =============================================================================
@@ -19,6 +20,7 @@ OUTPUT_DIR = SCRAPER_DIR / "salidas"
 # =============================================================================
 DASHBOARD_PORT = 5000  # Main launcher/unified dashboard
 ANALYZER_PORT = 5001   # Analyzer Pro service
+MERGER_PORT = 5002     # Merger Tool service
 SCRAPER_PORT = 5003    # Idealista Scraper service
 METRICS_PORT = 5004    # Market Metrics Dashboard
 
