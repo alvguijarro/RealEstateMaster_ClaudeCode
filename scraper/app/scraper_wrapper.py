@@ -1477,8 +1477,49 @@ class ScraperController:
                         }""")
                         await asyncio.sleep(1.0)
                     except Exception:
+                    except Exception:
                         pass
             
+                    # =============================================================================
+                    # PRIORITY BLOCK DETECTION (Moved before property count extraction)
+                    # =============================================================================
+                    try:
+                        # minimal wait for body to stand chance of having text
+                        await asyncio.sleep(2.0)
+                        
+                        # 1. Check page title for clear block indicators
+                        page_title = await page.title()
+                        title_lower = page_title.lower() if page_title else ""
+                        
+                        if "idealista" in title_lower and ("captcha" in title_lower or "challenge" in title_lower):
+                             raise Exception("CAPTCHA detected in title")
+                             
+                        # 2. Check body text for specific block messages
+                        # capturing innerText is fast and effective for these specific blocking pages
+                        body_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+                        text_lower = body_text.lower() if body_text else ""
+                        
+                        block_keywords = [
+                            "uso indebido", "se ha bloqueado", "access denied", 
+                            "muchas peticiones", "asegurar tu acceso", "verificar que eres un humano"
+                        ]
+                        
+                        for kw in block_keywords:
+                            if kw in text_lower:
+                                self.log("WARN", f"⚠️ EARLY BLOCK DETECTED: Found '{kw}' in page body.")
+                                raise BlockedException(f"Early block detection: {kw}")
+                                
+                    except BlockedException as be:
+                        # Re-raise to be caught by the main loop handler which handles rotation
+                        raise be
+                    except Exception:
+                        # Ignore other errors here, let main logic proceed if no clear block found
+                        pass
+                        
+                    # =============================================================================
+                    # END PRIORITY DETECTION
+                    # =============================================================================
+
                     # Detect sheet name and total properties from page
                     self.log("INFO", "Waiting for page to load property count...")
                     h1txt = ""
@@ -1756,6 +1797,33 @@ class ScraperController:
                         
                                 # Get page info for debugging
                                 try:
+                                    # =============================================================================
+                                    # LOOP PRIORITY BLOCK DETECTION
+                                    # =============================================================================
+                                    # Check for blocks on each new page before parsing
+                                    try:
+                                        current_url = page.url
+                                        page_content = await page.content() # Get full HTML content
+                                        content_lower = page_content.lower()
+                                        
+                                        if "uso indebido" in content_lower or "se ha bloqueado" in content_lower or "access denied" in content_lower:
+                                            self.log("ERR", f"🚫 BLOCK DETECTED on page {page_num}: 'Uso indebido'.")
+                                            # Raise BlockedException to trigger rotation
+                                            raise BlockedException("Loop block detection: uso indebido")
+                                            
+                                        if "captcha" in content_lower and ("verificar" in content_lower or "robot" in content_lower):
+                                             self.log("WARN", f"⚠️ CAPTCHA DETECTED on page {page_num}.")
+                                             raise BlockedException("Loop block detection: CAPTCHA")
+
+                                    except BlockedException:
+                                        raise # Let the handler deal with it
+                                    except Exception:
+                                        pass # Continue if check fails (e.g. page closed)
+                                        
+                                    # =============================================================================
+
+                                    # 4. Parse content
+                                    html_content = await page.content()
                                     page_title = await page.title()
                                     page_url = page.url
                                     self.log("INFO", f"Current URL: {page_url}")
