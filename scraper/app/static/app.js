@@ -833,6 +833,12 @@ function initializeUI() {
     pauseBtn.addEventListener('click', togglePause);
     stopBtn.addEventListener('click', stopScraping);
     clearLogsBtn.addEventListener('click', clearLogs);
+
+    // New Batch Scraping Button (Province Panel)
+    const startBatchBtnEl = document.getElementById('startBatchBtn');
+    if (startBatchBtnEl) {
+        startBatchBtnEl.addEventListener('click', startBatchFromProvinces);
+    }
     clearHistoryBtn.addEventListener('click', clearHistory);
 
     // Auto-scroll toggle for logs
@@ -1104,56 +1110,8 @@ async function startScraping(isDualMode = false) {
         await audioCtx.resume();
     }
 
-    // BATCH MODE CHECK
-    if (isBatchMode) {
-        const urls = [];
-        // Use verified URLs from provinceUrls lookup
-        selectedVenta.forEach(slug => {
-            const urlData = provinceUrls[slug];
-            urls.push(urlData ? urlData.venta_url : `https://www.idealista.com/venta-viviendas/${slug}/con-precio-hasta_300000/`);
-        });
-        selectedAlquiler.forEach(slug => {
-            const urlData = provinceUrls[slug];
-            urls.push(urlData ? urlData.alquiler_url : `https://www.idealista.com/alquiler-viviendas/${slug}/`);
-        });
-
-        if (urls.length === 0) return;
-
-        addLog('INFO', `🚀 Iniciando Batch Scraping de ${urls.length} provincias...`);
-
-        try {
-            const resp = await fetch('/api/start-batch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ urls: urls, mode: currentMode })
-            });
-            const data = await resp.json();
-            if (data.status === 'started') {
-                addLog('OK', `Batch iniciado (PID: ${data.pid}, URLs totales: ${data.count})`);
-
-                // Update UI state for batch mode
-                isRunning = true;
-                isPaused = false;
-                startBtn.disabled = true;
-                pauseBtn.disabled = false;
-                stopBtn.disabled = false;
-                pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
-                seedUrlInput.disabled = true;
-                if (dualModeBtn) dualModeBtn.disabled = true;
-                if (startApiImportBtn) startApiImportBtn.disabled = true;
-
-                // Update status badge
-                statusBadge.className = 'status-badge running';
-                statusBadge.querySelector('.status-text').textContent = 'Ejecutando (Batch)';
-
-                // Start timer
-                startTimer();
-            } else {
-                addLog('ERR', data.error);
-            }
-        } catch (e) { addLog('ERR', e.message); }
-        return;
-    }
+    // NOTE: Batch mode is now handled exclusively by startBatchFromProvinces()
+    // triggered via the dedicated "Iniciar scraping de provincias" button.
 
     const seedUrl = seedUrlInput.value.trim();
 
@@ -2354,46 +2312,15 @@ function updateSelectionUI() {
     if (textV) textV.textContent = vCount > 0 ? vCount + ' seleccionadas' : 'Selecciona provincias...';
     if (textA) textA.textContent = aCount > 0 ? aCount + ' seleccionadas' : 'Selecciona provincias...';
 
-    // Logic for Seed URL Input
+    // Update batch mode flag and validate the dedicated batch button
     const total = vCount + aCount;
-    if (total > 1) {
-        isBatchMode = true;
-        seedUrlInput.value = '[MODO BATCH] ' + total + ' provincias seleccionadas';
-        seedUrlInput.disabled = true;
-
-    } else if (total === 1) {
-        isBatchMode = false;
-        seedUrlInput.disabled = false;
-        // Use verified URL from lookup
-        let url = '';
-        if (vCount === 1) {
-            const slug = [...selectedVenta][0];
-            const urlData = provinceUrls[slug];
-            url = urlData ? urlData.venta_url : 'https://www.idealista.com/venta-viviendas/' + slug + '/con-precio-hasta_300000/';
-        } else {
-            const slug = [...selectedAlquiler][0];
-            const urlData = provinceUrls[slug];
-            url = urlData ? urlData.alquiler_url : 'https://www.idealista.com/alquiler-viviendas/' + slug + '/';
-        }
-        seedUrlInput.value = url;
-    } else {
-        isBatchMode = false;
-        seedUrlInput.disabled = false;
-        // If 0 selected, user can type manually. Use placeholder.
-        if (seedUrlInput.value.startsWith('[MODO BATCH]')) {
-            seedUrlInput.value = '';
-        }
-    }
-
-    validateStartButton();
+    isBatchMode = total > 0;
+    validateBatchButton();
 }
 
 /**
  * Validates if the "Start Scraping" button should be enabled.
- * Enabled if:
- * 1. Seed URL input has a valid Idealista URL (venta, alquiler, or habitaciones)
- * OR
- * 2. Multi-province batch mode has at least one selection (indicated by isBatchMode or selections)
+ * Only checks the manual URL input; province selection is handled by the dedicated batch button.
  */
 function validateStartButton() {
     if (isRunning || isPaused) return; // Don't enable if already running/paused
@@ -2402,18 +2329,96 @@ function validateStartButton() {
     const hasValidUrl = url.includes('idealista.com/') &&
         (url.includes('/alquiler-') || url.includes('/venta-') || url.includes('/habitacion-'));
 
-    const hasProvinceSelection = selectedVenta.size > 0 || selectedAlquiler.size > 0;
-
-    // In batch mode, the URL input is disabled and contains "[MODO BATCH]"
-    const isBatchActive = isBatchMode && hasProvinceSelection;
-
-    if (hasValidUrl || isBatchActive) {
+    if (hasValidUrl) {
         startBtn.disabled = false;
         startBtn.title = "";
     } else {
         startBtn.disabled = true;
-        startBtn.title = "Introduce una URL válida de Idealista o selecciona provincias arriba.";
+        startBtn.title = "Introduce una URL válida de Idealista.";
     }
+}
+
+/**
+ * Validates if the dedicated "Iniciar scraping de provincias" button should be enabled.
+ * Enabled if at least one province is selected.
+ */
+function validateBatchButton() {
+    const startBatchBtnEl = document.getElementById('startBatchBtn');
+    if (!startBatchBtnEl) return;
+
+    if (isRunning || isPaused) {
+        startBatchBtnEl.disabled = true;
+        return;
+    }
+
+    const hasProvinceSelection = selectedVenta.size > 0 || selectedAlquiler.size > 0;
+    startBatchBtnEl.disabled = !hasProvinceSelection;
+}
+
+/**
+ * Starts batch scraping from the selected provinces using Fast mode.
+ * Triggered by the "Iniciar scraping de provincias" button.
+ */
+async function startBatchFromProvinces() {
+    // Initialize Audio Context on user gesture
+    if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+            audioCtx = new AudioContext();
+        }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+    }
+
+    const urls = [];
+    // Use verified URLs from provinceUrls lookup
+    selectedVenta.forEach(slug => {
+        const urlData = provinceUrls[slug];
+        urls.push(urlData ? urlData.venta_url : `https://www.idealista.com/venta-viviendas/${slug}/con-precio-hasta_300000/`);
+    });
+    selectedAlquiler.forEach(slug => {
+        const urlData = provinceUrls[slug];
+        urls.push(urlData ? urlData.alquiler_url : `https://www.idealista.com/alquiler-viviendas/${slug}/`);
+    });
+
+    if (urls.length === 0) return;
+
+    addLog('INFO', `🚀 Iniciando Batch Scraping de ${urls.length} provincias (Modo Fast)...`);
+
+    try {
+        const resp = await fetch('/api/start-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls: urls, mode: 'fast' })
+        });
+        const data = await resp.json();
+        if (data.status === 'started') {
+            addLog('OK', `Batch iniciado (PID: ${data.pid}, URLs totales: ${data.count})`);
+
+            // Update UI state for batch mode
+            isRunning = true;
+            isPaused = false;
+            startBtn.disabled = true;
+            pauseBtn.disabled = false;
+            stopBtn.disabled = false;
+            pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
+            seedUrlInput.disabled = true;
+            if (dualModeBtn) dualModeBtn.disabled = true;
+            const startBatchBtnEl = document.getElementById('startBatchBtn');
+            if (startBatchBtnEl) startBatchBtnEl.disabled = true;
+            if (typeof startApiImportBtn !== 'undefined' && startApiImportBtn) startApiImportBtn.disabled = true;
+
+            // Update status badge
+            statusBadge.className = 'status-badge running';
+            statusBadge.querySelector('.status-text').textContent = 'Ejecutando (Batch)';
+
+            // Start timer
+            startTimer();
+        } else {
+            addLog('ERR', data.error);
+        }
+    } catch (e) { addLog('ERR', e.message); }
 }
 
 function setupMultiSelectUI() {

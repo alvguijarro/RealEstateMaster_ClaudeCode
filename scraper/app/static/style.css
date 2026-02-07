@@ -136,6 +136,21 @@ h1 {
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     width: 100%;
+    align-items: start;
+    /* Align to top */
+}
+
+/* Right Column: Stacked Panels */
+.right-panel-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.province-selection-panel,
+.excel-update-panel {
+    flex: none;
+    /* Don't stretch */
 }
 
 /* Global Action Buttons Row */

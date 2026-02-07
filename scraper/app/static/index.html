@@ -94,93 +94,118 @@
                             </div>
                         </section>
 
-                        <!-- RIGHT: Actualizar provincias completas -->
-                        <section class="panel url-update-panel">
-                            <h3
-                                style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-                                <span style="margin-right:8px;">🔄</span> Actualizar provincias completas
-                            </h3>
+                        <!-- RIGHT: Two-panel stack -->
+                        <div class="right-panel-stack">
+                            <!-- Panel 1: Actualizar provincias completas (Province Selection + Batch Scrape) -->
+                            <section class="panel province-selection-panel">
+                                <h3
+                                    style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                                    <span style="margin-right:8px;">🗺️</span> Actualizar provincias completas
+                                </h3>
 
-                            <!-- Multi-Province Selectors (Managed by app.js) -->
-                            <div class="multi-select-container" style="display: flex; gap: 15px; margin-bottom: 20px;">
-                                <!-- VENTA -->
-                                <div class="custom-dropdown-group" style="flex: 1; position: relative; z-index: 101;">
-                                    <label
-                                        style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Provincias
-                                        (Venta < 300k)</label>
-                                            <div class="dropdown-trigger" id="triggerVenta" tabindex="0">
-                                                <span id="selectedTextVenta">Selecciona provincias...</span>
-                                                <span class="arrow">▼</span>
-                                            </div>
-                                            <div class="dropdown-overlay" id="dropdownVenta">
-                                                <div class="dropdown-search">
-                                                    <input type="text" placeholder="Buscar..." id="searchVenta">
+                                <!-- Multi-Province Selectors (Managed by app.js) -->
+                                <div class="multi-select-container"
+                                    style="display: flex; gap: 15px; margin-bottom: 20px;">
+                                    <!-- VENTA -->
+                                    <div class="custom-dropdown-group"
+                                        style="flex: 1; position: relative; z-index: 101;">
+                                        <label
+                                            style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Provincias
+                                            (Venta < 300k)</label>
+                                                <div class="dropdown-trigger" id="triggerVenta" tabindex="0">
+                                                    <span id="selectedTextVenta">Selecciona provincias...</span>
+                                                    <span class="arrow">▼</span>
                                                 </div>
-                                                <div class="dropdown-options" id="listVenta">
-                                                    <!-- JS will populate -->
+                                                <div class="dropdown-overlay" id="dropdownVenta">
+                                                    <div class="dropdown-search">
+                                                        <input type="text" placeholder="Buscar..." id="searchVenta">
+                                                    </div>
+                                                    <div class="dropdown-options" id="listVenta">
+                                                        <!-- JS will populate -->
+                                                    </div>
                                                 </div>
+                                    </div>
+
+                                    <!-- ALQUILER -->
+                                    <div class="custom-dropdown-group"
+                                        style="flex: 1; position: relative; z-index: 101;">
+                                        <label
+                                            style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Provincias
+                                            (Alquiler)</label>
+                                        <div class="dropdown-trigger" id="triggerAlquiler" tabindex="0">
+                                            <span id="selectedTextAlquiler">Selecciona provincias...</span>
+                                            <span class="arrow">▼</span>
+                                        </div>
+                                        <div class="dropdown-overlay" id="dropdownAlquiler">
+                                            <div class="dropdown-search">
+                                                <input type="text" placeholder="Buscar..." id="searchAlquiler">
                                             </div>
-                                </div>
-
-                                <!-- ALQUILER -->
-                                <div class="custom-dropdown-group" style="flex: 1; position: relative; z-index: 101;">
-                                    <label
-                                        style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Provincias
-                                        (Alquiler)</label>
-                                    <div class="dropdown-trigger" id="triggerAlquiler" tabindex="0">
-                                        <span id="selectedTextAlquiler">Selecciona provincias...</span>
-                                        <span class="arrow">▼</span>
-                                    </div>
-                                    <div class="dropdown-overlay" id="dropdownAlquiler">
-                                        <div class="dropdown-search">
-                                            <input type="text" placeholder="Buscar..." id="searchAlquiler">
-                                        </div>
-                                        <div class="dropdown-options" id="listAlquiler">
-                                            <!-- JS will populate -->
+                                            <div class="dropdown-options" id="listAlquiler">
+                                                <!-- JS will populate -->
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <p
-                                style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
-                                Revisa propiedades existentes para detectar anuncios dados de baja (Fast mode)
-                            </p>
+                                <div class="form-group" style="margin-top: 10px;">
+                                    <button class="btn btn-primary" id="startBatchBtn" style="width: 100%;" disabled>
+                                        <span class="btn-icon">⚡</span> Iniciar scraping de provincias
+                                    </button>
+                                    <small
+                                        style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 8px;">
+                                        Modo Fast. Selecciona provincias arriba para activar.
+                                    </small>
+                                </div>
+                            </section>
 
-                            <div class="input-group" style="margin-bottom: 15px;">
-                                <label for="updateExcelFile">Archivo Excel a actualizar</label>
-                                <select id="updateExcelFile">
-                                    <option value="">Cargando archivos...</option>
-                                </select>
-                            </div>
+                            <!-- Panel 2: Actualizar estado de URLs (Excel Update) -->
+                            <section class="panel excel-update-panel">
+                                <h3
+                                    style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                                    <span style="margin-right:8px;">🔄</span> Actualizar estado de URLs
+                                </h3>
 
-                            <!-- Worksheet Multi-Select (hidden initially) -->
-                            <div class="input-group" id="worksheetSelectorGroup"
-                                style="margin-bottom: 15px; display: none;">
-                                <label for="worksheetSearch">Distritos a actualizar</label>
-                                <div class="worksheet-dropdown" style="position: relative;">
-                                    <input type="text" id="worksheetSearch" placeholder="Buscar distritos..."
-                                        style="margin-bottom: 5px;">
-                                    <div id="worksheetList"
-                                        style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.2); padding: 5px;">
+                                <p
+                                    style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+                                    Revisa propiedades existentes para detectar anuncios dados de baja (Fast mode)
+                                </p>
+
+                                <div class="input-group" style="margin-bottom: 15px;">
+                                    <label for="updateExcelFile">Archivo Excel a actualizar</label>
+                                    <select id="updateExcelFile">
+                                        <option value="">Cargando archivos...</option>
+                                    </select>
+                                </div>
+
+                                <!-- Worksheet Multi-Select (hidden initially) -->
+                                <div class="input-group" id="worksheetSelectorGroup"
+                                    style="margin-bottom: 15px; display: none;">
+                                    <label for="worksheetSearch">Distritos a actualizar</label>
+                                    <div class="worksheet-dropdown" style="position: relative;">
+                                        <input type="text" id="worksheetSearch" placeholder="Buscar distritos..."
+                                            style="margin-bottom: 5px;">
+                                        <div id="worksheetList"
+                                            style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.2); padding: 5px;">
+                                        </div>
+                                    </div>
+                                    <small id="worksheetSelectionInfo"
+                                        style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Seleccionadas:
+                                        0</small>
+                                </div>
+
+                                <div class="form-group" style="margin-top: 15px;">
+                                    <div style="display: flex; gap: 10px;">
+                                        <button class="btn btn-primary" id="updateUrlsBtn" style="flex: 1;">
+                                            <span class="btn-icon">🔄</span> Actualizar URLs
+                                        </button>
+                                        <button class="btn btn-info" id="resumeUpdateBtn"
+                                            style="flex: 1; display: none;">
+                                            <span class="btn-icon">▶</span> Reanudar Update
+                                        </button>
                                     </div>
                                 </div>
-                                <small id="worksheetSelectionInfo"
-                                    style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Seleccionadas:
-                                    0</small>
-                            </div>
-
-                            <div class="form-group" style="margin-top: 15px;">
-                                <div style="display: flex; gap: 10px;">
-                                    <button class="btn btn-primary" id="updateUrlsBtn" style="flex: 1;">
-                                        <span class="btn-icon">🔄</span> Actualizar provincias
-                                    </button>
-                                    <button class="btn btn-info" id="resumeUpdateBtn" style="flex: 1; display: none;">
-                                        <span class="btn-icon">▶</span> Reanudar Update
-                                    </button>
-                                </div>
-                            </div>
-                        </section>
+                            </section>
+                        </div>
                     </div>
 
                     <!-- Global Action Buttons Row -->

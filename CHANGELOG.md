@@ -5,13 +5,17 @@
 ### Added
 - **Scraper Tool UI Redesign**: Major interface overhaul for improved efficiency:
     - **50/50 Split Layout**: The main view is now divided into two equal columns, providing a more balanced and readable workspace.
-    - **Module Transformation**: "Actualizar estado de URLs" has been renamed to "**Actualizar provincias completas**" and now houses the multi-province selectors.
-    - **Global Action Bar**: Consolidated all essential controls (Start, Resume, Pause, Stop, Dual Mode, and Server controls) into a unified global row at the bottom of the tool.
-    - **Responsive Grid**: Implemented a dynamic grid that automatically collapses to a single column on smaller screens.
+    - **Module Transformation**: The right column is now split into two panels:
+        - **"Actualizar provincias completas"**: Houses the multi-province selectors (Venta/Alquiler) and a new **"Iniciar scraping de provincias"** button for dedicated batch scraping.
+        - **"Actualizar estado de URLs"**: Separated panel for updating existing Excel files to detect deactivated listings.
+    - **Global Action Bar**: Consolidated essential controls (Start, Resume, Pause, Stop, Dual Mode, Server controls) into a unified row at the bottom.
+    - **Responsive Grid**: Dynamic grid that collapses to single column on smaller screens.
+- **Decoupled Province Selection**: Selecting provinces no longer auto-fills the manual URL input. The URL field is now exclusively for user-entered searches.
+- **Dedicated Batch Button**: The new "Iniciar scraping de provincias" button triggers Fast mode scraping for all selected provinces, keeping the manual URL workflow completely separate.
 
 ### Fixed
-- **Province Dropdown Conflict**: Resolved a "double-toggle" bug where dropdowns would immediately close after being opened due to conflicting HTML and JS event listeners.
-- **Dropdown Generation Logic**: Fixed a string concatenation syntax error in the JavaScript code responsible for populating the province lists.
+- **Province Dropdown Conflict**: Resolved a "double-toggle" bug where dropdowns would immediately close after opening.
+- **Dropdown Generation Logic**: Fixed a string concatenation syntax error in the JavaScript code.
 
 ## [2026-02-07]
 
