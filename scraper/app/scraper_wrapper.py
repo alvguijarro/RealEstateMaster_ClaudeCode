@@ -1499,9 +1499,12 @@ class ScraperController:
                         body_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
                         text_lower = body_text.lower() if body_text else ""
                         
+                        # Updated keywords as per user request (2026-02-07)
                         block_keywords = [
-                            "uso indebido", "se ha bloqueado", "access denied", 
-                            "muchas peticiones", "asegurar tu acceso", "verificar que eres un humano"
+                            "el acceso se ha bloqueado", 
+                            "estamos recibiendo muchas peticiones tuyas",
+                            "uso indebido", # Keep as fallback
+                            "access denied"
                         ]
                         
                         for kw in block_keywords:
@@ -1806,14 +1809,14 @@ class ScraperController:
                                         page_content = await page.content() # Get full HTML content
                                         content_lower = page_content.lower()
                                         
-                                        if "uso indebido" in content_lower or "se ha bloqueado" in content_lower or "access denied" in content_lower:
-                                            self.log("ERR", f"🚫 BLOCK DETECTED on page {page_num}: 'Uso indebido'.")
+                                        if "el acceso se ha bloqueado" in content_lower or "uso indebido" in content_lower or "access denied" in content_lower:
+                                            self.log("ERR", f"🚫 BLOCK DETECTED on page {page_num}: 'Uso indebido/Bloqueado'.")
                                             # Raise BlockedException to trigger rotation
                                             raise BlockedException("Loop block detection: uso indebido")
                                             
-                                        if "captcha" in content_lower and ("verificar" in content_lower or "robot" in content_lower):
-                                             self.log("WARN", f"⚠️ CAPTCHA DETECTED on page {page_num}.")
-                                             raise BlockedException("Loop block detection: CAPTCHA")
+                                        if "estamos recibiendo muchas peticiones tuyas" in content_lower:
+                                             self.log("WARN", f"⚠️ CAPTCHA/LIMIT DETECTED on page {page_num}.")
+                                             raise BlockedException("Loop block detection: Rate Limit/CAPTCHA")
 
                                     except BlockedException:
                                         raise # Let the handler deal with it
