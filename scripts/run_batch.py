@@ -1,6 +1,7 @@
 """
-Batch Scraper Runner (Multi-Province)
+Batch Scraper Runner (Multi-Province) with Multi-Browser Rotation
 Reads targets from batch_queue.json and executes them sequentially.
+Rotates between Chromium and Firefox, respecting profile cooldowns.
 """
 import json
 import sys
@@ -16,6 +17,18 @@ SCRIPT_DIR = Path(__file__).parent.parent / "scraper"
 QUEUE_FILE = SCRIPT_DIR / "batch_queue.json"
 STOP_FLAG = SCRIPT_DIR / "BATCH_STOP.flag"
 PAUSE_FLAG = SCRIPT_DIR / "BATCH_PAUSE.flag"
+
+# Import profile management from scraper
+sys.path.insert(0, str(SCRIPT_DIR / "app"))
+try:
+    from scraper_wrapper import (
+        select_next_engine, get_last_engine, get_available_engines,
+        get_cooldown_remaining, BROWSER_ENGINES, PROFILE_COOLDOWN_MINUTES
+    )
+    HAS_PROFILE_MGMT = True
+except ImportError:
+    HAS_PROFILE_MGMT = False
+    print("[WARN] Could not import profile management. Using default engine.")
 
 # Config
 DELAY_BETWEEN = (10, 30)  # seconds
@@ -40,7 +53,7 @@ def check_signals():
         time.sleep(5)
         if STOP_FLAG.exists(): return
 
-def run_single_url(url: str, mode: str) -> bool:
+def run_single_url(url: str, mode: str, browser_engine: str = "chromium") -> bool:
     target_prov = "Unknown"
     # Basic province extraction for logging
     if "idealista.com" in url:
@@ -68,15 +81,17 @@ def run_single_url(url: str, mode: str) -> bool:
                 log("[ERR] Scraper server not running after multiple attempts. Aborting.")
                 return False
         
-    # Start Scrape via API
+    # Start Scrape via API with browser engine selection
     payload = {
         "seed_url": url,
         "mode": mode,
-        "max_pages": 4000 # High limit for batch
+        "max_pages": 4000, # High limit for batch
+        "browser_engine": browser_engine  # Multi-browser rotation
     }
     
     try:
-        log(f"Starting batch item: {target_prov}")
+        engine_emoji = "🦊" if browser_engine == "firefox" else "🌐"
+        log(f"{engine_emoji} Starting [{browser_engine.upper()}]: {target_prov}")
         resp = requests.post("http://localhost:5003/api/start", json=payload, timeout=10)
         
         if resp.status_code != 200:
@@ -111,6 +126,11 @@ def run_single_url(url: str, mode: str) -> bool:
 def main():
     log("=== BATCH SCRAPER STARTED ===")
     
+    if HAS_PROFILE_MGMT:
+        log(f"🔄 Multi-browser rotation enabled: {BROWSER_ENGINES}")
+    else:
+        log("⚠️ Multi-browser rotation NOT available (using chromium only)")
+    
     if not QUEUE_FILE.exists():
         log("[ERR] No batch queue file found.")
         sys.exit(1)
@@ -134,7 +154,32 @@ def main():
         # Retry logic (Infinite retries for blocks)
         success = False
         while not success:
-            success = run_single_url(url, mode)
+            # Select browser engine with rotation and cooldown checking
+            if HAS_PROFILE_MGMT:
+                last_engine = get_last_engine()
+                selected_engine = select_next_engine(last_engine)
+                
+                # If all engines are in cooldown, wait for the first one to be available
+                if selected_engine is None:
+                    available = get_available_engines()
+                    if not available:
+                        # Find minimum remaining cooldown across all engines
+                        min_wait = min(get_cooldown_remaining(eng) for eng in BROWSER_ENGINES)
+                        log(f"⏳ All browser profiles in cooldown. Waiting {min_wait} min...", "WARN")
+                        for _ in range(min_wait * 60):
+                            time.sleep(1)
+                            check_signals()
+                        # Try again
+                        selected_engine = select_next_engine(last_engine)
+                        if selected_engine is None:
+                            selected_engine = "chromium"  # Fallback
+                
+                log(f"🎯 Selected engine: {selected_engine.upper()}")
+            else:
+                selected_engine = "chromium"
+            
+            success = run_single_url(url, mode, selected_engine)
+            
             if not success:
                 log(f"Esperando {BLOCK_WAIT_TIME // 60} minutos para recuperación de IP...", "WARN")
                 # Countdown timer - more responsive signal checking

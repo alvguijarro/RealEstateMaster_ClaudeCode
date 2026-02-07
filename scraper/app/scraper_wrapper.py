@@ -89,8 +89,153 @@ RESUME_STATE_FILE = str(Path(__file__).parent / "resume_state.json")
 # Scrape history registry file path
 SCRAPE_HISTORY_FILE = str(Path(DEFAULT_OUTPUT_DIR) / "scrape_history.json")
 
-# Persistent browser profile for Stealth mode (stores cookies, localStorage, etc.)
-STEALTH_PROFILE_DIR = str(Path(__file__).parent.parent / "stealth_profile")
+# =============================================================================
+# MULTI-BROWSER SUPPORT WITH PROFILE COOLDOWN
+# =============================================================================
+
+# Browser engine options
+BROWSER_ENGINES = ["chromium", "firefox"]
+
+# Profile directories per engine
+PROFILE_DIRS = {
+    "chromium": str(Path(__file__).parent.parent / "stealth_profile_chromium"),
+    "firefox": str(Path(__file__).parent.parent / "stealth_profile_firefox"),
+}
+
+# Legacy alias for backward compatibility
+STEALTH_PROFILE_DIR = PROFILE_DIRS["chromium"]
+
+# Cooldown tracking file
+PROFILE_COOLDOWN_FILE = str(Path(__file__).parent / "profile_cooldowns.json")
+
+# Cooldown duration in minutes
+PROFILE_COOLDOWN_MINUTES = 15
+
+
+def load_profile_cooldowns() -> dict:
+    """Load profile cooldown timestamps from file."""
+    if not os.path.exists(PROFILE_COOLDOWN_FILE):
+        return {}
+    try:
+        with open(PROFILE_COOLDOWN_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+
+def save_profile_cooldowns(cooldowns: dict) -> None:
+    """Save profile cooldown timestamps to file."""
+    try:
+        with open(PROFILE_COOLDOWN_FILE, "w", encoding="utf-8") as f:
+            json.dump(cooldowns, f, indent=2)
+    except IOError:
+        pass
+
+
+def mark_profile_blocked(engine: str) -> None:
+    """Mark a browser profile as blocked, starting its cooldown timer."""
+    import time
+    cooldowns = load_profile_cooldowns()
+    cooldowns[engine] = time.time()
+    save_profile_cooldowns(cooldowns)
+
+
+def is_profile_available(engine: str) -> bool:
+    """Check if a browser profile is available (not in cooldown)."""
+    import time
+    cooldowns = load_profile_cooldowns()
+    
+    if engine not in cooldowns:
+        return True
+    
+    blocked_at = cooldowns[engine]
+    elapsed_minutes = (time.time() - blocked_at) / 60
+    
+    if elapsed_minutes >= PROFILE_COOLDOWN_MINUTES:
+        # Cooldown expired, clear it
+        del cooldowns[engine]
+        save_profile_cooldowns(cooldowns)
+        return True
+    
+    return False
+
+
+def get_cooldown_remaining(engine: str) -> int:
+    """Get remaining cooldown time in minutes for a profile."""
+    import time
+    cooldowns = load_profile_cooldowns()
+    
+    if engine not in cooldowns:
+        return 0
+    
+    blocked_at = cooldowns[engine]
+    elapsed_minutes = (time.time() - blocked_at) / 60
+    remaining = PROFILE_COOLDOWN_MINUTES - elapsed_minutes
+    
+    return max(0, int(remaining))
+
+
+def get_available_engines() -> List[str]:
+    """Get list of browser engines not currently in cooldown."""
+    return [engine for engine in BROWSER_ENGINES if is_profile_available(engine)]
+
+
+def select_next_engine(last_engine: Optional[str] = None) -> Optional[str]:
+    """
+    Select the next available browser engine using sequential rotation.
+    
+    If last_engine is provided, tries to pick a different one.
+    Returns None if all engines are in cooldown.
+    """
+    available = get_available_engines()
+    
+    if not available:
+        return None
+    
+    if last_engine is None or last_engine not in BROWSER_ENGINES:
+        # First run: pick first available
+        return available[0]
+    
+    # Try to pick a different engine
+    current_idx = BROWSER_ENGINES.index(last_engine)
+    for i in range(1, len(BROWSER_ENGINES) + 1):
+        next_idx = (current_idx + i) % len(BROWSER_ENGINES)
+        candidate = BROWSER_ENGINES[next_idx]
+        if candidate in available:
+            return candidate
+    
+    # All in cooldown
+    return None
+
+
+def clear_all_cooldowns() -> None:
+    """Clear all profile cooldowns (for manual reset)."""
+    save_profile_cooldowns({})
+
+
+# Engine tracking file (to know which engine was used last)
+LAST_ENGINE_FILE = str(Path(__file__).parent / "last_engine.txt")
+
+
+def get_last_engine() -> Optional[str]:
+    """Get the last used browser engine."""
+    try:
+        if os.path.exists(LAST_ENGINE_FILE):
+            with open(LAST_ENGINE_FILE, "r") as f:
+                engine = f.read().strip()
+                return engine if engine in BROWSER_ENGINES else None
+    except IOError:
+        pass
+    return None
+
+
+def set_last_engine(engine: str) -> None:
+    """Record the last used browser engine."""
+    try:
+        with open(LAST_ENGINE_FILE, "w") as f:
+            f.write(engine)
+    except IOError:
+        pass
 
 
 # =============================================================================
@@ -505,6 +650,7 @@ class ScraperController:
     output_dir: str = DEFAULT_OUTPUT_DIR  # Configurable output directory
     dual_mode_url: Optional[str] = None  # Second URL for DUAL MODE (same browser session)
     use_vpn: bool = False
+    browser_engine: str = "chromium"  # "chromium" or "firefox" - for multi-browser rotation
     rotate_every: int = 5  # Rotate every N properties or pages? User said provinces, but here we only have one URL.
     # For standard scraper, maybe rotate every N pages.
     
@@ -1167,13 +1313,15 @@ class ScraperController:
             target_file = self.output_file # Initialize safe default
             try:
                 async with async_playwright() as pw:
-                    self.log("INFO", "Launching browser...")
-            
-                    # Unified Browser Launch: Always use persistent profile for better trust (even in Fast mode)
-                    os.makedirs(STEALTH_PROFILE_DIR, exist_ok=True)
+                    # ========== MULTI-BROWSER ENGINE SELECTION ==========
+                    engine = self.browser_engine
+                    profile_dir = PROFILE_DIRS.get(engine, PROFILE_DIRS["chromium"])
+                    os.makedirs(profile_dir, exist_ok=True)
                     
-                    # Browser args for stealth and performance
-                    browser_args = [
+                    self.log("INFO", f"Launching browser: {engine.upper()}...")
+                    
+                    # Browser args for stealth and performance (Chromium-specific)
+                    chromium_args = [
                         "--start-minimized",
                         "--window-size=1280,900",
                         "--disable-dev-shm-usage",
@@ -1184,17 +1332,38 @@ class ScraperController:
                         "--disable-popup-blocking",
                     ]
                     
+                    # Firefox-specific args (different format)
+                    firefox_prefs = {
+                        "dom.webdriver.enabled": False,
+                        "useAutomationExtension": False,
+                    }
+                    
                     try:
-                        # Launch with persistent context: maintains cookies/session/trust
-                        ctx = await pw.chromium.launch_persistent_context(
-                            user_data_dir=STEALTH_PROFILE_DIR,
-                            headless=False,
-                            args=browser_args,
-                            ignore_default_args=["--enable-automation", "--no-sandbox"],
-                            viewport={"width": 1280, "height": 900},
-                            user_agent=self.get_random_user_agent(),
-                        )
+                        # Launch based on selected engine
+                        if engine == "firefox":
+                            ctx = await pw.firefox.launch_persistent_context(
+                                user_data_dir=profile_dir,
+                                headless=False,
+                                viewport={"width": 1280, "height": 900},
+                                firefox_user_prefs=firefox_prefs,
+                            )
+                            self.log("OK", f"🦊 Firefox launched with profile: {os.path.basename(profile_dir)}")
+                        else:
+                            # Default: Chromium
+                            ctx = await pw.chromium.launch_persistent_context(
+                                user_data_dir=profile_dir,
+                                headless=False,
+                                args=chromium_args,
+                                ignore_default_args=["--enable-automation", "--no-sandbox"],
+                                viewport={"width": 1280, "height": 900},
+                                user_agent=self.get_random_user_agent(),
+                            )
+                            self.log("OK", f"🌐 Chromium launched with profile: {os.path.basename(profile_dir)}")
+                        
                         browser = None  # No separate browser object with persistent context
+                        
+                        # Record which engine we're using for rotation tracking
+                        set_last_engine(engine)
                         
                         # ========== PHASE 1: DEEP FINGERPRINT SPOOFING ==========
                         # Inject comprehensive anti-detection script BEFORE any navigation
@@ -1202,9 +1371,8 @@ class ScraperController:
                         self.log("STEALTH", "Deep fingerprint spoofing injected")
                         
                         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-                        self.log("OK", f"Browser launched with persistent profile: {os.path.basename(STEALTH_PROFILE_DIR)}")
                         
-                        # Apply playwright-stealth patches (additional layer)
+                        # Apply playwright-stealth patches (additional layer) - works for both engines
                         if HAS_STEALTH and stealth_async:
                             await stealth_async(page)
                             self.log("STEALTH", "playwright-stealth patches applied")
@@ -2132,6 +2300,11 @@ class ScraperController:
                 self.log("WARN", "Resume state saved for later retry.")
                 self.handle_blocked_profile()
                 
+                # Mark this engine's profile as blocked (15-minute cooldown)
+                engine = self.browser_engine
+                mark_profile_blocked(engine)
+                self.log("WARN", f"⏳ Profile '{engine}' marked as blocked. Cooldown: {PROFILE_COOLDOWN_MINUTES} min.")
+                
                 # Auto-Restart Logic
                 wait_time = random.randint(60, 180) # 1 to 3 minutes cooldown
                 self.log("WARN", f"🔄 Initiating Auto-Restart sequence in {wait_time} seconds...")
@@ -2175,6 +2348,11 @@ class ScraperController:
                 if "CAPTCHA" in err_str:
                     self.log("WARN", "⚠️ Se ha detectado un bloqueo por CAPTCHA durante el scraping.")
                     self.log("WARN", "Guardando estado y esperando 15 minutos antes de reintentar...")
+                    
+                    # Mark this engine's profile as blocked (15-minute cooldown)
+                    engine = self.browser_engine
+                    mark_profile_blocked(engine)
+                    self.log("WARN", f"⏳ Profile '{engine}' marked as blocked. Cooldown: {PROFILE_COOLDOWN_MINUTES} min.")
                     
                     if target_file and self.current_page:
                          self.save_state(self.current_page, target_file)

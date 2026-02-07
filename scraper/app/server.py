@@ -184,6 +184,11 @@ def start_scraping():
     output_dir = data.get('output_dir', '').strip() or DEFAULT_OUTPUT_DIR
     use_vpn = data.get('use_vpn', False)
     rotate_every = data.get('rotate_every', 5)
+    browser_engine = data.get('browser_engine', 'chromium')  # Multi-browser rotation
+    
+    # Validate browser_engine
+    if browser_engine not in ['chromium', 'firefox']:
+        browser_engine = 'chromium'
     
     if not seed_url:
         return jsonify({'error': 'Seed URL is required'}), 400
@@ -214,6 +219,7 @@ def start_scraping():
         dual_mode_url=dual_mode_url,  # Pass second URL for same-browser execution
         use_vpn=use_vpn,
         rotate_every=rotate_every,
+        browser_engine=browser_engine,  # Multi-browser rotation
         on_log=emit_log,
         on_property=emit_property,
         on_status=emit_status,

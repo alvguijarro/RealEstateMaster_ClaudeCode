@@ -3,6 +3,13 @@
 ## [2026-02-07]
 
 ### Added
+- **Multi-Browser Rotation with Profile Cooldowns**: Implemented a sophisticated browser engine rotation system to evade bot detection:
+    - **Dual Engine Support**: Scraper now supports both Chromium and Firefox (via Playwright).
+    - **Sequential Rotation**: Batch scraping alternates between engines to diversify browser fingerprints.
+    - **Profile Cooldown System**: When a browser profile is blocked (CAPTCHA/Uso Indebido), it enters a 15-minute cooldown.
+    - **Automatic Engine Selection**: The system selects the next available engine that's not in cooldown.
+    - **Per-Engine Profiles**: Separate persistent profiles for each browser (`stealth_profile_chromium`, `stealth_profile_firefox`).
+    - **API Extension**: `/api/start` now accepts `browser_engine` parameter (`chromium` or `firefox`).
 - **Provincial URL Expansion (Batch Search)**: Implemented a new engine that automatically desegregates provincial URLs into smaller, sequential sub-zone batches.
     - Added `province_zones.json` mapping for 25 high-volume Spanish provinces (Madrid, Barcelona, Valencia, etc.).
     - When starting a batch scrape for a province, the backend automatically expands it into its constituent districts/towns (e.g., Madrid -> Madrid Capital, Corredor del Henares, etc.).
