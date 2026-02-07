@@ -1089,6 +1089,9 @@ class ScraperController:
                     if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower or "access denied" in page_text_lower:
                         self.log("ERR", "🚫 BLOCK DETECTED: 'Uso indebido' or 'Access Denied'. Stopping immediately.")
                         play_blocked_alert()
+                        # Mark profile as blocked for cooldown rotation
+                        mark_profile_blocked(self.browser_engine)
+                        self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
                         # CRITICAL: Raise BlockedException to trigger profile nuking
                         raise BlockedException("Acceso bloqueado por uso indebido")
                     
@@ -1103,7 +1106,10 @@ class ScraperController:
             "security" in t_lower or
             "peticiones" in t_lower or
             "verificación" in t_lower or
-            "verification" in t_lower
+            "verification" in t_lower or
+            "desliza" in t_lower or  # Slider CAPTCHA
+            "asegurar tu acceso" in t_lower or  # Idealista CAPTCHA message
+            "muchas peticiones" in page_text_lower  # Rate limit message
         )
 
                     if is_captcha:
@@ -1837,6 +1843,9 @@ class ScraperController:
 
                                     if miss:
                                         self.log("ERR", "CAPTCHA_BLOCK_DETECTED")
+                                        # Mark profile as blocked for cooldown rotation
+                                        mark_profile_blocked(self.browser_engine)
+                                        self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
                                         try:
                                              if len(additions) > self._last_checkpoint_idx and target_file:
                                                   await self._save_checkpoint(additions, target_file, existing_df, set())
@@ -1904,6 +1913,9 @@ class ScraperController:
                                 page_text_lower = page_text.lower() if 'page_text' in locals() else (await page.evaluate("() => document.body ? document.body.innerText : ''")).lower()
                                 if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower:
                                     self.log("ERR", "🚫 Loop detection: 'Uso indebido' detected. Triggering auto-restart...")
+                                    # Mark profile as blocked for cooldown rotation
+                                    mark_profile_blocked(self.browser_engine)
+                                    self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
                                     raise BlockedException("Acceso bloqueado por uso indebido detected in loop")
 
                                 # If missing fields and not a "not found" page, might be CAPTCHA
@@ -1932,6 +1944,9 @@ class ScraperController:
 
                                     if miss:
                                         self.log("ERR", "CAPTCHA_BLOCK_DETECTED")
+                                        # Mark profile as blocked for cooldown rotation
+                                        mark_profile_blocked(self.browser_engine)
+                                        self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
                                         try:
                                              if len(additions) > self._last_checkpoint_idx and target_file:
                                                   await self._save_checkpoint(additions, target_file, existing_df, set())
@@ -2254,6 +2269,9 @@ class ScraperController:
                                     page_text_lower = page_text.lower() if 'page_text' in locals() else (await page.evaluate("() => document.body ? document.body.innerText : ''")).lower()
                                     if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower:
                                         self.log("ERR", "🚫 Loop detection: 'Uso indebido' detected. Triggering auto-restart...")
+                                        # Mark profile as blocked for cooldown rotation
+                                        mark_profile_blocked(self.browser_engine)
+                                        self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
                                         raise BlockedException("Acceso bloqueado por uso indebido detected in loop")
                                 
                                     row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
