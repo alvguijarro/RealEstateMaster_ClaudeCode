@@ -10,6 +10,9 @@
     - **Automatic Engine Selection**: The system selects the next available engine that's not in cooldown.
     - **Per-Engine Profiles**: Separate persistent profiles for each browser (`stealth_profile_chromium`, `stealth_profile_firefox`).
     - **API Extension**: `/api/start` now accepts `browser_engine` parameter (`chromium` or `firefox`).
+- **Smart Rotation Logic**: 
+    - **Immediate Relaunch**: If a profile is blocked and another engine is available, the scraper now switches and restarts immediately (5-15s delay) instead of waiting for the blocked profile to cool down.
+    - **Dynamic Batch Waits**: Removed fixed 15-minute waits in batch mode; the system now only checks for available engines and waits only if *all* are blocked.
 - **Provincial URL Expansion (Batch Search)**: Implemented a new engine that automatically desegregates provincial URLs into smaller, sequential sub-zone batches.
     - Added `province_zones.json` mapping for 25 high-volume Spanish provinces (Madrid, Barcelona, Valencia, etc.).
     - When starting a batch scrape for a province, the backend automatically expands it into its constituent districts/towns (e.g., Madrid -> Madrid Capital, Corredor del Henares, etc.).

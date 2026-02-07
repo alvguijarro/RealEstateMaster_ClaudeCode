@@ -181,14 +181,13 @@ def main():
             success = run_single_url(url, mode, selected_engine)
             
             if not success:
-                log(f"Esperando {BLOCK_WAIT_TIME // 60} minutos para recuperación de IP...", "WARN")
-                # Countdown timer - more responsive signal checking
-                for second in range(BLOCK_WAIT_TIME):
-                    time.sleep(1)
-                    if second % 60 == 0 and second > 0:
-                        log(f"Faltan { (BLOCK_WAIT_TIME - second) // 60 } minutos...")
-                    check_signals()
-                log("Tiempo de espera finalizado. Reintentando...", "OK")
+                # If failed (blocked), we don't wait 15 mins unconditionally.
+                # The 'select_next_engine' at the top of the loop will handle the wait 
+                # if ALL engines are blocked.
+                # If we have another engine available, we retry immediately.
+                log("⚠️ Scrape failed (Block/Captcha). Checking for next available browser engine...", "WARN")
+                time.sleep(10) # Small breathing room before next attempt
+                check_signals()
         
         if success: success_count += 1
         

@@ -2319,12 +2319,23 @@ class ScraperController:
                 self.handle_blocked_profile()
                 
                 # Mark this engine's profile as blocked (15-minute cooldown)
-                engine = self.browser_engine
-                mark_profile_blocked(engine)
-                self.log("WARN", f"⏳ Profile '{engine}' marked as blocked. Cooldown: {PROFILE_COOLDOWN_MINUTES} min.")
+                current_engine = self.browser_engine
+                mark_profile_blocked(current_engine)
+                self.log("WARN", f"⏳ Profile '{current_engine}' marked as blocked. Cooldown: {PROFILE_COOLDOWN_MINUTES} min.")
                 
-                # Auto-Restart Logic
-                wait_time = random.randint(60, 180) # 1 to 3 minutes cooldown
+                # ROTATION LOGIC: Try to switch engine immediately
+                next_engine = select_next_engine(current_engine)
+                
+                if next_engine and next_engine != current_engine:
+                    self.log("INFO", f"🔄 ROTATION: Switching to fresh engine '{next_engine.upper()}' for immediate restart.")
+                    self.browser_engine = next_engine
+                    wait_time = random.randint(5, 15)  # Short pause before switch
+                else:
+                    # All engines blocked - wait for cooldown
+                    cooldown = get_cooldown_remaining(current_engine)
+                    wait_time = max(cooldown * 60, random.randint(60, 180))
+                    self.log("WARN", f"⚠️ All profiles blocked. Waiting {wait_time}s for cooldown...")
+
                 self.log("WARN", f"🔄 Initiating Auto-Restart sequence in {wait_time} seconds...")
                 
                 if self.on_status:
@@ -2372,16 +2383,34 @@ class ScraperController:
                     mark_profile_blocked(engine)
                     self.log("WARN", f"⏳ Profile '{engine}' marked as blocked. Cooldown: {PROFILE_COOLDOWN_MINUTES} min.")
                     
-                    if target_file and self.current_page:
-                         self.save_state(self.current_page, target_file)
+                    # ROTATION LOGIC: Try to switch engine immediately
+                    next_engine = select_next_engine(engine)
+                    if next_engine and next_engine != engine:
+                         self.log("INFO", f"🔄 ROTATION: Switching to fresh engine '{next_engine.upper()}' for immediate restart.")
+                         self.browser_engine = next_engine
+                         wait_time = random.randint(5, 15)
+                    else:
+                         cooldown = get_cooldown_remaining(engine)
+                         wait_time = max(cooldown * 60, random.randint(60, 180))
+                         self.log("WARN", f"⚠️ All profiles blocked. Waiting {wait_time}s for cooldown...")
+
+                    self.log("WARN", f"🔄 Initiating Auto-Restart sequence in {wait_time} seconds...")
+                    if self.on_status:
+                        self.on_status("blocked", error=f"CAPTCHA block. Rotating in {wait_time}s...")
                     
-                    # Close browser
+                    # Close browser explicitly
                     try:
                         if 'mouse_jitter_task' in dir() and mouse_jitter_task:
                             mouse_jitter_task.cancel()
-                        if browser: await browser.close()
-                        elif ctx: await ctx.close()
-                    except: pass
+                        if browser:
+                            await browser.close()
+                        elif ctx:
+                            await ctx.close()
+                    except:
+                        pass
+                    
+                    if target_file and self.current_page:
+                         self.save_state(self.current_page, target_file)
 
                     # === VPN IP Rotation on CAPTCHA ===
                     if self.use_vpn:
