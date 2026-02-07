@@ -632,7 +632,7 @@ def get_excel_files():
 
 @app.route('/api/provinces-list', methods=['GET'])
 def get_provinces_list():
-    """Return list of Spanish provinces with their slugs."""
+    """Return list of Spanish provinces with verified venta and alquiler URLs."""
     try:
         json_path = Path(__file__).parent.parent / "low_cost_provinces.json"
         if not json_path.exists():
@@ -641,14 +641,21 @@ def get_provinces_list():
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             
-        # Transform: Extract slug from URL
+        # Transform: Extract slug from URL and build both venta and alquiler URLs
         # URL format: .../venta-viviendas/{slug}/...
         provinces = []
         for item in data:
-            url = item.get('url', '')
-            if 'venta-viviendas/' in url:
-                slug = url.split('venta-viviendas/')[1].split('/')[0]
-                provinces.append({'name': item['name'], 'slug': slug})
+            venta_url = item.get('url', '')
+            if 'venta-viviendas/' in venta_url:
+                slug = venta_url.split('venta-viviendas/')[1].split('/')[0]
+                # Build alquiler URL using the same verified slug
+                alquiler_url = f"https://www.idealista.com/alquiler-viviendas/{slug}/"
+                provinces.append({
+                    'name': item['name'], 
+                    'slug': slug,
+                    'venta_url': venta_url,
+                    'alquiler_url': alquiler_url
+                })
         
         return jsonify({'provinces': provinces})
     except Exception as e:

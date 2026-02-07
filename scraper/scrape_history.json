@@ -1,5 +1,21 @@
 [
   {
+    "timestamp": "2026-02-07T13:53:22.920193",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/albacete-provincia/",
+    "properties_count": 197,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Albacete_alquiler.xlsx",
+    "filename": "idealista_Albacete_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-07T11:38:16.851171",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/alava/",
+    "properties_count": 88,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Álava_alquiler.xlsx",
+    "filename": "idealista_Álava_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-06T22:24:12.829154",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/a-coruna-provincia/",
     "properties_count": 13,

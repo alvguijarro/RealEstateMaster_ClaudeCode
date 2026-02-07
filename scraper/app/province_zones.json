@@ -1,5 +1,5 @@
 {
-    "madrid-provincia": [
+    "madrid": [
         {
             "name": "Madrid Capital",
             "path": "madrid-madrid/"
@@ -29,7 +29,7 @@
             "path": "madrid/zona-suroeste/"
         }
     ],
-    "barcelona-provincia": [
+    "barcelona": [
         {
             "name": "Barcelona Capital",
             "path": "barcelona-barcelona/"
@@ -55,7 +55,7 @@
             "path": "barcelona/barcelones/"
         }
     ],
-    "valencia-provincia": [
+    "valencia": [
         {
             "name": "València Capital",
             "path": "valencia-valencia/"
@@ -81,7 +81,7 @@
             "path": "valencia/ribera-alta/"
         }
     ],
-    "malaga-provincia": [
+    "malaga": [
         {
             "name": "Málaga Capital",
             "path": "malaga-malaga/"
@@ -99,7 +99,7 @@
             "path": "malaga/guadalhorce/"
         }
     ],
-    "alicante-provincia": [
+    "alicante": [
         {
             "name": "Alicante Capital",
             "path": "alicante-alicante/"
@@ -121,7 +121,7 @@
             "path": "alicante/baix-vinalopo/"
         }
     ],
-    "sevilla-provincia": [
+    "sevilla": [
         {
             "name": "Sevilla Capital",
             "path": "sevilla-sevilla/"
@@ -203,7 +203,7 @@
             "path": "vizcaya/duranguesado/"
         }
     ],
-    "zaragoza-provincia": [
+    "zaragoza": [
         {
             "name": "Zaragoza Capital",
             "path": "zaragoza-zaragoza/"
@@ -213,7 +213,7 @@
             "path": "zaragoza/area-de-zaragoza/"
         }
     ],
-    "murcia-provincia": [
+    "murcia": [
         {
             "name": "Murcia Capital",
             "path": "murcia-murcia/"
@@ -227,7 +227,7 @@
             "path": "murcia/huerta-de-murcia/"
         }
     ],
-    "granada-provincia": [
+    "granada": [
         {
             "name": "Granada Capital",
             "path": "granada-granada/"
@@ -241,7 +241,7 @@
             "path": "granada/area-de-granada/"
         }
     ],
-    "pontevedra-provincia": [
+    "pontevedra": [
         {
             "name": "Vigo",
             "path": "vigo-pontevedra/"
@@ -255,7 +255,7 @@
             "path": "pontevedra/o-salnes/"
         }
     ],
-    "a-coruna-provincia": [
+    "a-coruna": [
         {
             "name": "A Coruña Capital",
             "path": "a-coruna-a-coruna/"
@@ -325,7 +325,7 @@
             "path": "logrono-la-rioja/"
         }
     ],
-    "valladolid-provincia": [
+    "valladolid": [
         {
             "name": "Valladolid Capital",
             "path": "valladolid-valladolid/"
@@ -335,7 +335,7 @@
             "path": "valladolid/area-de-valladolid/"
         }
     ],
-    "cadiz-provincia": [
+    "cadiz": [
         {
             "name": "Cádiz Capital",
             "path": "cadiz-cadiz/"
@@ -353,7 +353,7 @@
             "path": "cadiz/campo-de-gibraltar/"
         }
     ],
-    "tarragona-provincia": [
+    "tarragona": [
         {
             "name": "Tarragona Capital",
             "path": "tarragona-tarragona/"
@@ -367,7 +367,7 @@
             "path": "tarragona/baix-camp/"
         }
     ],
-    "girona-provincia": [
+    "girona": [
         {
             "name": "Girona Capital",
             "path": "girona-girona/"

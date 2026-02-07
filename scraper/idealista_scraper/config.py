@@ -35,22 +35,29 @@ EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY: Tuple[int, int] = (10, 18)  # Every 10-18 
 # Extra Stealth: Reading time simulation (seconds per 100 characters of description)
 EXTRA_STEALTH_READING_TIME_PER_100_CHARS: float = 1.5
 
-# Extra Stealth: User-agent rotation list
+# Extra Stealth: User-agent rotation list (Updated 2026)
 USER_AGENTS: List[str] = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    # Windows 10/11 Chrome 132+
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    # Windows Firefox 134+
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0",
+    # MacOS Chrome 132+
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+    # MacOS Firefox 134+
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:134.0) Gecko/20100101 Firefox/134.0",
+    # Edge 132+
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0"
 ]
 
 # Extra Stealth: Viewport sizes (width, height) for rotation
+# Using common resolutions to blend in
 VIEWPORT_SIZES: List[Tuple[int, int]] = [
-    (1920, 1080),
-    (1536, 864),
-    (1440, 900),
-    (1366, 768),
-    (1280, 720),
+    (1920, 1080), # FHD (Most common)
+    (1366, 768),  # Laptop HD
+    (1536, 864),  # Windows Scaling 125%
+    (1440, 900),  # Mac Retina / Widescreen
+    (1280, 720),  # HD
 ]
 
 # Default to stealth mode

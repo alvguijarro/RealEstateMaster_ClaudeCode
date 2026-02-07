@@ -125,9 +125,36 @@ h1 {
 }
 
 .url-update-panel {
-    width: 400px;
-    flex-shrink: 0;
+    flex: 1;
+    min-width: 300px;
     /* height: fit-content; Default flex behavior is fine */
+}
+
+/* 50/50 Two-Column Layout for Scraper Tool */
+.scraper-layout-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    width: 100%;
+}
+
+/* Global Action Buttons Row */
+.global-actions-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 20px;
+    padding: 15px 20px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+}
+
+@media (max-width: 900px) {
+    .scraper-layout-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 .input-group {
@@ -679,8 +706,13 @@ select:focus {
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .api-group {

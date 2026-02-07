@@ -26,6 +26,12 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5004 ^| findstr LISTENING') 
     taskkill /F /PID %%a 2>nul
 )
 
+REM Kill processes on port 5002 (merger)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5002 ^| findstr LISTENING') do (
+    echo Killing process %%a on port 5002...
+    taskkill /F /PID %%a 2>nul
+)
+
 echo.
 echo All services stopped.
 timeout /t 1 >nul

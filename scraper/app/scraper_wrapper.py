@@ -712,6 +712,8 @@ class ScraperController:
     _is_room_mode: bool = False  # True if scraping habitaciones (room rentals)
     _browser_closed: bool = False
     _pages_scraped: int = 0
+    _browser: Optional[Any] = None  # Reference to browser for force close
+    _context: Optional[Any] = None  # Reference to context for force close
     
     # Extra Stealth state
     _session_property_count: int = 0  # Properties scraped this session (for rest breaks)
@@ -765,7 +767,7 @@ class ScraperController:
         reading_time = (char_count / 100) * EXTRA_STEALTH_READING_TIME_PER_100_CHARS
         reading_time = min(reading_time, 30)  # Cap at 30 seconds
         if reading_time > 0.5:
-            self.log("STEALTH", f"Simulating reading time: {reading_time:.1f}s ({char_count} chars)")
+            self.log("INFO", f"⏸️ Anti-bot: Simulando tiempo de lectura ({reading_time:.1f}s)")
             
             # Interruptible sleep
             remaining = reading_time
@@ -787,7 +789,7 @@ class ScraperController:
             
             # Move to 2-4 random points with organic delays
             num_moves = random.randint(2, 4)
-            self.log("STEALTH", f"Mouse movement: {num_moves} random positions")
+            self.log("INFO", f"🖱️ Anti-bot: Simulando movimiento de ratón ({num_moves} posiciones)")
             for i in range(num_moves):
                 if self._stop_evt.is_set():
                     break
@@ -807,7 +809,7 @@ class ScraperController:
             # Sometimes scroll up a bit first
             scroll_up_first = random.random() < 0.3
             if scroll_up_first:
-                self.log("STEALTH", "Variable scroll: scrolling up first")
+                self.log("INFO", "📜 Anti-bot: Scroll variable (subiendo primero)")
                 await page.evaluate('window.scrollBy(0, -150)')
                 await asyncio.sleep(random.uniform(0.3, 0.8))
             
@@ -820,12 +822,12 @@ class ScraperController:
                 # Occasionally pause mid-scroll as if reading
                 if random.random() < 0.2:
                     pause_time = random.uniform(1.0, 3.0)
-                    self.log("STEALTH", f"Variable scroll: mid-scroll pause {pause_time:.1f}s")
+                    self.log("INFO", f"📜 Anti-bot: Pausa de lectura durante scroll ({pause_time:.1f}s)")
                     await asyncio.sleep(pause_time)
             
             # Sometimes scroll back up slightly
             if random.random() < 0.2:
-                self.log("STEALTH", "Variable scroll: scrolling back up")
+                self.log("INFO", "📜 Anti-bot: Scroll variable (volviendo arriba)")
                 await page.evaluate('window.scrollBy(0, -100)')
                 await asyncio.sleep(random.uniform(0.2, 0.5))
         else:
@@ -846,39 +848,34 @@ class ScraperController:
         # Check if it's time for a coffee break
         if self._session_property_count >= self._next_coffee_break:
             break_duration = random.uniform(*EXTRA_STEALTH_COFFEE_BREAK_RANGE)
-            self.log("STEALTH", f"Coffee break starting: {break_duration:.0f}s pause")
+            self.log("INFO", f"☕ Anti-bot: Pausa de descanso ({break_duration:.0f}s)")
             
             if self.on_status:
                 self.on_status("resting", duration=int(break_duration))
             
-            # Log countdown every 10 seconds
+            # Wait loop
             remaining = break_duration
-            next_log = remaining - 10
             
             while remaining > 0:
                 if self._stop_evt.is_set():
-                    self.log("INFO", "Coffee break interrupted.")
+                    self.log("INFO", "☕ Pausa interrumpida.")
                     break
                 
                 # Skip if mode switched to FAST
                 if self.mode != "stealth":
-                    self.log("INFO", "Coffee break skipped (switched to FAST mode).")
+                    self.log("INFO", "☕ Pausa omitida (cambiado a modo FAST).")
                     break
                     
                 sleep_chunk = min(1.0, remaining)
                 await asyncio.sleep(sleep_chunk)
                 remaining -= sleep_chunk
-                
-                if remaining > 0 and remaining <= next_log:
-                    self.log("STEALTH", f"Coffee break: {remaining:.0f}s remaining...")
-                    next_log -= 10
             
             if self.on_status:
                 self.on_status("running")
             
             # Schedule next coffee break
             self._next_coffee_break = self._session_property_count + random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
-            self.log("STEALTH", f"Coffee break ended. Next break in ~{self._next_coffee_break - self._session_property_count} properties")
+            self.log("INFO", f"☕ Anti-bot: Pausa terminada. Próxima en ~{self._next_coffee_break - self._session_property_count} propiedades")
     
     async def maybe_session_rest(self):
         """Take a long rest after session limit (Extra Stealth only)."""
@@ -890,33 +887,27 @@ class ScraperController:
             # Round to nearest minute for cleaner display
             rest_duration = round(rest_duration / 60) * 60
             rest_mins = int(rest_duration // 60)
-            self.log("STEALTH", f"Session limit reached ({EXTRA_STEALTH_SESSION_LIMIT} properties). Resting for {rest_mins} minutes...")
+            self.log("INFO", f"😴 Anti-bot: Límite de sesión alcanzado ({EXTRA_STEALTH_SESSION_LIMIT} propiedades). Descansando {rest_mins} minutos...")
             
             if self.on_status:
                 self.on_status("resting", duration=int(rest_duration))
             
-            # Log countdown every minute
+            # Wait loop
             remaining = rest_duration
-            next_log = remaining - 60
             
             while remaining > 0:
                 if self._stop_evt.is_set():
-                    self.log("INFO", "Session rest interrupted.")
+                    self.log("INFO", "😴 Descanso de sesión interrumpido.")
                     break
                 
                 # Skip if mode switched to FAST
                 if self.mode != "stealth":
-                    self.log("INFO", "Session rest skipped (switched to FAST mode).")
+                    self.log("INFO", "😴 Descanso omitido (cambiado a modo FAST).")
                     break
                     
                 sleep_chunk = min(1.0, remaining)
                 await asyncio.sleep(sleep_chunk)
                 remaining -= sleep_chunk
-                
-                if remaining > 0 and remaining <= next_log:
-                    remaining_mins = int(remaining // 60)
-                    self.log("STEALTH", f"Session rest: {remaining_mins} minutes remaining...")
-                    next_log -= 60
             
             if self.on_status:
                 self.on_status("running")
@@ -925,7 +916,7 @@ class ScraperController:
             self._total_session_count += self._session_property_count
             self._session_property_count = 0
             self._next_coffee_break = random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
-            self.log("STEALTH", f"Session rest complete. Total scraped: {self._total_session_count}. Starting new session...")
+            self.log("INFO", f"😴 Anti-bot: Descanso completado. Total scrapeado: {self._total_session_count}. Nueva sesión...")
     
     def get_random_user_agent(self) -> str:
         """Get a random user agent from the rotation list."""
@@ -961,6 +952,35 @@ class ScraperController:
         self.log("INFO", "Stopping scraper...")
         if self.on_status:
             self.on_status("stopping")
+        
+        # Force close browser to unblock any stuck operations
+        self._force_close_browser()
+    
+    def _force_close_browser(self):
+        """Force close browser/context to unblock stuck operations."""
+        import asyncio
+        
+        async def _close():
+            try:
+                if self._browser is not None:
+                    await self._browser.close()
+                    self.log("INFO", "Browser forced closed.")
+                elif self._context is not None:
+                    await self._context.close()
+                    self.log("INFO", "Context forced closed.")
+            except Exception as e:
+                self.log("WARN", f"Error during force close: {e}")
+        
+        # Run in event loop if available, otherwise create new one
+        try:
+            loop = asyncio.get_running_loop()
+            asyncio.create_task(_close())
+        except RuntimeError:
+            # No running loop - create a new one
+            try:
+                asyncio.run(_close())
+            except:
+                pass
 
     def set_mode(self, mode: str):
         """Update scraping mode dynamically."""
@@ -1160,10 +1180,32 @@ class ScraperController:
                         if self.on_status:
                             self.on_status("captcha")
                         
-                        # Loop until resolved
+                        # Loop until resolved - with 60s timeout to prevent infinite hang
+                        captcha_wait_start = asyncio.get_running_loop().time()
+                        captcha_timeout = 60  # seconds
+                        
                         while True:
                             if self._stop_evt.is_set():
                                 break
+                            
+                            # Check timeout
+                            elapsed = asyncio.get_running_loop().time() - captcha_wait_start
+                            if elapsed > captcha_timeout:
+                                self.log("WARN", f"⏰ CAPTCHA wait timeout ({captcha_timeout}s). Checking page state...")
+                                # Check if we can proceed anyway
+                                try:
+                                    final_title = await page.title()
+                                    if "idealista" in final_title.lower():
+                                        self.log("INFO", "Page appears normal despite timeout. Continuing...")
+                                        if self.on_status:
+                                            self.on_status("running")
+                                        break
+                                except: pass
+                                # Still stuck - mark as block and raise
+                                self.log("ERR", "CAPTCHA timeout - triggering auto-restart")
+                                mark_profile_blocked(self.browser_engine)
+                                raise Exception("CAPTCHA_TIMEOUT")
+                            
                             play_captcha_alert()
                             
                             # interruptible wait (10s)
@@ -1351,30 +1393,24 @@ class ScraperController:
                     profile_dir = PROFILE_DIRS.get(engine, PROFILE_DIRS["chromium"])
                     os.makedirs(profile_dir, exist_ok=True)
                     
-                    self.log("INFO", f"Launching browser: {engine.upper()}...")
+                    self.log("INFO", f"Launching browser: {engine.upper()} (Clean Profile 2026)...")
                     
-                    # Browser args for stealth and performance (Chromium-specific)
-                    # Enhanced args for 2026 anti-detection
+                    # Select a random viewport for this session
+                    viewport_width, viewport_height = random.choice(VIEWPORT_SIZES)
+                    self.log("STEALTH", f"Using randomized viewport: {viewport_width}x{viewport_height}")
+                    
+                    # Clean Profile Strategy (2026) - Making the browser look vanilla
+                    # Removed: --start-minimized, --disable-extensions, --disable-popup-blocking
+                    # Removed: --disable-ipc-flooding-protection, disable-features=IsolateOrigins
                     chromium_args = [
-                        "--start-minimized",
-                        "--window-size=1280,900",
-                        "--disable-dev-shm-usage",
-                        "--disable-infobars",
-                        "--disable-extensions",
                         "--no-first-run",
                         "--no-default-browser-check",
-                        "--disable-popup-blocking",
-                        # Anti-automation detection
-                        "--disable-blink-features=AutomationControlled",
-                        "--disable-features=IsolateOrigins,site-per-process",
-                        "--disable-site-isolation-trials",
-                        "--disable-features=VizDisplayCompositor",
-                        "--disable-ipc-flooding-protection",
-                        "--enable-features=NetworkService,NetworkServiceInProcess",
-                        "--force-color-profile=srgb",
-                        "--metrics-recording-only",
+                        # Essential anti-bot flag (must keep)
+                        "--disable-blink-features=AutomationControlled", 
                         "--password-store=basic",
                         "--use-mock-keychain",
+                        "--force-color-profile=srgb",
+                        "--metrics-recording-only",
                         "--export-tagged-pdf",
                     ]
                     
@@ -1390,7 +1426,7 @@ class ScraperController:
                             ctx = await pw.firefox.launch_persistent_context(
                                 user_data_dir=profile_dir,
                                 headless=False,
-                                viewport={"width": 1280, "height": 900},
+                                viewport={"width": viewport_width, "height": viewport_height},
                                 firefox_user_prefs=firefox_prefs,
                             )
                             self.log("OK", f"🦊 Firefox launched with profile: {os.path.basename(profile_dir)}")
@@ -1400,13 +1436,14 @@ class ScraperController:
                                 user_data_dir=profile_dir,
                                 headless=False,
                                 args=chromium_args,
-                                ignore_default_args=["--enable-automation", "--no-sandbox"],
-                                viewport={"width": 1280, "height": 900},
+                                ignore_default_args=["--enable-automation"],
+                                viewport={"width": viewport_width, "height": viewport_height},
                                 user_agent=self.get_random_user_agent(),
                             )
                             self.log("OK", f"🌐 Chromium launched with profile: {os.path.basename(profile_dir)}")
                         
                         browser = None  # No separate browser object with persistent context
+                        self._context = ctx  # Store reference for force close on stop
                         
                         # Record which engine we're using for rotation tracking
                         set_last_engine(engine)
@@ -1476,7 +1513,6 @@ class ScraperController:
                             return false;
                         }""")
                         await asyncio.sleep(1.0)
-                    except Exception:
                     except Exception:
                         pass
             
@@ -1955,63 +1991,57 @@ class ScraperController:
                                     # Process first property - check for missing fields (CAPTCHA)
                                     miss = missing_fields(row, is_room_mode=self._is_room_mode)
                                     if miss:
-                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado. Resuelve el CAPTCHA y pulsa Resume.")
+                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado en primera propiedad. Esperando 30s...")
                                 
                                         if self.on_status:
                                             self.on_status("captcha")
                                 
-                                        # Pause and wait for user to solve CAPTCHA, with repeating alarm
-                                        self._pause_evt.clear()  # Pause the scraper
-                                        wait_start = asyncio.get_running_loop().time()
-                                
-                                    # CAPTCHA DETECTED - AUTO RESTART STRATEGY
-                                    self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA DETECTED - Waiting 30s then aborting for auto-restart...")
-                                    
-                                    # Wait briefly to see if it clears (e.g. passive solve)
-                                    for _ in range(3): # 3 * 10s = 30s
-                                        if self._stop_evt.is_set(): break
-                                        await asyncio.sleep(10.0)
-                                        # Retry extraction check
-                                        try:
-                                            d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
-                                            row = {"URL": key, **d}
-                                            if not missing_fields(row, is_room_mode=self._is_room_mode):
-                                                 self.log("OK", "CAPTCHA cleared! Resuming...")
-                                                 miss = False
-                                                 break 
-                                        except: pass
+                                        # CAPTCHA DETECTED - AUTO RESTART STRATEGY
+                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA DETECTED - Waiting 30s then aborting for auto-restart...")
+                                        
+                                        # Wait briefly to see if it clears (e.g. passive solve)
+                                        for _ in range(3): # 3 * 10s = 30s
+                                            if self._stop_evt.is_set(): break
+                                            await asyncio.sleep(10.0)
+                                            # Retry extraction check
+                                            try:
+                                                d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
+                                                row = {"URL": key, **d}
+                                                if not missing_fields(row, is_room_mode=self._is_room_mode):
+                                                     self.log("OK", "CAPTCHA cleared! Resuming...")
+                                                     miss = False
+                                                     break 
+                                            except: pass
 
-                                    if miss:
-                                        self.log("ERR", "CAPTCHA_BLOCK_DETECTED")
-                                        # Mark profile as blocked for cooldown rotation
-                                        mark_profile_blocked(self.browser_engine)
-                                        self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
-                                        try:
-                                             if len(additions) > self._last_checkpoint_idx and target_file:
-                                                  await self._save_checkpoint(additions, target_file, existing_df, set())
-                                        except: pass
-                                        raise Exception("CAPTCHA_BLOCK_DETECTED")
+                                        if miss:
+                                            self.log("ERR", "CAPTCHA_BLOCK_DETECTED")
+                                            # Mark profile as blocked for cooldown rotation
+                                            mark_profile_blocked(self.browser_engine)
+                                            self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
+                                            try:
+                                                 if len(additions) > self._last_checkpoint_idx and target_file:
+                                                      await self._save_checkpoint(additions, target_file, existing_df, set())
+                                            except: pass
+                                            raise Exception("CAPTCHA_BLOCK_DETECTED")
+                                        
+                                        # CAPTCHA cleared - resume normal operation
+                                        if self.on_status: self.on_status("running")
                                     
-                                    # If cleared, proceed (miss is False)
-                                    if not miss:
-                                         elapsed = 30
-                                         if self.on_status: self.on_status("running")
-
-                                
-                                    if miss and self._stop_evt.is_set():
-                                        self.log("WARN", f"First property CAPTCHA - stopped by user: {key}")
+                                        if self._stop_evt.is_set():
+                                            self.log("WARN", f"First property CAPTCHA - stopped by user: {key}")
+                                            continue
                             
-                                    if not miss:
-                                        # Add scraping date
-                                        from datetime import datetime
-                                        row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+                                    # First property scraped successfully (or CAPTCHA cleared)
+                                    # Add scraping date
+                                    from datetime import datetime
+                                    row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
                                 
-                                        additions.append(row)
-                                        self.scraped_properties.append(row)
-                                        new_scraped += 1
-                                        self.log("OK", f"({property_idx}/{self.total_properties_expected}) Scraped: {key}")
-                                        if self.on_property:
-                                            self.on_property(row)
+                                    additions.append(row)
+                                    self.scraped_properties.append(row)
+                                    new_scraped += 1
+                                    self.log("OK", f"({property_idx}/{self.total_properties_expected}) Scraped: {key}")
+                                    if self.on_property:
+                                        self.on_property(row)
                             
                                     self._processed.add(key)
                                     self.current_property_count = property_idx
@@ -2593,9 +2623,13 @@ class ScraperController:
                     await browser.close()
                 elif ctx is not None:
                     await ctx.close()  # Persistent context in Stealth mode
+                self._context = None  # Clear reference
+                self._browser = None
                 self.log("OK", "✅ Browser closed successfully.")
             except:
                 # Browser might be already closed
+                self._context = None
+                self._browser = None
                 pass
         
         # Clear resume state file ONLY on successful completion (not manual stop)

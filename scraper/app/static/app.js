@@ -93,6 +93,8 @@ let allProvincesList = [];
 let selectedVenta = new Set();
 let selectedAlquiler = new Set();
 let isBatchMode = false;
+// Lookup map: slug -> {venta_url, alquiler_url}
+let provinceUrls = {};
 
 // ==========================================
 // NordVPN UI LOGIC
@@ -424,6 +426,9 @@ async function loadEnrichFiles() {
 document.addEventListener('DOMContentLoaded', () => {
     loadProvinces();
     loadEnrichFiles();
+    // Initialize multi-province dropdowns
+    loadProvincesList();
+    setupMultiSelectUI();
 
     // Province Search Listener
     const provSearch = document.getElementById('provinceSearch');
@@ -1102,11 +1107,14 @@ async function startScraping(isDualMode = false) {
     // BATCH MODE CHECK
     if (isBatchMode) {
         const urls = [];
+        // Use verified URLs from provinceUrls lookup
         selectedVenta.forEach(slug => {
-            urls.push(`https://www.idealista.com/venta-viviendas/${slug}/con-precio-hasta_300000/`);
+            const urlData = provinceUrls[slug];
+            urls.push(urlData ? urlData.venta_url : `https://www.idealista.com/venta-viviendas/${slug}/con-precio-hasta_300000/`);
         });
         selectedAlquiler.forEach(slug => {
-            urls.push(`https://www.idealista.com/alquiler-viviendas/${slug}/`);
+            const urlData = provinceUrls[slug];
+            urls.push(urlData ? urlData.alquiler_url : `https://www.idealista.com/alquiler-viviendas/${slug}/`);
         });
 
         if (urls.length === 0) return;
@@ -2268,6 +2276,14 @@ async function loadProvincesList() {
         const data = await res.json();
         if (data.provinces) {
             allProvincesList = data.provinces.sort((a, b) => a.name.localeCompare(b.name));
+            // Build lookup map for verified URLs
+            provinceUrls = {};
+            allProvincesList.forEach(p => {
+                provinceUrls[p.slug] = {
+                    venta_url: p.venta_url,
+                    alquiler_url: p.alquiler_url
+                };
+            });
             populateDropdown('listVenta', 'venta');
             populateDropdown('listAlquiler', 'alquiler');
         }
@@ -2282,7 +2298,7 @@ function populateDropdown(listId, type) {
     // Select All option
     const allDiv = document.createElement('div');
     allDiv.className = 'dropdown-item';
-    allDiv.innerHTML = '<input type=\'checkbox\' class=\'select-all-\' + type> <strong>Todos</strong>';
+    allDiv.innerHTML = '<input type="checkbox" class="select-all-' + type + '"> <strong>Todos</strong>';
     allDiv.onclick = (e) => {
         if (e.target.tagName !== 'INPUT') {
             const cb = allDiv.querySelector('input');
@@ -2297,7 +2313,7 @@ function populateDropdown(listId, type) {
     allProvincesList.forEach(p => {
         const item = document.createElement('div');
         item.className = 'dropdown-item';
-        item.innerHTML = '<input type=\'checkbox\' value=\'' + p.slug + '\' data-type=\'' + type + '\'> ' + p.name;
+        item.innerHTML = '<input type="checkbox" value="' + p.slug + '" data-type="' + type + '"> ' + p.name;
         item.onclick = (e) => {
             if (e.target.tagName !== 'INPUT') {
                 const cb = item.querySelector('input');
@@ -2348,14 +2364,16 @@ function updateSelectionUI() {
     } else if (total === 1) {
         isBatchMode = false;
         seedUrlInput.disabled = false;
-        // Generate URL
+        // Use verified URL from lookup
         let url = '';
         if (vCount === 1) {
             const slug = [...selectedVenta][0];
-            url = 'https://www.idealista.com/venta-viviendas/' + slug + '/con-precio-hasta_300000/';
+            const urlData = provinceUrls[slug];
+            url = urlData ? urlData.venta_url : 'https://www.idealista.com/venta-viviendas/' + slug + '/con-precio-hasta_300000/';
         } else {
             const slug = [...selectedAlquiler][0];
-            url = 'https://www.idealista.com/alquiler-viviendas/' + slug + '/';
+            const urlData = provinceUrls[slug];
+            url = urlData ? urlData.alquiler_url : 'https://www.idealista.com/alquiler-viviendas/' + slug + '/';
         }
         seedUrlInput.value = url;
     } else {
@@ -2399,18 +2417,33 @@ function validateStartButton() {
 }
 
 function setupMultiSelectUI() {
+    console.log('[MultiSelect] Setting up dropdown UI...');
+
     ['Venta', 'Alquiler'].forEach(type => {
         const trigger = document.getElementById('trigger' + type);
         const overlay = document.getElementById('dropdown' + type);
         const search = document.getElementById('search' + type);
 
-        if (trigger) {
-            trigger.addEventListener('click', () => {
-                // Close others
+        console.log(`[MultiSelect] ${type}: trigger=${!!trigger}, overlay=${!!overlay}`);
+
+        if (trigger && overlay) {
+            // Remove any existing listeners by cloning
+            const newTrigger = trigger.cloneNode(true);
+            trigger.parentNode.replaceChild(newTrigger, trigger);
+
+            newTrigger.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log(`[MultiSelect] ${type} trigger clicked!`);
+
+                // Close other dropdowns
                 document.querySelectorAll('.dropdown-overlay').forEach(el => {
                     if (el !== overlay) el.classList.remove('active');
                 });
-                if (overlay) overlay.classList.toggle('active');
+
+                // Toggle this dropdown
+                overlay.classList.toggle('active');
+                console.log(`[MultiSelect] ${type} overlay active: ${overlay.classList.contains('active')}`);
             });
         }
 
@@ -2429,11 +2462,25 @@ function setupMultiSelectUI() {
         }
     });
 
-    // Close on click outside
+    // Close on click outside - but not on dropdown content
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.custom-dropdown-group')) {
             document.querySelectorAll('.dropdown-overlay').forEach(el => el.classList.remove('active'));
         }
     });
+
+    console.log('[MultiSelect] Setup complete.');
 }
+
+// Global toggle function for fallback onclick usage
+window.toggleDropdown = function (type) {
+    const overlay = document.getElementById('dropdown' + type);
+    if (overlay) {
+        // Close others
+        document.querySelectorAll('.dropdown-overlay').forEach(el => {
+            if (el !== overlay) el.classList.remove('active');
+        });
+        overlay.classList.toggle('active');
+    }
+};
 

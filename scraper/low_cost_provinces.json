@@ -1,7 +1,7 @@
 [
     {
         "name": "A Coruna",
-        "url": "https://www.idealista.com/venta-viviendas/a-coruna-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/a-coruna/con-precio-hasta_300000/"
     },
     {
         "name": "Alava",
@@ -13,7 +13,7 @@
     },
     {
         "name": "Alicante",
-        "url": "https://www.idealista.com/venta-viviendas/alicante-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/alicante/con-precio-hasta_300000/"
     },
     {
         "name": "Almeria",
@@ -37,7 +37,7 @@
     },
     {
         "name": "Barcelona",
-        "url": "https://www.idealista.com/venta-viviendas/barcelona-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/barcelona/con-precio-hasta_300000/"
     },
     {
         "name": "Burgos",
@@ -49,7 +49,7 @@
     },
     {
         "name": "Cadiz",
-        "url": "https://www.idealista.com/venta-viviendas/cadiz-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/cadiz/con-precio-hasta_300000/"
     },
     {
         "name": "Cantabria",
@@ -61,7 +61,7 @@
     },
     {
         "name": "Ceuta",
-        "url": "https://www.idealista.com/venta-viviendas/ceuta-ceuta/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/ceuta/con-precio-hasta_300000/"
     },
     {
         "name": "Ciudad Real",
@@ -77,11 +77,11 @@
     },
     {
         "name": "Girona",
-        "url": "https://www.idealista.com/venta-viviendas/girona-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/girona/con-precio-hasta_300000/"
     },
     {
         "name": "Granada",
-        "url": "https://www.idealista.com/venta-viviendas/granada-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/granada/con-precio-hasta_300000/"
     },
     {
         "name": "Guadalajara",
@@ -125,19 +125,19 @@
     },
     {
         "name": "Madrid",
-        "url": "https://www.idealista.com/venta-viviendas/madrid-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/madrid/con-precio-hasta_300000/"
     },
     {
         "name": "Malaga",
-        "url": "https://www.idealista.com/venta-viviendas/malaga-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/malaga/con-precio-hasta_300000/"
     },
     {
         "name": "Melilla",
-        "url": "https://www.idealista.com/venta-viviendas/melilla-melilla/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/melilla/con-precio-hasta_300000/"
     },
     {
         "name": "Murcia",
-        "url": "https://www.idealista.com/venta-viviendas/murcia-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/murcia/con-precio-hasta_300000/"
     },
     {
         "name": "Navarra",
@@ -153,7 +153,7 @@
     },
     {
         "name": "Pontevedra",
-        "url": "https://www.idealista.com/venta-viviendas/pontevedra-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/pontevedra/con-precio-hasta_300000/"
     },
     {
         "name": "Salamanca",
@@ -169,7 +169,7 @@
     },
     {
         "name": "Sevilla",
-        "url": "https://www.idealista.com/venta-viviendas/sevilla-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/sevilla/con-precio-hasta_300000/"
     },
     {
         "name": "Soria",
@@ -177,7 +177,7 @@
     },
     {
         "name": "Tarragona",
-        "url": "https://www.idealista.com/venta-viviendas/tarragona-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/tarragona/con-precio-hasta_300000/"
     },
     {
         "name": "Teruel",
@@ -189,11 +189,11 @@
     },
     {
         "name": "Valencia",
-        "url": "https://www.idealista.com/venta-viviendas/valencia-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/valencia/con-precio-hasta_300000/"
     },
     {
         "name": "Valladolid",
-        "url": "https://www.idealista.com/venta-viviendas/valladolid-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/valladolid/con-precio-hasta_300000/"
     },
     {
         "name": "Vizcaya",
@@ -205,6 +205,6 @@
     },
     {
         "name": "Zaragoza",
-        "url": "https://www.idealista.com/venta-viviendas/zaragoza-provincia/con-precio-hasta_300000/"
+        "url": "https://www.idealista.com/venta-viviendas/zaragoza/con-precio-hasta_300000/"
     }
 ]

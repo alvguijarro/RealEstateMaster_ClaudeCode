@@ -12,13 +12,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import from shared config
 try:
-    from shared.config import SCRAPER_PORT, ANALYZER_PORT, METRICS_PORT, DASHBOARD_PORT
+    from shared.config import SCRAPER_PORT, ANALYZER_PORT, METRICS_PORT, DASHBOARD_PORT, MERGER_PORT
 except ImportError:
     # Fallback for standalone execution
     SCRAPER_PORT = 5003
     ANALYZER_PORT = 5001
     METRICS_PORT = 5004
     DASHBOARD_PORT = 5000
+    MERGER_PORT = 5002
 
 app = Flask(__name__)
 
@@ -26,6 +27,7 @@ app = Flask(__name__)
 SCRAPER_PROCESS = None
 ANALYZER_PROCESS = None
 METRICS_PROCESS = None
+MERGER_PROCESS = None
 
 def is_port_in_use(port):
     import socket
@@ -76,6 +78,20 @@ def start_service(service_name):
         env['NO_BROWSER_OPEN'] = '1'
         METRICS_PROCESS = subprocess.Popen(cmd, cwd=metrics_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
         return True
+    
+    elif service_name == 'merger':
+        if is_port_in_use(MERGER_PORT):
+            return True
+        
+        # Run app.py from merger directory
+        merger_dir = os.path.join(base_dir, 'merger')
+        script = os.path.join(merger_dir, 'app.py')
+        cmd = [sys.executable, script]
+        env = os.environ.copy()
+        env['NO_BROWSER_OPEN'] = '1'
+        global MERGER_PROCESS
+        MERGER_PROCESS = subprocess.Popen(cmd, cwd=merger_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
+        return True
         
     return False
 
@@ -101,8 +117,11 @@ def api_start_service(service):
         return jsonify({'error': 'Invalid service'}), 400
         
     try:
-        # 'merger' and 'calculator' are hosted in the analyzer service
-        target_service = 'analyzer' if service in ['merger', 'calculator'] else service
+        # 'calculator' is hosted in the analyzer service, 'merger' is now its own service
+        if service == 'calculator':
+            target_service = 'analyzer'
+        else:
+            target_service = service
         
         success = start_service(target_service)
         if success:
@@ -142,6 +161,14 @@ def stop_all():
             count += 1
         except: pass
         METRICS_PROCESS = None
+    
+    if MERGER_PROCESS:
+        try:
+            MERGER_PROCESS.terminate()
+            os.system(f"taskkill /F /T /PID {MERGER_PROCESS.pid}")
+            count += 1
+        except: pass
+        MERGER_PROCESS = None
     
     return jsonify({'status': 'stopped', 'count': count})
 

@@ -47,19 +47,62 @@
             <div class="controls-grid">
                 <!-- Tab: Scraper Standard -->
                 <div id="tab-scraper" class="tab-pane active" style="display: contents;">
-                    <!-- Main Controls Module -->
-                    <section class="panel control-panel-main">
-                        <div class="input-section">
-                            <div class="input-group">
-                                <label for="seedUrl">URL de búsqueda en Idealista</label>
-                                <input type="url" id="seedUrl"
-                                    placeholder="https://www.idealista.com/alquiler-viviendas/madrid-madrid/"
-                                    autocomplete="off">
-                            </div>
+                    <!-- Two-column layout for panels -->
+                    <div class="scraper-layout-row">
+                        <!-- LEFT: Main Controls Module -->
+                        <section class="panel control-panel-main">
+                            <div class="input-section">
+                                <div class="input-group">
+                                    <label for="seedUrl">URL de búsqueda en Idealista</label>
+                                    <input type="url" id="seedUrl"
+                                        placeholder="https://www.idealista.com/alquiler-viviendas/madrid-madrid/"
+                                        autocomplete="off">
+                                </div>
 
-                            <!-- NEW: Multi-Province Selectors (Managed by app.js) -->
-                            <div class="multi-select-container"
-                                style="display: flex; gap: 15px; margin-top: 10px; margin-bottom: 20px;">
+                                <div class="input-group">
+                                    <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">
+                                        <strong>Directorio de salida (Excel):</strong> <span
+                                            id="outputDirDisplay">Cargando...</span>
+                                    </p>
+                                </div>
+
+                                <div class="mode-toggle">
+                                    <label>Modo de scraping</label>
+                                    <div class="toggle-buttons">
+                                        <button class="toggle-btn active" data-mode="fast" id="fastBtn">
+                                            <span class="mode-icon">⚡</span>
+                                            <span class="mode-name">Fast</span>
+                                            <span class="mode-desc">Más rápido (aprox. 13 propiedades/min), con algún
+                                                captcha</span>
+                                        </button>
+                                        <button class="toggle-btn" data-mode="stealth" id="stealthBtn">
+                                            <span class="mode-icon">🛡️</span>
+                                            <span class="mode-name">Stealth</span>
+                                            <span class="mode-desc">Más lento (aprox. 1 propiedad/min), sin
+                                                captchas</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="input-group" style="margin-top: 15px;">
+                                    <label class="checkbox-container"
+                                        style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.9rem;">
+                                        <input type="checkbox" id="useVpnToggle" style="width: auto;">
+                                        <span>Rotar IP con NordVPN al detectar bloqueo</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- RIGHT: Actualizar provincias completas -->
+                        <section class="panel url-update-panel">
+                            <h3
+                                style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                                <span style="margin-right:8px;">🔄</span> Actualizar provincias completas
+                            </h3>
+
+                            <!-- Multi-Province Selectors (Managed by app.js) -->
+                            <div class="multi-select-container" style="display: flex; gap: 15px; margin-bottom: 20px;">
                                 <!-- VENTA -->
                                 <div class="custom-dropdown-group" style="flex: 1; position: relative; z-index: 101;">
                                     <label
@@ -99,130 +142,83 @@
                                 </div>
                             </div>
 
-                            <div class="input-group">
-                                <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">
-                                    <strong>Directorio de salida (Excel):</strong> <span
-                                        id="outputDirDisplay">Cargando...</span>
-                                </p>
+                            <p
+                                style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+                                Revisa propiedades existentes para detectar anuncios dados de baja (Fast mode)
+                            </p>
+
+                            <div class="input-group" style="margin-bottom: 15px;">
+                                <label for="updateExcelFile">Archivo Excel a actualizar</label>
+                                <select id="updateExcelFile">
+                                    <option value="">Cargando archivos...</option>
+                                </select>
                             </div>
 
-                            <div class="mode-toggle">
-                                <label>Modo de scraping</label>
-                                <div class="toggle-buttons">
-                                    <button class="toggle-btn active" data-mode="fast" id="fastBtn">
-                                        <span class="mode-icon">⚡</span>
-                                        <span class="mode-name">Fast</span>
-                                        <span class="mode-desc">Más rápido (aprox. 13 propiedades/min), con algún
-                                            captcha</span>
+                            <!-- Worksheet Multi-Select (hidden initially) -->
+                            <div class="input-group" id="worksheetSelectorGroup"
+                                style="margin-bottom: 15px; display: none;">
+                                <label for="worksheetSearch">Distritos a actualizar</label>
+                                <div class="worksheet-dropdown" style="position: relative;">
+                                    <input type="text" id="worksheetSearch" placeholder="Buscar distritos..."
+                                        style="margin-bottom: 5px;">
+                                    <div id="worksheetList"
+                                        style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.2); padding: 5px;">
+                                    </div>
+                                </div>
+                                <small id="worksheetSelectionInfo"
+                                    style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Seleccionadas:
+                                    0</small>
+                            </div>
+
+                            <div class="form-group" style="margin-top: 15px;">
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn btn-primary" id="updateUrlsBtn" style="flex: 1;">
+                                        <span class="btn-icon">🔄</span> Actualizar provincias
                                     </button>
-                                    <button class="toggle-btn" data-mode="stealth" id="stealthBtn">
-                                        <span class="mode-icon">🛡️</span>
-                                        <span class="mode-name">Stealth</span>
-                                        <span class="mode-desc">Más lento (aprox. 1 propiedad/min), sin captchas</span>
+                                    <button class="btn btn-info" id="resumeUpdateBtn" style="flex: 1; display: none;">
+                                        <span class="btn-icon">▶</span> Reanudar Update
                                     </button>
                                 </div>
                             </div>
+                        </section>
+                    </div>
 
-                            <div class="input-group" style="margin-top: 15px;">
-                                <label class="checkbox-container"
-                                    style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.9rem;">
-                                    <input type="checkbox" id="useVpnToggle" style="width: auto;">
-                                    <span>Rotar IP con NordVPN al detectar bloqueo</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="action-buttons">
-                            <button class="btn btn-primary" id="startBtn">
-                                <span class="btn-icon">▶</span>
-                                Iniciar Scraping
-                            </button>
-                            <button class="btn btn-secondary" id="resumeBtn" style="display: none;">
-                                <span class="btn-icon">⏩</span>
-                                Reanudar Sesión
-                            </button>
-                            <button class="btn btn-warning" id="pauseBtn" disabled>
-                                <span class="btn-icon">⏸</span>
-                                Pausar
-                            </button>
-                            <button class="btn btn-danger" id="stopBtn" disabled>
+                    <!-- Global Action Buttons Row -->
+                    <div class="global-actions-row">
+                        <button class="btn btn-primary" id="startBtn">
+                            <span class="btn-icon">▶</span>
+                            Iniciar Scraping
+                        </button>
+                        <button class="btn btn-secondary" id="resumeBtn" style="display: none;">
+                            <span class="btn-icon">⏩</span>
+                            Reanudar Sesión
+                        </button>
+                        <button class="btn btn-warning" id="pauseBtn" disabled>
+                            <span class="btn-icon">⏸</span>
+                            Pausar
+                        </button>
+                        <button class="btn btn-danger" id="stopBtn" disabled>
+                            <span class="btn-icon">⏹</span>
+                            Detener
+                        </button>
+                        <button class="btn btn-primary" id="dualModeBtn" disabled style="cursor: not-allowed;"
+                            title="Introduce una URL sin 'pagina-X' para activar">
+                            <span class="btn-icon">🔄</span>
+                            Scraping alquiler+venta
+                        </button>
+                        <div class="server-buttons" style="display: flex; gap: 5px; margin-left: auto;">
+                            <button class="btn btn-danger btn-sm" id="stopServerBtn"
+                                style="padding: 8px 14px; font-size: 12px;">
                                 <span class="btn-icon">⏹</span>
-                                Detener
+                                Parar
                             </button>
-
-                            <!-- Row with Dual Mode and Server Controls -->
-                            <div class="dual-server-row"
-                                style="display: flex; gap: 10px; margin-top: 10px; width: 100%;">
-                                <button class="btn btn-primary" id="dualModeBtn" disabled
-                                    style="flex: 1; cursor: not-allowed;"
-                                    title="Introduce una URL sin 'pagina-X' para activar">
-                                    <span class="btn-icon">🔄</span>
-                                    Scraping alquiler+venta
-                                </button>
-                                <div class="server-buttons" style="display: flex; gap: 5px; flex: 1;">
-
-                                    <button class="btn btn-danger btn-sm" id="stopServerBtn"
-                                        style="flex: 1; padding: 8px 10px; font-size: 12px;">
-                                        <span class="btn-icon">⏹</span>
-                                        Parar
-                                    </button>
-                                    <button class="btn btn-warning btn-sm" id="restartServerBtn"
-                                        style="flex: 1; padding: 8px 10px; font-size: 12px;">
-                                        <span class="btn-icon">🔄</span>
-                                        Reiniciar
-                                    </button>
-                                </div>
-                            </div>
+                            <button class="btn btn-warning btn-sm" id="restartServerBtn"
+                                style="padding: 8px 14px; font-size: 12px;">
+                                <span class="btn-icon">🔄</span>
+                                Reiniciar
+                            </button>
                         </div>
-                    </section>
-
-                    <!-- URL Update Module -->
-                    <section class="panel url-update-panel">
-                        <h3
-                            style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-                            <span style="margin-right:8px;">🔄</span> Actualizar estado de URLs
-                        </h3>
-
-                        <p style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
-                            Revisa propiedades existentes para detectar anuncios dados de baja (Fast mode)
-                        </p>
-
-                        <div class="input-group" style="margin-bottom: 15px;">
-                            <label for="updateExcelFile">Archivo Excel a actualizar</label>
-                            <select id="updateExcelFile">
-                                <option value="">Cargando archivos...</option>
-                            </select>
-                        </div>
-
-                        <!-- Worksheet Multi-Select (hidden initially) -->
-                        <div class="input-group" id="worksheetSelectorGroup"
-                            style="margin-bottom: 15px; display: none;">
-                            <label for="worksheetSearch">Distritos a actualizar</label>
-                            <div class="worksheet-dropdown" style="position: relative;">
-                                <input type="text" id="worksheetSearch" placeholder="Buscar distritos..."
-                                    style="margin-bottom: 5px;">
-                                <div id="worksheetList"
-                                    style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.2); padding: 5px;">
-                                </div>
-                            </div>
-                            <small id="worksheetSelectionInfo"
-                                style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Seleccionadas:
-                                0</small>
-                        </div>
-
-
-                        <div class="form-group" style="margin-top: 15px;">
-                            <div style="display: flex; gap: 10px;">
-                                <button class="btn btn-primary" id="updateUrlsBtn" style="flex: 1;">
-                                    <span class="btn-icon">🔄</span> Actualizar URLs
-                                </button>
-                                <button class="btn btn-info" id="resumeUpdateBtn" style="flex: 1; display: none;">
-                                    <span class="btn-icon">▶</span> Reanudar Update
-                                </button>
-                            </div>
-                        </div>
-                    </section>
-
+                    </div>
 
                 </div> <!-- End Tab Scraper -->
 

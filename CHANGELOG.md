@@ -1,5 +1,18 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-08]
+
+### Added
+- **Scraper Tool UI Redesign**: Major interface overhaul for improved efficiency:
+    - **50/50 Split Layout**: The main view is now divided into two equal columns, providing a more balanced and readable workspace.
+    - **Module Transformation**: "Actualizar estado de URLs" has been renamed to "**Actualizar provincias completas**" and now houses the multi-province selectors.
+    - **Global Action Bar**: Consolidated all essential controls (Start, Resume, Pause, Stop, Dual Mode, and Server controls) into a unified global row at the bottom of the tool.
+    - **Responsive Grid**: Implemented a dynamic grid that automatically collapses to a single column on smaller screens.
+
+### Fixed
+- **Province Dropdown Conflict**: Resolved a "double-toggle" bug where dropdowns would immediately close after being opened due to conflicting HTML and JS event listeners.
+- **Dropdown Generation Logic**: Fixed a string concatenation syntax error in the JavaScript code responsible for populating the province lists.
+
 ## [2026-02-07]
 
 ### Added
