@@ -136,18 +136,19 @@ h1 {
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     width: 100%;
-    height: 40vh;
-    /* Reduced height as requested */
-    min-height: 400px;
     align-items: stretch;
     /* Left panel stretches to match right panels combined height */
 }
 
-/* Left Panel: Main Controls - fills full height */
+/* Left Panel: Main Controls - fills 50% height */
 .control-panel-main {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    align-self: start;
+    /* Don't stretch to full height */
+    height: 50%;
+    /* Take half of the available height defined by the right column */
 }
 
 /* Right Column: Stacked Panels (natural height, not stretched) */
@@ -155,19 +156,14 @@ h1 {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    height: 100%;
-    /* Fill the grid height */
 }
 
 /* Right panels maintain natural height */
 .province-selection-panel,
 .excel-update-panel {
-    flex: 1;
-    /* Share available height equally */
-    overflow-y: auto;
-    /* Scroll if content overflows */
-    min-height: 0;
-    /* Required for flex overflow */
+    flex: none;
+    /* Natural height, don't stretch */
+    overflow-y: visible;
 }
 
 /* Global Action Buttons Row */
