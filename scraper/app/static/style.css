@@ -141,12 +141,18 @@ h1 {
     min-height: 320px;
     align-items: stretch;
     /* Left matches Right vertical */
+    margin-bottom: 20px;
+    /* Ensure gap below this row */
 }
 
 /* Left Panel: Main Controls - fills full height */
 .control-panel-main {
     display: flex;
     flex-direction: column;
+    height: 100%;
+    /* Strict height constraint */
+    min-height: 0;
+    /* Allow shrinking below content size */
     overflow-y: auto;
     /* Scrollable internal content */
 }
@@ -159,6 +165,8 @@ h1 {
     /* Slightly reduced gap */
     height: 100%;
     /* Fill the grid height */
+    min-height: 0;
+    /* Allow shrinking */
 }
 
 /* Right panels split the available height */
@@ -168,6 +176,9 @@ h1 {
     /* Split height evenly */
     overflow-y: auto;
     min-height: 0;
+    /* Critical for flex scrolling */
+    display: flex;
+    flex-direction: column;
 }
 
 /* Global Action Buttons Row */
