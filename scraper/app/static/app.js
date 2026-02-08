@@ -1833,11 +1833,12 @@ async function loadBatchFiles() {
 }
 
 
+
 function updateBatchCount() {
     if (!batchSelectedCount || !batchPendingList) return;
     const count = batchPendingList.querySelectorAll('input[type="checkbox"]:checked').length;
     batchSelectedCount.textContent = `${count} archivos seleccionados`;
-    validateBatchButton();
+    validateEnrichmentBatchButton();
 }
 
 function toggleBatchFiles(selectAll) {
@@ -1847,7 +1848,33 @@ function toggleBatchFiles(selectAll) {
     updateBatchCount();
 }
 
-function validateBatchButton() {
+
+/**
+ * Validation for "Iniciar scraping de provincias" button
+ * Checks if at least one province/zone is selected in the new Tree View
+ */
+function validateProvinceBatchButton(selectedCount) {
+    const startBatchBtn = document.getElementById('startBatchBtn');
+    if (!startBatchBtn) return;
+
+    // Also check global scraper status? Usually we allow queuing or just check if running
+    // The button has id 'startBatchBtn'
+
+    if (selectedCount > 0) {
+        startBatchBtn.disabled = false;
+        startBatchBtn.style.opacity = '1';
+        startBatchBtn.style.cursor = 'pointer';
+    } else {
+        startBatchBtn.disabled = true;
+        startBatchBtn.style.opacity = '0.5';
+        startBatchBtn.style.cursor = 'not-allowed';
+    }
+}
+
+/**
+ * Validation for "Iniciar Lote" button (Excel Enrichment)
+ */
+function validateEnrichmentBatchButton() {
     if (!batchStartBtn) return;
 
     // Check Status Text cleanly
@@ -2330,6 +2357,7 @@ async function loadProvincesList() {
     } catch (e) { console.error(e); }
 }
 
+
 function populateDropdown(listId, type) {
     const list = document.getElementById(listId);
     if (!list) return;
@@ -2339,66 +2367,284 @@ function populateDropdown(listId, type) {
     const allDiv = document.createElement('div');
     allDiv.className = 'dropdown-item';
     allDiv.innerHTML = '<input type="checkbox" class="select-all-' + type + '"> <strong>Todos</strong>';
+
     allDiv.onclick = (e) => {
-        if (e.target.tagName !== 'INPUT') {
+        if (e.target.tagName !== 'INPUT' && !e.target.classList.contains('toggle-zones-btn')) {
             const cb = allDiv.querySelector('input');
             cb.checked = !cb.checked;
             toggleAll(type, cb.checked);
-        } else {
+        } else if (e.target.tagName === 'INPUT') {
             toggleAll(type, e.target.checked);
         }
     };
     list.appendChild(allDiv);
 
     allProvincesList.forEach(p => {
+        const hasZones = p.zones && p.zones.length > 0;
+
+        // Container for Province + Zones
+        const container = document.createElement('div');
+        container.className = 'province-group';
+
+        // Province Row
         const item = document.createElement('div');
         item.className = 'dropdown-item';
-        item.innerHTML = '<input type="checkbox" value="' + p.slug + '" data-type="' + type + '"> ' + p.name;
-        item.onclick = (e) => {
-            if (e.target.tagName !== 'INPUT') {
-                const cb = item.querySelector('input');
-                cb.checked = !cb.checked;
-                handleSelectionChange(p.slug, type, cb.checked);
-            } else {
-                handleSelectionChange(p.slug, type, e.target.checked);
+
+        let toggleHtml = '';
+        if (hasZones) {
+            toggleHtml = `<button class="toggle-zones-btn" title="Ver ${p.zones.length} zonas">▼</button>`;
+        }
+
+        item.innerHTML = `
+            <div class="province-row">
+                <input type="checkbox" value="${p.id}" data-slug="${p.slug}" data-type="${type}" class="prov-cb-${type}">
+                <span class="prov-name">${escapeHtml(p.name)}</span>
+                ${toggleHtml}
+            </div>
+        `;
+
+        // Event Listeners
+        const checkbox = item.querySelector('input');
+        const toggleBtn = item.querySelector('.toggle-zones-btn');
+
+        // Toggle Zones visibility
+        if (toggleBtn) {
+            toggleBtn.onclick = (e) => {
+                e.stopPropagation();
+                const subContainer = container.querySelector('.sub-zones-container');
+                if (subContainer) {
+                    subContainer.classList.toggle('expanded');
+                    toggleBtn.textContent = subContainer.classList.contains('expanded') ? '▲' : '▼';
+                }
+            };
+        }
+
+        // Checkbox Logic
+        checkbox.addEventListener('change', (e) => {
+            handleProvinceChange(p, type, e.target.checked, container);
+        });
+
+        item.addEventListener('click', (e) => {
+            if (e.target !== checkbox && e.target !== toggleBtn) {
+                checkbox.checked = !checkbox.checked;
+                handleProvinceChange(p, type, checkbox.checked, container);
             }
-        };
-        list.appendChild(item);
+        });
+
+        container.appendChild(item);
+
+        // Sub-zones Container
+        if (hasZones) {
+            const subContainer = document.createElement('div');
+            subContainer.className = 'sub-zones-container';
+
+            p.zones.forEach(zone => {
+                const zItem = document.createElement('div');
+                zItem.className = 'zone-item';
+                zItem.innerHTML = `
+                    <input type="checkbox" value="${zone.id}" data-href="${zone.href}" data-parent="${p.id}" class="zone-cb-${type}">
+                    <span>${escapeHtml(zone.name)}</span>
+                `;
+
+                const zCheckbox = zItem.querySelector('input');
+                zCheckbox.addEventListener('change', () => {
+                    handleZoneChange(p, type, container);
+                });
+
+                zItem.addEventListener('click', (e) => {
+                    if (e.target !== zCheckbox) {
+                        zCheckbox.checked = !zCheckbox.checked;
+                        handleZoneChange(p, type, container);
+                    }
+                });
+
+                subContainer.appendChild(zItem);
+            });
+            container.appendChild(subContainer);
+        }
+
+        list.appendChild(container);
     });
 }
 
 function toggleAll(type, checked) {
     const list = document.getElementById(type === 'venta' ? 'listVenta' : 'listAlquiler');
-    const cbs = list.querySelectorAll('input[type=\'checkbox\']:not([class^=\'select-all\'])');
-    cbs.forEach(cb => {
+    // Select all province checkboxes
+    const provCbs = list.querySelectorAll(`.prov-cb-${type}`);
+    provCbs.forEach(cb => {
         cb.checked = checked;
-        handleSelectionChange(cb.value, type, checked);
+        cb.indeterminate = false;
+        // Trigger change event manually or call logic?
+        // Better call logic to cascade to zones
+        // Find parent container
+        const container = cb.closest('.province-group');
+        // Retrieve province data object (we need to pass p, but we don't have it here easily)
+        // We can just find all zone checkboxes in container and check them
+        const zoneCbs = container.querySelectorAll(`.zone-cb-${type}`);
+        zoneCbs.forEach(zcb => zcb.checked = checked);
     });
+
+    updateSelectionUI();
 }
 
-function handleSelectionChange(slug, type, checked) {
-    const set = type === 'venta' ? selectedVenta : selectedAlquiler;
-    if (checked) set.add(slug);
-    else set.delete(slug);
+/**
+ * Handle Province Checkbox Change (Cascade Down)
+ */
+function handleProvinceChange(province, type, checked, container) {
+    // 1. Select/Deselect all children zones
+    const zoneCbs = container.querySelectorAll(`.zone-cb-${type}`);
+    zoneCbs.forEach(cb => {
+        cb.checked = checked;
+    });
+
+    // 2. Update visual state of province checkbox (remove indeterminate)
+    const provCb = container.querySelector(`.prov-cb-${type}`);
+    if (provCb) {
+        provCb.checked = checked;
+        provCb.indeterminate = false;
+    }
+
+    updateSelectionUI();
+}
+
+/**
+ * Handle Zone Checkbox Change (Bubble Up)
+ */
+function handleZoneChange(province, type, container) {
+    const zoneCbs = Array.from(container.querySelectorAll(`.zone-cb-${type}`));
+    const provCb = container.querySelector(`.prov-cb-${type}`);
+
+    const allChecked = zoneCbs.every(cb => cb.checked);
+    const someChecked = zoneCbs.some(cb => cb.checked);
+
+    if (allChecked) {
+        provCb.checked = true;
+        provCb.indeterminate = false;
+    } else if (someChecked) {
+        provCb.checked = false;
+        provCb.indeterminate = true;
+    } else {
+        provCb.checked = false;
+        provCb.indeterminate = false;
+    }
 
     updateSelectionUI();
 }
 
 function updateSelectionUI() {
-    // Upate trigger texts
-    const vCount = selectedVenta.size;
-    const aCount = selectedAlquiler.size;
+    // Count selected provinces (Full or Partial)
+    // We iterate over the DOM to see what is checked/indeterminate
+
+    const countSelection = (type) => {
+        const list = document.getElementById(type === 'venta' ? 'listVenta' : 'listAlquiler');
+        if (!list) return 0;
+        const provCbs = list.querySelectorAll(`.prov-cb-${type}`);
+        let count = 0;
+        provCbs.forEach(cb => {
+            if (cb.checked || cb.indeterminate) count++;
+        });
+        return count;
+    };
+
+    const vCount = countSelection('venta');
+    const aCount = countSelection('alquiler');
 
     const textV = document.getElementById('selectedTextVenta');
     const textA = document.getElementById('selectedTextAlquiler');
-    if (textV) textV.textContent = vCount > 0 ? vCount + ' seleccionadas' : 'Selecciona provincias...';
-    if (textA) textA.textContent = aCount > 0 ? aCount + ' seleccionadas' : 'Selecciona provincias...';
+    if (textV) textV.textContent = vCount > 0 ? vCount + ' provincias (o zonas)' : 'Selecciona provincias...';
+    if (textA) textA.textContent = aCount > 0 ? aCount + ' provincias (o zonas)' : 'Selecciona provincias...';
 
     // Update batch mode flag and validate the dedicated batch button
     const total = vCount + aCount;
     isBatchMode = total > 0;
-    validateBatchButton();
+
+    // Also update the hidden sets (selectedVenta/selectedAlquiler) if we still use them?
+    // Actually, we'll traverse the DOM when starting the batch, so we don't need to maintain the Set strictly.
+    // But for backward compatibility with simple logic:
+    // ...
+
+    validateProvinceBatchButton(total);
 }
+
+// Global startBatchFromProvinces function (needs to be defined or updated)
+window.startBatchFromProvinces = async function () {
+    // Traverse DOM to build URL list
+    const urls = [];
+
+    const collectUrls = (type) => {
+        const list = document.getElementById(type === 'venta' ? 'listVenta' : 'listAlquiler');
+        if (!list) return;
+
+        // Find all Province Groups
+        const groups = list.querySelectorAll('.province-group');
+        groups.forEach(group => {
+            const provCb = group.querySelector(`.prov-cb-${type}`);
+            const zoneCbs = group.querySelectorAll(`.zone-cb-${type}`); // All zones
+            const checkedZones = Array.from(zoneCbs).filter(z => z.checked);
+
+            // 1. If Province is Fully Checked (no indeterminate), send Province URL (Server expands) 
+            // OR if all zones are checked manually
+            const allZonesChecked = (zoneCbs.length > 0 && checkedZones.length === zoneCbs.length);
+
+            if (provCb.checked && !provCb.indeterminate) {
+                // Full province selected
+                // We need the province URL used for scraping
+                const pSlug = provCb.dataset.slug;
+                if (provinceUrls[pSlug]) {
+                    const url = type === 'venta' ? provinceUrls[pSlug].venta_url : provinceUrls[pSlug].alquiler_url;
+                    if (url) urls.push(url);
+                }
+            } else if (provCb.indeterminate || (!provCb.checked && checkedZones.length > 0)) {
+                // Partial selection: Send specific Zone URLs
+                checkedZones.forEach(z => {
+                    const href = z.dataset.href;
+                    // Construct full URL
+                    // Href is usually /venta-viviendas/...
+                    // If type is alquiler, we must ensure href is correct or swap it
+                    // Our extraction logic saved original hrefs (usually venta).
+                    // We need to swap if operation is different.
+                    let finalHref = href;
+                    if (type === 'alquiler' && finalHref.includes('/venta-viviendas/')) {
+                        finalHref = finalHref.replace('/venta-viviendas/', '/alquiler-viviendas/');
+                    } else if (type === 'venta' && finalHref.includes('/alquiler-viviendas/')) {
+                        finalHref = finalHref.replace('/alquiler-viviendas/', '/venta-viviendas/');
+                    }
+
+                    const fullUrl = `https://www.idealista.com${finalHref}`;
+                    urls.push(fullUrl);
+                });
+            }
+        });
+    };
+
+    collectUrls('venta');
+    collectUrls('alquiler');
+
+    if (urls.length === 0) {
+        alert("Por favor, selecciona al menos una provincia o zona.");
+        return;
+    }
+
+    addLog('INFO', `Iniciando lote con ${urls.length} URLs (Provincias/Zonas)...`);
+
+    // Call API
+    try {
+        const response = await fetch('/api/start-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls: urls, mode: 'fast' }) // Always fast for batch?
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            addLog('OK', `Lote iniciado con PID ${data.pid}`);
+        } else {
+            addLog('ERR', `Error: ${data.error}`);
+        }
+    } catch (e) {
+        addLog('ERR', `Error de conexión: ${e.message}`);
+    }
+};
 
 /**
  * Validates if the "Start Scraping" button should be enabled.

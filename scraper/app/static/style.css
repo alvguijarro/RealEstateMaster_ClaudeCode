@@ -136,44 +136,30 @@ h1 {
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     width: 100%;
-    height: 35vh;
-    /* Fixed compact height for LEFT column */
-    min-height: 320px;
-    align-items: start;
-    /* Don't stretch columns equally */
-    margin-bottom: 20px;
+    align-items: stretch;
+    /* Left panel stretches to match right panels combined height */
 }
 
-/* Left Panel: Main Controls - fills full height of row */
+/* Left Panel: Main Controls - fills full height */
 .control-panel-main {
     display: flex;
     flex-direction: column;
-    height: 100%;
-    /* Uses full 35vh */
-    min-height: 0;
     overflow-y: auto;
 }
 
-/* Right Column: Stacked Panels - HALF HEIGHT */
+/* Right Column: Stacked Panels (natural height, not stretched) */
 .right-panel-stack {
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    height: 50%;
-    /* Only use half the available height (17.5vh) */
-    min-height: 0;
+    gap: 20px;
 }
 
-/* Right panels split the available height */
+/* Right panels maintain natural height */
 .province-selection-panel,
 .excel-update-panel {
-    flex: 1;
-    /* Split height evenly */
-    overflow-y: auto;
-    min-height: 0;
-    /* Critical for flex scrolling */
-    display: flex;
-    flex-direction: column;
+    flex: none;
+    /* Natural height, don't stretch */
+    overflow-y: visible;
 }
 
 /* Global Action Buttons Row */
@@ -981,3 +967,76 @@ select:focus {
     background-color: var(--border);
     border-radius: 3px;
 }
+/* Province Dropdown - Tree View */
+.dropdown-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s;
+}
+
+.dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.province-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.toggle-zones-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    margin-left: auto;
+    border-radius: 4px;
+}
+
+.toggle-zones-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+}
+
+.sub-zones-container {
+    padding-left: 28px;
+    display: none;
+    border-left: 1px solid var(--border);
+    margin-left: 9px; /* Align with checkbox center */
+    margin-top: 2px;
+    margin-bottom: 4px;
+}
+
+.sub-zones-container.expanded {
+    display: block;
+}
+
+.zone-item {
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.zone-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-main);
+}
+
+/* Partial Checkbox State (Indeterminate) */
+input[type='checkbox']:indeterminate {
+    background-color: var(--accent);
+    background-image: url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'white\'%3E%3Cpath d=\'M5 11h14v2H5z\'/%3E%3C/svg%3E');
+    border-color: var(--accent);
+}
+

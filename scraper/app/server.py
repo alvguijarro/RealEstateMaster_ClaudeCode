@@ -632,63 +632,128 @@ def get_excel_files():
 
 @app.route('/api/provinces-list', methods=['GET'])
 def get_provinces_list():
-    """Return list of Spanish provinces with verified venta and alquiler URLs."""
+    """Return list of Spanish provinces with verified venta and alquiler URLs, PLUS nested zones."""
     try:
+        # 1. Load basic provinces (ID, Name, URLs)
         json_path = Path(__file__).parent.parent / "low_cost_provinces.json"
         if not json_path.exists():
             return jsonify({'error': 'Provinces file not found'}), 404
             
         with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            provinces = json.load(f)
             
-        # Return the data directly as it now contains valid verified URLs
-        return jsonify({'provinces': data})
+        # 2. Load extracted zones mapping
+        zones_path = Path(__file__).parent.parent / "province_zones_complete.json"
+        zones_map = {}
+        if zones_path.exists():
+            with open(zones_path, 'r', encoding='utf-8') as f:
+                zones_map = json.load(f)
+        
+        # 3. Merge zones into provinces list
+        for p in provinces:
+            # Match by Name (e.g. "A Coruña")
+            p_name = p.get('name')
+            if p_name and p_name in zones_map:
+                # Add zones
+                p['zones'] = zones_map[p_name].get('zones', [])
+            else:
+                p['zones'] = []
+
+        # Return the merged data
+        return jsonify({'provinces': provinces})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 def expand_batch_urls(urls):
     """Expands provincial URLs into sub-zone URLs if defined in mapping."""
     try:
-        mapping_path = Path(__file__).parent / "province_zones.json"
+        # Puntos al nuevo archivo JSON generado
+        mapping_path = Path(__file__).parent.parent / "province_zones_complete.json"
         if not mapping_path.exists():
+            print("Mapping file not found:", mapping_path)
             return urls
         
         with open(mapping_path, 'r', encoding='utf-8') as f:
             mapping = json.load(f)
             
+        # Helper to normalize names for matching
+        # Mapping keys are like "A Coruña", "Madrid"
+        # URL slugs are like "a-coruna-provincia", "madrid-provincia"
+        
+        # Pre-calculate slug map for faster lookup
+        # We need a way to map URL slug -> Proper Name in JSON
+        # We can use low_cost_provinces.json for this, or try basic normalization
+        slug_to_name = {}
+        for name in mapping.keys():
+            # Basic slugify: "A Coruña" -> "a-coruna"
+            # idealista url: "a-coruna-provincia"
+            # We can simplify matching by checking if normalized name is inside the URL
+            pass 
+
         expanded = []
         for url in urls:
             operation = None
-            slug = None
-            suffix = ""
-            
             if 'alquiler-viviendas/' in url:
-                operation = 'alquiler'
-                parts = url.split('alquiler-viviendas/')[1].split('/')
-                slug = parts[0]
+                operation = 'alquiler-viviendas'
             elif 'venta-viviendas/' in url:
-                operation = 'venta'
-                parts = url.split('venta-viviendas/')[1].split('/')
-                slug = parts[0]
-                if len(parts) > 1 and parts[1]:
-                    suffix = parts[1] + "/"
+                operation = 'venta-viviendas'
             
-            # Try finding the mapping for the slug directly, or fall back to stripped version
-            zones = None
-            if slug:
-                if slug in mapping:
-                    zones = mapping[slug]
-                else:
-                    # Fallback: remove "-provincia" suffix to find match (e.g. 'madrid-provincia' -> 'madrid')
-                    stripped_slug = slug.replace("-provincia", "")
-                    if stripped_slug in mapping:
-                        zones = mapping[stripped_slug]
+            if not operation:
+                expanded.append(url)
+                continue
+
+            # Extract potential province slug from URL
+            # e.g. https://www.idealista.com/venta-viviendas/madrid-provincia/ -> madrid-provincia
+            try:
+                parts = url.split(f'/{operation}/')[1].split('/')
+                url_slug = parts[0]
+            except IndexError:
+                expanded.append(url)
+                continue
+
+            # Find matching province in JSON
+            found_zones = []
+            for name, data in mapping.items():
+                # Normalize name for loose matching
+                # Remove accents/special chars manually or just check key parts
+                # "Álava" -> "alava"
+                # "A Coruña" -> "a-coruna"
+                
+                # Check if the name (normalized) looks like the slug
+                # This is heuristic. Better to match exact mapping if possible.
+                
+                # But wait, the JSON has "href": "/venta-viviendas/a-coruna/a-barcala/"
+                # We can just check which province key's zones have hrefs that match the operation?
+                # No, that's inefficient.
+                
+                # Let's rely on the fact that existing logic extracts provinces.
+                # Just crude matching:
+                normalized_name = name.lower().replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u').replace('ñ','n').replace(' ', '-')
+                
+                if normalized_name in url_slug or url_slug.replace('-provincia', '') == normalized_name:
+                    found_zones = data.get('zones', [])
+                    break
             
-            if zones:
-                print(f"Expanding provincial URL: {url} -> {len(zones)} zones")
-                for zone in zones:
-                    new_url = f"https://www.idealista.com/{operation}-viviendas/{zone['path']}{suffix}"
-                    expanded.append(new_url)
+            if found_zones:
+                print(f"Expanding {url} -> {len(found_zones)} zones")
+                for z in found_zones:
+                    # z['href'] is relative: /venta-viviendas/a-coruna/a-barcala/
+                    # We need to construct full URL. 
+                    # If operation matches, use it.
+                    # Note: The scraped hrefs are usually for VENTA. 
+                    # If the user wants ALQUILER, we might need to verify if the href supports swapping.
+                    # Usually: /venta-viviendas/x/y/ -> /alquiler-viviendas/x/y/
+                    
+                    z_href = z.get('href')
+                    if not z_href: continue
+                    
+                    if operation == 'alquiler-viviendas' and '/venta-viviendas/' in z_href:
+                        z_href = z_href.replace('/venta-viviendas/', '/alquiler-viviendas/')
+                    elif operation == 'venta-viviendas' and '/alquiler-viviendas/' in z_href:
+                        z_href = z_href.replace('/alquiler-viviendas/', '/venta-viviendas/')
+                        
+                    full_url = f"https://www.idealista.com{z_href}" if z_href.startswith('/') else z_href
+                    expanded.append(full_url)
             else:
                 expanded.append(url)
                 
@@ -696,6 +761,7 @@ def expand_batch_urls(urls):
     except Exception as e:
         print(f"Error expanding URLs: {e}")
         return urls
+
 
 @app.route('/api/start-batch', methods=['POST'])
 def start_batch_scraping():

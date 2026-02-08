@@ -20,6 +20,7 @@
 - **Dropdown Generation Logic**: Fixed a string concatenation syntax error in the JavaScript code.
 - **Province Batch URL Mapping**: Resolved a critical naming inconsistency in `app.js` (`url_venta` vs `venta_url`) that caused batch scraping to fail with "No valid URLs".
 - **Dynamic Slug Generation**: Added automatic slug extraction from province URLs in `app.js` to ensure robust identification even if slugs are missing from the configuration file.
+- **Button Validation Logic**: Fixed a regression where the "Start Scraping" button remained disabled due to conflicting validation logic between the Province Selector and Excel Enrichment panels.
 
 ## [2026-02-07]
 
