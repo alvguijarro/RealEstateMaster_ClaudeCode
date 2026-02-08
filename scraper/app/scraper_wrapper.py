@@ -14,6 +14,7 @@ import os
 import random
 import re
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set, Tuple
@@ -777,6 +778,7 @@ class ScraperController:
                 chunk = min(1.0, remaining)
                 await asyncio.sleep(chunk)
                 remaining -= chunk
+        self.log("DEBUG_TIMING", "Reading simulation finished")
     
     async def simulate_mouse_movement(self, page):
         """Simulate natural mouse movements (Extra Stealth only)."""
@@ -798,6 +800,7 @@ class ScraperController:
                 # Move with slight delay to simulate human movement
                 await page.mouse.move(x, y, steps=random.randint(5, 15))
                 await asyncio.sleep(random.uniform(0.1, 0.4))
+            self.log("DEBUG_TIMING", "Mouse movement simulation finished")
         except Exception:
             pass  # Ignore mouse movement errors
     
@@ -849,6 +852,7 @@ class ScraperController:
         if self._session_property_count >= self._next_coffee_break:
             break_duration = random.uniform(*EXTRA_STEALTH_COFFEE_BREAK_RANGE)
             self.log("INFO", f"☕ Anti-bot: Pausa de descanso ({break_duration:.0f}s)")
+            self.log("DEBUG_TIMING", f"Entering coffee break. Duration: {break_duration:.2f}s")
             
             if self.on_status:
                 self.on_status("resting", duration=int(break_duration))
@@ -888,6 +892,7 @@ class ScraperController:
             rest_duration = round(rest_duration / 60) * 60
             rest_mins = int(rest_duration // 60)
             self.log("INFO", f"😴 Anti-bot: Límite de sesión alcanzado ({EXTRA_STEALTH_SESSION_LIMIT} propiedades). Descansando {rest_mins} minutos...")
+            self.log("DEBUG_TIMING", f"Entering session rest break. Duration: {rest_duration}s")
             
             if self.on_status:
                 self.on_status("resting", duration=int(rest_duration))
@@ -1114,7 +1119,10 @@ class ScraperController:
             if self._stop_evt.is_set():
                 return
             try:
+                t_nav_start = time.time()
+                self.log("DEBUG_TIMING", f"Navigating to {url}...")
                 await page.goto(url, wait_until=GOTO_WAIT_UNTIL, timeout=60000)
+                self.log("DEBUG_TIMING", f"Navigation completed in {time.time() - t_nav_start:.2f}s")
                 
                 # Humanize interaction after reaching the page
                 await simulate_human_interaction(page)
@@ -1955,9 +1963,17 @@ class ScraperController:
                                 continue
                     
                             try:
+                                t_card = time.time()
                                 await self._interruptible_sleep(random.uniform(*card_delay))
+                                self.log("DEBUG_TIMING", f"Pre-card sleep took {time.time() - t_card:.2f}s")
+
+                                t_goto = time.time()
                                 await self._goto_with_retry(page, href)
+                                self.log("DEBUG_TIMING", f"Goto wrapper took {time.time() - t_goto:.2f}s")
+
+                                t_post = time.time()
                                 await self._interruptible_sleep(random.uniform(*post_card_delay))
+                                self.log("DEBUG_TIMING", f"Post-card sleep took {time.time() - t_post:.2f}s")
                         
                                 # If this is the first property, determine target file
                                 if target_file is None:
@@ -1980,7 +1996,7 @@ class ScraperController:
                                     self.log("INFO", f"Target Excel file: {target_path}")
                             
                                     # Load existing URLs from this file
-                                    import time
+                                    # import time  <-- REMOVED to fix UnboundLocalError
                                     t_start_load = time.time()
                                     url_dates = load_urls_with_dates(target_path)
                                     t_end_load = time.time()

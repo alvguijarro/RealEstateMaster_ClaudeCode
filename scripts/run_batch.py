@@ -47,7 +47,16 @@ def log(msg: str, level: str = "INFO"):
 
 def check_signals():
     if STOP_FLAG.exists():
-        log("[SIGNAL] Stop flag detected. Exiting batch...")
+        log("[SIGNAL] Stop flag detected. Sending stop signal to server...")
+        try:
+            # Tell the server to stop the active scrape
+            requests.post("http://localhost:5003/api/stop", timeout=5)
+            log("[INFO] Stop command sent to server.")
+            time.sleep(2) # Give it a moment
+        except Exception as e:
+            log(f"[WARN] Failed to send stop command to server: {e}")
+            
+        log("[INFO] Exiting batch runner.")
         try: os.remove(STOP_FLAG)
         except: pass
         sys.exit(0)

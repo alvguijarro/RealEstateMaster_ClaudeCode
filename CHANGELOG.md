@@ -15,7 +15,7 @@
 - **Unified State Management**: Refactored `app.js` with a central `updateScraperState` function to ensure Start/Pause/Stop buttons are consistently synchronized across all scraping modes (Single URL, Batch, URL Update).
 - **Global Status Emission**: Implemented real-time `status_change` events across the entire backend stack (`server.py`, `scraper.py`, `cli.py`, `update_urls.py`), ensuring the UI correctly reflects process completion, errors, or user interruptions.
 - **Province-Zone Mapping Documentation**: Generated `province_urls_mapping.md` with verified Idealista URLs for all 52 Spanish provinces (Venta <300k and Alquiler).
-- **Latency Monitoring Instrumentation**: Added granular timing logs to `scraper_wrapper.py` to diagnose unexplained delays in the scraping process (I/O, checkpoints, and simulated reading time).
+- **Latency Monitoring Instrumentation**: Added granular `DEBUG_TIMING` logs to `scraper_wrapper.py` in critical path (navigation, sleeps, breaks, simulations) to pinpoint unexplained latency bottlenecks.
 
 ### Fixed
 - **Province Dropdown Conflict**: Resolved a "double-toggle" bug where dropdowns would immediately close after opening.
@@ -26,6 +26,8 @@
 - **Encoding & Log Mojibake**: Resolved `ðŸ”„` and "Error en monitor" by enforcing `utf-8` encoding in `server.py` subprocess calls.
 - **Unwanted URL Expansion**: Fixed a logic error where selecting a whole province (e.g., Almería) resulted in scraping its sub-zones (Alpujarras) instead of the main province page. Added `expand: false` override in `app.js` and `server.py`.
 - **UI Script Initialization**: Fixed an unresponsive province selector caused by a duplicate `startBatchFromProvinces` definition and problematic `cloneNode` event listeners in `app.js`.
+- **Batch Stop Mechanism**: Modified `run_batch.py` to send an explicit `/api/stop` command to the server on interruption, ensuring active scrapers and browser processes are terminated cleanly along with the runner.
+- **Scraper Stability (UnboundLocalError)**: Fixed a crash in the main scraping loop caused by a local `import time` statement shadowing the global module during instrumentation.
 
 ## [2026-02-07]
 
