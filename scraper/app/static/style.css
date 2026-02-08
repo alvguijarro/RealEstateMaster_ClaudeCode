@@ -130,20 +130,25 @@ h1 {
     /* height: fit-content; Default flex behavior is fine */
 }
 
-/* 50/50 Two-Column Layout for Scraper Tool */
+/* 50/50 Two-Column Layout for Scraper Tool (Compact Mode) */
 .scraper-layout-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     width: 100%;
+    height: 55vh;
+    /* Compact height - roughly half viewport */
+    min-height: 500px;
+    /* Minimum to prevent it being too small */
     align-items: stretch;
-    /* Both columns stretch to match the tallest */
 }
 
 /* Left Panel: Main Controls */
 .control-panel-main {
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
+    /* Scroll if content exceeds height */
 }
 
 /* Right Column: Stacked Panels (50/50 split) */
@@ -181,17 +186,22 @@ h1 {
 @media (max-width: 900px) {
     .scraper-layout-row {
         grid-template-columns: 1fr;
+        height: auto;
+        /* Remove fixed height on mobile */
+        min-height: unset;
+    }
+
+    .control-panel-main {
+        overflow-y: visible;
     }
 
     .right-panel-stack {
         height: auto;
-        /* Auto height on mobile */
     }
 
     .province-selection-panel,
     .excel-update-panel {
         flex: none;
-        /* Don't stretch on mobile */
         overflow-y: visible;
     }
 }
