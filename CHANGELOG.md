@@ -14,6 +14,8 @@
 - **Dedicated Batch Button**: The new "Iniciar scraping de provincias" button triggers Fast mode scraping for all selected provinces, keeping the manual URL workflow completely separate.
 - **Unified State Management**: Refactored `app.js` with a central `updateScraperState` function to ensure Start/Pause/Stop buttons are consistently synchronized across all scraping modes (Single URL, Batch, URL Update).
 - **Global Status Emission**: Implemented real-time `status_change` events across the entire backend stack (`server.py`, `scraper.py`, `cli.py`, `update_urls.py`), ensuring the UI correctly reflects process completion, errors, or user interruptions.
+- **Province-Zone Mapping Documentation**: Generated `province_urls_mapping.md` with verified Idealista URLs for all 52 Spanish provinces (Venta <300k and Alquiler).
+- **Latency Monitoring Instrumentation**: Added granular timing logs to `scraper_wrapper.py` to diagnose unexplained delays in the scraping process (I/O, checkpoints, and simulated reading time).
 
 ### Fixed
 - **Province Dropdown Conflict**: Resolved a "double-toggle" bug where dropdowns would immediately close after opening.
@@ -21,6 +23,9 @@
 - **Province Batch URL Mapping**: Resolved a critical naming inconsistency in `app.js` (`url_venta` vs `venta_url`) that caused batch scraping to fail with "No valid URLs".
 - **Dynamic Slug Generation**: Added automatic slug extraction from province URLs in `app.js` to ensure robust identification even if slugs are missing from the configuration file.
 - **Button Validation Logic**: Fixed a regression where the "Start Scraping" button remained disabled due to conflicting validation logic between the Province Selector and Excel Enrichment panels.
+- **Encoding & Log Mojibake**: Resolved `ðŸ”„` and "Error en monitor" by enforcing `utf-8` encoding in `server.py` subprocess calls.
+- **Unwanted URL Expansion**: Fixed a logic error where selecting a whole province (e.g., Almería) resulted in scraping its sub-zones (Alpujarras) instead of the main province page. Added `expand: false` override in `app.js` and `server.py`.
+- **UI Script Initialization**: Fixed an unresponsive province selector caused by a duplicate `startBatchFromProvinces` definition and problematic `cloneNode` event listeners in `app.js`.
 
 ## [2026-02-07]
 

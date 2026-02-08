@@ -1980,8 +1980,11 @@ class ScraperController:
                                     self.log("INFO", f"Target Excel file: {target_path}")
                             
                                     # Load existing URLs from this file
+                                    import time
+                                    t_start_load = time.time()
                                     url_dates = load_urls_with_dates(target_path)
-                                    self.log("INFO", f"Loaded {len(url_dates)} existing URLs from file")
+                                    t_end_load = time.time()
+                                    self.log("INFO", f"Loaded {len(url_dates)} existing URLs from file in {t_end_load - t_start_load:.2f}s")
                             
                                     # CRITICAL FIX: Add existing URLs to processed set immediately
                                     # This prevents re-scraping subsequent properties in this loop that are already in the file
@@ -2020,7 +2023,9 @@ class ScraperController:
                                             self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
                                             try:
                                                  if len(additions) > self._last_checkpoint_idx and target_file:
+                                                      t_start_save = time.time()
                                                       await self._save_checkpoint(additions, target_file, existing_df, set())
+                                                      self.log("INFO", f"Saved captcha checkpoint in {time.time() - t_start_save:.2f}s")
                                             except: pass
                                             raise Exception("CAPTCHA_BLOCK_DETECTED")
                                         
@@ -2119,15 +2124,16 @@ class ScraperController:
                                         self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
                                         try:
                                              if len(additions) > self._last_checkpoint_idx and target_file:
+                                                  t_start_save = time.time()
                                                   await self._save_checkpoint(additions, target_file, existing_df, set())
+                                                  self.log("INFO", f"Saved captcha checkpoint in {time.time() - t_start_save:.2f}s")
                                         except: pass
                                         raise Exception("CAPTCHA_BLOCK_DETECTED")
                                     
                                     # If cleared, proceed (miss is False)
                                     if not miss:
                                          if self.on_status: self.on_status("running")
-
-                        
+                                
                                 # Add scraping date in dd/mm/yyyy format
                                 from datetime import datetime
                                 row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
@@ -2138,7 +2144,9 @@ class ScraperController:
                         
                                 # Checkpoint saving: save every 100 properties
                                 if len(additions) > 0 and len(additions) % self._checkpoint_interval == 0:
+                                    t_start_save = time.time()
                                     await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
+                                    self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_start_save:.2f}s")
                         
                                 # Extra Stealth: Simulate reading time
                                 await self.simulate_reading_time(row.get("Descripción"))
@@ -2457,13 +2465,15 @@ class ScraperController:
                                     if self.on_property:
                                         self.on_property(row)
                                 
+                                    t_start_read = time.time()
                                     await self.simulate_reading_time(row.get("Descripción"))
+                                    self.log("INFO", f"Simulated reading time: {time.time() - t_start_read:.2f}s")
                                     await self.simulate_mouse_movement(page)
                                 
                                 except BrowserClosedException:
                                     break
                                 except Exception as e:
-                                    self.log("ERR", f"Error scraping {key}: {e}")
+                                    self.log("ERR", f"({self.current_property_count}/{self.total_properties_expected}) {key} -> {e}")
                                     self._processed.add(key)
                         
                             if self._stop_evt.is_set():

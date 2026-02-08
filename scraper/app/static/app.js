@@ -2585,37 +2585,58 @@ window.startBatchFromProvinces = async function () {
             // 1. If Province is Fully Checked (no indeterminate), send Province URL (Server expands) 
             // OR if all zones are checked manually
             const allZonesChecked = (zoneCbs.length > 0 && checkedZones.length === zoneCbs.length);
+            // Debug log
+            if (provCb.checked || checkedZones.length > 0) {
+                console.log(`[DEBUG] Province: ${provCb.dataset.slug}, Checked: ${provCb.checked}, Indet: ${provCb.indeterminate}, Zones: ${checkedZones.length}/${zoneCbs.length}`);
+            }
 
-            if (provCb.checked && !provCb.indeterminate) {
-                // Full province selected
-                // We need the province URL used for scraping
+            // LOGIC FIX: Prioritize Full Province URL if the province header is successfully checked
+            // The user wants "Almería" -> Province URL, not 10 Zone URLs.
+            // If provCb is checked, it means the user wants the whole province. 
+            // Even if indeterminate is technically true (browser quirk?), if checked is true we usually want the parent.
+            // But standard behavior: Checked = All descendents. Indeterminate = Some.
+
+            const isFullProvince = provCb.checked && !provCb.indeterminate;
+
+            // Force full province if all zones are checked (double check)
+            const explicitAllZones = (zoneCbs.length > 0 && checkedZones.length === zoneCbs.length);
+
+            if (isFullProvince || explicitAllZones) {
                 const pSlug = provCb.dataset.slug;
                 if (provinceUrls[pSlug]) {
                     const url = type === 'venta' ? provinceUrls[pSlug].venta_url : provinceUrls[pSlug].alquiler_url;
-                    if (url) urls.push(url);
+                    if (url) {
+                        urls.push(url);
+                        console.log(`[DEBUG] Added Full Province URL: ${url}`);
+                    } else {
+                        // Fallback: If no province URL (shouldn't happen), send all zones
+                        checkedZones.forEach(z => {
+                            urls.push(getZoneUrl(z, type));
+                        });
+                    }
                 }
-            } else if (provCb.indeterminate || (!provCb.checked && checkedZones.length > 0)) {
+            } else {
                 // Partial selection: Send specific Zone URLs
                 checkedZones.forEach(z => {
-                    const href = z.dataset.href;
-                    // Construct full URL
-                    // Href is usually /venta-viviendas/...
-                    // If type is alquiler, we must ensure href is correct or swap it
-                    // Our extraction logic saved original hrefs (usually venta).
-                    // We need to swap if operation is different.
-                    let finalHref = href;
-                    if (type === 'alquiler' && finalHref.includes('/venta-viviendas/')) {
-                        finalHref = finalHref.replace('/venta-viviendas/', '/alquiler-viviendas/');
-                    } else if (type === 'venta' && finalHref.includes('/alquiler-viviendas/')) {
-                        finalHref = finalHref.replace('/alquiler-viviendas/', '/venta-viviendas/');
-                    }
-
-                    const fullUrl = `https://www.idealista.com${finalHref}`;
-                    urls.push(fullUrl);
+                    urls.push(getZoneUrl(z, type));
                 });
             }
         });
     };
+
+    const getZoneUrl = (checkbox, type) => {
+        const href = checkbox.dataset.href;
+        let finalHref = href;
+        if (type === 'alquiler' && finalHref.includes('/venta-viviendas/')) {
+            finalHref = finalHref.replace('/venta-viviendas/', '/alquiler-viviendas/');
+        } else if (type === 'venta' && finalHref.includes('/alquiler-viviendas/')) {
+            finalHref = finalHref.replace('/alquiler-viviendas/', '/venta-viviendas/');
+        }
+        const fullUrl = `https://www.idealista.com${finalHref}`;
+        console.log(`[DEBUG] Added Zone URL: ${fullUrl}`);
+        return fullUrl;
+    };
+
 
     collectUrls('venta');
     collectUrls('alquiler');
@@ -2632,7 +2653,7 @@ window.startBatchFromProvinces = async function () {
         const response = await fetch('/api/start-batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls: urls, mode: 'fast' }) // Always fast for batch?
+            body: JSON.stringify({ urls: urls, mode: 'fast', expand: false }) // Disable backend expansion
         });
 
         const data = await response.json();
@@ -2645,6 +2666,7 @@ window.startBatchFromProvinces = async function () {
         addLog('ERR', `Error de conexión: ${e.message}`);
     }
 };
+
 
 /**
  * Validates if the "Start Scraping" button should be enabled.
@@ -2687,67 +2709,7 @@ function validateBatchButton() {
  * Starts batch scraping from the selected provinces using Fast mode.
  * Triggered by the "Iniciar scraping de provincias" button.
  */
-async function startBatchFromProvinces() {
-    // Initialize Audio Context on user gesture
-    if (!audioCtx) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-            audioCtx = new AudioContext();
-        }
-    }
-    if (audioCtx && audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-    }
 
-    const urls = [];
-    // Use verified URLs from provinceUrls lookup
-    selectedVenta.forEach(slug => {
-        const urlData = provinceUrls[slug];
-        urls.push(urlData ? urlData.venta_url : `https://www.idealista.com/venta-viviendas/${slug}/con-precio-hasta_300000/`);
-    });
-    selectedAlquiler.forEach(slug => {
-        const urlData = provinceUrls[slug];
-        urls.push(urlData ? urlData.alquiler_url : `https://www.idealista.com/alquiler-viviendas/${slug}/`);
-    });
-
-    if (urls.length === 0) return;
-
-    addLog('INFO', `🚀 Iniciando Batch Scraping de ${urls.length} provincias (Modo Fast)...`);
-
-    try {
-        const resp = await fetch('/api/start-batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls: urls, mode: 'fast' })
-        });
-        const data = await resp.json();
-        if (data.status === 'started') {
-            addLog('OK', `Batch iniciado (PID: ${data.pid}, URLs totales: ${data.count})`);
-
-            // Update UI state for batch mode
-            isRunning = true;
-            isPaused = false;
-            startBtn.disabled = true;
-            pauseBtn.disabled = false;
-            stopBtn.disabled = false;
-            pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
-            seedUrlInput.disabled = true;
-            if (dualModeBtn) dualModeBtn.disabled = true;
-            const startBatchBtnEl = document.getElementById('startBatchBtn');
-            if (startBatchBtnEl) startBatchBtnEl.disabled = true;
-            if (typeof startApiImportBtn !== 'undefined' && startApiImportBtn) startApiImportBtn.disabled = true;
-
-            // Update status badge
-            statusBadge.className = 'status-badge running';
-            statusBadge.querySelector('.status-text').textContent = 'Ejecutando (Batch)';
-
-            // Start timer
-            startTimer();
-        } else {
-            addLog('ERR', data.error);
-        }
-    } catch (e) { addLog('ERR', e.message); }
-}
 
 function setupMultiSelectUI() {
     console.log('[MultiSelect] Setting up dropdown UI...');
@@ -2760,11 +2722,13 @@ function setupMultiSelectUI() {
         console.log(`[MultiSelect] ${type}: trigger=${!!trigger}, overlay=${!!overlay}`);
 
         if (trigger && overlay) {
-            // Remove any existing listeners by cloning
-            const newTrigger = trigger.cloneNode(true);
-            trigger.parentNode.replaceChild(newTrigger, trigger);
+            // Avoid adding multiple listeners if called multiple times
+            if (trigger.dataset.listenerAttached === 'true') {
+                console.log(`[MultiSelect] Listener already attached for ${type}`);
+                return;
+            }
 
-            newTrigger.addEventListener('click', function (e) {
+            trigger.addEventListener('click', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
                 console.log(`[MultiSelect] ${type} trigger clicked!`);
@@ -2778,29 +2742,45 @@ function setupMultiSelectUI() {
                 overlay.classList.toggle('active');
                 console.log(`[MultiSelect] ${type} overlay active: ${overlay.classList.contains('active')}`);
             });
+
+            trigger.dataset.listenerAttached = 'true';
         }
 
         if (search) {
+            // Remove old listener if needed? checking dataset is enough
+            if (search.dataset.listenerAttached === 'true') return;
+
             search.addEventListener('input', (e) => {
                 const term = e.target.value.toLowerCase();
                 const list = document.getElementById('list' + type);
                 if (list) {
-                    const items = list.querySelectorAll('.dropdown-item:not(:first-child)');
-                    items.forEach(item => {
-                        const text = item.textContent.toLowerCase();
-                        item.style.display = text.includes(term) ? 'flex' : 'none';
+                    const items = list.querySelectorAll('.province-group, .dropdown-item:not(.province-group)');
+                    // We need to filter province groups somewhat intelligently
+                    // Simple search: hide non-matching province groups?
+                    // Better: filter provinces by name.
+                    const groups = list.querySelectorAll('.province-group');
+                    groups.forEach(group => {
+                        const nameSpan = group.querySelector('.prov-name');
+                        const text = nameSpan ? nameSpan.textContent.toLowerCase() : '';
+                        const visible = text.includes(term);
+                        group.style.display = visible ? 'block' : 'none';
                     });
                 }
             });
+            search.dataset.listenerAttached = 'true';
         }
     });
 
     // Close on click outside - but not on dropdown content
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.custom-dropdown-group')) {
-            document.querySelectorAll('.dropdown-overlay').forEach(el => el.classList.remove('active'));
-        }
-    });
+    // Use a named function to allow removal if needed, or just check flag
+    if (!document.body.dataset.dropdownCloserAttached) {
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.custom-dropdown-group')) {
+                document.querySelectorAll('.dropdown-overlay').forEach(el => el.classList.remove('active'));
+            }
+        });
+        document.body.dataset.dropdownCloserAttached = 'true';
+    }
 
     console.log('[MultiSelect] Setup complete.');
 }

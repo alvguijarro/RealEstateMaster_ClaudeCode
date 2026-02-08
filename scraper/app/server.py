@@ -483,6 +483,9 @@ def start_periodic_lowcost():
         cwd=str(script_path.parent.parent),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, # Merge stderr to stdout
+        text=True,
+        encoding='utf-8',
+        errors='replace',
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
     )
     
@@ -785,11 +788,16 @@ def start_batch_scraping():
     if periodic_process and periodic_process.poll() is None:
         return jsonify({'error': 'A batch process is already running'}), 400
         
-    # Expand provincial URLs if needed
-    original_count = len(urls)
-    urls = expand_batch_urls(urls)
-    if len(urls) > original_count:
-        print(f"Batch expanded from {original_count} to {len(urls)} URLs")
+    
+    # Expand provincial URLs if needed (default to True for backward compat, but app.js can disable)
+    should_expand = data.get('expand', True)
+    if should_expand:
+        original_count = len(urls)
+        urls = expand_batch_urls(urls)
+        if len(urls) > original_count:
+            print(f"Batch expanded from {original_count} to {len(urls)} URLs")
+    else:
+        print("Batch expansion disabled by client.")
         
     # Write queue to file
     queue_file = Path(__file__).parent.parent / "batch_queue.json"
@@ -816,6 +824,8 @@ def start_batch_scraping():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True, # Critical for line buffering
+        encoding='utf-8',
+        errors='replace',
         bufsize=1, # Line buffered
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
     )
@@ -1376,6 +1386,8 @@ def start_background_task(cmd, task_name, cwd=None):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 bufsize=1,
                 cwd=working_dir,
                 env={**os.environ, "PYTHONUNBUFFERED": "1"} # Force unbuffered output
