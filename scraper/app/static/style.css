@@ -137,36 +137,31 @@ h1 {
     gap: 20px;
     width: 100%;
     height: 35vh;
-    /* Fixed compact height */
+    /* Fixed compact height for LEFT column */
     min-height: 320px;
-    align-items: stretch;
-    /* Left matches Right vertical */
+    align-items: start;
+    /* Don't stretch columns equally */
     margin-bottom: 20px;
-    /* Ensure gap below this row */
 }
 
-/* Left Panel: Main Controls - fills full height */
+/* Left Panel: Main Controls - fills full height of row */
 .control-panel-main {
     display: flex;
     flex-direction: column;
     height: 100%;
-    /* Strict height constraint */
+    /* Uses full 35vh */
     min-height: 0;
-    /* Allow shrinking below content size */
     overflow-y: auto;
-    /* Scrollable internal content */
 }
 
-/* Right Column: Stacked Panels */
+/* Right Column: Stacked Panels - HALF HEIGHT */
 .right-panel-stack {
     display: flex;
     flex-direction: column;
     gap: 15px;
-    /* Slightly reduced gap */
-    height: 100%;
-    /* Fill the grid height */
+    height: 50%;
+    /* Only use half the available height (17.5vh) */
     min-height: 0;
-    /* Allow shrinking */
 }
 
 /* Right panels split the available height */
