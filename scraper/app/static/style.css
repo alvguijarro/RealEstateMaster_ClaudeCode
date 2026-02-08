@@ -136,9 +136,9 @@ h1 {
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     width: 100%;
-    height: 55vh;
-    /* Compact height - roughly half viewport */
-    min-height: 500px;
+    height: 28vh;
+    /* Ultra-compact height */
+    min-height: 250px;
     /* Minimum to prevent it being too small */
     align-items: stretch;
 }
