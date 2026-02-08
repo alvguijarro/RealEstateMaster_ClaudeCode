@@ -943,33 +943,44 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
             # If we delete, we might lose other file progress?
             # Ideally we filter and rewrite. But for now, just delete is simpler if we assume single user.
             os.remove(JOURNAL_FILE)
-        except:
+        except KeyboardInterrupt:
+            emit_to_ui('INFO', "Stopped by user.")
+            emit_to_ui('INFO', "[STATUS] stopped")
+        except Exception as e:
+            emit_to_ui('ERR', f"Critical error: {e}")
+            emit_to_ui('INFO', f"[STATUS] error: {str(e)}")
+        finally:
+            # Final cleanup or status? 
+            # If we exited normally, Main blocks handling completion or loop finish
             pass
     
     if HAS_SOCKET and sio.connected:
         sio.disconnect()
 
 
-def main():
+if __name__ == "__main__":
     import json
-    parser = argparse.ArgumentParser(description='Update URL status from Excel file')
-    parser.add_argument('excel_file', help='Path to Excel file to update')
-    parser.add_argument('--sheets', default='[]', help='JSON array of sheet names to process')
-    parser.add_argument('--resume', action='store_true', help='Resume from checkpoint')
+    import argparse
+    import sys
+    parser = argparse.ArgumentParser(description="Update URLs from Excel")
+    parser.add_argument("excel_file", help="Path to Excel file")
+    parser.add_argument("--sheets", help="JSON list of sheets to process", default=None)
+    parser.add_argument("--resume", action="store_true", help="Resume from journal")
+    
     args = parser.parse_args()
     
-    try:
-        selected_sheets = json.loads(args.sheets)
-        if not isinstance(selected_sheets, list):
-            selected_sheets = []
-    except:
-        selected_sheets = []
-    
+    sheets = None
+    if args.sheets:
+        try:
+             sheets = json.loads(args.sheets)
+        except:
+             pass
+             
+    # Clean flags on start
+    if os.path.exists(PAUSE_FLAG_FILE): os.remove(PAUSE_FLAG_FILE)
+    if os.path.exists(STOP_FLAG_FILE): os.remove(STOP_FLAG_FILE)
+
     if sys.platform == 'win32':
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    
-    asyncio.run(update_urls(args.excel_file, selected_sheets, args.resume))
 
-
-if __name__ == "__main__":
-    main()
+    asyncio.run(update_urls(args.excel_file, sheets, args.resume))

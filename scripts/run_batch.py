@@ -5,6 +5,10 @@ Rotates between Chromium and Firefox, respecting profile cooldowns.
 """
 import json
 import sys
+# Force UTF-8 encoding for stdout/stderr to handle emojis
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 import time
 import os
 import requests
@@ -149,6 +153,10 @@ def main():
     success_count = 0
     
     for i, url in enumerate(urls, 1):
+        if not url:
+            log(f"[{i}/{len(urls)}] Skipping invalid URL (None/Empty)...", "WARN")
+            continue
+            
         log(f"\n[{i}/{len(urls)}] Processing URL: {url}...")
         
         # Retry logic (Infinite retries for blocks)

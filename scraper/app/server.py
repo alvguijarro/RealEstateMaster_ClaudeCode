@@ -641,23 +641,8 @@ def get_provinces_list():
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             
-        # Transform: Extract slug from URL and build both venta and alquiler URLs
-        # URL format: .../venta-viviendas/{slug}/...
-        provinces = []
-        for item in data:
-            venta_url = item.get('url', '')
-            if 'venta-viviendas/' in venta_url:
-                slug = venta_url.split('venta-viviendas/')[1].split('/')[0]
-                # Build alquiler URL using the same verified slug
-                alquiler_url = f"https://www.idealista.com/alquiler-viviendas/{slug}/"
-                provinces.append({
-                    'name': item['name'], 
-                    'slug': slug,
-                    'venta_url': venta_url,
-                    'alquiler_url': alquiler_url
-                })
-        
-        return jsonify({'provinces': provinces})
+        # Return the data directly as it now contains valid verified URLs
+        return jsonify({'provinces': data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -688,9 +673,20 @@ def expand_batch_urls(urls):
                 if len(parts) > 1 and parts[1]:
                     suffix = parts[1] + "/"
             
-            if slug and slug in mapping:
-                print(f"Expanding provincial URL: {url} -> {len(mapping[slug])} zones")
-                for zone in mapping[slug]:
+            # Try finding the mapping for the slug directly, or fall back to stripped version
+            zones = None
+            if slug:
+                if slug in mapping:
+                    zones = mapping[slug]
+                else:
+                    # Fallback: remove "-provincia" suffix to find match (e.g. 'madrid-provincia' -> 'madrid')
+                    stripped_slug = slug.replace("-provincia", "")
+                    if stripped_slug in mapping:
+                        zones = mapping[stripped_slug]
+            
+            if zones:
+                print(f"Expanding provincial URL: {url} -> {len(zones)} zones")
+                for zone in zones:
                     new_url = f"https://www.idealista.com/{operation}-viviendas/{zone['path']}{suffix}"
                     expanded.append(new_url)
             else:
@@ -707,11 +703,18 @@ def start_batch_scraping():
     global periodic_process, periodic_thread
     
     data = request.json
+    print(f"DEBUG: start_batch received: {data}")
     urls = data.get('urls', [])
     mode = data.get('mode', 'fast')
     
     if not urls:
         return jsonify({'error': 'No URLs provided'}), 400
+        
+    # Filter out None/Empty
+    urls = [u for u in urls if u and isinstance(u, str) and u.strip()]
+    
+    if not urls:
+        return jsonify({'error': 'No valid URLs after filtering'}), 400
         
     if periodic_process and periodic_process.poll() is None:
         return jsonify({'error': 'A batch process is already running'}), 400
@@ -754,6 +757,9 @@ def start_batch_scraping():
     # Reuse periodic log monitor (renamed mentally to batch monitor)
     periodic_thread = threading.Thread(target=periodic_log_monitor, args=(periodic_process,), daemon=True)
     periodic_thread.start()
+    
+    # Emit initial running status for batch
+    emit_status('running', mode='batch')
     
     return jsonify({'status': 'started', 'pid': periodic_process.pid, 'count': len(urls)})
 
@@ -908,6 +914,9 @@ def update_urls():
     
     thread = threading.Thread(target=run_update, daemon=True)
     thread.start()
+    
+    # Emit initial running status
+    emit_status('running', mode='update_urls')
     
     return jsonify({'status': 'started', 'file': excel_file})
 

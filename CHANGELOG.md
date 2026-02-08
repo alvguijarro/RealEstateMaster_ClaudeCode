@@ -12,10 +12,14 @@
     - **Responsive Grid**: Dynamic grid that collapses to single column on smaller screens.
 - **Decoupled Province Selection**: Selecting provinces no longer auto-fills the manual URL input. The URL field is now exclusively for user-entered searches.
 - **Dedicated Batch Button**: The new "Iniciar scraping de provincias" button triggers Fast mode scraping for all selected provinces, keeping the manual URL workflow completely separate.
+- **Unified State Management**: Refactored `app.js` with a central `updateScraperState` function to ensure Start/Pause/Stop buttons are consistently synchronized across all scraping modes (Single URL, Batch, URL Update).
+- **Global Status Emission**: Implemented real-time `status_change` events across the entire backend stack (`server.py`, `scraper.py`, `cli.py`, `update_urls.py`), ensuring the UI correctly reflects process completion, errors, or user interruptions.
 
 ### Fixed
 - **Province Dropdown Conflict**: Resolved a "double-toggle" bug where dropdowns would immediately close after opening.
 - **Dropdown Generation Logic**: Fixed a string concatenation syntax error in the JavaScript code.
+- **Province Batch URL Mapping**: Resolved a critical naming inconsistency in `app.js` (`url_venta` vs `venta_url`) that caused batch scraping to fail with "No valid URLs".
+- **Dynamic Slug Generation**: Added automatic slug extraction from province URLs in `app.js` to ensure robust identification even if slugs are missing from the configuration file.
 
 ## [2026-02-07]
 

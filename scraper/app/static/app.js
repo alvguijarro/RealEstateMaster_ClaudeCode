@@ -3,6 +3,53 @@
  * Handles WebSocket communication and UI updates
  */
 
+// Centralized Scraper State Management
+function updateScraperState(active, modeTitle = null) {
+    isRunning = active;
+    isPaused = false; // Reset pause state on new state change unless specified
+
+    // Update Global Buttons
+    if (startBtn) {
+        startBtn.disabled = active;
+        if (active) {
+            startBtn.classList.add('disabled');
+            startBtn.title = "Scraper en curso...";
+        } else {
+            startBtn.classList.remove('disabled');
+            startBtn.title = "Iniciar Scraping";
+        }
+    }
+
+    // Resume button only shows if paused, handled separately
+    if (resumeBtn) resumeBtn.style.display = 'none';
+
+    // Pause/Stop buttons enabled when active
+    if (pauseBtn) pauseBtn.disabled = !active;
+    if (stopBtn) stopBtn.disabled = !active;
+
+    // Batch Button (if exists)
+    const startBatchBtn = document.getElementById('startBatchBtn');
+    if (startBatchBtn) startBatchBtn.disabled = active; // Disable if ANY scraping is active
+
+    // URL Update Button
+    if (updateUrlsBtn) updateUrlsBtn.disabled = active;
+
+    // Status Badge
+    if (statusBadge) {
+        const dot = statusBadge.querySelector('.status-dot');
+        const text = statusBadge.querySelector('.status-text');
+
+        if (active) {
+            statusBadge.className = 'status-badge active';
+            text.textContent = modeTitle || 'Scraping Activo';
+        } else {
+            statusBadge.className = 'status-badge';
+            text.textContent = 'Inactivo';
+        }
+    }
+}
+
+
 // DOM Elements
 const seedUrlInput = document.getElementById('seedUrl');
 const outputDirDisplay = document.getElementById('outputDirDisplay');
@@ -597,18 +644,12 @@ async function startUrlUpdate(resume = false) {
     const selectedSheets = getSelectedSheets();
 
     addLog('INFO', `Iniciando actualización de URLs desde: ${excelFile}`);
-    updateUrlsBtn.disabled = true;
-    updateUrlsBtn.innerHTML = '<span class="btn-icon">⏳</span> Actualizando...';
 
-    // Set UI state for update mode
+    // Centralized State Update
+    updateScraperState(true, 'Actualizando URLs');
     isUpdateMode = true;
-    isRunning = true;
-    isPaused = false;
-    startBtn.disabled = true;
-    startBtn.title = "No disponible durante actualización";
-    pauseBtn.disabled = false;
-    stopBtn.disabled = false;
-    if (resumeBtn) resumeBtn.style.display = 'none';
+
+    if (updateUrlsBtn) updateUrlsBtn.innerHTML = '<span class="btn-icon">⏳</span> Actualizando...';
 
     try {
         const response = await fetch('/api/update-urls', {
@@ -621,13 +662,15 @@ async function startUrlUpdate(resume = false) {
 
         if (!response.ok) {
             addLog('ERR', data.error || 'Error al iniciar actualización');
-            resetUIState();
+            updateScraperState(false); // Reset on error
+            if (updateUrlsBtn) updateUrlsBtn.innerHTML = '<span class="btn-icon">🔄</span> Actualizar URLs';
         } else {
             addLog('OK', 'Actualización de URLs iniciada');
         }
     } catch (error) {
         addLog('ERR', `Error de conexión: ${error.message}`);
-        resetUIState();
+        updateScraperState(false); // Reset on error
+        if (updateUrlsBtn) updateUrlsBtn.innerHTML = '<span class="btn-icon">🔄</span> Actualizar URLs';
     }
 }
 
@@ -1157,6 +1200,9 @@ async function startScraping(isDualMode = false) {
 
     addLog('INFO', `Iniciando scraping en modo ${currentMode.toUpperCase()}...`);
 
+    // Centralized State Update
+    updateScraperState(true, `Scraping ${isDualMode ? 'Dual' : currentMode.toUpperCase()}`);
+
     try {
         const response = await fetch('/api/start', {
             method: 'POST',
@@ -1173,6 +1219,7 @@ async function startScraping(isDualMode = false) {
 
         if (!response.ok) {
             addLog('ERR', data.error || 'Error al iniciar');
+            updateScraperState(false); // Reset on error
             return;
         }
 
@@ -1185,6 +1232,7 @@ async function startScraping(isDualMode = false) {
 
     } catch (error) {
         addLog('ERR', `Error de conexión: ${error.message}`);
+        updateScraperState(false); // Reset on error
     }
 }
 
@@ -1213,6 +1261,12 @@ async function togglePause() {
 async function stopScraping() {
     addLog('INFO', 'Deteniendo...');
 
+    // Disable stop button immediately to prevent double clicks
+    if (stopBtn) {
+        stopBtn.disabled = true;
+        stopBtn.innerHTML = '<span class="btn-icon">⏳</span> Deteniendo...';
+    }
+
     let endpoint;
     if (isBatchMode) {
         endpoint = '/api/batch/stop';
@@ -1228,9 +1282,23 @@ async function stopScraping() {
 
         if (!response.ok) {
             addLog('ERR', data.error || 'Error al detener');
+            // Re-enable if failed
+            if (stopBtn) {
+                stopBtn.disabled = false;
+                stopBtn.innerHTML = '<span class="btn-icon">⏹</span> Parar';
+            }
+        } else {
+            // Success - Server will send 'stopped' status or similar
+            // But we can force UI update to be sure
+            updateScraperState(false);
+            if (stopBtn) stopBtn.innerHTML = '<span class="btn-icon">⏹</span> Parar';
         }
     } catch (error) {
         addLog('ERR', `Error: ${error.message}`);
+        if (stopBtn) {
+            stopBtn.disabled = false;
+            stopBtn.innerHTML = '<span class="btn-icon">⏹</span> Parar';
+        }
     }
 }
 
@@ -1491,14 +1559,10 @@ async function resumeScraping() {
         savedResumeState = null;
 
         // Update UI state
-        isRunning = true;
-        isPaused = false;
+        // Centralized State Update
+        updateScraperState(true, `Scraping Reanudado in ${mode}`);
         startTime = Date.now();
         startTimer();
-
-        startBtn.disabled = true;
-        pauseBtn.disabled = false;
-        stopBtn.disabled = false;
         seedUrlInput.disabled = true;
 
         addLog('OK', `Scraping reanudado en modo ${mode}`);
@@ -1576,14 +1640,9 @@ async function syncStatus() {
             addLog('WARN', 'Sesión de scraping perdida (el servidor parece haberse reiniciado).');
             resetUIState();
         } else if (data.status === 'running' || data.status === 'paused' || data.status === 'captcha' || data.status === 'blocked') {
-            // Restore UI state if server is active (e.g. after a page refresh)
-            isRunning = true;
+            // Centralized Status Sync
+            updateScraperState(true, data.status === 'running' ? 'Scraping Activo' : 'Pausado/Bloqueado');
             isPaused = (data.status === 'paused' || data.status === 'captcha' || data.status === 'blocked');
-
-            startBtn.disabled = true;
-            if (dualModeBtn) dualModeBtn.disabled = true;
-            pauseBtn.disabled = false;
-            stopBtn.disabled = false;
 
             if (data.status === 'paused') {
                 pauseBtn.innerHTML = '<span class="btn-icon">▶</span> Reanudar';
@@ -1598,6 +1657,10 @@ async function syncStatus() {
             if (data.progress) {
                 handleProgressUpdate(data.progress);
             }
+        } else {
+            // Idle state
+            updateScraperState(false);
+            if (updateUrlsBtn) updateUrlsBtn.innerHTML = '<span class="btn-icon">🔄</span> Actualizar URLs';
         }
     } catch (e) {
         console.error("Error syncing status:", e);
@@ -1887,6 +1950,7 @@ function setBatchUIState(state) {
     if (!batchStartBtn) return;
 
     if (state === 'running') {
+        updateScraperState(true, 'Enriquecimiento por Lotes');
         batchStartBtn.disabled = true;
         batchStopBtn.disabled = false;
         batchPauseBtn.disabled = false;
@@ -1895,6 +1959,10 @@ function setBatchUIState(state) {
         batchProgressText.textContent = "Ejecutando...";
         batchProgressText.style.color = "var(--success)";
     } else if (state === 'paused') {
+        // Keep global state active but maybe indicate pause differently?
+        // Ideally global state 'active' keeps start disabled.
+        // But paused means we can stop or resume.
+        // updateScraperState(true) is correct because we are in a session.
         batchStartBtn.disabled = true;
         batchStopBtn.disabled = false;
         batchPauseBtn.style.display = 'none';
@@ -1902,6 +1970,7 @@ function setBatchUIState(state) {
         batchProgressText.textContent = "Pausado";
         batchProgressText.style.color = "var(--warning)";
     } else {
+        updateScraperState(false);
         batchStartBtn.disabled = false;
         batchStopBtn.disabled = true;
         batchPauseBtn.disabled = true;
@@ -2237,10 +2306,23 @@ async function loadProvincesList() {
             // Build lookup map for verified URLs
             provinceUrls = {};
             allProvincesList.forEach(p => {
-                provinceUrls[p.slug] = {
-                    venta_url: p.venta_url,
-                    alquiler_url: p.alquiler_url
-                };
+                // Generate slug if missing
+                if (!p.slug && p.url_venta) {
+                    try {
+                        const parts = p.url_venta.split('/').filter(s => s.length > 0);
+                        // https://www.idealista.com/venta-viviendas/madrid-provincia/
+                        // [https:, www.idealista.com, venta-viviendas, madrid-provincia]
+                        // Last part is the slug
+                        p.slug = parts[parts.length - 1];
+                    } catch (e) { p.slug = p.id; }
+                }
+
+                if (p.slug) {
+                    provinceUrls[p.slug] = {
+                        venta_url: p.url_venta,
+                        alquiler_url: p.url_alquiler
+                    };
+                }
             });
             populateDropdown('listVenta', 'venta');
             populateDropdown('listAlquiler', 'alquiler');

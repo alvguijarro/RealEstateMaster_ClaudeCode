@@ -464,6 +464,9 @@ class ScraperSession:
         existing_df_target = load_existing_specific_sheet(out_effective, self.detected_sheet or self.sheet_name)
         export_single_sheet(existing_df_target, self.additions, out_effective, self.detected_sheet or self.sheet_name, carry_cols=set())
         log("INFO", f"Added {len(self.additions)} new rows this session.")
+        
+        # Signal completion to server
+        print("[STATUS] completed")
 
         # =============================================================================
         # DATABASE EXPORT

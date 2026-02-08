@@ -79,6 +79,8 @@ def main():
     except KeyboardInterrupt:
         print()
         log("INFO", "Stopped by user (Ctrl+C).")
+        print("[STATUS] stopped")
     except Exception as e:
         log("ERR", f"Unexpected error: {e}")
+        print(f"[STATUS] error: {str(e)}")
         raise
