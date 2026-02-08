@@ -130,14 +130,14 @@ h1 {
     /* height: fit-content; Default flex behavior is fine */
 }
 
-/* 50/50 Two-Column Layout for Scraper Tool (Compact Mode) */
+/* 50/50 Two-Column Layout for Scraper Tool */
 .scraper-layout-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     width: 100%;
-    align-items: start;
-    /* Right panels align to top, not stretch */
+    align-items: stretch;
+    /* Left panel stretches to match right panels combined height */
 }
 
 /* Left Panel: Main Controls - fills full height */
