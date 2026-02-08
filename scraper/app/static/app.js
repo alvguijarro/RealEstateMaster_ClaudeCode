@@ -2653,12 +2653,14 @@ window.startBatchFromProvinces = async function () {
         const response = await fetch('/api/start-batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls: urls, mode: 'fast', expand: false }) // Disable backend expansion
+            body: JSON.stringify({ urls: urls, mode: 'fast', expand: false, smart_enrichment: true }) // Smart enrichment mode for province updates
         });
 
         const data = await response.json();
         if (response.ok) {
             addLog('OK', `Lote iniciado con PID ${data.pid}`);
+            batchStartTime = Date.now();
+            startTimer();
         } else {
             addLog('ERR', `Error: ${data.error}`);
         }

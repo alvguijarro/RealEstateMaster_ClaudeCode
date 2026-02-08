@@ -1,0 +1,210 @@
+{
+    "A Coruña": {
+        "venta": "idealista_A_Coruña_venta_MERGED.xlsx",
+        "alquiler": "idealista_A_Coruña_alquiler_MERGED.xlsx"
+    },
+    "Álava": {
+        "venta": "idealista_Álava_venta_MERGED.xlsx",
+        "alquiler": "idealista_Álava_alquiler_MERGED.xlsx"
+    },
+    "Albacete": {
+        "venta": "idealista_Albacete_venta_MERGED.xlsx",
+        "alquiler": "idealista_Albacete_alquiler_MERGED.xlsx"
+    },
+    "Alicante": {
+        "venta": "idealista_Alicante_venta_MERGED.xlsx",
+        "alquiler": "idealista_Alicante_alquiler_MERGED.xlsx"
+    },
+    "Almería": {
+        "venta": "idealista_Almería_venta_MERGED.xlsx",
+        "alquiler": "idealista_Almería_alquiler_MERGED.xlsx"
+    },
+    "Asturias": {
+        "venta": "idealista_Asturias_venta_MERGED.xlsx",
+        "alquiler": "idealista_Asturias_alquiler_MERGED.xlsx"
+    },
+    "Ávila": {
+        "venta": "idealista_Ávila_venta_MERGED.xlsx",
+        "alquiler": "idealista_Ávila_alquiler_MERGED.xlsx"
+    },
+    "Badajoz": {
+        "venta": "idealista_Badajoz_venta_MERGED.xlsx",
+        "alquiler": "idealista_Badajoz_alquiler_MERGED.xlsx"
+    },
+    "Baleares (Illes)": {
+        "venta": "idealista_Baleares_venta_MERGED.xlsx",
+        "alquiler": "idealista_Baleares_alquiler_MERGED.xlsx"
+    },
+    "Barcelona": {
+        "venta": "idealista_Barcelona_venta_MERGED.xlsx",
+        "alquiler": "idealista_Barcelona_alquiler_MERGED.xlsx"
+    },
+    "Burgos": {
+        "venta": "idealista_Burgos_venta_MERGED.xlsx",
+        "alquiler": "idealista_Burgos_alquiler_MERGED.xlsx"
+    },
+    "Cáceres": {
+        "venta": "idealista_Cáceres_venta_MERGED.xlsx",
+        "alquiler": "idealista_Cáceres_alquiler_MERGED.xlsx"
+    },
+    "Cádiz": {
+        "venta": "idealista_Cádiz_venta_MERGED.xlsx",
+        "alquiler": "idealista_Cádiz_alquiler_MERGED.xlsx"
+    },
+    "Cantabria": {
+        "venta": "idealista_Cantabria_venta_MERGED.xlsx",
+        "alquiler": "idealista_Cantabria_alquiler_MERGED.xlsx"
+    },
+    "Castellón": {
+        "venta": "idealista_Castellón_venta_MERGED.xlsx",
+        "alquiler": "idealista_Castellón_alquiler_MERGED.xlsx"
+    },
+    "Ceuta": {
+        "venta": "idealista_Ceuta_venta_MERGED.xlsx",
+        "alquiler": "idealista_Ceuta_alquiler_MERGED.xlsx"
+    },
+    "Ciudad Real": {
+        "venta": "idealista_Ciudad_Real_venta_MERGED.xlsx",
+        "alquiler": "idealista_Ciudad_Real_alquiler_MERGED.xlsx"
+    },
+    "Córdoba": {
+        "venta": "idealista_Córdoba_venta_MERGED.xlsx",
+        "alquiler": "idealista_Córdoba_alquiler_MERGED.xlsx"
+    },
+    "Cuenca": {
+        "venta": "idealista_Cuenca_venta_MERGED.xlsx",
+        "alquiler": "idealista_Cuenca_alquiler_MERGED.xlsx"
+    },
+    "Girona": {
+        "venta": "idealista_Girona_venta_MERGED.xlsx",
+        "alquiler": "idealista_Girona_alquiler_MERGED.xlsx"
+    },
+    "Granada": {
+        "venta": "idealista_Granada_venta_MERGED.xlsx",
+        "alquiler": "idealista_Granada_alquiler_MERGED.xlsx"
+    },
+    "Guadalajara": {
+        "venta": "idealista_Guadalajara_venta_MERGED.xlsx",
+        "alquiler": "idealista_Guadalajara_alquiler_MERGED.xlsx"
+    },
+    "Guipúzcoa": {
+        "venta": "idealista_Guipúzcoa_venta_MERGED.xlsx",
+        "alquiler": "idealista_Guipúzcoa_alquiler_MERGED.xlsx"
+    },
+    "Huelva": {
+        "venta": "idealista_Huelva_venta_MERGED.xlsx",
+        "alquiler": "idealista_Huelva_alquiler_MERGED.xlsx"
+    },
+    "Huesca": {
+        "venta": "idealista_Huesca_venta_MERGED.xlsx",
+        "alquiler": "idealista_Huesca_alquiler_MERGED.xlsx"
+    },
+    "Jaén": {
+        "venta": "idealista_Jaén_venta_MERGED.xlsx",
+        "alquiler": "idealista_Jaén_alquiler_MERGED.xlsx"
+    },
+    "La Rioja": {
+        "venta": "idealista_La_Rioja_venta_MERGED.xlsx",
+        "alquiler": "idealista_La_Rioja_alquiler_MERGED.xlsx"
+    },
+    "Las Palmas": {
+        "venta": "idealista_Las_Palmas_venta_MERGED.xlsx",
+        "alquiler": "idealista_Las_Palmas_alquiler_MERGED.xlsx"
+    },
+    "León": {
+        "venta": "idealista_León_venta_MERGED.xlsx",
+        "alquiler": "idealista_León_alquiler_MERGED.xlsx"
+    },
+    "Lleida": {
+        "venta": "idealista_Lleida_venta_MERGED.xlsx",
+        "alquiler": "idealista_Lleida_alquiler_MERGED.xlsx"
+    },
+    "Lugo": {
+        "venta": "idealista_Lugo_venta_MERGED.xlsx",
+        "alquiler": "idealista_Lugo_alquiler_MERGED.xlsx"
+    },
+    "Madrid": {
+        "venta": "idealista_Madrid_venta_MERGED.xlsx",
+        "alquiler": "idealista_Madrid_alquiler_MERGED.xlsx"
+    },
+    "Málaga": {
+        "venta": "idealista_Málaga_venta_MERGED.xlsx",
+        "alquiler": "idealista_Málaga_alquiler_MERGED.xlsx"
+    },
+    "Melilla": {
+        "venta": "idealista_Melilla_venta_MERGED.xlsx",
+        "alquiler": "idealista_Melilla_alquiler_MERGED.xlsx"
+    },
+    "Murcia": {
+        "venta": "idealista_Murcia_venta_MERGED.xlsx",
+        "alquiler": "idealista_Murcia_alquiler_MERGED.xlsx"
+    },
+    "Navarra": {
+        "venta": "idealista_Navarra_venta_MERGED.xlsx",
+        "alquiler": "idealista_Navarra_alquiler_MERGED.xlsx"
+    },
+    "Ourense": {
+        "venta": "idealista_Ourense_venta_MERGED.xlsx",
+        "alquiler": "idealista_Ourense_alquiler_MERGED.xlsx"
+    },
+    "Palencia": {
+        "venta": "idealista_Palencia_venta_MERGED.xlsx",
+        "alquiler": "idealista_Palencia_alquiler_MERGED.xlsx"
+    },
+    "Pontevedra": {
+        "venta": "idealista_Pontevedra_venta_MERGED.xlsx",
+        "alquiler": "idealista_Pontevedra_alquiler_MERGED.xlsx"
+    },
+    "Salamanca": {
+        "venta": "idealista_Salamanca_venta_MERGED.xlsx",
+        "alquiler": "idealista_Salamanca_alquiler_MERGED.xlsx"
+    },
+    "Santa Cruz de Tenerife": {
+        "venta": "idealista_Santa_Cruz_de_Tenerife_venta_MERGED.xlsx",
+        "alquiler": "idealista_Santa_Cruz_de_Tenerife_alquiler_MERGED.xlsx"
+    },
+    "Segovia": {
+        "venta": "idealista_Segovia_venta_MERGED.xlsx",
+        "alquiler": "idealista_Segovia_alquiler_MERGED.xlsx"
+    },
+    "Sevilla": {
+        "venta": "idealista_Sevilla_venta_MERGED.xlsx",
+        "alquiler": "idealista_Sevilla_alquiler_MERGED.xlsx"
+    },
+    "Soria": {
+        "venta": "idealista_Soria_venta_MERGED.xlsx",
+        "alquiler": "idealista_Soria_alquiler_MERGED.xlsx"
+    },
+    "Tarragona": {
+        "venta": "idealista_Tarragona_venta_MERGED.xlsx",
+        "alquiler": "idealista_Tarragona_alquiler_MERGED.xlsx"
+    },
+    "Teruel": {
+        "venta": "idealista_Teruel_venta_MERGED.xlsx",
+        "alquiler": "idealista_Teruel_alquiler_MERGED.xlsx"
+    },
+    "Toledo": {
+        "venta": "idealista_Toledo_venta_MERGED.xlsx",
+        "alquiler": "idealista_Toledo_alquiler_MERGED.xlsx"
+    },
+    "Valencia": {
+        "venta": "idealista_Valencia_venta_MERGED.xlsx",
+        "alquiler": "idealista_Valencia_alquiler_MERGED.xlsx"
+    },
+    "Valladolid": {
+        "venta": "idealista_Valladolid_venta_MERGED.xlsx",
+        "alquiler": "idealista_Valladolid_alquiler_MERGED.xlsx"
+    },
+    "Vizcaya": {
+        "venta": "idealista_Vizcaya_venta_MERGED.xlsx",
+        "alquiler": "idealista_Vizcaya_alquiler_MERGED.xlsx"
+    },
+    "Zamora": {
+        "venta": "idealista_Zamora_venta_MERGED.xlsx",
+        "alquiler": "idealista_Zamora_alquiler_MERGED.xlsx"
+    },
+    "Zaragoza": {
+        "venta": "idealista_Zaragoza_venta_MERGED.xlsx",
+        "alquiler": "idealista_Zaragoza_alquiler_MERGED.xlsx"
+    }
+}

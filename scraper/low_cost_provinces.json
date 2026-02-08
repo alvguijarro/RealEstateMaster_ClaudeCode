@@ -1,210 +1,314 @@
 [
     {
-        "name": "A Coruna",
-        "url": "https://www.idealista.com/venta-viviendas/a-coruna/con-precio-hasta_300000/"
+        "id": "0-EU-ES-15",
+        "name": "A Coruña",
+        "url_venta": "https://www.idealista.com/venta-viviendas/a-coruna-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/a-coruna-provincia/"
     },
     {
-        "name": "Alava",
-        "url": "https://www.idealista.com/venta-viviendas/alava/con-precio-hasta_300000/"
+        "id": "0-EU-ES-01",
+        "name": "Álava",
+        "url_venta": "https://www.idealista.com/venta-viviendas/alava/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/alava/"
     },
     {
+        "id": "0-EU-ES-02",
         "name": "Albacete",
-        "url": "https://www.idealista.com/venta-viviendas/albacete-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/albacete-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/albacete-provincia/"
     },
     {
+        "id": "0-EU-ES-03",
         "name": "Alicante",
-        "url": "https://www.idealista.com/venta-viviendas/alicante/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/alicante/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/alicante/"
     },
     {
-        "name": "Almeria",
-        "url": "https://www.idealista.com/venta-viviendas/almeria-provincia/con-precio-hasta_300000/"
+        "id": "0-EU-ES-04",
+        "name": "Almería",
+        "url_venta": "https://www.idealista.com/venta-viviendas/almeria-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/almeria-provincia/"
     },
     {
+        "id": "0-EU-ES-33",
         "name": "Asturias",
-        "url": "https://www.idealista.com/venta-viviendas/asturias/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/asturias/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/asturias/"
     },
     {
-        "name": "Avila",
-        "url": "https://www.idealista.com/venta-viviendas/avila-provincia/con-precio-hasta_300000/"
+        "id": "0-EU-ES-05",
+        "name": "Ávila",
+        "url_venta": "https://www.idealista.com/venta-viviendas/avila-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/avila-provincia/"
     },
     {
+        "id": "0-EU-ES-06",
         "name": "Badajoz",
-        "url": "https://www.idealista.com/venta-viviendas/badajoz-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/badajoz-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/badajoz-provincia/"
     },
     {
-        "name": "Baleares",
-        "url": "https://www.idealista.com/venta-viviendas/balears-illes/con-precio-hasta_300000/"
+        "id": "0-EU-ES-07",
+        "name": "Baleares (Illes)",
+        "url_venta": "https://www.idealista.com/venta-viviendas/balears-illes/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/balears-illes/"
     },
     {
+        "id": "0-EU-ES-08",
         "name": "Barcelona",
-        "url": "https://www.idealista.com/venta-viviendas/barcelona/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/barcelona-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/barcelona-provincia/"
     },
     {
+        "id": "0-EU-ES-09",
         "name": "Burgos",
-        "url": "https://www.idealista.com/venta-viviendas/burgos-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/burgos-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/burgos-provincia/"
     },
     {
-        "name": "Caceres",
-        "url": "https://www.idealista.com/venta-viviendas/caceres-provincia/con-precio-hasta_300000/"
+        "id": "0-EU-ES-10",
+        "name": "Cáceres",
+        "url_venta": "https://www.idealista.com/venta-viviendas/caceres-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/caceres-provincia/"
     },
     {
-        "name": "Cadiz",
-        "url": "https://www.idealista.com/venta-viviendas/cadiz/con-precio-hasta_300000/"
+        "id": "0-EU-ES-11",
+        "name": "Cádiz",
+        "url_venta": "https://www.idealista.com/venta-viviendas/cadiz-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/cadiz-provincia/"
     },
     {
+        "id": "0-EU-ES-39",
         "name": "Cantabria",
-        "url": "https://www.idealista.com/venta-viviendas/cantabria/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/cantabria/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/cantabria/"
     },
     {
-        "name": "Castellon",
-        "url": "https://www.idealista.com/venta-viviendas/castellon-provincia/con-precio-hasta_300000/"
+        "id": "0-EU-ES-12",
+        "name": "Castellón",
+        "url_venta": "https://www.idealista.com/venta-viviendas/castellon/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/castellon/"
     },
     {
+        "id": "0-EU-ES-51",
         "name": "Ceuta",
-        "url": "https://www.idealista.com/venta-viviendas/ceuta/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/ceuta-ceuta/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/ceuta-ceuta/"
     },
     {
+        "id": "0-EU-ES-13",
         "name": "Ciudad Real",
-        "url": "https://www.idealista.com/venta-viviendas/ciudad-real-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/ciudad-real-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/ciudad-real-provincia/"
     },
     {
-        "name": "Cordoba",
-        "url": "https://www.idealista.com/venta-viviendas/cordoba-provincia/con-precio-hasta_300000/"
+        "id": "0-EU-ES-14",
+        "name": "Córdoba",
+        "url_venta": "https://www.idealista.com/venta-viviendas/cordoba-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/cordoba-provincia/"
     },
     {
+        "id": "0-EU-ES-16",
         "name": "Cuenca",
-        "url": "https://www.idealista.com/venta-viviendas/cuenca-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/cuenca-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/cuenca-provincia/"
     },
     {
+        "id": "0-EU-ES-17",
         "name": "Girona",
-        "url": "https://www.idealista.com/venta-viviendas/girona/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/girona-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/girona-provincia/"
     },
     {
+        "id": "0-EU-ES-18",
         "name": "Granada",
-        "url": "https://www.idealista.com/venta-viviendas/granada/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/granada-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/granada-provincia/"
     },
     {
+        "id": "0-EU-ES-19",
         "name": "Guadalajara",
-        "url": "https://www.idealista.com/venta-viviendas/guadalajara-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/guadalajara-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/guadalajara-provincia/"
     },
     {
-        "name": "Guipuzcoa",
-        "url": "https://www.idealista.com/venta-viviendas/guipuzcoa/con-precio-hasta_300000/"
+        "id": "0-EU-ES-20",
+        "name": "Guipúzcoa",
+        "url_venta": "https://www.idealista.com/venta-viviendas/guipuzcoa/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/guipuzcoa/"
     },
     {
+        "id": "0-EU-ES-21",
         "name": "Huelva",
-        "url": "https://www.idealista.com/venta-viviendas/huelva-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/huelva-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/huelva-provincia/"
     },
     {
+        "id": "0-EU-ES-22",
         "name": "Huesca",
-        "url": "https://www.idealista.com/venta-viviendas/huesca-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/huesca-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/huesca-provincia/"
     },
     {
-        "name": "Jaen",
-        "url": "https://www.idealista.com/venta-viviendas/jaen-provincia/con-precio-hasta_300000/"
+        "id": "0-EU-ES-23",
+        "name": "Jaén",
+        "url_venta": "https://www.idealista.com/venta-viviendas/jaen-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/jaen-provincia/"
     },
     {
+        "id": "0-EU-ES-26",
         "name": "La Rioja",
-        "url": "https://www.idealista.com/venta-viviendas/la-rioja/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/la-rioja/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/la-rioja/"
     },
     {
+        "id": "0-EU-ES-35",
         "name": "Las Palmas",
-        "url": "https://www.idealista.com/venta-viviendas/las-palmas/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/las-palmas/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/las-palmas/"
     },
     {
-        "name": "Leon",
-        "url": "https://www.idealista.com/venta-viviendas/leon-provincia/con-precio-hasta_300000/"
+        "id": "0-EU-ES-24",
+        "name": "León",
+        "url_venta": "https://www.idealista.com/venta-viviendas/leon-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/leon-provincia/"
     },
     {
+        "id": "0-EU-ES-25",
         "name": "Lleida",
-        "url": "https://www.idealista.com/venta-viviendas/lleida-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/lleida-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/lleida-provincia/"
     },
     {
+        "id": "0-EU-ES-27",
         "name": "Lugo",
-        "url": "https://www.idealista.com/venta-viviendas/lugo-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/lugo-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/lugo-provincia/"
     },
     {
+        "id": "0-EU-ES-28",
         "name": "Madrid",
-        "url": "https://www.idealista.com/venta-viviendas/madrid/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/madrid-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/madrid-provincia/"
     },
     {
-        "name": "Malaga",
-        "url": "https://www.idealista.com/venta-viviendas/malaga/con-precio-hasta_300000/"
+        "id": "0-EU-ES-29",
+        "name": "Málaga",
+        "url_venta": "https://www.idealista.com/venta-viviendas/malaga-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/malaga-provincia/"
     },
     {
+        "id": "0-EU-ES-52",
         "name": "Melilla",
-        "url": "https://www.idealista.com/venta-viviendas/melilla/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/melilla-melilla/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/melilla-melilla/"
     },
     {
+        "id": "0-EU-ES-30",
         "name": "Murcia",
-        "url": "https://www.idealista.com/venta-viviendas/murcia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/murcia-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/murcia-provincia/"
     },
     {
+        "id": "0-EU-ES-31",
         "name": "Navarra",
-        "url": "https://www.idealista.com/venta-viviendas/navarra/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/navarra/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/navarra/"
     },
     {
+        "id": "0-EU-ES-32",
         "name": "Ourense",
-        "url": "https://www.idealista.com/venta-viviendas/ourense-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/ourense-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/ourense-provincia/"
     },
     {
+        "id": "0-EU-ES-34",
         "name": "Palencia",
-        "url": "https://www.idealista.com/venta-viviendas/palencia-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/palencia-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/palencia-provincia/"
     },
     {
+        "id": "0-EU-ES-36",
         "name": "Pontevedra",
-        "url": "https://www.idealista.com/venta-viviendas/pontevedra/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/pontevedra-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/pontevedra-provincia/"
     },
     {
+        "id": "0-EU-ES-37",
         "name": "Salamanca",
-        "url": "https://www.idealista.com/venta-viviendas/salamanca-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/salamanca-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/salamanca-provincia/"
     },
     {
+        "id": "0-EU-ES-38",
         "name": "Santa Cruz de Tenerife",
-        "url": "https://www.idealista.com/venta-viviendas/santa-cruz-de-tenerife/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/santa-cruz-de-tenerife-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/santa-cruz-de-tenerife-provincia/"
     },
     {
+        "id": "0-EU-ES-40",
         "name": "Segovia",
-        "url": "https://www.idealista.com/venta-viviendas/segovia-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/segovia-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/segovia-provincia/"
     },
     {
+        "id": "0-EU-ES-41",
         "name": "Sevilla",
-        "url": "https://www.idealista.com/venta-viviendas/sevilla/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/sevilla-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/sevilla-provincia/"
     },
     {
+        "id": "0-EU-ES-42",
         "name": "Soria",
-        "url": "https://www.idealista.com/venta-viviendas/soria-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/soria-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/soria-provincia/"
     },
     {
+        "id": "0-EU-ES-43",
         "name": "Tarragona",
-        "url": "https://www.idealista.com/venta-viviendas/tarragona/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/tarragona-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/tarragona-provincia/"
     },
     {
+        "id": "0-EU-ES-44",
         "name": "Teruel",
-        "url": "https://www.idealista.com/venta-viviendas/teruel-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/teruel-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/teruel-provincia/"
     },
     {
+        "id": "0-EU-ES-45",
         "name": "Toledo",
-        "url": "https://www.idealista.com/venta-viviendas/toledo-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/toledo-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/toledo-provincia/"
     },
     {
-        "name": "Valencia",
-        "url": "https://www.idealista.com/venta-viviendas/valencia/con-precio-hasta_300000/"
-    },
-    {
+        "id": "0-EU-ES-47",
         "name": "Valladolid",
-        "url": "https://www.idealista.com/venta-viviendas/valladolid/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/valladolid-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/valladolid-provincia/"
     },
     {
+        "id": "0-EU-ES-46",
+        "name": "Valencia",
+        "url_venta": "https://www.idealista.com/venta-viviendas/valencia-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/valencia-provincia/"
+    },
+    {
+        "id": "0-EU-ES-48",
         "name": "Vizcaya",
-        "url": "https://www.idealista.com/venta-viviendas/vizcaya/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/vizcaya/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/vizcaya/"
     },
     {
+        "id": "0-EU-ES-49",
         "name": "Zamora",
-        "url": "https://www.idealista.com/venta-viviendas/zamora-provincia/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/zamora-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/zamora-provincia/"
     },
     {
+        "id": "0-EU-ES-50",
         "name": "Zaragoza",
-        "url": "https://www.idealista.com/venta-viviendas/zaragoza/con-precio-hasta_300000/"
+        "url_venta": "https://www.idealista.com/venta-viviendas/zaragoza-provincia/",
+        "url_alquiler": "https://www.idealista.com/alquiler-viviendas/zaragoza-provincia/"
     }
 ]

@@ -49,6 +49,10 @@ from idealista_scraper.excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
     load_urls_with_dates, export_split_by_distrito
 )
+from province_mapping import (
+    get_output_file_for_url, load_enriched_urls, load_all_urls_from_excel,
+    mark_as_enriched, detect_province_and_operation, DEFAULT_OUTPUT_DIR as PROVINCE_OUTPUT_DIR
+)
 
 
 def build_paginated_url(seed_url: str, page_number: int) -> str:
@@ -682,6 +686,11 @@ class ScraperController:
     rotate_every: int = 5  # Rotate every N properties or pages? User said provinces, but here we only have one URL.
     # For standard scraper, maybe rotate every N pages.
     
+    # Smart Enrichment Mode
+    smart_enrichment: bool = False  # If True, use province-file mapping and skip already enriched URLs
+    province_name: Optional[str] = None  # Province name for file lookup (e.g., "Toledo")
+    operation_type: Optional[str] = None  # "venta" or "alquiler"
+    
     # Callbacks
     on_log: Optional[Callable[[str, str], None]] = None
     on_property: Optional[Callable[[dict], None]] = None
@@ -725,6 +734,11 @@ class ScraperController:
     _last_checkpoint_idx: int = 0  # Index of last saved property
     _checkpoint_interval: int = 50  # Save every N properties
     _target_file: Optional[str] = None  # Cached target filename for checkpoints
+    
+    # Smart Enrichment state
+    _enriched_urls: Set[str] = field(default_factory=set)  # URLs already enriched (skip completely)
+    _all_existing_urls: Dict[str, dict] = field(default_factory=dict)  # All URLs in file with metadata
+    _province_target_file: Optional[str] = None  # Province-based target file
     
     def __post_init__(self):
         self._stop_evt = asyncio.Event()
@@ -1119,10 +1133,10 @@ class ScraperController:
             if self._stop_evt.is_set():
                 return
             try:
-                t_nav_start = time.time()
-                self.log("DEBUG_TIMING", f"Navigating to {url}...")
+                # t_nav_start = time.time()
+                # self.log("DEBUG_TIMING", f"Navigating to {url}...")
                 await page.goto(url, wait_until=GOTO_WAIT_UNTIL, timeout=60000)
-                self.log("DEBUG_TIMING", f"Navigation completed in {time.time() - t_nav_start:.2f}s")
+                # self.log("DEBUG_TIMING", f"Navigation completed in {time.time() - t_nav_start:.2f}s")
                 
                 # Humanize interaction after reaching the page
                 await simulate_human_interaction(page)
@@ -1263,8 +1277,11 @@ class ScraperController:
     
     async def _wait_for_pause(self):
         """Wait if paused."""
-        while not self._pause_evt.is_set() and not self._stop_evt.is_set():
-            await asyncio.sleep(0.1)
+        if not self._pause_evt.is_set() and not self._stop_evt.is_set():
+            self.log("WARN", "⏳ Scraper paused. Waiting for resume...")
+            while not self._pause_evt.is_set() and not self._stop_evt.is_set():
+                await asyncio.sleep(1.0)
+            self.log("INFO", "▶️ Scraper resumed.")
 
     async def _interruptible_sleep(self, duration: float):
         """Sleep for duration, but wake up immediately if stopped."""
@@ -1382,7 +1399,51 @@ class ScraperController:
             else:
                 # File doesn't exist yet - keep the registered filename, it will be created
                 self.log("INFO", f"Registered file not found: {target_file} - will be created during this scrape")
-        # seed_url logic removed as it was redundant/erroneous here. self.seed_url is already set in __init__ or passed in registry logic above if needed, but registry logic sets target_file, not seed_url.
+        
+        # === SMART ENRICHMENT MODE ===
+        # If smart_enrichment is enabled, try to use province-file mapping
+        if self.smart_enrichment:
+            self.log("INFO", "🔍 Smart Enrichment Mode enabled")
+            
+            # Try to detect province/operation from URL if not already set
+            if not self.province_name or not self.operation_type:
+                detected_province, detected_operation = detect_province_and_operation(self.seed_url)
+                if detected_province:
+                    self.province_name = detected_province
+                if detected_operation:
+                    self.operation_type = detected_operation
+            
+            if self.province_name and self.operation_type:
+                self.log("INFO", f"📍 Province: {self.province_name}, Operation: {self.operation_type}")
+                
+                # Get province-based target file
+                province_file, _, _ = get_output_file_for_url(self.seed_url)
+                if province_file:
+                    self._province_target_file = province_file
+                    province_path = os.path.join(self.output_dir, province_file)
+                    
+                    # Override target_file with province-based file
+                    target_file = province_file
+                    self.log("INFO", f"📂 Province target file: {target_file}")
+                    
+                    # Load already enriched URLs (to skip completely)
+                    if os.path.exists(province_path):
+                        self._enriched_urls = load_enriched_urls(province_path)
+                        self._all_existing_urls = load_all_urls_from_excel(province_path)
+                        
+                        enriched_count = len(self._enriched_urls)
+                        total_in_file = len(self._all_existing_urls)
+                        not_enriched = total_in_file - enriched_count
+                        
+                        self.log("OK", f"📊 File status: {total_in_file} total, {enriched_count} enriched, {not_enriched} pending")
+                        
+                        # Add enriched URLs to processed set (skip completely)
+                        self._processed.update(self._enriched_urls)
+                        self.log("INFO", f"⏭️ Will skip {enriched_count} already enriched properties")
+                    else:
+                        self.log("INFO", f"Province file not found - will create: {province_file}")
+            else:
+                self.log("WARN", "Could not detect province/operation from URL. Smart enrichment partially disabled.")
         
         additions: List[dict] = []
         expired_urls: List[str] = []  # URLs to delete from Excel (expired listings)
@@ -1963,17 +2024,17 @@ class ScraperController:
                                 continue
                     
                             try:
-                                t_card = time.time()
+                                # t_card = time.time()
                                 await self._interruptible_sleep(random.uniform(*card_delay))
-                                self.log("DEBUG_TIMING", f"Pre-card sleep took {time.time() - t_card:.2f}s")
+                                # self.log("DEBUG_TIMING", f"Pre-card sleep took {time.time() - t_card:.2f}s")
 
-                                t_goto = time.time()
+                                # t_goto = time.time()
                                 await self._goto_with_retry(page, href)
-                                self.log("DEBUG_TIMING", f"Goto wrapper took {time.time() - t_goto:.2f}s")
+                                # self.log("DEBUG_TIMING", f"Goto wrapper took {time.time() - t_goto:.2f}s")
 
-                                t_post = time.time()
+                                # t_post = time.time()
                                 await self._interruptible_sleep(random.uniform(*post_card_delay))
-                                self.log("DEBUG_TIMING", f"Post-card sleep took {time.time() - t_post:.2f}s")
+                                # self.log("DEBUG_TIMING", f"Post-card sleep took {time.time() - t_post:.2f}s")
                         
                                 # If this is the first property, determine target file
                                 if target_file is None:
@@ -2056,6 +2117,10 @@ class ScraperController:
                                     # Add scraping date
                                     from datetime import datetime
                                     row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+                                    
+                                    # Smart Enrichment: Mark as enriched with current date
+                                    if self.smart_enrichment:
+                                        row = mark_as_enriched(row)
                                 
                                     additions.append(row)
                                     self.scraped_properties.append(row)
@@ -2153,6 +2218,10 @@ class ScraperController:
                                 # Add scraping date in dd/mm/yyyy format
                                 from datetime import datetime
                                 row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+                                
+                                # Smart Enrichment: Mark as enriched with current date
+                                if self.smart_enrichment:
+                                    row = mark_as_enriched(row)
                         
                                 additions.append(row)
                                 self.scraped_properties.append(row)
@@ -2191,7 +2260,11 @@ class ScraperController:
                                     self.on_property(row)
                         
                                 self.current_property_count = property_idx
+                                self.current_property_count = property_idx
                                 self.emit_progress()
+                                
+                                # Loop heartbeat - kept silent unless debug is needed
+                                # self.log("DEBUG", f"Finished loop for {property_idx}")
                         
                             except BrowserClosedException:
                                 # Save state for resume before exiting

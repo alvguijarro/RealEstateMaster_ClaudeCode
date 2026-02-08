@@ -185,6 +185,7 @@ def start_scraping():
     use_vpn = data.get('use_vpn', False)
     rotate_every = data.get('rotate_every', 5)
     browser_engine = data.get('browser_engine', 'chromium')  # Multi-browser rotation
+    smart_enrichment = data.get('smart_enrichment', False)  # Smart enrichment mode
     
     # Validate browser_engine
     if browser_engine not in ['chromium', 'firefox']:
@@ -220,6 +221,7 @@ def start_scraping():
         use_vpn=use_vpn,
         rotate_every=rotate_every,
         browser_engine=browser_engine,  # Multi-browser rotation
+        smart_enrichment=smart_enrichment,  # Smart enrichment mode
         on_log=emit_log,
         on_property=emit_property,
         on_status=emit_status,
@@ -801,8 +803,9 @@ def start_batch_scraping():
         
     # Write queue to file
     queue_file = Path(__file__).parent.parent / "batch_queue.json"
+    smart_enrichment = data.get('smart_enrichment', False)
     with open(queue_file, 'w', encoding='utf-8') as f:
-        json.dump({'urls': urls, 'mode': mode}, f)
+        json.dump({'urls': urls, 'mode': mode, 'smart_enrichment': smart_enrichment}, f)
         
     # Spawn runner
     script_path = Path(__file__).parent.parent.parent / "scripts" / "run_batch.py"

@@ -66,7 +66,7 @@ def check_signals():
         time.sleep(5)
         if STOP_FLAG.exists(): return
 
-def run_single_url(url: str, mode: str, browser_engine: str = "chromium") -> bool:
+def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_enrichment: bool = False) -> bool:
     target_prov = "Unknown"
     # Basic province extraction for logging
     if "idealista.com" in url:
@@ -99,7 +99,8 @@ def run_single_url(url: str, mode: str, browser_engine: str = "chromium") -> boo
         "seed_url": url,
         "mode": mode,
         "max_pages": 4000, # High limit for batch
-        "browser_engine": browser_engine  # Multi-browser rotation
+        "browser_engine": browser_engine,  # Multi-browser rotation
+        "smart_enrichment": smart_enrichment  # Smart enrichment mode
     }
     
     try:
@@ -153,11 +154,14 @@ def main():
             data = json.load(f)
             urls = data.get('urls', [])
             mode = data.get('mode', 'fast')
+            smart_enrichment = data.get('smart_enrichment', False)
     except Exception as e:
         log(f"[ERR] Failed to read queue: {e}")
         sys.exit(1)
         
     log(f"Queue size: {len(urls)} URLs. Mode: {mode}")
+    if smart_enrichment:
+        log("🔍 Smart Enrichment Mode: ENABLED")
     
     success_count = 0
     
@@ -195,7 +199,7 @@ def main():
             else:
                 selected_engine = "chromium"
             
-            success = run_single_url(url, mode, selected_engine)
+            success = run_single_url(url, mode, selected_engine, smart_enrichment)
             
             if not success:
                 # If failed (blocked), we don't wait 15 mins unconditionally.

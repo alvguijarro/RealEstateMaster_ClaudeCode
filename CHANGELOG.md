@@ -16,6 +16,14 @@
 - **Global Status Emission**: Implemented real-time `status_change` events across the entire backend stack (`server.py`, `scraper.py`, `cli.py`, `update_urls.py`), ensuring the UI correctly reflects process completion, errors, or user interruptions.
 - **Province-Zone Mapping Documentation**: Generated `province_urls_mapping.md` with verified Idealista URLs for all 52 Spanish provinces (Venta <300k and Alquiler).
 - **Latency Monitoring Instrumentation**: Added granular `DEBUG_TIMING` logs to `scraper_wrapper.py` in critical path (navigation, sleeps, breaks, simulations) to pinpoint unexplained latency bottlenecks.
+- **Batch Timer Fix**: Resolved an issue where the "Time" scorecard failed to start when initiating a batch scrape from provinces. The timer now correctly triggers immediately upon button click.
+- **Smart Enrichment Mode**: Implemented intelligent property enrichment for batch province updates:
+    - **Province-to-File Mapping**: Created `province_file_mapping.json` mapping all 52 Spanish provinces to standardized output files (`idealista_{Province}_{venta|alquiler}_MERGED.xlsx`).
+    - **Enrichment Tracking**: New `__enriched__` and `Fecha Enriquecimiento` columns mark properties that have been scraped.
+    - **Skip Already Enriched**: Properties with `__enriched__ = TRUE` and a valid `Fecha Enriquecimiento` are automatically skipped to avoid redundant scraping.
+    - **New Properties Detection**: New properties not present in the Excel file are automatically added and marked as enriched.
+    - **Province Mapping Module**: Created `province_mapping.py` utility module with functions to detect provinces/operations from URLs, load enriched URLs, and manage enrichment markers.
+    - **End-to-End Integration**: Smart enrichment flows through `app.js` → `server.py` → `run_batch.py` → `scraper_wrapper.py`.
 
 ### Fixed
 - **Province Dropdown Conflict**: Resolved a "double-toggle" bug where dropdowns would immediately close after opening.
