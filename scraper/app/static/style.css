@@ -138,9 +138,10 @@ h1 {
     width: 100%;
     align-items: stretch;
     /* Left panel stretches to match right panels combined height */
-    height: 45vh;
-    /* REDUCED HEIGHT: constrain the whole row */
-    min-height: 350px;
+    height: 65vh;
+    /* INCREASED HEIGHT: prevent overlap */
+    min-height: 600px;
+    /* Minimum height to fit content safely */
 }
 
 /* Left Panel: Main Controls - fills full height */
@@ -149,6 +150,8 @@ h1 {
     flex-direction: column;
     overflow-y: auto;
     /* Scroll internally */
+    min-height: 0;
+    /* Allow shrinking */
 }
 
 /* Right Column: Stacked Panels */
@@ -158,6 +161,8 @@ h1 {
     gap: 20px;
     height: 100%;
     /* Fill the row height */
+    min-height: 0;
+    /* Allow shrinking */
 }
 
 /* Right panels split the height evenly and scroll */
