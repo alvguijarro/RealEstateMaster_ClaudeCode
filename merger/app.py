@@ -8,6 +8,7 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
+from datetime import datetime
 import pandas as pd
 from flask import Flask, render_template, jsonify, request
 
@@ -215,6 +216,12 @@ def merge_files():
                                         # Check if field exists in r2 and is not empty/nan
                                         if field in r2 and pd.notna(r2[field]):
                                              final_row[field] = r2[field]
+                                             
+                                    # --- ENRICHMENT LOGIC ---
+                                    # Mark as enriched since we found it in both files (and updated it)
+                                    final_row['__enriched__'] = True
+                                    final_row['Fecha Enriquecimiento'] = datetime.now().strftime("%d/%m/%Y")
+                                    # ------------------------
                                     
                                     merged_records.append(final_row)
                                 else:

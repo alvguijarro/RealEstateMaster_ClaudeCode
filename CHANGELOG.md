@@ -9,6 +9,11 @@
     - Updated `app.js` to correctly detect batch mode from server status and route pause/resume actions to the batch endpoints.
     - Added `syncStatus` helper to `app.js` to ensure UI state is restored correctly on page refresh.
 
+### Added
+- **Merger Tool Enrichment**: Updated `merger/app.py` to automatically mark merged properties as "enriched".
+    - When a URL exists in both files, the resulting row now receives `__enriched__ = True` and `Fecha Enriquecimiento = <TODAY>`.
+    - This ensures continuity with the "Enricher Tool" logic and allows these properties to be skipped in future enrichment passes.
+
 ## [2026-02-08]
 
 ### Added
