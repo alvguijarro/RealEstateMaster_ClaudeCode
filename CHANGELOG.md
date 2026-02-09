@@ -16,8 +16,19 @@
 - **Global Status Emission**: Implemented real-time `status_change` events across the entire backend stack (`server.py`, `scraper.py`, `cli.py`, `update_urls.py`), ensuring the UI correctly reflects process completion, errors, or user interruptions.
 - **Province-Zone Mapping Documentation**: Generated `province_urls_mapping.md` with verified Idealista URLs for all 52 Spanish provinces (Venta <300k and Alquiler).
 - **Latency Monitoring Instrumentation**: Added granular `DEBUG_TIMING` logs to `scraper_wrapper.py` in critical path (navigation, sleeps, breaks, simulations) to pinpoint unexplained latency bottlenecks.
-- **Batch Timer Fix**: Resolved an issue where the "Time" scorecard failed to start when initiating a batch scrape from provinces. The timer now correctly triggers immediately upon button click.
+### Added
+- **Persistent Scraper (Infinite Retry)**: Scraper logic updated to never abandon a URL due to blocks/captchas. It now rotates browsers, waits for cooldowns, and retries indefinitely until completion.
 - **Smart Enrichment Mode**: Implemented intelligent property enrichment for batch province updates:
+    - **Standardized Filenaming**: Outputs to `idealista_{Province}_{Type}_MERGED.xlsx`.
+    - **Skip Enriched**: Automatically detects and skips properties already enriched in previous runs.
+    - **Auto-Enrich New**: Marks newly scraped properties with `__enriched__ = TRUE` and timestamp.
+    - **Province-File Mapping**: Added `province_file_mapping.json` for consistent file targeting.
+
+### Fixed
+- **Firefox Launch Timeout**: Reduced browser launch timeout to 60s to prevent hang-ups, and fixed infinite retry loop on failed engines.
+- **Engine Rotation Delay**: Removed hardcoded 15-minute wait when switching engines; now rotates immediately (5-15s) while still respecting long cooldowns for blocks.
+- **Startup Crash**: Fixed `ImportError` in `scraper_wrapper.py` when running from main dashboard.
+- **Scraper Tool UI Redesign**: Major interface overhaul for improved efficiency:
     - **Province-to-File Mapping**: Created `province_file_mapping.json` mapping all 52 Spanish provinces to standardized output files (`idealista_{Province}_{venta|alquiler}_MERGED.xlsx`).
     - **Enrichment Tracking**: New `__enriched__` and `Fecha Enriquecimiento` columns mark properties that have been scraped.
     - **Skip Already Enriched**: Properties with `__enriched__ = TRUE` and a valid `Fecha Enriquecimiento` are automatically skipped to avoid redundant scraping.

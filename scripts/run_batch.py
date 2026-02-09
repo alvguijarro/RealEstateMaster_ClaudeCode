@@ -172,13 +172,32 @@ def main():
             
         log(f"\n[{i}/{len(urls)}] Processing URL: {url}...")
         
-        # Retry logic (Infinite retries for blocks)
+        # Retry logic (Infinite retries for blocks, but avoid infinite loop on crashes)
         success = False
+        failed_engines = set() # Track engines that failed for THIS specific URL
+        
         while not success:
             # Select browser engine with rotation and cooldown checking
             if HAS_PROFILE_MGMT:
                 last_engine = get_last_engine()
                 selected_engine = select_next_engine(last_engine)
+                
+                # If the naturally selected engine already failed for this URL, try a different one
+                if selected_engine in failed_engines:
+                    available_alternatives = [e for e in BROWSER_ENGINES if e not in failed_engines]
+                    if available_alternatives:
+                        selected_engine = available_alternatives[0]
+                        log(f"⚠️ Preferred engine {select_next_engine(last_engine)} failed previously. Switching to {selected_engine.upper()}")
+                    else:
+                        log("⚠️ All browser engines failed for this URL. Waiting 2 minutes before retrying...", "WARN")
+                        # Wait 2 minutes before wiping failed_engines and retrying
+                        # This avoids a tight loop of failure-retry-failure
+                        for _ in range(120):
+                             time.sleep(1)
+                             check_signals()
+                        
+                        failed_engines.clear() # Reset failure tracking to try again
+                        continue # Restart loop to select an engine again
                 
                 # If all engines are in cooldown, wait for the first one to be available
                 if selected_engine is None:
@@ -202,12 +221,15 @@ def main():
             success = run_single_url(url, mode, selected_engine, smart_enrichment)
             
             if not success:
+                # Mark this engine as failed for this URL attempt
+                failed_engines.add(selected_engine)
+                
                 # If failed (blocked), we don't wait 15 mins unconditionally.
                 # The 'select_next_engine' at the top of the loop will handle the wait 
                 # if ALL engines are blocked.
                 # If we have another engine available, we retry immediately.
-                log("⚠️ Scrape failed (Block/Captcha). Checking for next available browser engine...", "WARN")
-                time.sleep(10) # Small breathing room before next attempt
+                log("⚠️ Scrape failed (Block/Captcha/Crash). Checking for next available browser engine...", "WARN")
+                time.sleep(5) # Reduced breathing room
                 check_signals()
         
         if success: success_count += 1

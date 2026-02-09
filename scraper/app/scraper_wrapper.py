@@ -49,10 +49,27 @@ from idealista_scraper.excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
     load_urls_with_dates, export_split_by_distrito
 )
-from province_mapping import (
-    get_output_file_for_url, load_enriched_urls, load_all_urls_from_excel,
-    mark_as_enriched, detect_province_and_operation, DEFAULT_OUTPUT_DIR as PROVINCE_OUTPUT_DIR
-)
+try:
+    from app.province_mapping import (
+        get_output_file_for_url, load_enriched_urls, load_all_urls_from_excel,
+        mark_as_enriched, detect_province_and_operation, DEFAULT_OUTPUT_DIR as PROVINCE_OUTPUT_DIR
+    )
+except ImportError:
+    # Fallback for when running directly from app directory or different context
+    try:
+        from province_mapping import (
+            get_output_file_for_url, load_enriched_urls, load_all_urls_from_excel,
+            mark_as_enriched, detect_province_and_operation, DEFAULT_OUTPUT_DIR as PROVINCE_OUTPUT_DIR
+        )
+    except ImportError:
+        print("WARNING: Could not import province_mapping module. Smart enrichment will be disabled.")
+        # Define dummy functions/constants to prevent crash
+        PROVINCE_OUTPUT_DIR = "salidas"
+        def get_output_file_for_url(*args): return None, None, None
+        def load_enriched_urls(*args): return set()
+        def load_all_urls_from_excel(*args): return {}
+        def mark_as_enriched(row): return row
+        def detect_province_and_operation(*args): return None, None
 
 
 def build_paginated_url(seed_url: str, page_number: int) -> str:
@@ -1497,6 +1514,7 @@ class ScraperController:
                                 headless=False,
                                 viewport={"width": viewport_width, "height": viewport_height},
                                 firefox_user_prefs=firefox_prefs,
+                                timeout=60000, # Fail fast (1 min) instead of 3 min hang
                             )
                             self.log("OK", f"🦊 Firefox launched with profile: {os.path.basename(profile_dir)}")
                         else:
@@ -1508,6 +1526,7 @@ class ScraperController:
                                 ignore_default_args=["--enable-automation"],
                                 viewport={"width": viewport_width, "height": viewport_height},
                                 user_agent=self.get_random_user_agent(),
+                                timeout=60000, # Fail fast (1 min)
                             )
                             self.log("OK", f"🌐 Chromium launched with profile: {os.path.basename(profile_dir)}")
                         
@@ -2694,10 +2713,11 @@ class ScraperController:
                     if self.on_status:
                          self.on_status("blocked", message="Esperando 15 minutos para reintentar...")
 
-                    self.log("OK", "✅ Browser closed. Starting 15-minute wait...")
+                    self.log("OK", f"✅ Browser closed. Waiting {wait_time} seconds before restart...")
 
-                    # 15 min wait
-                    for _ in range(15 * 60 // 5): # 15 mins in 5s chunks
+                    # Wait for calculated duration (short for switch, long for cooldown)
+                    cycles = max(1, int(wait_time / 5))
+                    for _ in range(cycles): 
                          if self._stop_evt.is_set(): break
                          await asyncio.sleep(5)
                     
