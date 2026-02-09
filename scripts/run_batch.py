@@ -50,7 +50,7 @@ def check_signals():
         log("[SIGNAL] Stop flag detected. Sending stop signal to server...")
         try:
             # Tell the server to stop the active scrape
-            requests.post("http://localhost:5003/api/stop", timeout=5)
+            requests.post("http://localhost:5003/api/stop", timeout=30)
             log("[INFO] Stop command sent to server.")
             time.sleep(2) # Give it a moment
         except Exception as e:

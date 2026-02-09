@@ -905,6 +905,8 @@ class ScraperController:
                 await asyncio.sleep(sleep_chunk)
                 remaining -= sleep_chunk
             
+            self.log("DEBUG_TIMING", "Finished coffee break.")
+
             if self.on_status:
                 self.on_status("running")
             
@@ -945,6 +947,8 @@ class ScraperController:
                 await asyncio.sleep(sleep_chunk)
                 remaining -= sleep_chunk
             
+            self.log("DEBUG_TIMING", "Finished session rest break.")
+
             if self.on_status:
                 self.on_status("running")
             
@@ -1304,6 +1308,9 @@ class ScraperController:
         """Sleep for duration, but wake up immediately if stopped."""
         if duration <= 0:
             return
+        
+        if duration > 10:
+            self.log("DEBUG_TIMING", f"Sleeping for {duration:.2f}s...")
         
         remaining = duration
         while remaining > 0:

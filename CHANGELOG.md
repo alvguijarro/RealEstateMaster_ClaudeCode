@@ -3,6 +3,11 @@
 ## [2026-02-08]
 
 ### Added
+
+- **Granular Logging**: Added `DEBUG_TIMING` logs to `scraper_wrapper.py` for coffee breaks, session rests, and long sleeps to diagnose unexplained pauses.
+- **UI Safety**: Disabled the "Iniciar scraping de provincias" button in `app.js` whenever any scraping process is active to prevent accidental double-starts.
+
+### Fixed
 - **Scraper Tool UI Redesign**: Major interface overhaul for improved efficiency:
     - **50/50 Split Layout**: The main view is now divided into two equal columns, providing a more balanced and readable workspace.
     - **Module Transformation**: The right column is now split into two panels:
@@ -10,6 +15,7 @@
         - **"Actualizar estado de URLs"**: Separated panel for updating existing Excel files to detect deactivated listings.
     - **Global Action Bar**: Consolidated essential controls (Start, Resume, Pause, Stop, Dual Mode, Server controls) into a unified row at the bottom.
     - **Responsive Grid**: Dynamic grid that collapses to single column on smaller screens.
+- **Batch Runner Timeout**: Increased timeout for `/api/stop` calls in `run_batch.py` from 5s to 30s to mitigate read timeouts during browser cleanup.
 - **Decoupled Province Selection**: Selecting provinces no longer auto-fills the manual URL input. The URL field is now exclusively for user-entered searches.
 - **Dedicated Batch Button**: The new "Iniciar scraping de provincias" button triggers Fast mode scraping for all selected provinces, keeping the manual URL workflow completely separate.
 - **Unified State Management**: Refactored `app.js` with a central `updateScraperState` function to ensure Start/Pause/Stop buttons are consistently synchronized across all scraping modes (Single URL, Batch, URL Update).
@@ -93,6 +99,7 @@
         - Final unique count and total **duplicates removed** in the merged file.
     - **Flexible Validation**: Updated backend logic to accept both English ("rent", "sale") and Spanish ("alquiler", "venta") keywords in filenames.
     - **Output Naming**: Standardized output filenames to end in `_MERGED.xlsx` (previously `_MERGE.xlsx`).
+    - **Smart De-duplication Update**: Refined merging logic to prioritize *File 1* row structure but intelligently update specific fields (`exterior`, `Ciudad`, `Fecha Scraping`) from *File 2* if the URL exists in both.
 - **Batch Data Consolidation**: Implemented and executed a one-off batch script (`batch_merger.py`) to consolidate all historical scattered files in `scraper/salidas`.
     - Merged multiple "updated" batches into unified files.
     - Merged API-only batches with Idealista-scraped files for A Coruña, Alicante, Álava, and Toledo.

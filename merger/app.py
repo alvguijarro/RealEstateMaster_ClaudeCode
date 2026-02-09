@@ -176,11 +176,81 @@ def merge_files():
                             print(f"Warning: No URL column found in sheet {sheet}")
                             df_combined = pd.concat([df1, df2], ignore_index=True)
                         else:
-                            # Concatenate and Dedup
-                            total_before = len(df1) + len(df2)
-                            df_combined = pd.concat([df1, df2], ignore_index=True)
-                            df_combined.drop_duplicates(subset=[url_col], keep='first', inplace=True)
-                            stats['duplicates_removed'] += total_before - len(df_combined)
+                            # --- SMART MERGE LOGIC ---
+                            # 1. Identify common URLs and unique rows
+                            # Ensure URL column is string for matching
+                            df1[url_col] = df1[url_col].astype(str)
+                            df2[url_col] = df2[url_col].astype(str)
+
+                            # Create dictionaries for fast lookup by URL
+                            # Orient 'index' makes dict of {index: row_dict}? No, 'records' is list of dicts.
+                            # We need {url: row_series/dict}
+                            
+                            # Convert to list of records for easier manipulation
+                            records1 = df1.to_dict('records')
+                            records2 = df2.to_dict('records')
+                            
+                            map1 = {str(r.get(url_col)): r for r in records1 if r.get(url_col)}
+                            map2 = {str(r.get(url_col)): r for r in records2 if r.get(url_col)}
+                            
+                            merged_records = []
+                            processed_urls = set()
+                            
+                            # Fields to update from File 2 if present
+                            # Note: Column names might vary in case (e.g. 'Ciudad' vs 'ciudad'). 
+                            # We should try to be case-insensitive or stick to provided names.
+                            # User said: "exterior", "Ciudad", "Fecha scraping"
+                            update_fields = ['exterior', 'Ciudad', 'Fecha scraping', 'Fecha Scraping'] 
+                            
+                            # Process File 1 Records (Base)
+                            for r1 in records1:
+                                url = str(r1.get(url_col))
+                                if url in map2:
+                                    # URL exists in BOTH
+                                    r2 = map2[url]
+                                    final_row = r1.copy() # Start with File 1 data
+                                    
+                                    # Update specific fields from File 2
+                                    for field in update_fields:
+                                        # Check if field exists in r2 and is not empty/nan
+                                        if field in r2 and pd.notna(r2[field]):
+                                             final_row[field] = r2[field]
+                                    
+                                    merged_records.append(final_row)
+                                else:
+                                    # URL only in File 1
+                                    merged_records.append(r1)
+                                
+                                processed_urls.add(url)
+                            
+                            # Process File 2 Records (Add unique only)
+                            for r2 in records2:
+                                url = str(r2.get(url_col))
+                                if url not in processed_urls:
+                                    merged_records.append(r2)
+                                    processed_urls.add(url) # Just in case duplicate URLs within File 2 itself
+                            
+                            # Create DataFrame
+                            df_combined = pd.DataFrame(merged_records)
+                            
+                            # STATS: Calculate duplicates removed
+                            # Total input rows - Final unique rows
+                            total_rows = len(df1) + len(df2)
+                            stats['duplicates_removed'] += total_rows - len(df_combined)
+
+                            # Enforce File 1 Columns Structure
+                            # Filter columns to match df1.columns
+                            # If File 2 introduced new columns (that are not in update_fields), they are dropped.
+                            # If File 2 had 'exterior' and we updated it, it stays because 'exterior' is in df1 output likely.
+                            cols1 = list(df1.columns)
+                            
+                            # Add missing columns with NaN if any (shouldn't happen for r1 rows, but r2 rows might miss some)
+                            for col in cols1:
+                                if col not in df_combined.columns:
+                                    df_combined[col] = None
+                            
+                            # Select only File 1 columns in correct order
+                            df_combined = df_combined[cols1]
                         
                         # Track merged stats
                         stats['merged']['properties'] += len(df_combined)

@@ -29,7 +29,17 @@ function updateScraperState(active, modeTitle = null) {
 
     // Batch Button (if exists)
     const startBatchBtn = document.getElementById('startBatchBtn');
-    if (startBatchBtn) startBatchBtn.disabled = active; // Disable if ANY scraping is active
+    if (startBatchBtn) {
+        startBatchBtn.disabled = active; // Disable if ANY scraping is active
+        if (active) {
+            startBatchBtn.title = "Scraper en curso...";
+            startBatchBtn.classList.add('disabled');
+        } else {
+            startBatchBtn.title = ""; // Will be updated by validateBatchButton
+            startBatchBtn.classList.remove('disabled');
+            validateBatchButton(); // Re-check selection state
+        }
+    }
 
     // URL Update Button
     if (updateUrlsBtn) updateUrlsBtn.disabled = active;
