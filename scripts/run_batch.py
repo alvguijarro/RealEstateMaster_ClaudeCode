@@ -61,10 +61,27 @@ def check_signals():
         except: pass
         sys.exit(0)
     
+    first_pause_check = True
     while PAUSE_FLAG.exists():
+        if first_pause_check:
+            log("[SIGNAL] Pause flag detected. Sending PAUSE signal to server...")
+            try:
+                requests.post("http://localhost:5003/api/pause", timeout=5)
+            except Exception as e:
+                log(f"[WARN] Failed to send pause command: {e}")
+            first_pause_check = False
+            
         log("[SIGNAL] Paused. Waiting for resume...")
         time.sleep(5)
         if STOP_FLAG.exists(): return
+        
+    # If we were paused, send resume signal when flag is gone
+    if not first_pause_check:
+        log("[SIGNAL] Resume detected. Sending RESUME signal to server...")
+        try:
+            requests.post("http://localhost:5003/api/resume", timeout=5)
+        except Exception as e:
+            log(f"[WARN] Failed to send resume command: {e}")
 
 def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_enrichment: bool = False) -> bool:
     target_prov = "Unknown"

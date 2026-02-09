@@ -1,5 +1,14 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-09]
+
+### Fixed
+- **Batch Pause Logic**: Fixed a critical bug where pausing the batch scraper only paused the local runner loop but failed to signal the active scraper process.
+    - Updated `run_batch.py` to send explicit `/api/pause` and `/api/resume` commands to the server.
+    - Updated `server.py` to correctly report `mode='batch'` status even when the scraper is momentarily idle, ensuring UI controls remain active.
+    - Updated `app.js` to correctly detect batch mode from server status and route pause/resume actions to the batch endpoints.
+    - Added `syncStatus` helper to `app.js` to ensure UI state is restored correctly on page refresh.
+
 ## [2026-02-08]
 
 ### Added

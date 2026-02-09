@@ -1066,6 +1066,11 @@ function addProperty(data) {
 function handleStatusChange(data) {
     const status = data.status;
 
+    // Detect Batch Mode from server status
+    if (data.mode === 'batch') {
+        isBatchMode = true;
+    }
+
     // Update badge
     statusBadge.className = `status-badge ${status}`;
     const statusTexts = {
@@ -2808,4 +2813,16 @@ window.toggleDropdown = function (type) {
         overlay.classList.toggle('active');
     }
 };
+
+
+/* SYNC SCRAPER STATUS */
+async function syncStatus() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+        handleStatusChange(data);
+    } catch (e) {
+        console.error('Error syncing status', e);
+    }
+}
 

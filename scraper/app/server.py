@@ -390,19 +390,31 @@ def stop_scraping():
 @app.route('/api/status', methods=['GET'])
 def get_status():
     """Get current scraper status."""
-    global scraper_controller
+    global scraper_controller, periodic_process
     
-    if not scraper_controller:
-        return jsonify({
-            'status': 'idle',
-            'properties_count': 0,
-            'output_file': None
-        })
+    status = 'idle'
+    mode = 'fast'
+    properties_count = 0
+    output_file = None
     
+    if scraper_controller:
+        status = scraper_controller.status
+        properties_count = len(scraper_controller.scraped_properties)
+        output_file = scraper_controller.output_file
+        mode = getattr(scraper_controller, 'mode', 'fast')
+        
+    # Check if batch runner (periodic_process) is active
+    if periodic_process and periodic_process.poll() is None:
+        mode = 'batch'
+        # If batch is running but scraper is momentarily idle (e.g. between URLs), report running
+        if status == 'idle':
+            status = 'running'
+            
     return jsonify({
-        'status': scraper_controller.status,
-        'properties_count': len(scraper_controller.scraped_properties),
-        'output_file': scraper_controller.output_file
+        'status': status,
+        'properties_count': properties_count,
+        'output_file': output_file,
+        'mode': mode
     })
 
 
