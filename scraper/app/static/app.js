@@ -2579,6 +2579,11 @@ function updateSelectionUI() {
     // ...
 
     validateProvinceBatchButton(total);
+
+    // Trigger Auto-Select File
+    if (typeof autoSelectBatchFile === 'function') {
+        autoSelectBatchFile();
+    }
 }
 
 // Global startBatchFromProvinces function (needs to be defined or updated)
@@ -2663,12 +2668,25 @@ window.startBatchFromProvinces = async function () {
 
     addLog('INFO', `Iniciando lote con ${urls.length} URLs (Provincias/Zonas)...`);
 
+    // Get target file
+    let targetFile = null;
+    const fileSelect = document.getElementById('batchDestinationFile');
+    if (fileSelect && fileSelect.value) {
+        targetFile = fileSelect.value;
+    }
+
     // Call API
     try {
         const response = await fetch('/api/start-batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls: urls, mode: 'fast', expand: false, smart_enrichment: true }) // Smart enrichment mode for province updates
+            body: JSON.stringify({
+                urls: urls,
+                mode: 'fast',
+                expand: false,
+                smart_enrichment: true,
+                target_file: targetFile
+            })
         });
 
         const data = await response.json();
@@ -2826,3 +2844,100 @@ async function syncStatus() {
     }
 }
 
+/* BATCH DESTINATION FILE SELECTOR */
+const batchDestFileSelect = document.getElementById('batchDestinationFile');
+let availableExcelFiles = [];
+
+async function loadBatchDestinationFiles() {
+    if (!batchDestFileSelect) return;
+
+    try {
+        const response = await fetch('/api/salidas-files?limit=200'); // Get more files
+        const data = await response.json();
+
+        // Filter only .xlsx files
+        availableExcelFiles = (data.files || []).filter(f => f.name.toLowerCase().endsWith('.xlsx'));
+
+        // Populate dropdown
+        let currentVal = batchDestFileSelect.value;
+        batchDestFileSelect.innerHTML = '<option value="">(Crear nuevo archivo automático)</option>';
+
+        availableExcelFiles.forEach(file => {
+            const opt = document.createElement('option');
+            opt.value = file.name;
+            opt.textContent = `${file.name} (${formatMtime(file.mtime)})`;
+            batchDestFileSelect.appendChild(opt);
+        });
+
+        // Restore selection if possible
+        if (currentVal && availableExcelFiles.some(f => f.name === currentVal)) {
+            batchDestFileSelect.value = currentVal;
+        }
+
+    } catch (e) {
+        console.error("Error loading batch destination files:", e);
+    }
+}
+
+// Auto-select file based on partial province selection
+// This is called from updateSelectionUI
+function autoSelectBatchFile() {
+    if (!batchDestFileSelect) return;
+
+    // Determine dominant province and type
+    const listVenta = document.getElementById('listVenta');
+    const listAlquiler = document.getElementById('listAlquiler');
+
+    let targetProvince = null;
+    let targetType = null;
+
+    // Check Venta
+    if (listVenta) {
+        const checked = listVenta.querySelectorAll('.prov-cb-venta:checked');
+        if (checked.length === 1) {
+            targetProvince = checked[0].dataset.name;
+            targetType = 'venta';
+        }
+    }
+
+    // Check Alquiler (override if Venta not found or both - simple logic: last one wins or Alquiler priority?)
+    // Let's prioritize Alquiler if Venta is empty
+    if (!targetProvince && listAlquiler) {
+        const checked = listAlquiler.querySelectorAll('.prov-cb-alquiler:checked');
+        if (checked.length === 1) {
+            targetProvince = checked[0].dataset.name;
+            targetType = 'alquiler'; // 'alquiler' matches filename usually
+        }
+    }
+
+    if (targetProvince && targetType) {
+        // Find best match: Filename must contain province AND (venta/sale OR alquiler/rent)
+        const typeKeywords = targetType === 'venta' ? ['venta', 'sale'] : ['alquiler', 'rent'];
+
+        // Normalizing for search
+        const safeProv = normalizeString(targetProvince).toLowerCase();
+
+        const bestMatch = availableExcelFiles.find(f => {
+            const fName = normalizeString(f.name).toLowerCase();
+            const hasProv = fName.includes(safeProv);
+            const hasType = typeKeywords.some(k => fName.includes(k));
+            return hasProv && hasType;
+        });
+
+        if (bestMatch) {
+            console.log(`[AutoSelect] Found match for ${targetProvince} (${targetType}): ${bestMatch.name}`);
+            batchDestFileSelect.value = bestMatch.name;
+        }
+    }
+}
+
+// Helper for normalization
+function normalizeString(str) {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// Initial Load
+document.addEventListener('DOMContentLoaded', () => {
+    loadBatchDestinationFiles();
+    // Refresh list occasionally? Or just once.
+});

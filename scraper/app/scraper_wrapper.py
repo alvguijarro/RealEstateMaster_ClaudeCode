@@ -707,6 +707,7 @@ class ScraperController:
     smart_enrichment: bool = False  # If True, use province-file mapping and skip already enriched URLs
     province_name: Optional[str] = None  # Province name for file lookup (e.g., "Toledo")
     operation_type: Optional[str] = None  # "venta" or "alquiler"
+    forced_target_file: Optional[str] = None  # Manually selected target file to override auto-detection
     
     # Callbacks
     on_log: Optional[Callable[[str, str], None]] = None
@@ -1441,7 +1442,11 @@ class ScraperController:
                 self.log("INFO", f"📍 Province: {self.province_name}, Operation: {self.operation_type}")
                 
                 # Get province-based target file
-                province_file, _, _ = get_output_file_for_url(self.seed_url)
+                if self.forced_target_file:
+                    province_file = self.forced_target_file
+                    self.log("INFO", f"📂 Using forced target file: {province_file}")
+                else:
+                    province_file, _, _ = get_output_file_for_url(self.seed_url)
                 if province_file:
                     self._province_target_file = province_file
                     province_path = os.path.join(self.output_dir, province_file)

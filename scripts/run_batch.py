@@ -61,29 +61,12 @@ def check_signals():
         except: pass
         sys.exit(0)
     
-    first_pause_check = True
     while PAUSE_FLAG.exists():
-        if first_pause_check:
-            log("[SIGNAL] Pause flag detected. Sending PAUSE signal to server...")
-            try:
-                requests.post("http://localhost:5003/api/pause", timeout=5)
-            except Exception as e:
-                log(f"[WARN] Failed to send pause command: {e}")
-            first_pause_check = False
-            
         log("[SIGNAL] Paused. Waiting for resume...")
         time.sleep(5)
         if STOP_FLAG.exists(): return
-        
-    # If we were paused, send resume signal when flag is gone
-    if not first_pause_check:
-        log("[SIGNAL] Resume detected. Sending RESUME signal to server...")
-        try:
-            requests.post("http://localhost:5003/api/resume", timeout=5)
-        except Exception as e:
-            log(f"[WARN] Failed to send resume command: {e}")
 
-def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_enrichment: bool = False) -> bool:
+def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_enrichment: bool = False, target_file: str = None) -> bool:
     target_prov = "Unknown"
     # Basic province extraction for logging
     if "idealista.com" in url:
@@ -117,7 +100,8 @@ def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_
         "mode": mode,
         "max_pages": 4000, # High limit for batch
         "browser_engine": browser_engine,  # Multi-browser rotation
-        "smart_enrichment": smart_enrichment  # Smart enrichment mode
+        "smart_enrichment": smart_enrichment,  # Smart enrichment mode
+        "target_file": target_file
     }
     
     try:
@@ -172,6 +156,7 @@ def main():
             urls = data.get('urls', [])
             mode = data.get('mode', 'fast')
             smart_enrichment = data.get('smart_enrichment', False)
+            target_file = data.get('target_file')
     except Exception as e:
         log(f"[ERR] Failed to read queue: {e}")
         sys.exit(1)
@@ -235,7 +220,7 @@ def main():
             else:
                 selected_engine = "chromium"
             
-            success = run_single_url(url, mode, selected_engine, smart_enrichment)
+            success = run_single_url(url, mode, selected_engine, smart_enrichment, target_file)
             
             if not success:
                 # Mark this engine as failed for this URL attempt

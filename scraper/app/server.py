@@ -227,6 +227,7 @@ def start_scraping():
         on_status=emit_status,
         on_progress=emit_progress,
         on_browser_closed=emit_browser_closed,
+        forced_target_file=data.get('target_file')  # Pass forced target file
     )
     
     # Start scraping in background thread
@@ -816,8 +817,15 @@ def start_batch_scraping():
     # Write queue to file
     queue_file = Path(__file__).parent.parent / "batch_queue.json"
     smart_enrichment = data.get('smart_enrichment', False)
+    target_file = data.get('target_file')
+    
     with open(queue_file, 'w', encoding='utf-8') as f:
-        json.dump({'urls': urls, 'mode': mode, 'smart_enrichment': smart_enrichment}, f)
+        json.dump({
+            'urls': urls, 
+            'mode': mode, 
+            'smart_enrichment': smart_enrichment,
+            'target_file': target_file
+        }, f)
         
     # Spawn runner
     script_path = Path(__file__).parent.parent.parent / "scripts" / "run_batch.py"
