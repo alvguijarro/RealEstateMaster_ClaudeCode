@@ -16,6 +16,10 @@
     - **Accent & Robust Matching**: Enhanced `autoSelectBatchFile` with normalization to handle Spanish accents (e.g., "A Coruña", "Álava") and various filename formats.
     - **Interactive Help**: Added a detailed explanation of the "Update Provinces" process via an information toggle in the UI.
     - **Selection Persistence**: Added manual override protection to prevent auto-selection from overwriting user-chosen files.
+    - **Firefox Stability**: Resolved a critical timeout (`Timeout 60000ms exceeded`) in Province Updates by:
+        - Removing the invalid `-foreground` flag from Firefox launch arguments.
+        - Implementing automatic cleanup of stale profile lock files (`lock`, `parent.lock`) before launch.
+        - Increasing launch timeout to 90 seconds.
 - **Merger Tool Enrichment**: Updated `merger/app.py` to automatically mark merged properties as "enriched".
     - When a URL exists in both files, the resulting row now receives `__enriched__ = True` and `Fecha Enriquecimiento = <TODAY>`.
     - This ensures continuity with the "Enricher Tool" logic and allows these properties to be skipped in future enrichment passes.

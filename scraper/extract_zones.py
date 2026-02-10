@@ -19,12 +19,29 @@ async def run():
         # Use a persistent context to look more like a real user
         user_data_dir = os.path.join(os.getcwd(), "scraper", "stealth_profile_temp_02")
         
+        # Clean up lock files from previous crashes to prevent timeout
+        try:
+            if os.path.exists(user_data_dir):
+                for lock_name in ["lock", "parent.lock", ".parentlock"]:
+                    lock_path = os.path.join(user_data_dir, lock_name)
+                    if os.path.exists(lock_path):
+                        try:
+                            os.remove(lock_path)
+                            print(f"Removed stale lock file: {lock_path}")
+                        except Exception as e:
+                            print(f"Warning: Could not remove lock file {lock_path}: {e}")
+        except Exception as e:
+            print(f"Warning during profile cleanup: {e}")
+
         # Launching Firefox as requested
+        # remove -foreground flag which causes issues on some systems
         context = await p.firefox.launch_persistent_context(
             user_data_dir,
             headless=False,
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
-            viewport={"width": 1920, "height": 1080}
+            viewport={"width": 1920, "height": 1080},
+            ignore_default_args=["-foreground"],
+            timeout=90000
         )
         
         # Add stealth scripts
