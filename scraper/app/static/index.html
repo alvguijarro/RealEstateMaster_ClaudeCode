@@ -99,9 +99,29 @@
                             <!-- Panel 1: Actualizar provincias completas (Province Selection + Batch Scrape) -->
                             <section class="panel province-selection-panel">
                                 <h3
-                                    style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-                                    <span style="margin-right:8px;">🗺️</span> Actualizar provincias completas
+                                    style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                                    <span><span style="margin-right:8px;">🗺️</span> Actualizar provincias
+                                        completas</span>
+                                    <button class="btn-icon-only" onclick="toggleProvinceHelp()"
+                                        title="Ayuda sobre este proceso" style="font-size: 1rem;">ℹ️</button>
                                 </h3>
+
+                                <!-- Help text for Province Update Process (Hidden by default) -->
+                                <div id="provinceHelpText"
+                                    style="display: none; background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius: 6px; padding: 12px; margin-bottom: 15px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; animation: fadeIn 0.3s ease;">
+                                    <p style="margin-top: 0;"><strong>Proceso de Actualización:</strong></p>
+                                    <ul style="padding-left: 20px; margin-bottom: 0;">
+                                        <li>Selecciona una o varias provincias de las listas desplegables.</li>
+                                        <li>El sistema generará una cola de tareas para descargar los datos vía API
+                                            (Modo Fast).</li>
+                                        <li>Se utilizará <strong>Smart Enrichment</strong> para evitar duplicados y
+                                            actualizar precios existentes.</li>
+                                        <li>El archivo Excel se guardará automáticamente en
+                                            <code>scraper/salidas</code>.</li>
+                                        <li>Nota: El listado de provincias se actualiza periódicamente desde Idealista
+                                            para reflejar cambios en distritos.</li>
+                                    </ul>
+                                </div>
 
                                 <!-- Multi-Province Selectors (Managed by app.js) -->
                                 <div class="multi-select-container"

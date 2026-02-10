@@ -10,7 +10,12 @@
     - Added `syncStatus` helper to `app.js` to ensure UI state is restored correctly on page refresh.
 
 ### Added
-- **Batch Scraper Destination Selector**: Added a searchable dropdown to select destination Excel files, matching the dark theme. Auto-selects based on province/operation with improved accent handling.
+- **Batch Scraper Improvements**:
+    - **Premium Destination Selector**: Replaced standard `<select>` with a dark-themed, searchable custom dropdown for Excel files in the Batch panel.
+    - **Intelligent Auto-Selection**: implemented automated matching between selected provinces and existing Excel files in `scraper/salidas`.
+    - **Accent & Robust Matching**: Enhanced `autoSelectBatchFile` with normalization to handle Spanish accents (e.g., "A Coruña", "Álava") and various filename formats.
+    - **Interactive Help**: Added a detailed explanation of the "Update Provinces" process via an information toggle in the UI.
+    - **Selection Persistence**: Added manual override protection to prevent auto-selection from overwriting user-chosen files.
 - **Merger Tool Enrichment**: Updated `merger/app.py` to automatically mark merged properties as "enriched".
     - When a URL exists in both files, the resulting row now receives `__enriched__ = True` and `Fecha Enriquecimiento = <TODAY>`.
     - This ensures continuity with the "Enricher Tool" logic and allows these properties to be skipped in future enrichment passes.

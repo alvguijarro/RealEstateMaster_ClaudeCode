@@ -1,5 +1,37 @@
 [
   {
+    "timestamp": "2026-02-09T23:46:21.467883",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/asturias/",
+    "properties_count": 77,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Asturias_alquiler.xlsx",
+    "filename": "idealista_Asturias_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-09T23:45:54.687342",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/asturias/",
+    "properties_count": 77,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Asturias_alquiler.xlsx",
+    "filename": "idealista_Asturias_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-09T20:55:49.235460",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/asturias/",
+    "properties_count": 622,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Asturias_alquiler.xlsx",
+    "filename": "idealista_Asturias_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-09T20:55:35.309266",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/asturias/",
+    "properties_count": 621,
+    "category": "alquiler",
+    "output_file": "",
+    "filename": null
+  },
+  {
     "timestamp": "2026-02-08T21:06:15.305222",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/almeria-provincia/",
     "properties_count": 10,

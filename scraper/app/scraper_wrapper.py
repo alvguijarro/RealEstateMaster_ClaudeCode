@@ -1986,14 +1986,18 @@ class ScraperController:
                             
                                     if captcha_check.get('hasCaptcha', False):
                                         self.log("WARN", "CAPTCHA page detected! Keeping browser open for 60s for manual solving...")
+                                        self.log("DEBUG_TIMING", "Starting 60s CAPTCHA wait.")
                                         await asyncio.sleep(60)  # Give user time to solve CAPTCHA
+                                        self.log("DEBUG_TIMING", "Finished 60s CAPTCHA wait.")
                                         # Try collecting links again after waiting
                                         hrefs = await page.evaluate(js_collect)
                                         if hrefs:
                                             self.log("OK", f"After waiting, found {len(hrefs)} links!")
                                     else:
                                         self.log("WARN", "No CAPTCHA, but no links either. Keeping browser open 30s for inspection...")
+                                        self.log("DEBUG_TIMING", "Starting 30s manual inspection wait.")
                                         await asyncio.sleep(30)  # Keep open for inspection
+                                        self.log("DEBUG_TIMING", "Finished 30s manual inspection wait.")
                                 
                                 except BlockedException as be:
                                     self.log("ERR", f"🛑 HARD STOP: {be}")
@@ -2111,9 +2115,11 @@ class ScraperController:
                                         self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA DETECTED - Waiting 30s then aborting for auto-restart...")
                                         
                                         # Wait briefly to see if it clears (e.g. passive solve)
-                                        for _ in range(3): # 3 * 10s = 30s
+                                        for i in range(3): # 3 * 10s = 30s
                                             if self._stop_evt.is_set(): break
+                                            self.log("DEBUG_TIMING", f"Starting 10s CAPTCHA check wait (Attempt {i+1}/3).")
                                             await asyncio.sleep(10.0)
+                                            self.log("DEBUG_TIMING", f"Finished 10s CAPTCHA check wait.")
                                             # Retry extraction check
                                             try:
                                                 d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)

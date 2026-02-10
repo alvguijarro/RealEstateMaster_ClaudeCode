@@ -152,6 +152,7 @@ let selectedAlquiler = new Set();
 let isBatchMode = false;
 // Lookup map: slug -> {venta_url, alquiler_url}
 let provinceUrls = {};
+let isBatchFileManual = false;
 
 // ==========================================
 // NordVPN UI LOGIC
@@ -1869,20 +1870,26 @@ function toggleBatchFiles(selectAll) {
  * Checks if at least one province/zone is selected in the new Tree View
  */
 function validateProvinceBatchButton(selectedCount) {
-    const startBatchBtn = document.getElementById('startBatchBtn');
-    if (!startBatchBtn) return;
+    const startBatchBtnEl = document.getElementById('startBatchBtn');
+    if (!startBatchBtnEl) return;
 
-    // Also check global scraper status? Usually we allow queuing or just check if running
-    // The button has id 'startBatchBtn'
+    if (isRunning || isPaused) {
+        startBatchBtnEl.disabled = true;
+        startBatchBtnEl.style.opacity = '0.5';
+        startBatchBtnEl.style.cursor = 'not-allowed';
+        return;
+    }
 
     if (selectedCount > 0) {
-        startBatchBtn.disabled = false;
-        startBatchBtn.style.opacity = '1';
-        startBatchBtn.style.cursor = 'pointer';
+        startBatchBtnEl.disabled = false;
+        startBatchBtnEl.style.opacity = '1';
+        startBatchBtnEl.style.cursor = 'pointer';
+        startBatchBtnEl.title = "";
     } else {
-        startBatchBtn.disabled = true;
-        startBatchBtn.style.opacity = '0.5';
-        startBatchBtn.style.cursor = 'not-allowed';
+        startBatchBtnEl.disabled = true;
+        startBatchBtnEl.style.opacity = '0.5';
+        startBatchBtnEl.style.cursor = 'not-allowed';
+        startBatchBtnEl.title = "Selecciona al menos una provincia o zona.";
     }
 }
 
@@ -2667,6 +2674,7 @@ window.startBatchFromProvinces = async function () {
     }
 
     addLog('INFO', `Iniciando lote con ${urls.length} URLs (Provincias/Zonas)...`);
+    updateScraperState(true, 'Scraping por Provincias');
 
     // Get target file
     let targetFile = null;
@@ -2728,16 +2736,21 @@ function validateStartButton() {
  * Enabled if at least one province is selected.
  */
 function validateBatchButton() {
-    const startBatchBtnEl = document.getElementById('startBatchBtn');
-    if (!startBatchBtnEl) return;
-
-    if (isRunning || isPaused) {
-        startBatchBtnEl.disabled = true;
-        return;
-    }
-
-    const hasProvinceSelection = selectedVenta.size > 0 || selectedAlquiler.size > 0;
-    startBatchBtnEl.disabled = !hasProvinceSelection;
+    // This function is now mostly an alias or called from updateScraperState
+    // We'll calculate the count and call validateProvinceBatchButton
+    let total = 0;
+    const countSelection = (type) => {
+        const list = document.getElementById(type === 'venta' ? 'listVenta' : 'listAlquiler');
+        if (!list) return 0;
+        const provCbs = list.querySelectorAll(`.prov-cb-${type}`);
+        let count = 0;
+        provCbs.forEach(cb => {
+            if (cb.checked || cb.indeterminate) count++;
+        });
+        return count;
+    };
+    total = countSelection('venta') + countSelection('alquiler');
+    validateProvinceBatchButton(total);
 }
 
 /**
@@ -2873,6 +2886,11 @@ async function loadBatchDestinationFiles() {
             selectBatchFile('');
         }
 
+        // Trigger auto-select AFTER loading files
+        if (typeof autoSelectBatchFile === 'function') {
+            autoSelectBatchFile();
+        }
+
     } catch (e) {
         console.error("Error loading batch destination files:", e);
     }
@@ -2891,7 +2909,7 @@ function renderBatchFiles(filterText = '') {
         defItem.textContent = '(Crear nuevo archivo automático)';
         defItem.dataset.value = '';
         defItem.onclick = () => {
-            selectBatchFile('');
+            selectBatchFile('', true); // Manual selection of "New File"
             toggleBatchDropdown(false);
         };
         batchDestList.appendChild(defItem);
@@ -2919,7 +2937,7 @@ function renderBatchFiles(filterText = '') {
             `;
             item.dataset.value = file.name;
             item.onclick = () => {
-                selectBatchFile(file.name);
+                selectBatchFile(file.name, true); // Manual selection
                 toggleBatchDropdown(false);
             };
             batchDestList.appendChild(item);
@@ -2927,7 +2945,9 @@ function renderBatchFiles(filterText = '') {
     });
 }
 
-function selectBatchFile(filename) {
+function selectBatchFile(filename, isManual = false) {
+    if (isManual) isBatchFileManual = true;
+
     if (batchDestInput) batchDestInput.value = filename;
     if (batchDestText) {
         batchDestText.textContent = filename || '(Crear nuevo archivo automático)';
@@ -2985,34 +3005,50 @@ function autoSelectBatchFile() {
     let targetProvince = null;
     let targetType = null;
 
-    // Check Venta
+    // Count selected in Venta
+    let checkedVenta = [];
     if (listVenta) {
-        const checked = listVenta.querySelectorAll('.prov-cb-venta:checked');
-        if (checked.length === 1) {
-            targetProvince = checked[0].dataset.name;
-            targetType = 'venta';
-        }
+        checkedVenta = Array.from(listVenta.querySelectorAll('.prov-cb-venta:checked'));
     }
 
-    // Check Alquiler
-    if (!targetProvince && listAlquiler) {
-        const checked = listAlquiler.querySelectorAll('.prov-cb-alquiler:checked');
-        if (checked.length === 1) {
-            targetProvince = checked[0].dataset.name;
-            targetType = 'alquiler';
-        }
+    // Count selected in Alquiler
+    let checkedAlquiler = [];
+    if (listAlquiler) {
+        checkedAlquiler = Array.from(listAlquiler.querySelectorAll('.prov-cb-alquiler:checked'));
+    }
+
+    // Reset manual flag if selection is cleared completely
+    if (checkedVenta.length === 0 && checkedAlquiler.length === 0) {
+        isBatchFileManual = false;
+        selectBatchFile('');
+        return;
+    }
+
+    // If already manual, don't overwrite
+    if (isBatchFileManual) return;
+
+    // Logic: Only auto-select if EXACTLY ONE province is selected across BOTH lists
+    // This avoids confusing behavior when multiple provinces are selected
+    if (checkedVenta.length === 1 && checkedAlquiler.length === 0) {
+        targetProvince = checkedVenta[0].dataset.name;
+        targetType = 'venta';
+    } else if (checkedAlquiler.length === 1 && checkedVenta.length === 0) {
+        targetProvince = checkedAlquiler[0].dataset.name;
+        targetType = 'alquiler';
     }
 
     if (targetProvince && targetType) {
-        // Robust matching: normalize whitespace and accents for comparison
-        // "A Coruña" -> "acoruna"
-        const normalizeForMatch = (s) => normalizeString(s).toLowerCase().replace(/[\s\-_]+/g, '');
+        // Robust matching: remove accents AND non-alphanumeric chars
+        const normalizeForMatch = (s) => normalizeString(s).toLowerCase().replace(/[^a-z0-9]+/g, '');
         const cleanProv = normalizeForMatch(targetProvince);
         const typeKeywords = targetType === 'venta' ? ['venta', 'sale'] : ['alquiler', 'rent'];
+
+        console.log(`[AutoSelect] Looking for match: Prov=${cleanProv}, Type=${targetType}`);
 
         const bestMatch = availableExcelFiles.find(f => {
             const cleanName = normalizeForMatch(f.name);
             const hasProv = cleanName.includes(cleanProv);
+            // Check if name contains type keyword
             const hasType = typeKeywords.some(k => f.name.toLowerCase().includes(k));
             return hasProv && hasType;
         });
@@ -3021,12 +3057,27 @@ function autoSelectBatchFile() {
             console.log(`[AutoSelect] Found match for ${targetProvince} (${targetType}): ${bestMatch.name}`);
             selectBatchFile(bestMatch.name);
         } else {
-            // Optional: revert to default if no match? 
-            // Currently sticking to whatever was selected, or default if empty.
-            if (!batchDestInput.value) {
-                selectBatchFile('');
-            }
+            // If no match, reset to "Create New" only if it was NOT manually set?
+            // Safer: only reset if it was already an auto-selected one or empty
+            selectBatchFile('');
         }
+    } else {
+        // If 0 or >1 provinces selected, default to Create New (unless user already picked one manually)
+        // But we'll leave it as is if it's already set.
+    }
+}
+
+/**
+ * Toggle Help for Province Update Process
+ */
+function toggleProvinceHelp() {
+    const help = document.getElementById('provinceHelpText');
+    if (!help) return;
+
+    if (help.style.display === 'none') {
+        help.style.display = 'block';
+    } else {
+        help.style.display = 'none';
     }
 }
 
