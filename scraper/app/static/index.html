@@ -147,14 +147,25 @@
                                     </div>
                                 </div>
 
-                                <div class="input-group" style="margin-bottom: 12px;">
-                                    <label for="batchDestinationFile"
+                                <div class="custom-dropdown-group"
+                                    style="margin-bottom: 12px; position: relative; z-index: 100;">
+                                    <label
                                         style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Archivo
                                         Destino (Excel)</label>
-                                    <select id="batchDestinationFile"
-                                        style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: var(--text-main); font-size: 0.9rem;">
-                                        <option value="">(Crear nuevo archivo automático)</option>
-                                    </select>
+                                    <div class="dropdown-trigger" id="triggerBatchFile" tabindex="0">
+                                        <span id="selectedTextBatchFile">(Crear nuevo archivo automático)</span>
+                                        <span class="arrow">▼</span>
+                                    </div>
+                                    <input type="hidden" id="batchDestinationFile" value="">
+
+                                    <div class="dropdown-overlay" id="dropdownBatchFile">
+                                        <div class="dropdown-search">
+                                            <input type="text" placeholder="Buscar archivo..." id="searchBatchFile">
+                                        </div>
+                                        <div class="dropdown-options" id="listBatchFile">
+                                            <!-- JS will populate -->
+                                        </div>
+                                    </div>
                                     <small
                                         style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block;">
                                         El sistema intentará seleccionar automáticamente el archivo si coincide con la

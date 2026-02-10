@@ -10,7 +10,7 @@
     - Added `syncStatus` helper to `app.js` to ensure UI state is restored correctly on page refresh.
 
 ### Added
-- **Batch Scraper Destination Selector**: Added a dropdown to select a specific Excel file for batch operations. It auto-selects based on province/operation.
+- **Batch Scraper Destination Selector**: Added a searchable dropdown to select destination Excel files, matching the dark theme. Auto-selects based on province/operation with improved accent handling.
 - **Merger Tool Enrichment**: Updated `merger/app.py` to automatically mark merged properties as "enriched".
     - When a URL exists in both files, the resulting row now receives `__enriched__ = True` and `Fecha Enriquecimiento = <TODAY>`.
     - This ensures continuity with the "Enricher Tool" logic and allows these properties to be skipped in future enrichment passes.

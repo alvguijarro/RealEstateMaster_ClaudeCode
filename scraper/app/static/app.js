@@ -2845,33 +2845,32 @@ async function syncStatus() {
 }
 
 /* BATCH DESTINATION FILE SELECTOR */
-const batchDestFileSelect = document.getElementById('batchDestinationFile');
+/* BATCH DESTINATION FILE SELECTOR */
+const batchDestInput = document.getElementById('batchDestinationFile');
+const batchDestTrigger = document.getElementById('triggerBatchFile');
+const batchDestText = document.getElementById('selectedTextBatchFile');
+const batchDestOverlay = document.getElementById('dropdownBatchFile');
+const batchDestList = document.getElementById('listBatchFile');
+const batchDestSearch = document.getElementById('searchBatchFile');
+
 let availableExcelFiles = [];
 
 async function loadBatchDestinationFiles() {
-    if (!batchDestFileSelect) return;
+    if (!batchDestList) return;
 
     try {
-        const response = await fetch('/api/salidas-files?limit=200'); // Get more files
+        const response = await fetch('/api/salidas-files?limit=200');
         const data = await response.json();
 
         // Filter only .xlsx files
         availableExcelFiles = (data.files || []).filter(f => f.name.toLowerCase().endsWith('.xlsx'));
 
-        // Populate dropdown
-        let currentVal = batchDestFileSelect.value;
-        batchDestFileSelect.innerHTML = '<option value="">(Crear nuevo archivo automático)</option>';
+        // Render List
+        renderBatchFiles();
 
-        availableExcelFiles.forEach(file => {
-            const opt = document.createElement('option');
-            opt.value = file.name;
-            opt.textContent = `${file.name} (${formatMtime(file.mtime)})`;
-            batchDestFileSelect.appendChild(opt);
-        });
-
-        // Restore selection if possible
-        if (currentVal && availableExcelFiles.some(f => f.name === currentVal)) {
-            batchDestFileSelect.value = currentVal;
+        // Default to empty (Crear nuevo) if no value set
+        if (!batchDestInput.value) {
+            selectBatchFile('');
         }
 
     } catch (e) {
@@ -2879,10 +2878,105 @@ async function loadBatchDestinationFiles() {
     }
 }
 
+function renderBatchFiles(filterText = '') {
+    if (!batchDestList) return;
+    batchDestList.innerHTML = '';
+
+    const filter = filterText.toLowerCase();
+
+    // Always show "New File" option matching search or if search is empty
+    if ('(crear nuevo archivo automático)'.includes(filter) || filter === '') {
+        const defItem = document.createElement('div');
+        defItem.className = 'dropdown-item';
+        defItem.textContent = '(Crear nuevo archivo automático)';
+        defItem.dataset.value = '';
+        defItem.onclick = () => {
+            selectBatchFile('');
+            toggleBatchDropdown(false);
+        };
+        batchDestList.appendChild(defItem);
+    }
+
+    availableExcelFiles.forEach(file => {
+        if (file.name.toLowerCase().includes(filter)) {
+            const item = document.createElement('div');
+            item.className = 'dropdown-item';
+
+            // Format time safely
+            let timeStr = '';
+            if (typeof formatMtime === 'function') {
+                timeStr = formatMtime(file.mtime);
+            } else {
+                timeStr = new Date(file.mtime * 1000).toLocaleString();
+            }
+
+            // Flex layout for item
+            item.innerHTML = `
+                <div style="display:flex; justify-content:space-between; width:100%;">
+                    <span>${file.name}</span>
+                    <span style="font-size:0.8em; color:#888; margin-left:10px;">${timeStr}</span>
+                </div>
+            `;
+            item.dataset.value = file.name;
+            item.onclick = () => {
+                selectBatchFile(file.name);
+                toggleBatchDropdown(false);
+            };
+            batchDestList.appendChild(item);
+        }
+    });
+}
+
+function selectBatchFile(filename) {
+    if (batchDestInput) batchDestInput.value = filename;
+    if (batchDestText) {
+        batchDestText.textContent = filename || '(Crear nuevo archivo automático)';
+        if (filename) {
+            batchDestText.style.color = '#fff'; // Highlight
+            batchDestText.style.fontWeight = '500';
+        } else {
+            batchDestText.style.color = 'var(--text-secondary)';
+            batchDestText.style.fontWeight = 'normal';
+        }
+    }
+}
+
+function toggleBatchDropdown(forceState) {
+    if (!batchDestOverlay) return;
+
+    // Close other dropdowns first
+    if (!forceState && !batchDestOverlay.classList.contains('active')) {
+        document.querySelectorAll('.dropdown-overlay').forEach(el => el.classList.remove('active'));
+    }
+
+    if (typeof forceState === 'boolean') {
+        if (forceState) batchDestOverlay.classList.add('active');
+        else batchDestOverlay.classList.remove('active');
+    } else {
+        batchDestOverlay.classList.toggle('active');
+    }
+}
+
+// Bind Events
+if (batchDestTrigger) {
+    batchDestTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleBatchDropdown();
+    });
+}
+
+if (batchDestSearch) {
+    batchDestSearch.addEventListener('input', (e) => {
+        renderBatchFiles(e.target.value);
+    });
+    // Prevent closing when clicking search
+    batchDestSearch.addEventListener('click', (e) => e.stopPropagation());
+}
+
 // Auto-select file based on partial province selection
 // This is called from updateSelectionUI
 function autoSelectBatchFile() {
-    if (!batchDestFileSelect) return;
+    if (!batchDestInput) return;
 
     // Determine dominant province and type
     const listVenta = document.getElementById('listVenta');
@@ -2900,33 +2994,38 @@ function autoSelectBatchFile() {
         }
     }
 
-    // Check Alquiler (override if Venta not found or both - simple logic: last one wins or Alquiler priority?)
-    // Let's prioritize Alquiler if Venta is empty
+    // Check Alquiler
     if (!targetProvince && listAlquiler) {
         const checked = listAlquiler.querySelectorAll('.prov-cb-alquiler:checked');
         if (checked.length === 1) {
             targetProvince = checked[0].dataset.name;
-            targetType = 'alquiler'; // 'alquiler' matches filename usually
+            targetType = 'alquiler';
         }
     }
 
     if (targetProvince && targetType) {
-        // Find best match: Filename must contain province AND (venta/sale OR alquiler/rent)
+        // Robust matching: normalize whitespace and accents for comparison
+        // "A Coruña" -> "acoruna"
+        const normalizeForMatch = (s) => normalizeString(s).toLowerCase().replace(/[\s\-_]+/g, '');
+        const cleanProv = normalizeForMatch(targetProvince);
         const typeKeywords = targetType === 'venta' ? ['venta', 'sale'] : ['alquiler', 'rent'];
 
-        // Normalizing for search
-        const safeProv = normalizeString(targetProvince).toLowerCase();
-
         const bestMatch = availableExcelFiles.find(f => {
-            const fName = normalizeString(f.name).toLowerCase();
-            const hasProv = fName.includes(safeProv);
-            const hasType = typeKeywords.some(k => fName.includes(k));
+            const cleanName = normalizeForMatch(f.name);
+            const hasProv = cleanName.includes(cleanProv);
+            const hasType = typeKeywords.some(k => f.name.toLowerCase().includes(k));
             return hasProv && hasType;
         });
 
         if (bestMatch) {
             console.log(`[AutoSelect] Found match for ${targetProvince} (${targetType}): ${bestMatch.name}`);
-            batchDestFileSelect.value = bestMatch.name;
+            selectBatchFile(bestMatch.name);
+        } else {
+            // Optional: revert to default if no match? 
+            // Currently sticking to whatever was selected, or default if empty.
+            if (!batchDestInput.value) {
+                selectBatchFile('');
+            }
         }
     }
 }
