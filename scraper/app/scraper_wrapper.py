@@ -883,7 +883,7 @@ class ScraperController:
         # Check if it's time for a coffee break
         if self._session_property_count >= self._next_coffee_break:
             break_duration = random.uniform(*EXTRA_STEALTH_COFFEE_BREAK_RANGE)
-            self.log("INFO", f"☕ Anti-bot: Pausa de descanso ({break_duration:.0f}s)")
+            self.log("WARN", f"☕ Anti-bot: Pausa de descanso ({break_duration:.0f}s)")
             self.log("DEBUG_TIMING", f"Entering coffee break. Duration: {break_duration:.2f}s")
             
             if self.on_status:
@@ -913,7 +913,7 @@ class ScraperController:
             
             # Schedule next coffee break
             self._next_coffee_break = self._session_property_count + random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
-            self.log("INFO", f"☕ Anti-bot: Pausa terminada. Próxima en ~{self._next_coffee_break - self._session_property_count} propiedades")
+            self.log("WARN", f"☕ Anti-bot: Pausa terminada. Próxima en ~{self._next_coffee_break - self._session_property_count} propiedades")
     
     async def maybe_session_rest(self):
         """Take a long rest after session limit (Extra Stealth only)."""
@@ -925,7 +925,7 @@ class ScraperController:
             # Round to nearest minute for cleaner display
             rest_duration = round(rest_duration / 60) * 60
             rest_mins = int(rest_duration // 60)
-            self.log("INFO", f"😴 Anti-bot: Límite de sesión alcanzado ({EXTRA_STEALTH_SESSION_LIMIT} propiedades). Descansando {rest_mins} minutos...")
+            self.log("WARN", f"😴 Anti-bot: Límite de sesión alcanzado ({EXTRA_STEALTH_SESSION_LIMIT} propiedades). Descansando {rest_mins} minutos...")
             self.log("DEBUG_TIMING", f"Entering session rest break. Duration: {rest_duration}s")
             
             if self.on_status:
@@ -1311,7 +1311,9 @@ class ScraperController:
             return
         
         if duration > 10:
-            self.log("DEBUG_TIMING", f"Sleeping for {duration:.2f}s...")
+            self.log("INFO", f"⏳ Pausa larga detectada: {duration:.2f}s...")
+        
+        self.log("DEBUG_TIMING", f"Sleeping for {duration:.2f}s...")
         
         remaining = duration
         while remaining > 0:
@@ -2059,17 +2061,18 @@ class ScraperController:
                                 continue
                     
                             try:
-                                # t_card = time.time()
+                                t_pre = time.time()
                                 await self._interruptible_sleep(random.uniform(*card_delay))
-                                # self.log("DEBUG_TIMING", f"Pre-card sleep took {time.time() - t_card:.2f}s")
+                                self.log("DEBUG_TIMING", f"Pre-card sleep took {time.time() - t_pre:.2f}s")
 
-                                # t_goto = time.time()
+                                t_goto = time.time()
                                 await self._goto_with_retry(page, href)
-                                # self.log("DEBUG_TIMING", f"Goto wrapper took {time.time() - t_goto:.2f}s")
+                                t_goto_end = time.time()
+                                self.log("DEBUG_TIMING", f"Navigation to {key} took {t_goto_end - t_goto:.2f}s")
 
-                                # t_post = time.time()
+                                t_post = time.time()
                                 await self._interruptible_sleep(random.uniform(*post_card_delay))
-                                # self.log("DEBUG_TIMING", f"Post-card sleep took {time.time() - t_post:.2f}s")
+                                self.log("DEBUG_TIMING", f"Post-card sleep took {time.time() - t_post:.2f}s")
                         
                                 # If this is the first property, determine target file
                                 if target_file is None:
@@ -2271,12 +2274,20 @@ class ScraperController:
                                     self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_start_save:.2f}s")
                         
                                 # Extra Stealth: Simulate reading time
+                                t_read = time.time()
                                 await self.simulate_reading_time(row.get("Descripción"))
+                                t_read_end = time.time()
+                                if t_read_end - t_read > 2.0:
+                                    self.log("DEBUG_TIMING", f"Reading simulation took {t_read_end - t_read:.2f}s")
+                                
                                 if self._stop_evt.is_set():
                                     break
 
                                 # Extra Stealth: Mouse movement simulation
+                                t_mouse = time.time()
                                 await self.simulate_mouse_movement(page)
+                                t_mouse_end = time.time()
+                                self.log("DEBUG_TIMING", f"Mouse movements took {t_mouse_end - t_mouse:.2f}s")
                                 if self._stop_evt.is_set():
                                     break
                         

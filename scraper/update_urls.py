@@ -617,10 +617,13 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                     session_property_count = 0 # Reset counter
                                     emit_to_ui('INFO', 'Rest complete. Resuming session.')
 
-                            await asyncio.sleep(random.uniform(*card_delay))
+                            start_item_time = time.time()
                             
                             # Navigate
+                            t0 = time.time()
                             await _goto_with_retry(page, url)
+                            nav_time = time.time() - t0
+                            emit_to_ui('DEBUG_TIMING', f"Navigation took {nav_time:.2f}s")
                             
                             # Check Block immediately
                             page_text = await page.evaluate("() => document.body ? document.body.innerText.toLowerCase() : ''")
@@ -628,15 +631,19 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 raise BlockedException("Uso Indebido detected")
                                 
                             # Enhanced Stealth Scroll
+                            t0 = time.time()
                             if os.path.exists(STEALTH_FLAG_FILE):
                                 await variable_scroll(page)
                             else:
                                 await simulate_human_interaction(page)
+                            scroll_time = time.time() - t0
+                            emit_to_ui('DEBUG_TIMING', f"Human interaction/scroll took {scroll_time:.2f}s")
                                 
                             await asyncio.sleep(random.uniform(*post_delay))
                             
                             # Extract
                             d = None
+                            t0 = time.time()
                             for attempt in range(3):
                                 try:
                                     d = await extract_detail_fields(page, debug_items=False)
@@ -673,6 +680,11 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                         await asyncio.sleep(1)
                                         continue
                                     raise e
+                            
+                            try:
+                                extraction_time = time.time() - t0
+                                emit_to_ui('DEBUG_TIMING', f"Extraction loop took {extraction_time:.2f}s")
+                            except: pass
 
                             # Check Block again
                             if await detect_captcha(page):
@@ -799,6 +811,9 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
 
                             save_to_journal(excel_file, final_row)
                             updated_rows.append(final_row)
+                            
+                            total_item_time = time.time() - start_item_time
+                            emit_to_ui('DEBUG_TIMING', f"Total item time: {total_item_time:.2f}s")
                             
                             session_property_count += 1 # Increment stealth counter
                             

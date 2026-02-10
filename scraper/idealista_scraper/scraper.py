@@ -43,8 +43,10 @@ def build_paginated_url(seed_url: str, page_number: int) -> str:
 
 async def _goto_with_retry(page, url: str) -> None:
     """Navigate to URL with retry logic and proper content loading."""
+    import time
     delay = RETRY_BASE_DELAY
     last_err: Optional[Exception] = None
+    t_start_goto = time.time()
     for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
         try:
             # Use domcontentloaded for faster, more reliable navigation
@@ -117,6 +119,9 @@ async def _goto_with_retry(page, url: str) -> None:
 
             # Wait a fixed time for JavaScript to render content
             await asyncio.sleep(3.0)
+            
+            total_goto_time = time.time() - t_start_goto
+            log("DEBUG", f"_goto_with_retry took {total_goto_time:.2f}s for {url}")
             return
         except Exception as e:
             last_err = e

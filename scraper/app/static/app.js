@@ -644,6 +644,8 @@ if (worksheetSearch) {
 }
 
 async function startUrlUpdate(resume = false) {
+    isBatchMode = false;
+    isUpdateMode = true;
     const excelFile = updateExcelSelect ? updateExcelSelect.value : '';
 
     if (!excelFile) {
@@ -1217,6 +1219,8 @@ async function startScraping(isDualMode = false) {
     addLog('INFO', `Iniciando scraping en modo ${currentMode.toUpperCase()}...`);
 
     // Centralized State Update
+    isBatchMode = false;
+    isUpdateMode = false;
     updateScraperState(true, `Scraping ${isDualMode ? 'Dual' : currentMode.toUpperCase()}`);
 
     try {
@@ -1999,6 +2003,8 @@ function setBatchUIState(state) {
     if (!batchStartBtn) return;
 
     if (state === 'running') {
+        isBatchMode = false;
+        isUpdateMode = true;
         updateScraperState(true, 'Enriquecimiento por Lotes');
         batchStartBtn.disabled = true;
         batchStopBtn.disabled = false;
@@ -2674,6 +2680,11 @@ window.startBatchFromProvinces = async function () {
     }
 
     addLog('INFO', `Iniciando lote con ${urls.length} URLs (Provincias/Zonas)...`);
+
+    // Set global flags correctly
+    isBatchMode = true;
+    isUpdateMode = false;
+
     updateScraperState(true, 'Scraping por Provincias');
 
     // Get target file

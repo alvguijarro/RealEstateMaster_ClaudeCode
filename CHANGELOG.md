@@ -3,11 +3,8 @@
 ## [2026-02-09]
 
 ### Fixed
-- **Batch Pause Logic**: Fixed a critical bug where pausing the batch scraper only paused the local runner loop but failed to signal the active scraper process.
-    - Updated `run_batch.py` to send explicit `/api/pause` and `/api/resume` commands to the server.
-    - Updated `server.py` to correctly report `mode='batch'` status even when the scraper is momentarily idle, ensuring UI controls remain active.
-    - Updated `app.js` to correctly detect batch mode from server status and route pause/resume actions to the batch endpoints.
-    - Added `syncStatus` helper to `app.js` to ensure UI state is restored correctly on page refresh.
+- **Batch Pause Logic**: Fixed a critical bug where pausing the batch scraper failed to signal the active scraper process.
+- **Corrección de Pausa en Provincias**: Corregido el botón "Pausar" durante el scraping por provincias/zonas, asegurando que se comunique correctamente con el backend.
 
 ### Added
 - **Batch Scraper Improvements**:
@@ -16,10 +13,9 @@
     - **Accent & Robust Matching**: Enhanced `autoSelectBatchFile` with normalization to handle Spanish accents (e.g., "A Coruña", "Álava") and various filename formats.
     - **Interactive Help**: Added a detailed explanation of the "Update Provinces" process via an information toggle in the UI.
     - **Selection Persistence**: Added manual override protection to prevent auto-selection from overwriting user-chosen files.
-    - **Firefox Stability**: Resolved a critical timeout (`Timeout 60000ms exceeded`) in Province Updates by:
-        - Removing the invalid `-foreground` flag from Firefox launch arguments.
-        - Implementing automatic cleanup of stale profile lock files (`lock`, `parent.lock`) before launch.
-        - Increasing launch timeout to 90 seconds.
+    - **Firefox Stability**: Resolved a critical timeout (`Timeout 60000ms exceeded`) in Province Updates.
+- **Depuración de Pausas**: Añadido registro granular de tiempos (`DEBUG_TIMING`) para navegación, sleeps y simulaciones de interacción humana para identificar causas de pausas largas.
+- **Visibilidad Anti-bot**: Elevado el nivel de log a `WARN` para descansos de sesión (7-15 min) y pausas de café para que sean claramente visibles en la interfaz.
 - **Merger Tool Enrichment**: Updated `merger/app.py` to automatically mark merged properties as "enriched".
     - When a URL exists in both files, the resulting row now receives `__enriched__ = True` and `Fecha Enriquecimiento = <TODAY>`.
     - This ensures continuity with the "Enricher Tool" logic and allows these properties to be skipped in future enrichment passes.

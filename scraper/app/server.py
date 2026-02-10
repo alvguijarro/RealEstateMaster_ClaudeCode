@@ -878,6 +878,11 @@ def pause_batch_scraping():
     scraper_dir = Path(__file__).parent.parent
     flag = scraper_dir / "BATCH_PAUSE.flag"
     with open(flag, 'w') as f: f.write("PAUSE")
+    
+    # Also pause active controller if any
+    if scraper_controller:
+        scraper_controller.pause()
+        
     return jsonify({'status': 'paused'})
 
 
@@ -887,6 +892,11 @@ def resume_batch_scraping():
     scraper_dir = Path(__file__).parent.parent
     flag = scraper_dir / "BATCH_PAUSE.flag"
     if flag.exists(): os.remove(flag)
+    
+    # Also resume active controller if any
+    if scraper_controller:
+        scraper_controller.resume()
+        
     return jsonify({'status': 'resumed'})
 
 
