@@ -1877,8 +1877,26 @@ class ScraperController:
             
                     # Extract starting page from seed URL (e.g., /pagina-5 starts at page 5)
                     page_num = extract_page_from_url(self.seed_url)
+
+                    # === RESUME LOGIC ===
+                    # Attempt to load resume state if enabled
+                    resume_state = self.load_state()
+                    if resume_state and resume_state.get("seed_url") == self.seed_url:
+                        saved_page = resume_state.get("current_page", 1)
+                        if saved_page > page_num:
+                            self.log("INFO", f"🔄 RESUME: Restoring previous session at page {saved_page}")
+                            page_num = saved_page
+                            
+                            # Restore processed URLs to avoid duplicates/re-scraping
+                            saved_processed = resume_state.get("processed_urls", [])
+                            if saved_processed:
+                                count_before = len(self._processed)
+                                self._processed.update(saved_processed)
+                                self.log("INFO", f"🔄 RESUME: Restored {len(self._processed) - count_before} processed URLs from state.")
+                    # ====================
+
                     if page_num > 1:
-                        self.log("INFO", f"Detected starting page from URL: {page_num}")
+                        self.log("INFO", f"Detected starting page: {page_num}")
             
                     # Calculate starting property index based on page number
                     # Page 1 starts at property 1, page 2 at 31, etc. (30 properties per page)

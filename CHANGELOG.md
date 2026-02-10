@@ -7,6 +7,8 @@
 - **Stop Button Reliability**: Improved the "Stop" command's ability to unblock hanging operations by ensuring the browser closure is triggered correctly within the scraper's event loop.
 - **Unlogged Pauses**: Identified and mitigated silent hangs during navigation by adding a 120s global guard/timeout to Playwright operations.
 - **Persistent Hangs**: Wrapped `simulate_human_interaction` in a strict 5-second timeout to prevent deadlocks after page load.
+- **Resume Functionality**: Scraper now correctly resumes from the specific page (e.g., page 5) saved in the resume state, rather than restarting from page 1.
+- **Update Efficiency**: "Update Provinces" now skips URLs already marked as `enriched="VERDADERO"`, saving significant time and resources.
 
 ### Added
 - **Heartbeat Monitor**: Implemented a background "heartbeat" task that logs status and warns if the scraper has been silent for more than 5 minutes.

@@ -543,7 +543,21 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             break 
                             
                         if was_paused:
-                            emit_to_ui('INFO', '[STATUS] running')
+                            
+                        # --- ENRICHMENT SKIP: Check 'enriched' column in Excel ---
+                        # Get original row data from our pre-loaded map
+                        orig_row_data = url_to_row.get(url, {})
+                        
+                        # Check various potential truthy values for "enriched" column
+                        is_enriched_in_excel = str(orig_row_data.get('enriched', '')).upper() in ['VERDADERO', 'TRUE', 'YES', 'SI', '1']
+                        
+                        if is_enriched_in_excel:
+                            emit_to_ui('INFO', f'({i}/{len(urls)}) [SKIP] Already enriched in file: {url}')
+                            # Add original row to updated_rows to preserve it
+                            updated_rows.append(orig_row_data)
+                            
+                            start_index = i
+                            continue
                             
                         # --- SMART SKIP: Check History ---
                         if url in HISTORY:
