@@ -1807,24 +1807,6 @@ class ScraperController:
                             break
                             
                         continue  # Loop back to restart with new browser identity
-                            
-                            # Countdown
-                            for remaining in range(wait_minutes, 0, -1):
-                                if self._stop_evt.is_set():
-                                    break
-                                for _ in range(12):  # 12 * 5s = 60s
-                                    if self._stop_evt.is_set():
-                                        break
-                                    await asyncio.sleep(5)
-                            
-                            if self._stop_evt.is_set():
-                                self.log("INFO", "Retry cancelled by user.")
-                                self.is_running = False
-                                self.status = "stopped"
-                                break
-                            
-                            self.log("OK", "🔄 Reintentando ahora...")
-                            continue  # Loop back to restart browser
 
             
                     # Detect alquiler/venta from h1 text
@@ -2764,7 +2746,7 @@ class ScraperController:
                         pass
                     
                     if target_file and self.current_page:
-                         self.save_state(self.current_page, target_file)
+                        self.save_state(self.current_page, target_file)
 
                     # === VPN IP Rotation on CAPTCHA ===
                     if self.use_vpn:
@@ -2777,19 +2759,19 @@ class ScraperController:
                             self.log("WARN", f"VPN: IP rotation failed: {vpn_err}. Continuing with wait...")
 
                     if self.on_status:
-                         self.on_status("blocked", message="Esperando 15 minutos para reintentar...")
+                        self.on_status("blocked", message="Esperando 15 minutos para reintentar...")
 
                     self.log("OK", f"✅ Browser closed. Waiting {wait_time} seconds before restart...")
 
                     # Wait for calculated duration (short for switch, long for cooldown)
                     cycles = max(1, int(wait_time / 5))
                     for _ in range(cycles): 
-                         if self._stop_evt.is_set(): break
-                         await asyncio.sleep(5)
+                        if self._stop_evt.is_set(): break
+                        await asyncio.sleep(5)
                     
                     if self._stop_evt.is_set():
-                         self.log("INFO", "Retry cancelled by user.")
-                         break
+                        self.log("INFO", "Retry cancelled by user.")
+                        break
                     
                     self.log("OK", "🔄 Reintentando ahora...")
                     continue
