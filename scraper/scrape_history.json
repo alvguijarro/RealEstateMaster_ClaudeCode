@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-10T20:34:54.830357",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/asturias/",
+    "properties_count": 769,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Asturias_alquiler.xlsx",
+    "filename": "idealista_Asturias_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-10T13:22:25.220756",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/asturias/",
     "properties_count": 4,
