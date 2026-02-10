@@ -26,13 +26,12 @@ PAUSE_FLAG = SCRIPT_DIR / "BATCH_PAUSE.flag"
 sys.path.insert(0, str(SCRIPT_DIR / "app"))
 try:
     from scraper_wrapper import (
-        select_next_engine, get_last_engine, get_available_engines,
-        get_cooldown_remaining, BROWSER_ENGINES, PROFILE_COOLDOWN_MINUTES
+        get_current_profile_config, BROWSER_ENGINES, PROFILE_COOLDOWN_MINUTES
     )
     HAS_PROFILE_MGMT = True
 except ImportError:
     HAS_PROFILE_MGMT = False
-    print("[WARN] Could not import profile management. Using default engine.")
+    print("[WARN] Could not import profile management. Multi-browser rotation will be handled by the server.")
 
 # Config
 DELAY_BETWEEN = (10, 30)  # seconds
@@ -95,18 +94,19 @@ def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_
                 return False
         
     # Start Scrape via API with browser engine selection
+    # NOTE: The server now handles identity rotation INTERNALLY via rotate_identity()
+    # We pass browser_engine mainly for reverse compatibility if needed
     payload = {
         "seed_url": url,
         "mode": mode,
         "max_pages": 4000, # High limit for batch
-        "browser_engine": browser_engine,  # Multi-browser rotation
-        "smart_enrichment": smart_enrichment,  # Smart enrichment mode
+        "browser_engine": browser_engine, 
+        "smart_enrichment": smart_enrichment,
         "target_file": target_file
     }
     
     try:
-        engine_emoji = "🦊" if browser_engine == "firefox" else "🌐"
-        log(f"{engine_emoji} Starting [{browser_engine.upper()}]: {target_prov}")
+        log(f"🚀 Starting scrape for: {target_prov}")
         resp = requests.post("http://localhost:5003/api/start", json=payload, timeout=10)
         
         if resp.status_code != 200:
@@ -127,7 +127,8 @@ def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_
                         log(f"[OK] Completed: {target_prov}")
                         return True
                     elif current_status in ["blocked", "captcha", "error", "stopped"] or "CAPTCHA" in str(status_data):
-                        log(f"[WARN] Blocked/Captcha/Error/Stopped on {target_prov}")
+                        # Blocked status means the controller already triggered rotation
+                        log(f"[WARN] Session interrupted ({current_status}) on {target_prov}. Server will rotate identity.")
                         return False
                 else:
                     log("[WARN] Status check failed.")
@@ -141,8 +142,10 @@ def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_
 def main():
     log("=== BATCH SCRAPER STARTED ===")
     
+    # Identity status for user info
     if HAS_PROFILE_MGMT:
-        log(f"🔄 Multi-browser rotation enabled: {BROWSER_ENGINES}")
+        conf = get_current_profile_config()
+        log(f"🎭 Current Identity: {conf['name']} (Profile {conf['index']})")
     else:
         log("⚠️ Multi-browser rotation NOT available (using chromium only)")
     
@@ -174,64 +177,16 @@ def main():
             
         log(f"\n[{i}/{len(urls)}] Processing URL: {url}...")
         
-        # Retry logic (Infinite retries for blocks, but avoid infinite loop on crashes)
+        # Simplified loop: Delegate internal rotation to ScraperController
         success = False
-        failed_engines = set() # Track engines that failed for THIS specific URL
-        
         while not success:
-            # Select browser engine with rotation and cooldown checking
-            if HAS_PROFILE_MGMT:
-                last_engine = get_last_engine()
-                selected_engine = select_next_engine(last_engine)
-                
-                # If the naturally selected engine already failed for this URL, try a different one
-                if selected_engine in failed_engines:
-                    available_alternatives = [e for e in BROWSER_ENGINES if e not in failed_engines]
-                    if available_alternatives:
-                        selected_engine = available_alternatives[0]
-                        log(f"⚠️ Preferred engine {select_next_engine(last_engine)} failed previously. Switching to {selected_engine.upper()}")
-                    else:
-                        log("⚠️ All browser engines failed for this URL. Waiting 2 minutes before retrying...", "WARN")
-                        # Wait 2 minutes before wiping failed_engines and retrying
-                        # This avoids a tight loop of failure-retry-failure
-                        for _ in range(120):
-                             time.sleep(1)
-                             check_signals()
-                        
-                        failed_engines.clear() # Reset failure tracking to try again
-                        continue # Restart loop to select an engine again
-                
-                # If all engines are in cooldown, wait for the first one to be available
-                if selected_engine is None:
-                    available = get_available_engines()
-                    if not available:
-                        # Find minimum remaining cooldown across all engines
-                        min_wait = min(get_cooldown_remaining(eng) for eng in BROWSER_ENGINES)
-                        log(f"⏳ All browser profiles in cooldown. Waiting {min_wait} min...", "WARN")
-                        for _ in range(min_wait * 60):
-                            time.sleep(1)
-                            check_signals()
-                        # Try again
-                        selected_engine = select_next_engine(last_engine)
-                        if selected_engine is None:
-                            selected_engine = "chromium"  # Fallback
-                
-                log(f"🎯 Selected engine: {selected_engine.upper()}")
-            else:
-                selected_engine = "chromium"
-            
-            success = run_single_url(url, mode, selected_engine, smart_enrichment, target_file)
+            # We don't pre-select the engine here because the server does it
+            # just before launching via get_current_profile_config()
+            success = run_single_url(url, mode, "auto", smart_enrichment, target_file)
             
             if not success:
-                # Mark this engine as failed for this URL attempt
-                failed_engines.add(selected_engine)
-                
-                # If failed (blocked), we don't wait 15 mins unconditionally.
-                # The 'select_next_engine' at the top of the loop will handle the wait 
-                # if ALL engines are blocked.
-                # If we have another engine available, we retry immediately.
-                log("⚠️ Scrape failed (Block/Captcha/Crash). Checking for next available browser engine...", "WARN")
-                time.sleep(5) # Reduced breathing room
+                log("⚠️ Scrape paused/blocked. Waiting 10 seconds before letting server retry with fresh identity...", "WARN")
+                time.sleep(10)
                 check_signals()
         
         if success: success_count += 1

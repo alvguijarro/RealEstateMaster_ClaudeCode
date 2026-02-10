@@ -209,13 +209,26 @@ def rotate_identity() -> dict:
 # Constants for backward compatibility (mapped to current profile)
 # These will be dynamically resolved in the class, but we keep the variables
 STEALTH_PROFILE_DIR = get_profile_dir(get_current_profile_config()["index"])
-# =============================================================================
-# Legacy cooldown functions preserved but unused by new rotation system
+# Legacy compatibility for run_batch.py and others
+BROWSER_ENGINES = ["chromium", "firefox", "webkit"]
+
 def load_profile_cooldowns() -> dict: return {}
 def save_profile_cooldowns(cooldowns: dict) -> None: pass
-def mark_profile_blocked(engine: str) -> None: pass
-def is_profile_available(engine: str) -> bool: return True
-def get_cooldown_remaining(engine: str) -> int: return 0
+def mark_profile_blocked(engine: str) -> None: 
+    # Map engine name to our new internal marking if possible, 
+    # but run_batch calls this on the controller, not the module level usually.
+    # Module level stub:
+    pass
+
+def is_profile_available(engine: str) -> bool: 
+    # For legacy scripts, we just say True and let the controller handle rotation
+    return True
+
+def get_cooldown_remaining(engine: str) -> int: 
+    state = load_identity_state()
+    # We can't easily map 'engine' string to a specific profile index without ambiguity,
+    # so we return 0 for legacy compatibility.
+    return 0
 
 
 def get_available_engines() -> List[str]:
