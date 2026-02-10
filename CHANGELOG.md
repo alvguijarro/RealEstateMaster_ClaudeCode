@@ -6,10 +6,12 @@
 - **Excel Lock Resilience**: Fixed an infinite loop/hang when an Excel output file was open. Added a retry limit (5) and a stop signal check to the export logic.
 - **Stop Button Reliability**: Improved the "Stop" command's ability to unblock hanging operations by ensuring the browser closure is triggered correctly within the scraper's event loop.
 - **Unlogged Pauses**: Identified and mitigated silent hangs during navigation by adding a 120s global guard/timeout to Playwright operations.
+- **Persistent Hangs**: Wrapped `simulate_human_interaction` in a strict 5-second timeout to prevent deadlocks after page load.
 
 ### Added
 - **Heartbeat Monitor**: Implemented a background "heartbeat" task that logs status and warns if the scraper has been silent for more than 5 minutes.
 - **Enhanced Navigation Logs**: Added explicit "Starting navigation" logs to improve tracing and pinpoint the exact moment of potential hangs.
+- **Async Stack Dump**: Added automatic stack trace dumping when the heartbeat alarm triggers (5+ min freeze) to identify the exact line of code causing a hang.
 
 ## [2026-02-09]
 

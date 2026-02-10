@@ -462,7 +462,7 @@ async def simulate_human_interaction(page):
         end_x = random.randint(0, width)
         end_y = random.randint(0, height)
         
-        # Control points for curved path
+    # Control points for curved path
         cp1_x = random.randint(0, width)
         cp1_y = random.randint(0, height)
         cp2_x = random.randint(0, width)
@@ -470,16 +470,25 @@ async def simulate_human_interaction(page):
         
         steps = random.randint(20, 50)
         for i in range(steps):
+             # 1. Abort if stop requested (needs to be passed or checked)
+             # But this function doesn't take check_stop yet. We'll rely on timeout in wrapper for now.
+             
             t = i / steps
             x = _bezier_curve(start_x, cp1_x, cp2_x, end_x, t)
             y = _bezier_curve(start_y, cp1_y, cp2_y, end_y, t)
+            
+            # Guard against closed page
+            if page.is_closed():
+                return
+                
             await page.mouse.move(x, y)
             await asyncio.sleep(random.uniform(0.01, 0.03)) # Fast, realistic movement
 
         # 2. Random short pause
         await asyncio.sleep(random.uniform(0.5, 1.5))
-
-    except Exception:
+        
+    except Exception as e:
+        # log("DEBUG", f"Interaction failed: {e}") # helpful debug
         pass # Fail silently to not interrupt scraper flow
 
 

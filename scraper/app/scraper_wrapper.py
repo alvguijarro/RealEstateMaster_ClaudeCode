@@ -1024,9 +1024,28 @@ class ScraperController:
             if idle_time > 300: # 5 minutes of silence
                 self.log("WARN", f"💓 Heartbeat: No activity for {idle_time/60:.0f}m. Scraper might be hanging or waiting silently.")
                 self.log("INFO", f"💓 Status: {self.status}, Page: {self.current_page}, Property: {self.current_property_count}/{self.total_properties_expected}")
+                # Dump stack traces to debug the hang
+                await self._dump_async_stack_trace()
             elif idle_time > 60:
                 # Normal heartbeat log at DEBUG level (not seen by user unless verbose)
                 pass 
+
+    async def _dump_async_stack_trace(self):
+        """Dump stack traces of all running async tasks to log."""
+        self.log("ERR", "📋 DUMPING ASYNC STACK TRACES (Potential Deadlock):")
+        try:
+            for task in asyncio.all_tasks():
+                if task.done(): continue
+                name = task.get_name()
+                self.log("ERR", f"Task: {name}")
+                stack = task.get_stack()
+                if stack:
+                    for frame in stack:
+                        self.log("ERR", f"  {frame.f_code.co_filename}:{frame.f_lineno} in {frame.f_code.co_name}")
+                else:
+                    self.log("ERR", "  (No stack available)")
+        except Exception as e:
+            self.log("ERR", f"Failed to dump stack traces: {e}")
 
     def set_mode(self, mode: str):
         """Update scraping mode dynamically."""
@@ -1142,8 +1161,15 @@ class ScraperController:
 
                 self.log("DEBUG_TIMING", f"Navigation completed in {time.time() - t_nav_start:.2f}s")
                 
-                # Humanize interaction after reaching the page
-                await simulate_human_interaction(page)
+                # Humanize interaction after reaching the page (Wrapped in timeout)
+                try:
+                    self.log("DEBUG_TIMING", "Starting human interaction simulation...")
+                    await asyncio.wait_for(simulate_human_interaction(page), timeout=5.0)
+                    self.log("DEBUG_TIMING", "Human interaction completed.")
+                except asyncio.TimeoutError:
+                    self.log("WARN", "⚠️ Human interaction timed out (5s limit). Continuing...")
+                except Exception as e:
+                    self.log("WARN", f"⚠️ Human interaction failed: {e}")
                 
                 # Check for CAPTCHA/Bot protection
                 try:
@@ -1377,7 +1403,7 @@ class ScraperController:
         # Start heartbeat monitor
         heartbeat_task = asyncio.create_task(self._heartbeat_monitor())
         
-        try:
+        if self.on_status:
             self.on_status("running")
         
         self.log("INFO", f"Starting scraper in {self.mode.upper()} mode")
