@@ -1637,12 +1637,17 @@ class ScraperController:
                         self._stop_evt.set()
                         break
             
-                    # Navigate to seed URL
+                    # Navigate to seed URL (or direct page resume)
                     try:
-                        self.log("INFO", f"Navigating to seed URL...")
-                        await page.goto(self.seed_url, wait_until="domcontentloaded", timeout=60000)
+                        target_url = self.seed_url
+                        if self.current_page > 1:
+                            target_url = build_paginated_url(self.seed_url, self.current_page)
+                            self.log("INFO", f"⏭️ Resuming directly from Page {self.current_page}...")
+                        
+                        self.log("INFO", f"Navigating to: {target_url}")
+                        await page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
                         await asyncio.sleep(3.0)
-                        self.log("OK", "Opened seed URL")
+                        self.log("OK", "Page opened successfully")
                     except Exception as e:
                         self.log("ERR", f"Could not open seed URL: {e}")
             
@@ -1773,13 +1778,11 @@ class ScraperController:
                     if total_count == 0:
                         self.log("WARN", "⚠️ BLOCK DETECTED: 0 properties found on page (CAPTCHA/Block)")
                         
-                        # Mark current profile as blocked
-                        current_engine = self.browser_engine
-                        mark_profile_blocked(current_engine)
-                        self.log("WARN", f"⏳ Profile '{current_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
+                        # ROTATION LOGIC (2026): Strict Sequential with Cooldown
+                        mark_current_profile_blocked()
                         
                         # Save state for resume
-                        self.save_state(1, target_file)
+                        self.save_state(self.current_page or 1, target_file)
                         
                         # Cancel mouse jitter and close browser
                         try:
@@ -1789,35 +1792,21 @@ class ScraperController:
                         except:
                             pass
                         
-                        # ROTATION: Try to switch to a different engine immediately
-                        next_engine = select_next_engine(current_engine)
+                        # This function handles sequential overflow and waiting cooldown if needed
+                        next_config = rotate_identity()
                         
-                        if next_engine and next_engine != current_engine:
-                            self.log("INFO", f"🔄 ROTATION: Switching to fresh engine '{next_engine.upper()}' for immediate retry!")
-                            self.browser_engine = next_engine
-                            wait_time = random.randint(5, 15)
+                        self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
+                        self.log("INFO", f"Restarting in 5 seconds with fresh identity...")
+                        
+                        if self.on_status:
+                            self.on_status("blocked", message=f"Rotando a Perfil {next_config['index']}...")
+                        
+                        await self._interruptible_sleep(5.0)
+                        
+                        if self._stop_evt.is_set():
+                            break
                             
-                            if self.on_status:
-                                self.on_status("blocked", message=f"Rotando a {next_engine.upper()} en {wait_time}s...")
-                            
-                            await self._interruptible_sleep(float(wait_time))
-                            
-                            if self._stop_evt.is_set():
-                                self.log("INFO", "Retry cancelled by user.")
-                                self.is_running = False
-                                self.status = "stopped"
-                                break
-                            
-                            self.log("OK", f"🔄 Restarting with {next_engine.upper()}...")
-                            continue  # Loop back to restart with new browser
-                        else:
-                            # All engines blocked - must wait for cooldown
-                            cooldown_remaining = get_cooldown_remaining(current_engine)
-                            wait_minutes = max(cooldown_remaining, 1)
-                            self.log("WARN", f"⚠️ All browser profiles blocked. Waiting {wait_minutes} min for cooldown...")
-                            
-                            if self.on_status:
-                                self.on_status("blocked", message=f"Esperando {wait_minutes} minutos para reintentar...")
+                        continue  # Loop back to restart with new browser identity
                             
                             # Countdown
                             for remaining in range(wait_minutes, 0, -1):

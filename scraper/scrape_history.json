@@ -1,5 +1,21 @@
 [
   {
+    "timestamp": "2026-02-10T23:20:14.914425",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/alava/",
+    "properties_count": 72,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Álava_alquiler.xlsx",
+    "filename": "idealista_Álava_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-10T23:20:07.839296",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/alava/",
+    "properties_count": 72,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Álava_alquiler.xlsx",
+    "filename": "idealista_Álava_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-10T23:03:19.754348",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/a-coruna-provincia/",
     "properties_count": 1469,
