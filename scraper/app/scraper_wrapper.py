@@ -41,7 +41,8 @@ from idealista_scraper.config import (
     EXTRA_STEALTH_SCROLL_PAUSE_RANGE, EXTRA_STEALTH_CARD_DELAY_RANGE, EXTRA_STEALTH_POST_CARD_DELAY_RANGE,
     EXTRA_STEALTH_SESSION_LIMIT, EXTRA_STEALTH_REST_DURATION_RANGE,
     EXTRA_STEALTH_COFFEE_BREAK_RANGE, EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY,
-    EXTRA_STEALTH_READING_TIME_PER_100_CHARS, USER_AGENTS, VIEWPORT_SIZES
+    EXTRA_STEALTH_READING_TIME_PER_100_CHARS, USER_AGENTS, VIEWPORT_SIZES,
+    BROWSER_ROTATION_POOL, MAX_PROFILE_POOL_SIZE, PROFILE_COOLDOWN_MINUTES
 )
 from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_slider_captcha
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
@@ -112,89 +113,109 @@ RESUME_STATE_FILE = str(Path(__file__).parent / "resume_state.json")
 SCRAPE_HISTORY_FILE = str(Path(DEFAULT_OUTPUT_DIR) / "scrape_history.json")
 
 # =============================================================================
-# MULTI-BROWSER SUPPORT WITH PROFILE COOLDOWN
+# MULTI-BROWSER IDENTITY ROTATION (ADVANCED EVASION)
 # =============================================================================
 
-# Browser engine options
-BROWSER_ENGINES = ["chromium", "firefox"]
+# Identity Rotation State File
+IDENTITY_STATE_FILE = str(Path(__file__).parent / "identity_state.json")
 
-# Profile directories per engine
-PROFILE_DIRS = {
-    "chromium": str(Path(__file__).parent.parent / "stealth_profile_chromium"),
-    "firefox": str(Path(__file__).parent.parent / "stealth_profile_firefox"),
-}
-
-# Legacy alias for backward compatibility
-STEALTH_PROFILE_DIR = PROFILE_DIRS["chromium"]
-
-# Cooldown tracking file
-PROFILE_COOLDOWN_FILE = str(Path(__file__).parent / "profile_cooldowns.json")
-
-# Cooldown duration in minutes
-PROFILE_COOLDOWN_MINUTES = 15
-
-
-def load_profile_cooldowns() -> dict:
-    """Load profile cooldown timestamps from file."""
-    if not os.path.exists(PROFILE_COOLDOWN_FILE):
-        return {}
+def load_identity_state() -> dict:
+    """Load current identity state (current_profile_index) and cooldowns."""
+    if not os.path.exists(IDENTITY_STATE_FILE):
+        return {"current_index": 0, "cooldowns": {}}
     try:
-        with open(PROFILE_COOLDOWN_FILE, "r", encoding="utf-8") as f:
+        with open(IDENTITY_STATE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError):
-        return {}
+        return {"current_index": 0, "cooldowns": {}}
 
-
-def save_profile_cooldowns(cooldowns: dict) -> None:
-    """Save profile cooldown timestamps to file."""
+def save_identity_state(state: dict) -> None:
+    """Save identity state to file."""
     try:
-        with open(PROFILE_COOLDOWN_FILE, "w", encoding="utf-8") as f:
-            json.dump(cooldowns, f, indent=2)
+        with open(IDENTITY_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
     except IOError:
         pass
 
+def get_current_profile_config() -> dict:
+    """Get the configuration for the currently active profile."""
+    state = load_identity_state()
+    # Ensure index is within bounds of our new POOL
+    idx = state.get("current_index", 0)
+    if idx >= len(BROWSER_ROTATION_POOL):
+        idx = 0
+    return BROWSER_ROTATION_POOL[idx]
 
-def mark_profile_blocked(engine: str) -> None:
-    """Mark a browser profile as blocked, starting its cooldown timer."""
-    import time
-    cooldowns = load_profile_cooldowns()
-    cooldowns[engine] = time.time()
-    save_profile_cooldowns(cooldowns)
+def get_profile_dir(profile_index: int) -> str:
+    """Get the user data directory for a specific profile index (1-based from pool)."""
+    # config uses 1-based index, but we map to physical dirs
+    # e.g. stealth_profile_1, stealth_profile_2, etc.
+    base_dir = Path(__file__).parent.parent
+    return str(base_dir / f"stealth_profile_{profile_index}")
 
+def mark_current_profile_blocked() -> None:
+    """Mark the current profile as blocked and start its cooldown."""
+    state = load_identity_state()
+    current_idx = state.get("current_index", 0)
+    
+    # We use the pool config's 'index' (1-based) as the key for readability
+    config = BROWSER_ROTATION_POOL[current_idx]
+    pool_id = str(config["index"])
+    
+    state["cooldowns"][pool_id] = time.time()
+    save_identity_state(state)
+    print(f"🚫 Profile {pool_id} ({config['name']}) marked as BLOCKED at {time.ctime()}")
 
-def is_profile_available(engine: str) -> bool:
-    """Check if a browser profile is available (not in cooldown)."""
-    import time
-    cooldowns = load_profile_cooldowns()
+def rotate_identity() -> dict:
+    """
+    Rotate to the NEXT profile in the sequence (1->2->3->4->5->1).
+    Strict sequential order. 
+    If the next profile is in cooldown, WAIT for it to expire.
+    """
+    state = load_identity_state()
+    current_idx = state.get("current_index", 0)
     
-    if engine not in cooldowns:
-        return True
+    # Calculate next index (round-robin)
+    next_idx = (current_idx + 1) % len(BROWSER_ROTATION_POOL)
     
-    blocked_at = cooldowns[engine]
-    elapsed_minutes = (time.time() - blocked_at) / 60
+    # Check cooldown for the TARGET profile
+    target_config = BROWSER_ROTATION_POOL[next_idx]
+    pool_id = str(target_config["index"])
+    blocked_time = state["cooldowns"].get(pool_id)
     
-    if elapsed_minutes >= PROFILE_COOLDOWN_MINUTES:
-        # Cooldown expired, clear it
-        del cooldowns[engine]
-        save_profile_cooldowns(cooldowns)
-        return True
+    if blocked_time:
+        elapsed = time.time() - blocked_time
+        cooldown_seconds = PROFILE_COOLDOWN_MINUTES * 60
+        remaining = cooldown_seconds - elapsed
+        
+        if remaining > 0:
+            print(f"⏳ Next profile in sequence ({target_config['name']}) is in cooldown.")
+            print(f"⏳ Waiting {int(remaining)} seconds for cooldown to expire...")
+            # We must WAIT, not skip
+            time.sleep(remaining + 2) # +2s buffer
+            
+            # Clear cooldown after waiting
+            del state["cooldowns"][pool_id]
+        else:
+            # Cooldown already expired
+            del state["cooldowns"][pool_id]
+            
+    # Commit the rotation
+    state["current_index"] = next_idx
+    save_identity_state(state)
     
-    return False
+    return target_config
 
-
-def get_cooldown_remaining(engine: str) -> int:
-    """Get remaining cooldown time in minutes for a profile."""
-    import time
-    cooldowns = load_profile_cooldowns()
-    
-    if engine not in cooldowns:
-        return 0
-    
-    blocked_at = cooldowns[engine]
-    elapsed_minutes = (time.time() - blocked_at) / 60
-    remaining = PROFILE_COOLDOWN_MINUTES - elapsed_minutes
-    
-    return max(0, int(remaining))
+# Constants for backward compatibility (mapped to current profile)
+# These will be dynamically resolved in the class, but we keep the variables
+STEALTH_PROFILE_DIR = get_profile_dir(get_current_profile_config()["index"])
+# =============================================================================
+# Legacy cooldown functions preserved but unused by new rotation system
+def load_profile_cooldowns() -> dict: return {}
+def save_profile_cooldowns(cooldowns: dict) -> None: pass
+def mark_profile_blocked(engine: str) -> None: pass
+def is_profile_available(engine: str) -> bool: return True
+def get_cooldown_remaining(engine: str) -> int: return 0
 
 
 def get_available_engines() -> List[str]:
@@ -1505,24 +1526,26 @@ class ScraperController:
             target_file = self.output_file # Initialize safe default
             try:
                 async with async_playwright() as pw:
-                    # ========== MULTI-BROWSER ENGINE SELECTION ==========
-                    engine = self.browser_engine
-                    profile_dir = PROFILE_DIRS.get(engine, PROFILE_DIRS["chromium"])
+                    # ========== ADVANCED IDENTITY ROTATION (2026) ==========
+                    current_config = get_current_profile_config()
+                    engine = current_config["engine"]
+                    channel = current_config["channel"]
+                    profile_index = current_config["index"]
+                    profile_dir = get_profile_dir(profile_index)
+                    
                     os.makedirs(profile_dir, exist_ok=True)
                     
-                    self.log("INFO", f"Launching browser: {engine.upper()} (Clean Profile 2026)...")
+                    self.log("INFO", f"🎭 Identity: {current_config['name']} (Profile {profile_index})")
+                    self.log("INFO", f"📂 Directory: {os.path.basename(profile_dir)}")
                     
                     # Select a random viewport for this session
                     viewport_width, viewport_height = random.choice(VIEWPORT_SIZES)
                     self.log("STEALTH", f"Using randomized viewport: {viewport_width}x{viewport_height}")
                     
-                    # Clean Profile Strategy (2026) - Making the browser look vanilla
-                    # Removed: --start-minimized, --disable-extensions, --disable-popup-blocking
-                    # Removed: --disable-ipc-flooding-protection, disable-features=IsolateOrigins
+                    # Clean Profile Strategy (2026)
                     chromium_args = [
                         "--no-first-run",
                         "--no-default-browser-check",
-                        # Essential anti-bot flag (must keep)
                         "--disable-blink-features=AutomationControlled", 
                         "--password-store=basic",
                         "--use-mock-keychain",
@@ -1531,35 +1554,45 @@ class ScraperController:
                         "--export-tagged-pdf",
                     ]
                     
-                    # Firefox-specific args (different format)
                     firefox_prefs = {
                         "dom.webdriver.enabled": False,
                         "useAutomationExtension": False,
                     }
                     
                     try:
-                        # Launch based on selected engine
+                        # LEVERAGE CHANNEL & ENGINE
                         if engine == "firefox":
                             ctx = await pw.firefox.launch_persistent_context(
                                 user_data_dir=profile_dir,
                                 headless=False,
                                 viewport={"width": viewport_width, "height": viewport_height},
                                 firefox_user_prefs=firefox_prefs,
-                                timeout=60000, # Fail fast (1 min) instead of 3 min hang
+                                timeout=60000,
                             )
-                            self.log("OK", f"🦊 Firefox launched with profile: {os.path.basename(profile_dir)}")
-                        else:
-                            # Default: Chromium
-                            ctx = await pw.chromium.launch_persistent_context(
+                        elif engine == "webkit": # Webkit (Safari-like)
+                            ctx = await pw.webkit.launch_persistent_context(
                                 user_data_dir=profile_dir,
                                 headless=False,
-                                args=chromium_args,
-                                ignore_default_args=["--enable-automation"],
                                 viewport={"width": viewport_width, "height": viewport_height},
-                                user_agent=self.get_random_user_agent(),
-                                timeout=60000, # Fail fast (1 min)
+                                timeout=60000,
                             )
-                            self.log("OK", f"🌐 Chromium launched with profile: {os.path.basename(profile_dir)}")
+                        else:
+                            # Chromium / Chrome / Edge
+                            launch_kwargs = {
+                                "user_data_dir": profile_dir,
+                                "headless": False,
+                                "args": chromium_args,
+                                "ignore_default_args": ["--enable-automation"],
+                                "viewport": {"width": viewport_width, "height": viewport_height},
+                                "user_agent": self.get_random_user_agent(),
+                                "timeout": 60000,
+                            }
+                            if channel:
+                                launch_kwargs["channel"] = channel
+                                
+                            ctx = await pw.chromium.launch_persistent_context(**launch_kwargs)
+                            
+                        self.log("OK", f"🚀 {current_config['name']} launched successfully")
                         
                         browser = None  # No separate browser object with persistent context
                         self._context = ctx  # Store reference for force close on stop
@@ -2413,7 +2446,7 @@ class ScraperController:
                         self.log("INFO", "Scraping completed successfully. Exiting.")
                         break
                 
-                    # === DUAL MODE: Run second phase in same browser ===
+                    
                     # === DUAL MODE: Run second phase in same browser ===
                     if self.dual_mode_url and not self._stop_evt.is_set():
                         self.log("INFO", "=== DUAL MODE: Starting second phase in same browser ===")
@@ -2620,8 +2653,7 @@ class ScraperController:
                                     if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower:
                                         self.log("ERR", "🚫 Loop detection: 'Uso indebido' detected. Triggering auto-restart...")
                                         # Mark profile as blocked for cooldown rotation
-                                        mark_profile_blocked(self.browser_engine)
-                                        self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
+                                        mark_current_profile_blocked()
                                         raise BlockedException("Acceso bloqueado por uso indebido detected in loop")
                                 
                                     row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
@@ -2670,28 +2702,18 @@ class ScraperController:
                 self.log("WARN", "Resume state saved for later retry.")
                 self.handle_blocked_profile()
                 
-                # Mark this engine's profile as blocked (15-minute cooldown)
-                current_engine = self.browser_engine
-                mark_profile_blocked(current_engine)
-                self.log("WARN", f"⏳ Profile '{current_engine}' marked as blocked. Cooldown: {PROFILE_COOLDOWN_MINUTES} min.")
+                # ROTATION LOGIC (2026): Strict Sequential with Cooldown
+                mark_current_profile_blocked()
                 
-                # ROTATION LOGIC: Try to switch engine immediately
-                next_engine = select_next_engine(current_engine)
+                # This function calculates next profile AND handles waiting if needed
+                next_config = rotate_identity()
                 
-                if next_engine and next_engine != current_engine:
-                    self.log("INFO", f"🔄 ROTATION: Switching to fresh engine '{next_engine.upper()}' for immediate restart.")
-                    self.browser_engine = next_engine
-                    wait_time = random.randint(5, 15)  # Short pause before switch
-                else:
-                    # All engines blocked - wait for cooldown
-                    cooldown = get_cooldown_remaining(current_engine)
-                    wait_time = max(cooldown * 60, random.randint(60, 180))
-                    self.log("WARN", f"⚠️ All profiles blocked. Waiting {wait_time}s for cooldown...")
-
-                self.log("WARN", f"🔄 Initiating Auto-Restart sequence in {wait_time} seconds...")
+                self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
+                self.log("INFO", f"Restarting in 5 seconds with fresh identity...")
+                wait_time = 5.0
                 
                 if self.on_status:
-                    self.on_status("error", error=f"Bloqueado. Reiniciando en {wait_time}s...")
+                    self.on_status("error", error=f"Bloqueado. Rotando a Perfil {next_config['index']}...")
                 
                 # Close browser explicitly
                 try:
@@ -2724,31 +2746,22 @@ class ScraperController:
                 continue # Loop back to start (and reuse persistent profile handling which will be fresh)
 
             except Exception as e:
-                # Catch generic CAPTCHA blocks raised mid-scrape
+                # Legacy CAPTCHA catch
+                # NOTE: Most are now caught by BlockedException above
                 err_str = str(e).upper()
                 if "CAPTCHA" in err_str:
                     self.log("WARN", "⚠️ Se ha detectado un bloqueo por CAPTCHA durante el scraping.")
-                    self.log("WARN", "Guardando estado y esperando 15 minutos antes de reintentar...")
                     
-                    # Mark this engine's profile as blocked (15-minute cooldown)
-                    engine = self.browser_engine
-                    mark_profile_blocked(engine)
-                    self.log("WARN", f"⏳ Profile '{engine}' marked as blocked. Cooldown: {PROFILE_COOLDOWN_MINUTES} min.")
+                    # ROTATION LOGIC (2026): Strict Sequential with Cooldown
+                    mark_current_profile_blocked()
+                    next_config = rotate_identity()
                     
-                    # ROTATION LOGIC: Try to switch engine immediately
-                    next_engine = select_next_engine(engine)
-                    if next_engine and next_engine != engine:
-                         self.log("INFO", f"🔄 ROTATION: Switching to fresh engine '{next_engine.upper()}' for immediate restart.")
-                         self.browser_engine = next_engine
-                         wait_time = random.randint(5, 15)
-                    else:
-                         cooldown = get_cooldown_remaining(engine)
-                         wait_time = max(cooldown * 60, random.randint(60, 180))
-                         self.log("WARN", f"⚠️ All profiles blocked. Waiting {wait_time}s for cooldown...")
-
-                    self.log("WARN", f"🔄 Initiating Auto-Restart sequence in {wait_time} seconds...")
+                    self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
+                    self.log("INFO", f"Restarting in 5 seconds with fresh identity...")
+                    wait_time = 5.0
+                    
                     if self.on_status:
-                        self.on_status("blocked", error=f"CAPTCHA block. Rotating in {wait_time}s...")
+                        self.on_status("blocked", error=f"CAPTCHA. Rotando a Perfil {next_config['index']}...")
                     
                     # Close browser explicitly
                     try:

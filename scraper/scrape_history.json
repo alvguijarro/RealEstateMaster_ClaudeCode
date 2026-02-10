@@ -1,5 +1,21 @@
 [
   {
+    "timestamp": "2026-02-10T23:03:19.754348",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/a-coruna-provincia/",
+    "properties_count": 1469,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_A_Coruña_alquiler.xlsx",
+    "filename": "idealista_A_Coruña_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-10T23:03:14.541491",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/a-coruna-provincia/",
+    "properties_count": 1469,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_A_Coruña_alquiler.xlsx",
+    "filename": "idealista_A_Coruña_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-10T20:34:54.830357",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/asturias/",
     "properties_count": 769,
