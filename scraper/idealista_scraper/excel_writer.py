@@ -152,29 +152,25 @@ def load_existing_specific_sheet(path: str, sheet: str) -> pd.DataFrame:
             df[c] = None
     return df
 
-def write_excel_with_retry(df: pd.DataFrame, out_path: str, sheet: str):
+def write_excel_with_retry(df: pd.DataFrame, out_path: str, sheet: str, max_retries: int = 5, check_stop = None):
     """Write a DataFrame to Excel with automatic retry if file is locked.
     
     This function preserves existing worksheets in the workbook - only the target
-    sheet is replaced. If the user has the Excel file open, they're prompted to
-    close it with the option to retry or abort.
-    
-    Number formatting is applied automatically:
-    - Integer format (no decimals) for: floors, bathrooms, year built, prices, areas
-    - Percentage format for: price change %
+    sheet is replaced. If the user has the Excel file open, it will retry
+    up to max_retries times before giving up.
     
     Args:
         df: DataFrame to write
-        out_path: Path to the Excel file (created if doesn't exist)
+        out_path: Path to the Excel file
         sheet: Name of the worksheet to write/replace
-        
-    Raises:
-        PermissionError: If user chooses to abort when file is locked
-        
-    Note:
-        Uses openpyxl engine with mode='a' (append) to preserve other sheets.
+        max_retries: Maximum number of PermissionError retries
+        check_stop: Optional callable that returns True if we should abort
     """
-    while True:
+    attempt = 0
+    while attempt < max_retries:
+        if check_stop and check_stop():
+            log("INFO", "Excel write aborted by user/stop signal")
+            return
         try:
             mode = "a" if os.path.exists(out_path) else "w"
             with pd.ExcelWriter(
@@ -216,11 +212,19 @@ def write_excel_with_retry(df: pd.DataFrame, out_path: str, sheet: str):
                     pass
             break
         except PermissionError:
-            from .utils import log
-            log("WARN", f"Cannot write to '{out_path}'. The file appears to be open in Excel.")
-            resp = input("Please close the Excel file and press ENTER to retry (or 'q' to abort): ").strip().lower()
-            if resp == "q":
+            attempt += 1
+            if attempt >= max_retries:
+                log("ERR", f"Failed to write to '{out_path}' after {max_retries} attempts. File is likely open in Excel.")
                 raise
+            
+            log("WARN", f"Cannot write to '{out_path}' (Attempt {attempt}/{max_retries}). The file appears to be open in Excel.")
+            log("INFO", "Retrying in 5 seconds... Please close the file.")
+            
+            import time
+            for _ in range(10): # 10 * 0.5s = 5s
+                if check_stop and check_stop():
+                    return
+                time.sleep(0.5)
 
 def export_single_sheet(existing_df: pd.DataFrame,
                         additions: List[dict],
@@ -294,7 +298,9 @@ def export_single_sheet(existing_df: pd.DataFrame,
 def export_split_by_distrito(existing_df: pd.DataFrame,
                               additions: List[dict],
                               out_path: str,
-                              carry_cols: Set[str]):
+                              carry_cols: Set[str],
+                              max_retries: int = 5,
+                              check_stop = None):
     """Export data split into multiple sheets based on Distrito (column J).
     
     Each unique Distrito value gets its own sheet. This helps organize
@@ -305,6 +311,8 @@ def export_split_by_distrito(existing_df: pd.DataFrame,
         additions: List of new property records to add
         out_path: Path to the output Excel file
         carry_cols: Additional column names to preserve
+        max_retries: Maximum number of PermissionError retries
+        check_stop: Optional callable that returns True if we should abort
         
     Side Effects:
         Writes to the Excel file at out_path with multiple sheets.
@@ -351,7 +359,7 @@ def export_split_by_distrito(existing_df: pd.DataFrame,
     if "Distrito" not in combined.columns or combined.empty:
         # Fallback to single sheet if no Distrito column
         log("WARN", "No Distrito column found, exporting to single sheet")
-        write_excel_with_retry(combined[ordered], out_path, "data")
+        write_excel_with_retry(combined[ordered], out_path, "data", max_retries=max_retries, check_stop=check_stop)
         log("OK", f"Saved {len(combined)} rows -> {out_path} (no Distrito column)")
         return
     
@@ -359,8 +367,11 @@ def export_split_by_distrito(existing_df: pd.DataFrame,
     distritos = combined["Distrito"].fillna("Sin Distrito").unique()
     log("INFO", f"Found {len(distritos)} unique Distrito values: {list(distritos)[:5]}...")
     
-    # Write each Distrito to its own sheet
-    while True:
+    attempt = 0
+    while attempt < max_retries:
+        if check_stop and check_stop():
+            log("INFO", "Excel write aborted by user/stop signal")
+            return
         try:
             mode = "w"  # Start fresh for multi-sheet export
             with pd.ExcelWriter(
@@ -429,10 +440,17 @@ def export_split_by_distrito(existing_df: pd.DataFrame,
             log("OK", f"Saved {total_rows} rows across {sheets_created} sheets -> {out_path}")
             break
         except PermissionError:
-            log("WARN", f"Cannot write to '{out_path}'. The file appears to be open in Excel.")
-            log("WARN", "Waiting 10 seconds for file to be closed... (checkpoint will retry automatically)")
+            attempt += 1
+            if attempt >= max_retries:
+                log("ERR", f"Failed to write to '{out_path}' after {max_retries} attempts.")
+                raise
+            
+            log("WARN", f"Cannot write to '{out_path}' (Attempt {attempt}/{max_retries}). The file appears to be open in Excel.")
+            
             import time
-            time.sleep(10)
-            # Loop will retry automatically
+            for _ in range(20): # 20 * 0.5s = 10s
+                if check_stop and check_stop():
+                    return
+                time.sleep(0.5)
 
 

@@ -742,6 +742,8 @@ class ScraperController:
     _pages_scraped: int = 0
     _browser: Optional[Any] = None  # Reference to browser for force close
     _context: Optional[Any] = None  # Reference to context for force close
+    _last_log_time: float = 0
+    _loop: Optional[asyncio.AbstractEventLoop] = None
     
     # Extra Stealth state
     _session_property_count: int = 0  # Properties scraped this session (for rest breaks)
@@ -768,9 +770,11 @@ class ScraperController:
         self._recent = {}
         self._index_map = {}
         self._stopped_by_user = False
+        self._last_log_time = time.time()
     
     def log(self, level: str, message: str):
         """Log a message and send to callback if set."""
+        self._last_log_time = time.time()
         if self.on_log:
             self.on_log(level, message)
     
@@ -993,35 +997,36 @@ class ScraperController:
         self.log("INFO", "Stopping scraper...")
         if self.on_status:
             self.on_status("stopping")
-        
         # Force close browser to unblock any stuck operations
         self._force_close_browser()
     
     def _force_close_browser(self):
-        """Force close browser/context to unblock stuck operations."""
-        import asyncio
-        
-        async def _close():
+        """Emergency cleanup: close browser context if still open."""
+        if self._context:
             try:
-                if self._browser is not None:
-                    await self._browser.close()
-                    self.log("INFO", "Browser forced closed.")
-                elif self._context is not None:
-                    await self._context.close()
-                    self.log("INFO", "Context forced closed.")
+                # Use scraper's loop to avoid "no running event loop" errors
+                loop = self._loop or asyncio.get_event_loop()
+                if loop and loop.is_running():
+                    asyncio.run_coroutine_threadsafe(self._context.close(), loop)
+                    self.log("INFO", "Browser context closure triggered via loop.")
+                else:
+                    self.log("WARN", "Could not close browser: No running event loop found.")
             except Exception as e:
-                self.log("WARN", f"Error during force close: {e}")
-        
-        # Run in event loop if available, otherwise create new one
-        try:
-            loop = asyncio.get_running_loop()
-            asyncio.create_task(_close())
-        except RuntimeError:
-            # No running loop - create a new one
-            try:
-                asyncio.run(_close())
-            except:
-                pass
+                self.log("WARN", f"Error in _force_close_browser: {e}")
+            self._context = None
+
+    async def _heartbeat_monitor(self):
+        """Background task to log activity periodically and detect hangs."""
+        self.log("INFO", "💓 Heartbeat monitor started (60s check, 300s alarm)")
+        while not self._stop_evt.is_set():
+            await asyncio.sleep(60)
+            idle_time = time.time() - self._last_log_time
+            if idle_time > 300: # 5 minutes of silence
+                self.log("WARN", f"💓 Heartbeat: No activity for {idle_time/60:.0f}m. Scraper might be hanging or waiting silently.")
+                self.log("INFO", f"💓 Status: {self.status}, Page: {self.current_page}, Property: {self.current_property_count}/{self.total_properties_expected}")
+            elif idle_time > 60:
+                # Normal heartbeat log at DEBUG level (not seen by user unless verbose)
+                pass 
 
     def set_mode(self, mode: str):
         """Update scraping mode dynamically."""
@@ -1078,7 +1083,6 @@ class ScraperController:
     def handle_blocked_profile(self):
         """Archive the current profile if it has been blocked/poisoned."""
         import shutil
-        import time
         from datetime import datetime
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1095,70 +1099,48 @@ class ScraperController:
                 self.log("OK", "✨ Next run will generate a fresh, clean profile.")
             except Exception as e:
                 self.log("ERR", f"Failed to archive profile: {e}")
-    
+
     async def _save_checkpoint(self, additions: List[dict], target_file: Optional[str], existing_df, carry_cols: Set[str]):
-        """Save checkpoint - incremental save of new properties since last checkpoint.
-        
-        This saves only the new properties (from _last_checkpoint_idx to current)
-        to the Excel file, preserving the worksheet structure by Distrito.
-        """
-        if not additions or len(additions) <= self._last_checkpoint_idx:
+        """Periodically save current progress to Excel."""
+        if not additions:
             return
         
-        # Calculate how many new properties to save
-        batch_start = self._last_checkpoint_idx
-        batch_end = len(additions)
-        batch_count = batch_end - batch_start
-        
-        self.log("INFO", f"💾 Checkpoint: Saving batch of {batch_count} properties ({batch_start+1} to {batch_end})...")
-        
+        self.log("INFO", f"💾 Auto-checkpoint: Saving {len(additions)} properties to {target_file or 'Excel'}")
         try:
-            # Determine output path
-            if target_file:
-                out_effective = os.path.join(self.output_dir, target_file)
-            elif additions:
-                ciudad = additions[0].get("Ciudad")
-                category = self._detected_sheet or "unknown"
-                if ciudad:
-                    ciudad_clean = sanitize_filename_part(ciudad)
-                    out_effective = f"idealista_{ciudad_clean}_{category}.xlsx"
-                else:
-                    out_effective = f"idealista_{category}.xlsx"
-                out_effective = os.path.join(self.output_dir, out_effective)
+            # Pass stop check to prevent hangs
+            check_stop = lambda: self._stop_evt.is_set()
+            
+            if self.smart_enrichment and self._province_target_file:
+                export_split_by_distrito(existing_df, additions, os.path.join(self.output_dir, self._province_target_file), carry_cols, check_stop=check_stop)
             else:
-                return
+                export_single_sheet(existing_df, additions, os.path.join(self.output_dir, target_file or self.out_xlsx), self._detected_sheet or self.sheet_name, carry_cols)
             
-            # Ensure output directory exists
-            os.makedirs(self.output_dir, exist_ok=True)
-            
-            # Get only the new additions since last checkpoint
-            new_batch = additions[batch_start:batch_end]
-            
-            # Load current state from file for merging
-            checkpoint_existing_df, _, _ = load_existing_single_sheet(out_effective, self._detected_sheet or self.sheet_name)
-            
-            # Export with split by Distrito (this handles merging internally)
-            export_split_by_distrito(checkpoint_existing_df, new_batch, out_effective, carry_cols=carry_cols)
-            
-            # Update checkpoint index
-            self._last_checkpoint_idx = batch_end
-            self.log("OK", f"💾 Checkpoint saved! Total: {self.current_property_count} properties in {os.path.basename(out_effective)} (of which {batch_count} are new)")
-            
+            self._last_checkpoint_idx = len(self.scraped_properties)
         except Exception as e:
-            self.log("WARN", f"Checkpoint save failed: {e} - will retry at next checkpoint")
+            self.log("WARN", f"Checkpoint failed: {e}")
     
     async def _goto_with_retry(self, page, url: str) -> None:
-        """Navigate to URL with retry logic. Detects browser close."""
+        """Navigate to URL with retry logic. Detects browser close with 120s guard."""
         delay = RETRY_BASE_DELAY
         last_err: Optional[Exception] = None
         for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
             if self._stop_evt.is_set():
                 return
             try:
-                # t_nav_start = time.time()
-                # self.log("DEBUG_TIMING", f"Navigating to {url}...")
-                await page.goto(url, wait_until=GOTO_WAIT_UNTIL, timeout=60000)
-                # self.log("DEBUG_TIMING", f"Navigation completed in {time.time() - t_nav_start:.2f}s")
+                t_nav_start = time.time()
+                self.log("DEBUG_TIMING", f"Navigating to {url} (Attempt {attempt})...")
+                
+                # Global guard to prevent silent hangs (120s max for any navigation)
+                try:
+                    await asyncio.wait_for(
+                        page.goto(url, wait_until=GOTO_WAIT_UNTIL, timeout=60000),
+                        timeout=120.0
+                    )
+                except asyncio.TimeoutError:
+                    self.log("ERR", f"⏰ NAVIGATION HANG: {url} timed out after 120s guard.")
+                    raise Exception("NAVIGATION_HANG")
+
+                self.log("DEBUG_TIMING", f"Navigation completed in {time.time() - t_nav_start:.2f}s")
                 
                 # Humanize interaction after reaching the page
                 await simulate_human_interaction(page)
@@ -1331,6 +1313,9 @@ class ScraperController:
         
         self.log("INFO", "Exporting data to Excel...")
         
+        # Guard for PermissionError hangs
+        check_stop = lambda: self._stop_evt.is_set()
+        
         # Use filename from registry if available, otherwise build it
         if target_file:
             out_effective = os.path.join(self.output_dir, target_file)
@@ -1362,7 +1347,9 @@ class ScraperController:
             if deleted_count > 0:
                 self.log("OK", f"Deleted {deleted_count} expired listings from Excel")
         
-        export_split_by_distrito(existing_df, additions, out_effective, carry_cols=set())
+        # Use heartbeat refresh during potentially long export
+        self.log("DEBUG_TIMING", "Starting final export to Excel mapping...")
+        export_split_by_distrito(existing_df, additions, out_effective, carry_cols=set(), check_stop=check_stop)
         
         self.output_file = os.path.abspath(out_effective)
         self.log("OK", f"Saved {len(additions)} new/updated rows to {self.output_file}")
@@ -1381,12 +1368,16 @@ class ScraperController:
     
     async def run(self):
         """Main scraping loop."""
+        self._loop = asyncio.get_running_loop()
         self.is_running = True
         self.status = "running"
         self._stop_evt.clear()
         self._pause_evt.set()
         
-        if self.on_status:
+        # Start heartbeat monitor
+        heartbeat_task = asyncio.create_task(self._heartbeat_monitor())
+        
+        try:
             self.on_status("running")
         
         self.log("INFO", f"Starting scraper in {self.mode.upper()} mode")

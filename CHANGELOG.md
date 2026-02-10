@@ -1,5 +1,16 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-10]
+
+### Fixed
+- **Excel Lock Resilience**: Fixed an infinite loop/hang when an Excel output file was open. Added a retry limit (5) and a stop signal check to the export logic.
+- **Stop Button Reliability**: Improved the "Stop" command's ability to unblock hanging operations by ensuring the browser closure is triggered correctly within the scraper's event loop.
+- **Unlogged Pauses**: Identified and mitigated silent hangs during navigation by adding a 120s global guard/timeout to Playwright operations.
+
+### Added
+- **Heartbeat Monitor**: Implemented a background "heartbeat" task that logs status and warns if the scraper has been silent for more than 5 minutes.
+- **Enhanced Navigation Logs**: Added explicit "Starting navigation" logs to improve tracing and pinpoint the exact moment of potential hangs.
+
 ## [2026-02-09]
 
 ### Fixed
