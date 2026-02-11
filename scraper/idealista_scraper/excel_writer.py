@@ -263,17 +263,20 @@ def export_single_sheet(existing_df: pd.DataFrame,
 
     add_df = pd.DataFrame(additions)
 
-    if existing_df.empty and add_df.empty:
-        combined = existing_df.copy()
-    elif existing_df.empty:
+    if (existing_df is None or existing_df.empty) and add_df.empty:
+        combined = pd.DataFrame(columns=ordered) if existing_df is None else existing_df.copy()
+    elif existing_df is None or existing_df.empty:
         combined = add_df.copy()
     elif add_df.empty:
         combined = existing_df.copy()
     else:
         # Drop all-NA columns from both DataFrames before concat to avoid FutureWarning
-        existing_clean = existing_df.dropna(axis=1, how='all')
+        existing_clean = existing_df.dropna(axis=1, how='all') if existing_df is not None else pd.DataFrame()
         add_clean = add_df.dropna(axis=1, how='all')
-        combined = pd.concat([existing_clean, add_clean], ignore_index=True)
+        if existing_clean.empty:
+            combined = add_clean.copy()
+        else:
+            combined = pd.concat([existing_clean, add_clean], ignore_index=True)
 
     for c in ordered:
         if c not in combined.columns:
@@ -325,16 +328,19 @@ def export_split_by_distrito(existing_df: pd.DataFrame,
     add_df = pd.DataFrame(additions)
     
     # Combine existing and new data
-    if existing_df.empty and add_df.empty:
-        combined = existing_df.copy()
-    elif existing_df.empty:
+    if (existing_df is None or existing_df.empty) and add_df.empty:
+        combined = pd.DataFrame(columns=ordered) if existing_df is None else existing_df.copy()
+    elif existing_df is None or existing_df.empty:
         combined = add_df.copy()
     elif add_df.empty:
         combined = existing_df.copy()
     else:
-        existing_clean = existing_df.dropna(axis=1, how='all')
+        existing_clean = existing_df.dropna(axis=1, how='all') if existing_df is not None else pd.DataFrame()
         add_clean = add_df.dropna(axis=1, how='all')
-        combined = pd.concat([existing_clean, add_clean], ignore_index=True)
+        if existing_clean.empty:
+            combined = add_clean.copy()
+        else:
+            combined = pd.concat([existing_clean, add_clean], ignore_index=True)
     
     for c in ordered:
         if c not in combined.columns:

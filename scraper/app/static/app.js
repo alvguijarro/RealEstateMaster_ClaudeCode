@@ -1324,19 +1324,19 @@ async function stopScraping() {
             // Re-enable if failed
             if (stopBtn) {
                 stopBtn.disabled = false;
-                stopBtn.innerHTML = '<span class="btn-icon">⏹</span> Parar';
+                stopBtn.innerHTML = '<span class="btn-icon">⏹</span> Detener';
             }
         } else {
             // Success - Server will send 'stopped' status or similar
             // But we can force UI update to be sure
             updateScraperState(false);
-            if (stopBtn) stopBtn.innerHTML = '<span class="btn-icon">⏹</span> Parar';
+            if (stopBtn) stopBtn.innerHTML = '<span class="btn-icon">⏹</span> Detener';
         }
     } catch (error) {
         addLog('ERR', `Error: ${error.message}`);
         if (stopBtn) {
             stopBtn.disabled = false;
-            stopBtn.innerHTML = '<span class="btn-icon">⏹</span> Parar';
+            stopBtn.innerHTML = '<span class="btn-icon">⏹</span> Detener';
         }
     }
 }
@@ -1725,7 +1725,7 @@ if (stopServerBtn) {
             addLog('ERR', 'Error de conexión al parar servidor');
         } finally {
             stopServerBtn.disabled = false;
-            stopServerBtn.innerHTML = '<span class="btn-icon">⏹</span> Parar';
+            stopServerBtn.innerHTML = '<span class="btn-icon">⏹</span> Detener Serv.';
         }
     });
 }

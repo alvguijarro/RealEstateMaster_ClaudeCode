@@ -1642,7 +1642,17 @@ class ScraperController:
             self.on_status("running")
         
         self.log("INFO", f"Starting scraper in {self.mode.upper()} mode")
-        self.log("INFO", f"Seed URL: {self.seed_url}")
+        # === AUTOMATIC PRICE FILTERS (2026) ===
+        # Apply mandatory limits: Alquiler <= 2000, Venta <= 300.000
+        original_url = self.seed_url
+        if "/alquiler-viviendas/" in self.seed_url.lower() and "con-precio-hasta_" not in self.seed_url.lower():
+            if not self.seed_url.endswith("/"): self.seed_url += "/"
+            self.seed_url += "con-precio-hasta_2000/"
+            self.log("INFO", f"🏷️ Applied rental price filter: {self.seed_url}")
+        elif "/venta-viviendas/" in self.seed_url.lower() and "con-precio-hasta_" not in self.seed_url.lower():
+            if not self.seed_url.endswith("/"): self.seed_url += "/"
+            self.seed_url += "con-precio-hasta_300000/"
+            self.log("INFO", f"🏷️ Applied sale price filter: {self.seed_url}")
         
         # Detect room mode based on seed URL
         self._is_room_mode = "habitacion" in self.seed_url.lower()
@@ -2134,7 +2144,7 @@ class ScraperController:
                     skipped = 0
                     updated = 0
                     new_scraped = 0
-                    existing_df = None  # Will be loaded by checkpoint if needed
+                    existing_df = pd.DataFrame()  # Will be loaded if target file exists
                     scraping_finished = False  # Track clean completion
             
                     while not self._stop_evt.is_set():
@@ -2314,16 +2324,18 @@ class ScraperController:
                                     d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                                     row = {"URL": key, **d}
                             
-                                    # Build target filename: idealista_[Ciudad]_[venta/alquiler].xlsx
-                                    # Prioritize city from first scraped property's Ciudad field
-                                    ciudad = row.get("Ciudad") or self._detected_city
-                                    category = self._detected_sheet or "unknown"
-                            
-                                    if ciudad:
-                                        ciudad_clean = sanitize_filename_part(ciudad)
-                                        target_file = f"idealista_{ciudad_clean}_{category}.xlsx"
+                                    # Build target filename only if not already forced or detected from province
+                                    if target_file is None:
+                                        ciudad = row.get("Ciudad") or self._detected_city
+                                        category = self._detected_sheet or "unknown"
+                                
+                                        if ciudad:
+                                            ciudad_clean = sanitize_filename_part(ciudad)
+                                            target_file = f"idealista_{ciudad_clean}_{category}.xlsx"
+                                        else:
+                                            target_file = f"idealista_{category}.xlsx"
                                     else:
-                                        target_file = f"idealista_{category}.xlsx"
+                                        self.log("INFO", f"Using existing target file from setup: {target_file}")
                             
                                     target_path = os.path.join(self.output_dir, target_file)
                                     self.log("INFO", f"Target Excel file: {target_path}")
