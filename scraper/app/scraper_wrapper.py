@@ -1049,6 +1049,21 @@ class ScraperController:
                 self.log("WARN", f"Error in _force_close_browser: {e}")
             self._context = None
 
+    def _clear_profile_locks(self, profile_dir: str):
+        """Remove parent.lock and other lock files to prevent startup hangs."""
+        lock_files = ["parent.lock", "singleton_lock", "lock"]
+        if not os.path.exists(profile_dir):
+            return
+            
+        for root, dirs, files in os.walk(profile_dir):
+            for name in files:
+                if name in lock_files:
+                    try:
+                        lock_path = os.path.join(root, name)
+                        os.remove(lock_path)
+                    except:
+                        pass
+
     async def _heartbeat_monitor(self):
         """Background task to log activity periodically and detect hangs."""
         self.log("INFO", "💓 Heartbeat monitor started (60s check, 300s alarm)")
@@ -1289,7 +1304,8 @@ class ScraperController:
                         self.log("ERR", f"🚫 BLOCK DETECTED on {url}: 'Uso indebido/Bloqueado'.")
                         play_blocked_alert()
                         # Mark profile as blocked for cooldown rotation
-                        mark_current_profile_blocked()
+                        if hasattr(self, 'browser_engine') and self.browser_engine:
+                            mark_profile_blocked(self.browser_engine)
                         # CRITICAL: Raise BlockedException to trigger rotation
                         raise BlockedException("Acceso bloqueado por uso indebido")
                     
@@ -1608,6 +1624,9 @@ class ScraperController:
                     self.log("INFO", f"🎭 Identity: {current_config['name']} (Profile {profile_index})")
                     self.log("INFO", f"📂 Directory: {os.path.basename(profile_dir)}")
                     
+                    # Store current engine for block tracking
+                    self.browser_engine = engine
+                    
                     # Select a random viewport for this session
                     viewport_width, viewport_height = random.choice(VIEWPORT_SIZES)
                     self.log("STEALTH", f"Using randomized viewport: {viewport_width}x{viewport_height}")
@@ -1628,39 +1647,52 @@ class ScraperController:
                         "dom.webdriver.enabled": False,
                         "useAutomationExtension": False,
                     }
+                    # PRE-LAUNCH CLEANUP
+                    self._clear_profile_locks(profile_dir)
                     
                     try:
-                        # LEVERAGE CHANNEL & ENGINE
-                        if engine == "firefox":
-                            ctx = await pw.firefox.launch_persistent_context(
-                                user_data_dir=profile_dir,
-                                headless=False,
-                                viewport={"width": viewport_width, "height": viewport_height},
-                                firefox_user_prefs=firefox_prefs,
-                                timeout=60000,
-                            )
-                        elif engine == "webkit": # Webkit (Safari-like)
-                            ctx = await pw.webkit.launch_persistent_context(
-                                user_data_dir=profile_dir,
-                                headless=False,
-                                viewport={"width": viewport_width, "height": viewport_height},
-                                timeout=60000,
-                            )
-                        else:
-                            # Chromium / Chrome / Edge
-                            launch_kwargs = {
-                                "user_data_dir": profile_dir,
-                                "headless": False,
-                                "args": chromium_args,
-                                "ignore_default_args": ["--enable-automation"],
-                                "viewport": {"width": viewport_width, "height": viewport_height},
-                                "user_agent": self.get_random_user_agent(),
-                                "timeout": 60000,
-                            }
-                            if channel:
-                                launch_kwargs["channel"] = channel
-                                
-                            ctx = await pw.chromium.launch_persistent_context(**launch_kwargs)
+                        # LEVERAGE CHANNEL & ENGINE with launch retries
+                        max_launch_retries = 2
+                        ctx = None
+                        
+                        for launch_attempt in range(1, max_launch_retries + 1):
+                            try:
+                                if engine == "firefox":
+                                    ctx = await pw.firefox.launch_persistent_context(
+                                        user_data_dir=profile_dir,
+                                        headless=False,
+                                        viewport={"width": viewport_width, "height": viewport_height},
+                                        firefox_user_prefs=firefox_prefs,
+                                        timeout=90000, 
+                                    )
+                                elif engine == "webkit": # Webkit (Safari-like)
+                                    ctx = await pw.webkit.launch_persistent_context(
+                                        user_data_dir=profile_dir,
+                                        headless=False,
+                                        viewport={"width": viewport_width, "height": viewport_height},
+                                        timeout=90000,
+                                    )
+                                else:
+                                    # Chromium / Chrome / Edge
+                                    ctx = await pw.chromium.launch_persistent_context(
+                                        user_data_dir=profile_dir,
+                                        headless=False,
+                                        viewport={"width": viewport_width, "height": viewport_height},
+                                        args=chromium_args,
+                                        channel=channel,
+                                        timeout=90000,
+                                    )
+                                if ctx: break
+                            except Exception as le:
+                                if launch_attempt < max_launch_retries:
+                                    self.log("WARN", f"🚀 Launch attempt {launch_attempt} failed: {le}. Retrying in 5s...")
+                                    self._clear_profile_locks(profile_dir)
+                                    await asyncio.sleep(5)
+                                else:
+                                    raise le
+
+                        if not ctx:
+                            raise Exception("Could not initialize browser context after retries.")
                             
                         self.log("OK", f"🚀 {current_config['name']} launched successfully")
                         
@@ -2051,7 +2083,8 @@ class ScraperController:
                                     
                                     if block_type == "block":
                                         self.log("ERR", f"🚫 BLOCK DETECTED on page {page_num}: 'Uso indebido/Bloqueado'.")
-                                        mark_current_profile_blocked()
+                                        if hasattr(self, 'browser_engine') and self.browser_engine:
+                                            mark_profile_blocked(self.browser_engine)
                                         raise BlockedException("Listing loop block detection: uso indebido")
                                         
                                     if block_type == "captcha":
