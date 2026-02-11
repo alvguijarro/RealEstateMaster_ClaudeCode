@@ -1121,15 +1121,7 @@ class ScraperController:
             
             # 3. Check for HARD BLOCKS
             hard_block_keywords = [
-                "uso indebido",
-                "se ha bloqueado",
-                "acceso se ha bloqueado",
-                "uso no autorizado",
-                "access denied",
-                "forbidden",
-                "ip has been blocked",
-                "security violation",
-                "something went wrong with your request"
+                "el acceso se ha bloqueado"
             ]
             
             if any(kw in text_lower for kw in hard_block_keywords):
@@ -1138,23 +1130,7 @@ class ScraperController:
                 
             # 4. Check for CAPTCHAs / Interstitials
             captcha_keywords = [
-                "robot",
-                "captcha",
-                "verificación",
-                "verification",
-                "attention",
-                "moment",
-                "challenge",
-                "desliza",
-                "muchas peticiones",
-                "recibiendo muchas peticiones",
-                "security check",
-                "atención",
-                "peticiones",
-                "un momento",
-                "disculpa",
-                "perdone",
-                "interrupción"
+                "estamos recibiendo muchas peticiones tuyas"
             ]
             
             # Check for Cloudflare/WAF ID (e.g. ID: c031717f...)
