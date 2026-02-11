@@ -1293,10 +1293,14 @@ class ScraperController:
 
             # 6. Special Case: Blank page or empty body (often means blocked/loading)
             if not text_lower.strip() or len(text_lower) < 50:
-                 # Check if the page is just "idealista" without content
-                 if "idealista" in text_lower and len(text_lower) < 250:
-                     self.log("WARN", "Almost empty page with Idealista header detected. Treating as CAPTCHA/Waiting.")
-                     return "captcha"
+                  # Priority check for title being ONLY "idealista.com" (signature of block)
+                  if title == "idealista.com":
+                      self.log("WARN", "Page title is exactly 'idealista.com'. Treating as CAPTCHA/Block.")
+                      return "captcha"
+                  
+                  if "idealista" in text_lower and len(text_lower) < 250:
+                      self.log("WARN", "Almost empty page with Idealista header detected. Treating as CAPTCHA/Waiting.")
+                      return "captcha"
             
             return None
         except Exception as e:
@@ -1570,6 +1574,8 @@ class ScraperController:
             chunk = min(0.5, remaining)  # 0.5s check interval
             await asyncio.sleep(chunk)
             remaining -= chunk
+            # Refresh heartbeat timestamp to avoid false "potential hang" alarms
+            self._last_log_time = time.time()
 
     
     def _export_to_excel(self, additions: List[dict], target_file: Optional[str], expired_urls: List[str]):
@@ -2120,7 +2126,7 @@ class ScraperController:
                             # Reset url_dates since we're using a different file
                             url_dates = {}
                             preloaded_urls = set()
-                            self._processed.clear()
+                            # self._processed.clear()  <-- REMOVED: Never clear processed URLs mid-run during identity rotation
             
                     # target_file and url_dates already set from registry lookup above (or overridden)
             
@@ -2266,10 +2272,17 @@ class ScraperController:
                                 except Exception as debug_e:
                                     self.log("ERR", f"Debug check failed: {debug_e}")
                     
-                            # Still no links after debug - exit
+                            # Still no links after debug - determine if we should exit or rotate
                             if not hrefs:
-                                self.log("INFO", f"End of listings at page {page_num}.")
-                                break
+                                # ONLY exit if we've reached the expected total pages
+                                if self.total_pages_expected > 0 and page_num >= self.total_pages_expected:
+                                    self.log("INFO", f"End of listings reached at page {page_num}.")
+                                    break
+                                else:
+                                    # If no links but not at the end, it's a silent block
+                                    self.log("ERR", f"Zero property links found on page {page_num} (Expected {self.total_pages_expected} pages). Forcing ROTATION.")
+                                    mark_current_profile_blocked()
+                                    raise BlockedException("Silent block: zero links on intermediate page")
                 
                         self.log("INFO", f"Page {page_num}: Found {len(hrefs)} properties to check")
                 
