@@ -1,5 +1,21 @@
 [
   {
+    "timestamp": "2026-02-11T09:47:00.999060",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/badajoz-provincia/",
+    "properties_count": 107,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Badajoz_alquiler.xlsx",
+    "filename": "idealista_Badajoz_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-11T09:46:58.247704",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/badajoz-provincia/",
+    "properties_count": 107,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Badajoz_alquiler.xlsx",
+    "filename": "idealista_Badajoz_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-11T09:27:07.503498",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/avila-provincia/",
     "properties_count": 242,

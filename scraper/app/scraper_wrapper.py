@@ -1111,26 +1111,50 @@ class ScraperController:
         Returns "block", "captcha", or None.
         """
         try:
-            # 1. Check title
-            title = (await page.title()).lower()
+            # 1. Get page title and full text
+            # Using documentElement.innerText is broader than body.innerText
+            page_data = await page.evaluate("""
+                () => ({
+                    title: document.title,
+                    text: document.documentElement ? document.documentElement.innerText : (document.body ? document.body.innerText : '')
+                })
+            """)
             
-            # 2. Check inner text (the most reliable indicator)
-            # Use evaluate to get clean text from body
-            page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
-            text_lower = page_text.lower() if page_text else ""
+            title = (page_data.get("title") or "").lower()
+            text_lower = (page_data.get("text") or "").lower()
+            
+            # Normalize whitespace for reliable matching
+            text_lower = re.sub(r'\s+', ' ', text_lower).strip()
             
             # 3. Check for HARD BLOCKS
             hard_block_keywords = [
-                "el acceso se ha bloqueado"
+                "el acceso se ha bloqueado",
+                "uso indebido",
+                "uso no autorizado",
+                "acceso denegado",
+                "forbidden",
+                "ip has been blocked",
+                "security violation",
+                "something went wrong with your request"
             ]
             
-            if any(kw in text_lower for kw in hard_block_keywords):
-                self.log("WARN", f"Hard block keywords matched in text: {[kw for kw in hard_block_keywords if kw in text_lower]}")
+            if any(kw in text_lower for kw in hard_block_keywords) or any(kw in title for kw in hard_block_keywords):
+                self.log("WARN", f"Hard block keywords matched: {[kw for kw in hard_block_keywords if kw in text_lower or kw in title]}")
                 return "block"
                 
             # 4. Check for CAPTCHAs / Interstitials
             captcha_keywords = [
-                "estamos recibiendo muchas peticiones tuyas"
+                "estamos recibiendo muchas peticiones tuyas",
+                "muchas peticiones",
+                "peticiones tuyas",
+                "robot",
+                "captcha",
+                "un momento",
+                "security check",
+                "verificación",
+                "verification",
+                "challenge",
+                "desliza"
             ]
             
             # Check for Cloudflare/WAF ID (e.g. ID: c031717f...)
@@ -1150,8 +1174,8 @@ class ScraperController:
             if not text_lower.strip() or len(text_lower) < 50:
                  # Check if the page is just "idealista" without content
                  if "idealista" in text_lower and len(text_lower) < 250:
-                     self.log("WARN", "Almost empty page with Idealista header detected.")
-                     return "captcha" # Treat as CAPTCHA/Waiting
+                     self.log("WARN", "Almost empty page with Idealista header detected. Treating as CAPTCHA/Waiting.")
+                     return "captcha"
             
             return None
         except Exception as e:
@@ -2080,7 +2104,15 @@ class ScraperController:
                                     
                                     # If no links/articles, it's a silent block or empty results
                                     if link_count == 0 or article_count == 0:
-                                        self.log("WARN", "Zero property links found and no obvious block text. Keeping browser open 30s for manual inspection...")
+                                        self.log("WARN", "Zero property links found and no obvious block text. Checking specifically for 'Uso indebido'...")
+                                        # One last check on raw text
+                                        raw_text = await page.evaluate("() => document.documentElement.innerText")
+                                        if "uso indebido" in raw_text.lower() or "bloqueado" in raw_text.lower():
+                                             self.log("ERR", "🚫 BLOCK confirmed after deep text check.")
+                                             mark_profile_blocked(self.browser_engine)
+                                             raise BlockedException("Deep block detection")
+                                        
+                                        self.log("WARN", "Keeping browser open 30s for manual inspection...")
                                         await asyncio.sleep(30)
                                 
                                 except BlockedException as be:

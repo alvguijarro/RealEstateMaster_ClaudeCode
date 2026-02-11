@@ -828,6 +828,7 @@ def missing_fields(row: dict, is_room_mode: bool = False):
         # For rooms, only require the absolute essentials
         required = ["URL", "price", "Titulo"]
     else:
-        required = ["URL", "price", "Titulo", "Ubicacion", "Provincia"]
+        # For standard, avoid strict requirements on Ubicacion/Provincia to prevent false positives
+        required = ["URL", "price", "Titulo"]
     return [k for k in required if row.get(k) in (None, "", float("nan"))]
 
