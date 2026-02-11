@@ -1127,18 +1127,41 @@ class ScraperController:
 
     def _clear_profile_locks(self, profile_dir: str):
         """Remove parent.lock and other lock files to prevent startup hangs."""
-        lock_files = ["parent.lock", "singleton_lock", "lock"]
+        # More comprehensive list of lock files across engines (Chromium, Firefox, WebKit)
+        lock_files = ["parent.lock", "singleton_lock", "lock", ".parentlock", "lockfile"]
         if not os.path.exists(profile_dir):
             return
             
         for root, dirs, files in os.walk(profile_dir):
             for name in files:
-                if name in lock_files:
+                if name.lower() in lock_files:
                     try:
                         lock_path = os.path.join(root, name)
                         os.remove(lock_path)
                     except:
                         pass
+
+    def _cleanup_zombie_browsers(self):
+        """Kill any left-behind browser processes to free up profile locks."""
+        import subprocess
+        if sys.platform == "win32":
+            # Taskkill is more reliable on Windows for orphaned processes
+            targets = ["firefox.exe", "chrome.exe", "msedge.exe"]
+            for target in targets:
+                try:
+                    subprocess.run(["taskkill", "/F", "/IM", target, "/T"], 
+                                   capture_output=True, check=False)
+                except:
+                    pass
+        else:
+            # pkill for Linux/macOS
+            targets = ["firefox", "chrome", "edge"]
+            for target in targets:
+                try:
+                    subprocess.run(["pkill", "-9", target], 
+                                   capture_output=True, check=False)
+                except:
+                    pass
 
     async def _heartbeat_monitor(self):
         """Background task to log activity periodically and detect hangs."""
@@ -1723,6 +1746,7 @@ class ScraperController:
                         "useAutomationExtension": False,
                     }
                     # PRE-LAUNCH CLEANUP
+                    self._cleanup_zombie_browsers()
                     self._clear_profile_locks(profile_dir)
                     
                     try:
