@@ -1232,33 +1232,16 @@ class ScraperController:
             
             # 3. Check for HARD BLOCKS
             hard_block_keywords = [
-                "el acceso se ha bloqueado",
-                "uso indebido",
-                "uso no autorizado",
-                "acceso denegado",
-                "forbidden",
-                "ip has been blocked",
-                "security violation",
-                "something went wrong with your request"
+                "el acceso se ha bloqueado"
             ]
             
-            if any(kw in text_lower for kw in hard_block_keywords) or any(kw in title for kw in hard_block_keywords):
-                self.log("WARN", f"Hard block keywords matched: {[kw for kw in hard_block_keywords if kw in text_lower or kw in title]}")
+            if any(kw in text_lower for kw in hard_block_keywords):
+                self.log("WARN", f"Hard block keywords matched: {[kw for kw in hard_block_keywords if kw in text_lower]}")
                 return "block"
                 
             # 4. Check for CAPTCHAs / Interstitials
             captcha_keywords = [
-                "estamos recibiendo muchas peticiones tuyas",
-                "muchas peticiones",
-                "peticiones tuyas",
-                "robot",
-                "captcha",
-                "un momento",
-                "security check",
-                "verificación",
-                "verification",
-                "challenge",
-                "desliza"
+                "estamos recibiendo muchas peticiones tuyas"
             ]
             
             # Check for Cloudflare/WAF ID (e.g. ID: c031717f...)
@@ -1886,30 +1869,21 @@ class ScraperController:
                         # minimal wait for body to stand chance of having text
                         await asyncio.sleep(2.0)
                         
-                        # 1. Check page title for clear block indicators
-                        page_title = await page.title()
-                        title_lower = page_title.lower() if page_title else ""
-                        
-                        if "idealista" in title_lower and ("captcha" in title_lower or "challenge" in title_lower):
-                             raise Exception("CAPTCHA detected in title")
+                        # 1. Early check (Simplified: check title only if needed or skip as per request)
+                        # Page title checks are removed to strictly follow the text-based keywords requested.
                              
                         # 2. Check body text for specific block messages
-                        # capturing innerText is fast and effective for these specific blocking pages
                         body_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
                         text_lower = body_text.lower() if body_text else ""
                         
-                        # Updated keywords as per user request (2026-02-07)
-                        block_keywords = [
-                            "el acceso se ha bloqueado", 
-                            "estamos recibiendo muchas peticiones tuyas",
-                            "uso indebido", # Keep as fallback
-                            "access denied"
-                        ]
+                        # Only these two specific triggers as requested
+                        if "el acceso se ha bloqueado" in text_lower:
+                            self.log("WARN", "⚠️ BLOCK DETECTED: 'El acceso se ha bloqueado'")
+                            raise BlockedException("Early block detection: El acceso se ha bloqueado")
                         
-                        for kw in block_keywords:
-                            if kw in text_lower:
-                                self.log("WARN", f"⚠️ EARLY BLOCK DETECTED: Found '{kw}' in page body.")
-                                raise BlockedException(f"Early block detection: {kw}")
+                        if "estamos recibiendo muchas peticiones tuyas" in text_lower:
+                            self.log("WARN", "⚠️ CAPTCHA DETECTED: 'estamos recibiendo muchas peticiones tuyas'")
+                            raise BlockedException("Early block detection: estamos recibiendo muchas peticiones tuyas")
                                 
                     except BlockedException as be:
                         # Re-raise to be caught by the main loop handler which handles rotation
