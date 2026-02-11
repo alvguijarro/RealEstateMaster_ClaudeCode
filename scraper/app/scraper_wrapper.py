@@ -2105,15 +2105,16 @@ class ScraperController:
                         expected_category = self._detected_sheet
                         # Check if registered file uses a different category
                         if f"_{expected_category}." not in target_file:
-                            # Rebuild target_file with correct category
-                            # Note: At this point, no property scraped yet, so use H1-detected city
-                            # The filename may be updated after first property if Ciudad differs
-                            ciudad = self._detected_city
-                            if ciudad:
-                                ciudad_clean = sanitize_filename_part(ciudad)
-                                new_target_file = f"idealista_{ciudad_clean}_{expected_category}.xlsx"
+                            # Priority: If user forced a file, never redetect from city
+                            if self.forced_target_file:
+                                new_target_file = self.forced_target_file
                             else:
-                                new_target_file = f"idealista_{expected_category}.xlsx"
+                                ciudad = self._detected_city
+                                if ciudad:
+                                    ciudad_clean = sanitize_filename_part(ciudad)
+                                    new_target_file = f"idealista_{ciudad_clean}_{expected_category}.xlsx"
+                                else:
+                                    new_target_file = f"idealista_{expected_category}.xlsx"
                             self.log("INFO", f"Updating target file: {target_file} -> {new_target_file}")
                             target_file = new_target_file
                             # Reset url_dates since we're using a different file
@@ -2335,7 +2336,10 @@ class ScraperController:
                                     row = {"URL": key, **d}
                             
                                     # Build target filename only if not already forced or detected from province
-                                    if target_file is None:
+                                    # Priority: User selection > automatic detection
+                                    if self.forced_target_file:
+                                        target_file = self.forced_target_file
+                                    else:
                                         ciudad = row.get("Ciudad") or self._detected_city
                                         category = self._detected_sheet or "unknown"
                                 
@@ -2344,9 +2348,6 @@ class ScraperController:
                                             target_file = f"idealista_{ciudad_clean}_{category}.xlsx"
                                         else:
                                             target_file = f"idealista_{category}.xlsx"
-                                    else:
-                                        self.log("INFO", f"Using existing target file from setup: {target_file}")
-                                    
                                     # Update persistent reference
                                     self.output_file = target_file
                             
@@ -2955,7 +2956,7 @@ class ScraperController:
                     
                     # ROTATION LOGIC (2026): Strict Sequential with Cooldown
                     mark_current_profile_blocked()
-                    next_config = rotate_identity()
+                    next_config, wait_time = rotate_identity()
                     
                     self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
                     self.log("INFO", f"Restarting in 5 seconds with fresh identity...")
