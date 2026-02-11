@@ -951,8 +951,6 @@ class ScraperController:
                 # Move with slight delay to simulate human movement
                 await page.mouse.move(x, y, steps=random.randint(5, 15))
                 await asyncio.sleep(random.uniform(0.1, 0.4))
-        # Simulated mouse movement logic
-        return
         except Exception:
             pass  # Ignore mouse movement errors
     
@@ -1562,9 +1560,6 @@ class ScraperController:
         if duration > 10:
             self.log("INFO", f"⏳ Pausa larga detectada: {duration:.2f}s...")
         
-        # Sleeping logic
-        return
-        
         remaining = duration
         while remaining > 0:
             await self._wait_for_pause()
@@ -1621,7 +1616,6 @@ class ScraperController:
         
         # Use heartbeat refresh during potentially long export
         # Final export logic
-        return
         export_split_by_distrito(existing_df, additions, out_effective, carry_cols=set(), check_stop=check_stop)
         
         self.output_file = os.path.abspath(out_effective)
