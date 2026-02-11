@@ -1407,19 +1407,25 @@ class ScraperController:
                         curr_title = await page.title()
                         self.log("WARN", f"CAPTCHA DETECTED on {url} (Title: '{curr_title}')")
                         
-                        # 1. Try automatic slider solve
+                        # 1. Try automatic slider solve (With strict 30s timeout)
                         self.log("INFO", "🤖 Attempting automatic slider solve...")
-                        if await solve_slider_captcha(page):
-                            # Check again
-                            try:
-                                title_after = await page.title()
-                                if not any(kw in (title_after or "").lower() for kw in ["moment", "challenge", "robot", "captcha", "verification"]):
-                                    self.log("OK", "✅ CAPTCHA solved automatically!")
-                                    return 
-                            except: pass
-                            self.log("WARN", "❌ Slider moved but CAPTCHA still present.")
-                        else:
-                            self.log("WARN", "❌ Automatic solver could not find slider.")
+                        try:
+                            solved = await asyncio.wait_for(solve_slider_captcha(page), timeout=30.0)
+                            if solved:
+                                # Check again
+                                try:
+                                    title_after = await asyncio.wait_for(page.title(), timeout=5.0)
+                                    if not any(kw in (title_after or "").lower() for kw in ["moment", "challenge", "robot", "captcha", "verification"]):
+                                        self.log("OK", "✅ CAPTCHA solved automatically!")
+                                        return 
+                                except: pass
+                                self.log("WARN", "❌ Slider moved but CAPTCHA still present.")
+                            else:
+                                self.log("WARN", "❌ Automatic solver could not find slider.")
+                        except asyncio.TimeoutError:
+                            self.log("WARN", "❌ Automatic slider solver timed out (30s limit).")
+                        except Exception as e:
+                            self.log("WARN", f"❌ Automatic slider solver error: {e}")
 
                         self.log("WARN", ">>> PLEASE SOLVE THE CAPTCHA MANUALLY IN THE BROWSER <<<")
                         if self.on_status:
@@ -2313,9 +2319,9 @@ class ScraperController:
                                             self.log("DEBUG_TIMING", f"Starting 10s CAPTCHA check wait (Attempt {i+1}/3).")
                                             await asyncio.sleep(10.0)
                                             self.log("DEBUG_TIMING", f"Finished 10s CAPTCHA check wait.")
-                                            # Retry extraction check
+                                            # Retry extraction check (With timeout)
                                             try:
-                                                d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
+                                                d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
                                                 row = {"URL": key, **d}
                                                 if not missing_fields(row, is_room_mode=self._is_room_mode):
                                                      self.log("OK", "CAPTCHA cleared! Resuming...")
@@ -2418,9 +2424,9 @@ class ScraperController:
                                     for _ in range(3): # 3 * 10s = 30s
                                         if self._stop_evt.is_set(): break
                                         await asyncio.sleep(10.0)
-                                        # Retry extraction check
+                                        # Retry extraction check (With timeout)
                                         try:
-                                            d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
+                                            d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
                                             row = {"URL": key, **d}
                                             if not missing_fields(row, is_room_mode=self._is_room_mode):
                                                  self.log("OK", "CAPTCHA cleared! Resuming...")
