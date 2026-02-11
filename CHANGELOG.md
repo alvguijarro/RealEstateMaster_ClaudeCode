@@ -9,6 +9,7 @@
 - **Robust Control API**: Updated server endpoints (`/api/pause`, `/api/resume`, `/api/stop`) to synchronize control signals across manual, batch, and periodic scraping tasks using filesystem flags.
 - **Non-blocking Identity Rotation**: Refactored the browser identity rotation logic to be asynchronous, preventing event loop blocks during profile cooldown periods.
 - **Automatic Price Filtering**: Implemented automatic price limit filters for provincial searches (2.000€ for rent, 300.000€ for sale).
+- **Persistent Blocking Recovery**: Enhanced the identity rotation system to handle recovery from persistent blocks by ensuring `_processed` URLs are preserved across session restarts.
 
 ### Fixed
 - **UI Button Synchronization**: Ensured the "Stop" and "Pause" buttons in the web interface are always enabled while any scraping task is active, and standardized labels to "Detener". Fixed a regression where buttons re-enabled prematurely during batch mode errors.
@@ -17,6 +18,10 @@
 - **Status Reporting**: Enhanced the `/api/status` endpoint to accurately report the combined state of manual scrapers and background batch processes, preventing UI resets during batch retries.
 - **Checkpoint Resilience**: Resolved a critical `'NoneType' object has no attribute 'empty'` error during periodic saves.
 - **Critical Regressions**: Fixed a `NameError: name 'pd' is not defined` caused by a missing import in `scraper_wrapper.py`.
+- **Identity Rotation Crash**: Fixed a `TypeError` when unpacking `rotate_identity()` results during CAPTCHA recovery loops.
+- **Forced Filename Consistency**: Ensured that user-selected Excel files ("Baleares", etc.) take precedence over automatic city-detection ("Palma"), preventing filename mismatches in logs and checkpoints.
+- **Resume Logic Integrity**: Fixed a bug where processed URLs were not correctly restored from `resume_state.json` during identity rotation, causing the scraper to restart from page 1 instead of continuing.
+- **Heartbeat False Alarms**: Modified long sleep cycles (cooldowns) to update activity timestamps, preventing the heartbeat monitor from triggering false "potential hang" alarms.
 
 ## [2026-02-11]
 
