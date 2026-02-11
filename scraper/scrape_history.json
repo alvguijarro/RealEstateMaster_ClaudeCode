@@ -1,5 +1,53 @@
 [
   {
+    "timestamp": "2026-02-11T08:09:22.778962",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/albacete-provincia/",
+    "properties_count": 20,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Albacete_alquiler.xlsx",
+    "filename": "idealista_Albacete_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-11T08:09:21.464639",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/albacete-provincia/",
+    "properties_count": 20,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Albacete_alquiler.xlsx",
+    "filename": "idealista_Albacete_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-11T07:37:40.291722",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/almeria-provincia/",
+    "properties_count": 1,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Almería_alquiler.xlsx",
+    "filename": "idealista_Almería_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-11T07:37:39.991650",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/almeria-provincia/",
+    "properties_count": 1,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Almería_alquiler.xlsx",
+    "filename": "idealista_Almería_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-10T23:49:58.320741",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/almeria-provincia/",
+    "properties_count": 56,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Almería_alquiler.xlsx",
+    "filename": "idealista_Almería_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-10T23:49:55.040746",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/almeria-provincia/",
+    "properties_count": 56,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Almería_alquiler.xlsx",
+    "filename": "idealista_Almería_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-10T23:20:14.914425",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/alava/",
     "properties_count": 72,

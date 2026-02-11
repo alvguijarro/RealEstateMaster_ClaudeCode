@@ -1090,6 +1090,82 @@ class ScraperController:
         self.mode = mode
         self.log("INFO", f"Switched mode: {old_mode} -> {mode}")
     
+    async def _check_for_blocks(self, page) -> Optional[str]:
+        """
+        Thoroughly check if the page is a CAPTCHA or a block.
+        Returns "block", "captcha", or None.
+        """
+        try:
+            # 1. Check title
+            title = (await page.title()).lower()
+            
+            # 2. Check inner text (the most reliable indicator)
+            # Use evaluate to get clean text from body
+            page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+            text_lower = page_text.lower() if page_text else ""
+            
+            # 3. Check for HARD BLOCKS
+            hard_block_keywords = [
+                "uso indebido",
+                "se ha bloqueado",
+                "acceso se ha bloqueado",
+                "uso no autorizado",
+                "access denied",
+                "forbidden",
+                "ip has been blocked",
+                "security violation",
+                "something went wrong with your request"
+            ]
+            
+            if any(kw in text_lower for kw in hard_block_keywords):
+                self.log("WARN", f"Hard block keywords matched in text: {[kw for kw in hard_block_keywords if kw in text_lower]}")
+                return "block"
+                
+            # 4. Check for CAPTCHAs / Interstitials
+            captcha_keywords = [
+                "robot",
+                "captcha",
+                "verificación",
+                "verification",
+                "attention",
+                "moment",
+                "challenge",
+                "desliza",
+                "muchas peticiones",
+                "recibiendo muchas peticiones",
+                "security check",
+                "atención",
+                "peticiones",
+                "un momento",
+                "disculpa",
+                "perdone",
+                "interrupción"
+            ]
+            
+            # Check for Cloudflare/WAF ID (e.g. ID: c031717f...)
+            if "id: " in text_lower and re.search(r"id: [0-9a-f]{8}-", text_lower):
+                 self.log("WARN", "WAF/Block ID detected on page text.")
+                 return "block"
+
+            if any(kw in text_lower for kw in captcha_keywords) or any(kw in title for kw in captcha_keywords):
+                self.log("WARN", f"Captcha keywords matched: {[kw for kw in captcha_keywords if kw in text_lower or kw in title]}")
+                return "captcha"
+                
+            # 5. Check for CLOUDFLARE specifically
+            if "cloudflare" in text_lower or "checking your browser" in text_lower:
+                return "captcha"
+
+            # 6. Special Case: Blank page or empty body (often means blocked/loading)
+            if not text_lower.strip() or len(text_lower) < 50:
+                 # Check if the page is just "idealista" without content
+                 if "idealista" in text_lower and len(text_lower) < 250:
+                     self.log("WARN", "Almost empty page with Idealista header detected.")
+                     return "captcha" # Treat as CAPTCHA/Waiting
+            
+            return None
+        except Exception as e:
+            return None
+
     def save_state(self, current_page: int, target_file: Optional[str] = None):
         """Save current scraping state for resume functionality."""
         from datetime import datetime
@@ -1205,48 +1281,29 @@ class ScraperController:
                 except Exception as e:
                     self.log("WARN", f"⚠️ Human interaction failed: {e}")
                 
-                # Check for CAPTCHA/Bot protection
+                # Check for CAPTCHA/Bot protection using unified helper
                 try:
-                    title = await page.title()
-                    t_lower = title.lower()
+                    block_type = await self._check_for_blocks(page)
                     
-                    # Check for permanent block (uso indebido)
-                    page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
-                    page_text_lower = page_text.lower() if page_text else ""
-                    
-                    # Check for deactivated listing
-                    if "anuncio ya no está publicado" in page_text_lower or "este anuncio no está publicado" in page_text_lower:
-                        self.log("WARN", f"El anuncio ya no está activo: {url}")
-                        return
-                    
-                    if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower or "access denied" in page_text_lower:
-                        self.log("ERR", "🚫 BLOCK DETECTED: 'Uso indebido' or 'Access Denied'. Stopping immediately.")
+                    if block_type == "block":
+                        self.log("ERR", f"🚫 BLOCK DETECTED on {url}: 'Uso indebido/Bloqueado'.")
                         play_blocked_alert()
                         # Mark profile as blocked for cooldown rotation
-                        mark_profile_blocked(self.browser_engine)
-                        self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
-                        # CRITICAL: Raise BlockedException to trigger profile nuking
+                        mark_current_profile_blocked()
+                        # CRITICAL: Raise BlockedException to trigger rotation
                         raise BlockedException("Acceso bloqueado por uso indebido")
                     
-                    # Common indicators for Idealista/Cloudflare blockage
-                    is_captcha = (
-            "attention" in t_lower or 
-            "moment" in t_lower or 
-            "challenge" in t_lower or 
-            "robot" in t_lower or 
-            "captcha" in t_lower or
-            "access denied" in t_lower or
-            "security" in t_lower or
-            "peticiones" in t_lower or
-            "verificación" in t_lower or
-            "verification" in t_lower or
-            "desliza" in t_lower or  # Slider CAPTCHA
-            "asegurar tu acceso" in t_lower or  # Idealista CAPTCHA message
-            "muchas peticiones" in page_text_lower  # Rate limit message
-        )
+                    # Check for deactivated listing (specific text patterns)
+                    page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+                    if "anuncio ya no está publicado" in page_text or "este anuncio no está publicado" in page_text:
+                        self.log("WARN", f"El anuncio ya no está activo: {url}")
+                        return
 
+                    is_captcha = (block_type == "captcha")
+                    
                     if is_captcha:
-                        self.log("WARN", f"CAPTCHA DETECTED on {url} (Title: '{title}')")
+                        curr_title = await page.title()
+                        self.log("WARN", f"CAPTCHA DETECTED on {url} (Title: '{curr_title}')")
                         
                         # 1. Try automatic slider solve
                         self.log("INFO", "🤖 Attempting automatic slider solve...")
@@ -1988,77 +2045,40 @@ class ScraperController:
                                 # We haven't scraped enough - something is wrong
                                 self.log("WARN", f"Only scraped {len(self.scraped_properties)}/{self.total_properties_expected} - investigating...")
                         
-                                # Get page info for debugging
                                 try:
-                                    # =============================================================================
-                                    # LOOP PRIORITY BLOCK DETECTION
-                                    # =============================================================================
-                                    # Check for blocks on each new page before parsing
-                                    try:
-                                        current_url = page.url
-                                        page_content = await page.content() # Get full HTML content
-                                        content_lower = page_content.lower()
+                                    # 1. Broad block check
+                                    block_type = await self._check_for_blocks(page)
+                                    
+                                    if block_type == "block":
+                                        self.log("ERR", f"🚫 BLOCK DETECTED on page {page_num}: 'Uso indebido/Bloqueado'.")
+                                        mark_current_profile_blocked()
+                                        raise BlockedException("Listing loop block detection: uso indebido")
                                         
-                                        if "el acceso se ha bloqueado" in content_lower or "uso indebido" in content_lower or "access denied" in content_lower:
-                                            self.log("ERR", f"🚫 BLOCK DETECTED on page {page_num}: 'Uso indebido/Bloqueado'.")
-                                            # Raise BlockedException to trigger rotation
-                                            raise BlockedException("Loop block detection: uso indebido")
-                                            
-                                        if "estamos recibiendo muchas peticiones tuyas" in content_lower:
-                                             self.log("WARN", f"⚠️ CAPTCHA/LIMIT DETECTED on page {page_num}.")
-                                             raise BlockedException("Loop block detection: Rate Limit/CAPTCHA")
+                                    if block_type == "captcha":
+                                        self.log("WARN", f"⚠️ CAPTCHA/LIMIT DETECTED on page {page_num}.")
+                                        raise BlockedException("Listing loop block detection: CAPTCHA")
 
-                                    except BlockedException:
-                                        raise # Let the handler deal with it
-                                    except Exception:
-                                        pass # Continue if check fails (e.g. page closed)
-                                        
-                                    # =============================================================================
-
-                                    # 4. Parse content
-                                    html_content = await page.content()
+                                    # 2. Detailed info for logs if not blocked
                                     page_title = await page.title()
-                                    page_url = page.url
-                                    self.log("INFO", f"Current URL: {page_url}")
+                                    self.log("INFO", f"Current URL: {page.url}")
                                     self.log("INFO", f"Page title: {page_title}")
-                            
-                                    # Check for CAPTCHA indicators
-                                    captcha_check = await page.evaluate(r"""() => {
-                                        const body = (document.body && document.body.innerText) ? document.body.innerText.toLowerCase() : '';
-                                        const hasCaptcha = body.includes('captcha') || 
-                                                           body.includes('robot') || 
-                                                           body.includes('verificar') ||
-                                                           body.includes('security check');
-                                        const linkCount = document.querySelectorAll('a').length;
-                                        const articleCount = document.querySelectorAll('article, .item, .item-link').length;
-                                        return { hasCaptcha, linkCount, articleCount };
-                                    }""")
-                            
-                                    self.log("INFO", f"CAPTCHA detected: {captcha_check.get('hasCaptcha', False)}")
-                                    self.log("INFO", f"Total links on page: {captcha_check.get('linkCount', 0)}")
-                                    self.log("INFO", f"Article elements: {captcha_check.get('articleCount', 0)}")
-                            
-                                    if captcha_check.get('hasCaptcha', False):
-                                        self.log("WARN", "CAPTCHA page detected! Keeping browser open for 60s for manual solving...")
-                                        self.log("DEBUG_TIMING", "Starting 60s CAPTCHA wait.")
-                                        await asyncio.sleep(60)  # Give user time to solve CAPTCHA
-                                        self.log("DEBUG_TIMING", "Finished 60s CAPTCHA wait.")
-                                        # Try collecting links again after waiting
-                                        hrefs = await page.evaluate(js_collect)
-                                        if hrefs:
-                                            self.log("OK", f"After waiting, found {len(hrefs)} links!")
-                                    else:
-                                        self.log("WARN", "No CAPTCHA, but no links either. Keeping browser open 30s for inspection...")
-                                        self.log("DEBUG_TIMING", "Starting 30s manual inspection wait.")
-                                        await asyncio.sleep(30)  # Keep open for inspection
-                                        self.log("DEBUG_TIMING", "Finished 30s manual inspection wait.")
+                                    
+                                    link_count = await page.evaluate("() => document.querySelectorAll('a').length")
+                                    article_count = await page.evaluate("() => document.querySelectorAll('article, .item, .item-link').length")
+                                    
+                                    self.log("INFO", f"Total links on page: {link_count}")
+                                    self.log("INFO", f"Article elements: {article_count}")
+                                    
+                                    # If no links/articles, it's a silent block or empty results
+                                    if link_count == 0 or article_count == 0:
+                                        self.log("WARN", "Zero property links found and no obvious block text. Keeping browser open 30s for manual inspection...")
+                                        await asyncio.sleep(30)
                                 
                                 except BlockedException as be:
-                                    self.log("ERR", f"🛑 HARD STOP: {be}")
+                                    self.log("ERR", f"🛑 HARD STOP in loop: {be}")
                                     self._stop_evt.set()
-                                    # Signal that we should NOT dual-mode continue
                                     self.dual_mode_url = None 
-                                    raise be # Re-raise to be caught by outer loop
+                                    raise be
                                 
                                 except Exception as debug_e:
                                     self.log("ERR", f"Debug check failed: {debug_e}")
