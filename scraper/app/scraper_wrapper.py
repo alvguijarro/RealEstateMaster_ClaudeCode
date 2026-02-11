@@ -1142,23 +1142,28 @@ class ScraperController:
                         pass
 
     def _cleanup_zombie_browsers(self):
-        """Kill any left-behind browser processes to free up profile locks."""
+        """Kill only left-behind browser processes tied to the scraper's profiles."""
         import subprocess
         if sys.platform == "win32":
-            # Taskkill is more reliable on Windows for orphaned processes
-            targets = ["firefox.exe", "chrome.exe", "msedge.exe"]
-            for target in targets:
-                try:
-                    subprocess.run(["taskkill", "/F", "/IM", target, "/T"], 
-                                   capture_output=True, check=False)
-                except:
-                    pass
+            # Targeted PowerShell cleanup: only kill browsers if their command line contains 'stealth_profile'
+            # This prevents closing the user's personal browser.
+            ps_command = (
+                "Get-CimInstance Win32_Process | "
+                "Where-Object { $_.CommandLine -like '*stealth_profile*' } | "
+                "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+            )
+            try:
+                subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps_command], 
+                               capture_output=True, check=False)
+            except:
+                pass
         else:
-            # pkill for Linux/macOS
+            # Linux/macOS targeted cleanup
             targets = ["firefox", "chrome", "edge"]
             for target in targets:
                 try:
-                    subprocess.run(["pkill", "-9", target], 
+                    # pkill -f matches the full command line
+                    subprocess.run(["pkill", "-9", "-f", f"{target}.*stealth_profile"], 
                                    capture_output=True, check=False)
                 except:
                     pass
