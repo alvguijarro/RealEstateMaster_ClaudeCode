@@ -2,7 +2,18 @@
 
 ## [2026-02-11]
 
+### Added
+- **Advanced Anti-Detection Tactics**: Implemented comprehensive fingerprint noise and masking in `scraper_wrapper.py`:
+    - **Canvas & Audio Fingerprinting**: Added subtle randomized noise to Canvas and Audio contexts to break generic bot fingerprints.
+    - **WebRTC Protection**: Added masking to prevent local IP leakage via WebRTC.
+    - **Font List Obfuscation**: Masks the list of installed fonts to return only standard system fonts.
+    - **Modern Client Hints**: Spoofs `navigator.userAgentData` (brands, platform, architecture) to match modern Chrome versions (v132+).
+- **Organic Mouse Movements**: Upgraded the background mouse jitter logic from linear steps to organic **Cubic Bézier curves**. This produces sinusoidal, human-like trajectories that bypass advanced behavioral analysis.
+
 ### Fixed
+- **Targeted Browser Cleanup**: Refined the browser cleanup logic (`_cleanup_zombie_browsers`) to use a targeted PowerShell command (on Windows) and filtered `pkill` (on Linux). This ensures that only scraper-specific browser processes (matching `stealth_profile`) are closed, leaving the user's personal browser sessions (Chrome/Firefox/Edge) completely untouched.
+- **Firefox Launch Resilience**: Enhanced `_clear_profile_locks` to handle Firefox-specific `.parentlock` and `lock` files. Added automated zombie process cleanup before launch to prevent "Profile in use" errors and 90s timeouts.
+- **Workspace Optimization**: Performed a deep cleanup of the project directory, removing hundreds of temporary files (`.png`, `.html`, `.log`) and orphaned profile directories to free up disk space.
 - **Robust Block Detection**: Broadened hard block keywords to include "uso indebido", "bloqueado", and variations. Improved text extraction using `document.documentElement.innerText` and whitespace normalization to ensure detection of messages across the whole page.
 - **Deep Block Verification**: Added a fallback check in the listing loop that performs a thorough text scan if no properties are found, preventing "silent blocks".
 - **Captcha False Positive Mitigation**: Relaxed validation in `missing_fields` to only require `URL`, `price`, and `Titulo`. This prevents legitimate property pages from triggering CAPTCHA alarms when optional fields like `Provincia` or `Ubicacion` are missing or misformatted.
