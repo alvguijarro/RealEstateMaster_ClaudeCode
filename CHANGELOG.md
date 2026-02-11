@@ -5,6 +5,7 @@
 ### Added
 - **Architectural Deep Dive**: Completed a comprehensive analysis of the project's multi-service architecture (Scraper, Analyzer, Merger, Dashboard).
 - **Onboarding Documentation**: Created a summarized [walkthrough.md](file:///C:/Users/alvgu/.gemini/antigravity/brain/9d461782-381f-4e54-be73-85b1a6ef310f/walkthrough.md) documenting service orchestration, anti-detection mechanisms, and analytical pipelines.
+- **Log Verbosity Reduction**: Globally filtered intermediate scraper logs (`DEBUG_TIMING`, `STEALTH`, and routine `INFO` messages) to provide a cleaner output focusing on successful scrapes and critical alerts.
 
 ## [2026-02-12]
 

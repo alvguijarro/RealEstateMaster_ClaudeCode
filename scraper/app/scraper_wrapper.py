@@ -887,8 +887,29 @@ class ScraperController:
             self.output_file = self.forced_target_file
     
     def log(self, level: str, message: str):
-        """Log a message and send to callback if set."""
+        """Log a message and send to callback if set. Filters verbose intermediate logs."""
         self._last_log_time = time.time()
+        
+        # Filter out verbose intermediate logs as requested by user
+        # We keep ERR, WARN, OK (successful scrapes) and critical INFO
+        level_upper = level.upper()
+        if level_upper in ["DEBUG_TIMING", "STEALTH", "DEBUG"]:
+            return
+            
+        # Optional: Filter very specific INFO logs that are too frequent
+        if level_upper == "INFO":
+            # Silence routine navigation and checkpoint logs to keep output clean
+            silence_patterns = [
+                "Navigating to:", 
+                "Sleeping for", 
+                "took", 
+                "Saved periodic checkpoint",
+                "Loaded",
+                "Target Excel file"
+            ]
+            if any(p in message for p in silence_patterns):
+                return
+
         if self.on_log:
             self.on_log(level, message)
     
