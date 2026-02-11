@@ -11,11 +11,12 @@
 - **Automatic Price Filtering**: Implemented automatic price limit filters for provincial searches (2.000€ for rent, 300.000€ for sale).
 
 ### Fixed
-- **UI Button Synchronization**: Ensured the "Stop" and "Pause" buttons in the web interface are always enabled while any scraping task is active, and standardized labels to "Detener".
+- **UI Button Synchronization**: Ensured the "Stop" and "Pause" buttons in the web interface are always enabled while any scraping task is active, and standardized labels to "Detener". Fixed a regression where buttons re-enabled prematurely during batch mode errors.
 - **Excel Targeting Precision**: Fixed an issue where the user-selected destination file was being overridden by automatic city-detection logic.
 - **Server Control Clarity**: Renamed the server stop button from "Parar" to "Detener Serv." and ensured consistency in the UI.
-- **Status Reporting**: Enhanced the `/api/status` endpoint to accurately report the combined state of manual scrapers and background batch processes.
+- **Status Reporting**: Enhanced the `/api/status` endpoint to accurately report the combined state of manual scrapers and background batch processes, preventing UI resets during batch retries.
 - **Checkpoint Resilience**: Resolved a critical `'NoneType' object has no attribute 'empty'` error during periodic saves.
+- **Critical Regressions**: Fixed a `NameError: name 'pd' is not defined` caused by a missing import in `scraper_wrapper.py`.
 
 ## [2026-02-11]
 

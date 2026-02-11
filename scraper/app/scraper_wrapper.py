@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import pandas as pd
 import random
 import re
 import sys

@@ -456,8 +456,9 @@ def get_status():
         
     # Check if batch runner (periodic_process) is active
     if periodic_process and periodic_process.poll() is None:
-        # If batch is running but scraper is idle/finished URL, report running
-        if status in ('idle', 'completed', 'stopped'):
+        # If batch is running but individual scraper has an error/stopped, 
+        # report 'running' to keep UI locked until batch actually finishes.
+        if status in ('idle', 'completed', 'stopped', 'error'):
             status = 'running'
         mode = 'batch'
         
