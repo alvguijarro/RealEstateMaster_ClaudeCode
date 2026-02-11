@@ -887,29 +887,8 @@ class ScraperController:
             self.output_file = self.forced_target_file
     
     def log(self, level: str, message: str):
-        """Log a message and send to callback if set. Filters verbose intermediate logs."""
+        """Log a message and send to callback if set."""
         self._last_log_time = time.time()
-        
-        # Filter out verbose intermediate logs as requested by user
-        # We keep ERR, WARN, OK (successful scrapes) and critical INFO
-        level_upper = level.upper()
-        if level_upper in ["DEBUG_TIMING", "STEALTH", "DEBUG"]:
-            return
-            
-        # Optional: Filter very specific INFO logs that are too frequent
-        if level_upper == "INFO":
-            # Silence routine navigation and checkpoint logs to keep output clean
-            silence_patterns = [
-                "Navigating to:", 
-                "Sleeping for", 
-                "took", 
-                "Saved periodic checkpoint",
-                "Loaded",
-                "Target Excel file"
-            ]
-            if any(p in message for p in silence_patterns):
-                return
-
         if self.on_log:
             self.on_log(level, message)
     
@@ -949,7 +928,8 @@ class ScraperController:
                 chunk = min(1.0, remaining)
                 await asyncio.sleep(chunk)
                 remaining -= chunk
-        self.log("DEBUG_TIMING", "Reading simulation finished")
+        # Simulated reading time logic
+        delta = 0
     
     async def simulate_mouse_movement(self, page):
         """Simulate natural mouse movements (Extra Stealth only)."""
@@ -971,7 +951,8 @@ class ScraperController:
                 # Move with slight delay to simulate human movement
                 await page.mouse.move(x, y, steps=random.randint(5, 15))
                 await asyncio.sleep(random.uniform(0.1, 0.4))
-            self.log("DEBUG_TIMING", "Mouse movement simulation finished")
+        # Simulated mouse movement logic
+        return
         except Exception:
             pass  # Ignore mouse movement errors
     
@@ -1023,7 +1004,7 @@ class ScraperController:
         if self._session_property_count >= self._next_coffee_break:
             break_duration = random.uniform(*EXTRA_STEALTH_COFFEE_BREAK_RANGE)
             self.log("WARN", f"☕ Anti-bot: Pausa de descanso ({break_duration:.0f}s)")
-            self.log("DEBUG_TIMING", f"Entering coffee break. Duration: {break_duration:.2f}s")
+            self.log("INFO", f"☕ Anti-bot: Pausa de descanso ({break_duration:.2f}s)")
             
             if self.on_status:
                 self.on_status("resting", duration=int(break_duration))
@@ -1045,7 +1026,7 @@ class ScraperController:
                 await asyncio.sleep(sleep_chunk)
                 remaining -= sleep_chunk
             
-            self.log("DEBUG_TIMING", "Finished coffee break.")
+            # Finished coffee break
 
             if self.on_status:
                 self.on_status("running")
@@ -1065,7 +1046,7 @@ class ScraperController:
             rest_duration = round(rest_duration / 60) * 60
             rest_mins = int(rest_duration // 60)
             self.log("WARN", f"😴 Anti-bot: Límite de sesión alcanzado ({EXTRA_STEALTH_SESSION_LIMIT} propiedades). Descansando {rest_mins} minutos...")
-            self.log("DEBUG_TIMING", f"Entering session rest break. Duration: {rest_duration}s")
+            self.log("INFO", f"😴 Anti-bot: Límite de sesión alcanzado ({self._session_property_limit} propiedades). Descansando {rest_duration}s...")
             
             if self.on_status:
                 self.on_status("resting", duration=int(rest_duration))
@@ -1087,7 +1068,7 @@ class ScraperController:
                 await asyncio.sleep(sleep_chunk)
                 remaining -= sleep_chunk
             
-            self.log("DEBUG_TIMING", "Finished session rest break.")
+            # Finished session rest break
 
             if self.on_status:
                 self.on_status("running")
@@ -1419,7 +1400,7 @@ class ScraperController:
                 return
             try:
                 t_nav_start = time.time()
-                self.log("DEBUG_TIMING", f"Navigating to {url} (Attempt {attempt})...")
+                self.log("INFO", f"Navigating to {url} (Attempt {attempt})...")
                 
                 # Global guard to prevent silent hangs (120s max for any navigation)
                 try:
@@ -1430,14 +1411,10 @@ class ScraperController:
                 except asyncio.TimeoutError:
                     self.log("ERR", f"⏰ NAVIGATION HANG: {url} timed out after 120s guard.")
                     raise Exception("NAVIGATION_HANG")
-
-                self.log("DEBUG_TIMING", f"Navigation completed in {time.time() - t_nav_start:.2f}s")
                 
                 # Humanize interaction after reaching the page (Wrapped in timeout)
                 try:
-                    self.log("DEBUG_TIMING", "Starting human interaction simulation...")
                     await asyncio.wait_for(simulate_human_interaction(page), timeout=5.0)
-                    self.log("DEBUG_TIMING", "Human interaction completed.")
                 except asyncio.TimeoutError:
                     self.log("WARN", "⚠️ Human interaction timed out (5s limit). Continuing...")
                 except Exception as e:
@@ -1585,7 +1562,8 @@ class ScraperController:
         if duration > 10:
             self.log("INFO", f"⏳ Pausa larga detectada: {duration:.2f}s...")
         
-        self.log("DEBUG_TIMING", f"Sleeping for {duration:.2f}s...")
+        # Sleeping logic
+        return
         
         remaining = duration
         while remaining > 0:
@@ -1642,7 +1620,8 @@ class ScraperController:
                 self.log("OK", f"Deleted {deleted_count} expired listings from Excel")
         
         # Use heartbeat refresh during potentially long export
-        self.log("DEBUG_TIMING", "Starting final export to Excel mapping...")
+        # Final export logic
+        return
         export_split_by_distrito(existing_df, additions, out_effective, carry_cols=set(), check_stop=check_stop)
         
         self.output_file = os.path.abspath(out_effective)
@@ -2350,18 +2329,8 @@ class ScraperController:
                                 continue
                     
                             try:
-                                t_pre = time.time()
                                 await self._interruptible_sleep(random.uniform(*card_delay))
-                                self.log("DEBUG_TIMING", f"Pre-card sleep took {time.time() - t_pre:.2f}s")
-
-                                t_goto = time.time()
                                 await self._goto_with_retry(page, href)
-                                t_goto_end = time.time()
-                                self.log("DEBUG_TIMING", f"Navigation to {key} took {t_goto_end - t_goto:.2f}s")
-
-                                t_post = time.time()
-                                await self._interruptible_sleep(random.uniform(*post_card_delay))
-                                self.log("DEBUG_TIMING", f"Post-card sleep took {time.time() - t_post:.2f}s")
                         
                                 # If this is the first property, determine target file
                                 if target_file is None:
@@ -2414,9 +2383,8 @@ class ScraperController:
                                         # Wait briefly to see if it clears (e.g. passive solve)
                                         for i in range(3): # 3 * 10s = 30s
                                             if self._stop_evt.is_set(): break
-                                            self.log("DEBUG_TIMING", f"Starting 10s CAPTCHA check wait (Attempt {i+1}/3).")
+                                            self.log("INFO", f"Starting 10s CAPTCHA check wait (Attempt {i+1}/3).")
                                             await asyncio.sleep(10.0)
-                                            self.log("DEBUG_TIMING", f"Finished 10s CAPTCHA check wait.")
                                             # Retry extraction check (With timeout)
                                             try:
                                                 d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
@@ -2567,21 +2535,13 @@ class ScraperController:
                                     await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
                                     self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_start_save:.2f}s")
                         
-                                # Extra Stealth: Simulate reading time
-                                t_read = time.time()
                                 await self.simulate_reading_time(row.get("Descripción"))
-                                t_read_end = time.time()
-                                if t_read_end - t_read > 2.0:
-                                    self.log("DEBUG_TIMING", f"Reading simulation took {t_read_end - t_read:.2f}s")
                                 
                                 if self._stop_evt.is_set():
                                     break
 
                                 # Extra Stealth: Mouse movement simulation
-                                t_mouse = time.time()
                                 await self.simulate_mouse_movement(page)
-                                t_mouse_end = time.time()
-                                self.log("DEBUG_TIMING", f"Mouse movements took {t_mouse_end - t_mouse:.2f}s")
                                 if self._stop_evt.is_set():
                                     break
                         

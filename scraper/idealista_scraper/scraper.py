@@ -120,8 +120,6 @@ async def _goto_with_retry(page, url: str) -> None:
             # Wait a fixed time for JavaScript to render content
             await asyncio.sleep(3.0)
             
-            total_goto_time = time.time() - t_start_goto
-            log("DEBUG", f"_goto_with_retry took {total_goto_time:.2f}s for {url}")
             return
         except Exception as e:
             last_err = e
@@ -158,9 +156,7 @@ class ScraperSession:
                 log("ERR", f"Failed to open {list_url}: {e}")
                 break
 
-            # Wait for page content to load - critical for JavaScript-rendered pages
             try:
-                log("DEBUG", "Waiting for page content to load...")
                 # Wait for property cards to appear (adjust selector based on actual structure)
                 await page.wait_for_selector("article, .item, [data-element-id]", timeout=10000, state="visible")
                 # Additional wait for JavaScript to finish rendering
@@ -193,10 +189,8 @@ class ScraperSession:
                 log("WARN", "  1. The page structure has changed")
                 log("WARN", "  2. The page requires JavaScript to load (already scrolled)")
                 log("WARN", "  3. This is not a listing page")
-                # Try to get page title for debugging
                 try:
                     title = await page.title()
-                    log("DEBUG", f"Page title: {title}")
                 except Exception:
                     pass
             
@@ -330,7 +324,6 @@ class ScraperSession:
 
         async with async_playwright() as pw:
             # Launch a fresh browser instance (not connected to existing Chrome)
-            log("INFO", "Launching new browser window...")
             try:
                 browser = await pw.chromium.launch(
                     headless=False,  # Show the browser window
@@ -339,7 +332,6 @@ class ScraperSession:
                     ],
                     ignore_default_args=["--enable-automation", "--no-sandbox"]
                 )
-                log("INFO", "Browser launched successfully!")
             except Exception as e:
                 log("ERR", f"Could not launch browser: {e}")
                 log("ERR", "Make sure Playwright browsers are installed: python -m playwright install chromium")

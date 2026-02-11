@@ -20,21 +20,14 @@ from urllib.parse import urlparse
 
 def log(kind: str, msg: str) -> None:
     """Simple timestamped logger with colored output for different log levels.
-    Filters out verbose intermediate logs as requested by user.
+    
+    Args:
+        kind: Log level/kind - one of: DEBUG, INFO, OK, WARN, ERR
+        msg: The message to log
     """
     import sys
     import os
     
-    # Filter verbose logs
-    kind_upper = kind.upper()
-    if kind_upper in ["DEBUG_TIMING", "STEALTH", "DEBUG"]:
-        return
-        
-    if kind_upper == "INFO":
-        silence_patterns = ["Navigating to:", "Sleeping for", "took", "Target Excel file", "Loaded"]
-        if any(p in msg for p in silence_patterns):
-            return
-
     ts = time.strftime("%H:%M:%S")
     
     # Detect if we should use colors (terminal only)
@@ -48,21 +41,23 @@ def log(kind: str, msg: str) -> None:
             "WARN": "\033[33m",     # Yellow
             "ERR": "\033[31m",      # Red
         }
-        color = colors.get(kind_upper, "")
+        color = colors.get(kind.upper(), "")
         reset = "\033[0m"
     else:
         color = ""
         reset = ""
     
-    full_msg = f"[{ts}] [{kind_upper}] {msg}"
+    full_msg = f"[{ts}] [{kind.upper()}] {msg}"
     
     try:
         print(f"{color}{full_msg}{reset}")
     except UnicodeEncodeError:
         # Fallback for Windows consoles (cp1252)
+        # Replace non-ascii chars like ≤, → with safe alternatives
         safe_msg = msg.replace("≤", "<=").replace("→", "->").replace("€", "E")
+        # Final safety net: replace any other unicode with ?
         try:
-            print(f"{color}[{ts}] [{kind_upper}] {safe_msg}{reset}")
+            print(f"{color}[{ts}] [{kind.upper()}] {safe_msg}{reset}")
         except UnicodeEncodeError:
             final_msg = full_msg.encode('ascii', 'replace').decode('ascii')
             print(f"{final_msg}")
