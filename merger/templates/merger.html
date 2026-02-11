@@ -320,6 +320,130 @@
             font-family: 'Fira Code', monospace;
             font-size: 0.85em;
         }
+
+        /* Custom Overlay Dropdown Styles */
+        .custom-dropdown-group {
+            position: relative;
+            width: 100%;
+        }
+
+        .dropdown-trigger {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s ease;
+            width: 100%;
+            height: 48px;
+        }
+
+        .dropdown-trigger:hover {
+            border-color: var(--accent);
+        }
+
+        .dropdown-trigger:focus {
+            outline: 2px solid var(--accent);
+        }
+
+        .dropdown-overlay {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background-color: #111827;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            margin-top: 5px;
+            max-height: 400px;
+            overflow-y: hidden;
+            display: none;
+            flex-direction: column;
+        }
+
+        .dropdown-overlay.active {
+            display: flex;
+        }
+
+        .dropdown-search {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: #111827;
+            position: sticky;
+            top: 0;
+            z-index: 10000;
+        }
+
+        .dropdown-search input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: #030712;
+            color: var(--text-main);
+            font-size: 0.85rem;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .dropdown-search input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .dropdown-options {
+            padding: 5px 0;
+            overflow-y: auto;
+            max-height: 340px;
+        }
+
+        .dropdown-item {
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.15s;
+            font-size: 0.9rem;
+            color: var(--text-main);
+        }
+
+        .dropdown-item:hover {
+            background-color: var(--glass-hover);
+        }
+
+        .dropdown-item .file-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-left: 10px;
+            white-space: nowrap;
+        }
+
+        .dropdown-trigger .arrow {
+            font-size: 0.7rem;
+            transition: transform 0.2s;
+        }
+
+        .dropdown-overlay.active~.dropdown-trigger .arrow {
+            transform: rotate(180deg);
+        }
+
+        /* Scrollbar for dropdown */
+        .dropdown-options::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .dropdown-options::-webkit-scrollbar-thumb {
+            background-color: var(--border-color);
+            border-radius: 3px;
+        }
     </style>
 </head>
 
@@ -356,16 +480,40 @@
                 </div>
                 <div class="settings-grid">
                     <div class="form-group">
-                        <label for="file1">Archivo 1 (Primario)</label>
-                        <select id="file1">
-                            <option value="">Cargando archivos...</option>
-                        </select>
+                        <label for="trigger1">Archivo 1 (Primario)</label>
+                        <div class="custom-dropdown-group">
+                            <div class="dropdown-trigger" id="trigger1" tabindex="0">
+                                <span id="selectedText1">Cargando archivos...</span>
+                                <span class="arrow">▼</span>
+                            </div>
+                            <input type="hidden" id="file1" value="">
+                            <div class="dropdown-overlay" id="dropdown1">
+                                <div class="dropdown-search">
+                                    <input type="text" placeholder="Buscar archivo..." id="search1">
+                                </div>
+                                <div class="dropdown-options" id="list1">
+                                    <!-- JS will populate -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label for="file2">Archivo 2 (Secundario)</label>
-                        <select id="file2">
-                            <option value="">Cargando archivos...</option>
-                        </select>
+                        <label for="trigger2">Archivo 2 (Secundario)</label>
+                        <div class="custom-dropdown-group">
+                            <div class="dropdown-trigger" id="trigger2" tabindex="0">
+                                <span id="selectedText2">Cargando archivos...</span>
+                                <span class="arrow">▼</span>
+                            </div>
+                            <input type="hidden" id="file2" value="">
+                            <div class="dropdown-overlay" id="dropdown2">
+                                <div class="dropdown-search">
+                                    <input type="text" placeholder="Buscar archivo..." id="search2">
+                                </div>
+                                <div class="dropdown-options" id="list2">
+                                    <!-- JS will populate -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div id="errorArea" class="status-box error" style="margin-top: 15px; display: none;"></div>
@@ -392,8 +540,8 @@
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const file1Select = document.getElementById('file1');
-            const file2Select = document.getElementById('file2');
+            const file1Input = document.getElementById('file1');
+            const file2Input = document.getElementById('file2');
             const btnMerge = document.getElementById('btnMerge');
             const statusArea = document.getElementById('statusArea');
             const errorArea = document.getElementById('errorArea');
@@ -418,7 +566,6 @@
                     if (field === 'name') {
                         compare = a.filename.localeCompare(b.filename);
                     } else if (field === 'date') {
-                        // Ensure numeric comparison
                         const mtimeA = Number(a.mtime) || 0;
                         const mtimeB = Number(b.mtime) || 0;
                         compare = mtimeA - mtimeB;
@@ -432,21 +579,47 @@
                 return sorted;
             }
 
-            function renderFiles() {
+            function renderFiles(filter1 = '', filter2 = '') {
                 const sorted = sortFiles(allFiles, currentSort.field, currentSort.order);
-                const placeholder = '<option value="">-- Seleccionar archivo --</option>';
 
-                const renderOptions = (target) => {
-                    const currentVal = target.value;
-                    target.innerHTML = placeholder + sorted.map(f => {
+                const renderOptions = (listId, selectedTextId, inputId, filterTerm) => {
+                    const list = document.getElementById(listId);
+                    const selectedText = document.getElementById(selectedTextId);
+                    const input = document.getElementById(inputId);
+                    const term = filterTerm.toLowerCase();
+
+                    list.innerHTML = '';
+
+                    const filtered = term
+                        ? sorted.filter(f => f.filename.toLowerCase().includes(term))
+                        : sorted;
+
+                    if (filtered.length === 0) {
+                        list.innerHTML = '<div class="dropdown-item" style="color: var(--text-muted); cursor: default;">No se encontraron archivos</div>';
+                        return;
+                    }
+
+                    filtered.forEach(f => {
+                        const item = document.createElement('div');
+                        item.className = 'dropdown-item';
                         const sizeStr = formatSize(f.size);
-                        return `<option value="${f.filename}">${f.filename}  [${f.last_modified}] (${sizeStr})</option>`;
-                    }).join('');
-                    target.value = currentVal;
+                        item.innerHTML = `
+                            <span>${f.filename}</span>
+                            <span class="file-meta">${f.last_modified} (${sizeStr})</span>
+                        `;
+                        item.onclick = (e) => {
+                            e.stopPropagation();
+                            input.value = f.filename;
+                            selectedText.textContent = f.filename;
+                            document.querySelectorAll('.dropdown-overlay').forEach(el => el.classList.remove('active'));
+                            validateSelection();
+                        };
+                        list.appendChild(item);
+                    });
                 };
 
-                renderOptions(file1Select);
-                renderOptions(file2Select);
+                renderOptions('list1', 'selectedText1', 'file1', filter1);
+                renderOptions('list2', 'selectedText2', 'file2', filter2);
                 validateSelection();
             }
 
@@ -469,10 +642,8 @@
                 btn.addEventListener('click', () => {
                     const field = btn.dataset.sort;
                     if (currentSort.field === field) {
-                        // Toggle order
                         currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
                     } else {
-                        // New field, default order
                         currentSort.field = field;
                         currentSort.order = field === 'name' ? 'asc' : 'desc';
                     }
@@ -481,6 +652,41 @@
                 });
             });
 
+            function setupDropdownUI() {
+                [1, 2].forEach(id => {
+                    const trigger = document.getElementById('trigger' + id);
+                    const overlay = document.getElementById('dropdown' + id);
+                    const search = document.getElementById('search' + id);
+
+                    trigger.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const wasActive = overlay.classList.contains('active');
+
+                        // Close all
+                        document.querySelectorAll('.dropdown-overlay').forEach(el => el.classList.remove('active'));
+
+                        // Toggle this one
+                        if (!wasActive) {
+                            overlay.classList.add('active');
+                            setTimeout(() => search.focus(), 50);
+                        }
+                    });
+
+                    search.addEventListener('input', (e) => {
+                        if (id === 1) renderFiles(e.target.value, document.getElementById('search2').value);
+                        else renderFiles(document.getElementById('search1').value, e.target.value);
+                    });
+
+                    search.addEventListener('click', (e) => e.stopPropagation());
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.custom-dropdown-group')) {
+                        document.querySelectorAll('.dropdown-overlay').forEach(el => el.classList.remove('active'));
+                    }
+                });
+            }
+
             async function loadFiles() {
                 const btnRefresh = document.getElementById('btnRefresh');
                 btnRefresh.classList.add('loading');
@@ -488,12 +694,17 @@
                 try {
                     const res = await fetch('/list-files');
                     allFiles = await res.json();
+
+                    // Reset text if no file1/2
+                    if (!file1Input.value) document.getElementById('selectedText1').textContent = '-- Seleccionar archivo --';
+                    if (!file2Input.value) document.getElementById('selectedText2').textContent = '-- Seleccionar archivo --';
+
                     renderFiles();
+                    setupDropdownUI();
                 } catch (err) {
                     console.error('Error loading files:', err);
-                    const errorOpt = '<option>Error al cargar archivos</option>';
-                    file1Select.innerHTML = errorOpt;
-                    file2Select.innerHTML = errorOpt;
+                    document.getElementById('selectedText1').textContent = 'Error al cargar';
+                    document.getElementById('selectedText2').textContent = 'Error al cargar';
                 } finally {
                     btnRefresh.classList.remove('loading');
                 }
@@ -510,10 +721,9 @@
             }
 
             function validateSelection() {
-                const f1 = file1Select.value;
-                const f2 = file2Select.value;
+                const f1 = file1Input.value;
+                const f2 = file2Input.value;
 
-                // Hide error initially
                 errorArea.style.display = 'none';
 
                 if (!f1 || !f2) {
@@ -542,7 +752,6 @@
                     return;
                 }
 
-                // All validation passed
                 setButtonState(true);
             }
 
@@ -563,13 +772,10 @@
                 }
             }
 
-            file1Select.addEventListener('change', validateSelection);
-            file2Select.addEventListener('change', validateSelection);
-
             btnMerge.addEventListener('click', async () => {
                 if (btnMerge.disabled) return;
-                const f1 = file1Select.value;
-                const f2 = file2Select.value;
+                const f1 = file1Input.value;
+                const f2 = file2Input.value;
 
                 btnMerge.disabled = true;
                 btnMerge.querySelector('span:first-child').innerText = "FUSIONANDO...";
