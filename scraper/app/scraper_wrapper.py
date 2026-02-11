@@ -881,6 +881,10 @@ class ScraperController:
         self._index_map = {}
         self._stopped_by_user = False
         self._last_log_time = time.time()
+        
+        # Initialize output_file with forced_target_file if provided
+        if self.forced_target_file:
+            self.output_file = self.forced_target_file
     
     def log(self, level: str, message: str):
         """Log a message and send to callback if set."""
@@ -1366,7 +1370,8 @@ class ScraperController:
         if not additions:
             return
         
-        self.log("INFO", f"💾 Auto-checkpoint: Saving {len(additions)} properties to {target_file or 'Excel'}")
+        log_file = self._province_target_file or target_file or 'Excel'
+        self.log("INFO", f"💾 Auto-checkpoint: Saving {len(additions)} properties to {log_file}")
         try:
             # Pass stop check to prevent hangs
             check_stop = lambda: self._stop_evt.is_set()
@@ -1738,6 +1743,10 @@ class ScraperController:
                         self.log("INFO", f"Province file not found - will create: {province_file}")
             else:
                 self.log("WARN", "Could not detect province/operation from URL. Smart enrichment partially disabled.")
+        
+        # Ensure self.output_file stays in sync with any detected/registered target_file
+        if target_file and not self.output_file:
+            self.output_file = target_file
         
         additions: List[dict] = []
         expired_urls: List[str] = []  # URLs to delete from Excel (expired listings)
@@ -2337,6 +2346,9 @@ class ScraperController:
                                             target_file = f"idealista_{category}.xlsx"
                                     else:
                                         self.log("INFO", f"Using existing target file from setup: {target_file}")
+                                    
+                                    # Update persistent reference
+                                    self.output_file = target_file
                             
                                     target_path = os.path.join(self.output_dir, target_file)
                                     self.log("INFO", f"Target Excel file: {target_path}")
