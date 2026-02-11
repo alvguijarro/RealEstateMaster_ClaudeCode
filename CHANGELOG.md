@@ -5,6 +5,7 @@
 ### Fixed
 - **Scraper Log Optimization**: Reduced console log verbosity by removing internal timing, simulation, and debug messages while preserving critical progress and error alerts.
 - **Improved Navigation Logs**: Consolidated navigation attempts and progress indicators for cleaner terminal output.
+- **Batch Process Lock**: Fixed a bug where starting a new batch process was blocked by a stale reference to a previously completed process.
 
 ### Added
 - **Architectural Deep Dive**: Completed a comprehensive analysis of the project's multi-service architecture (Scraper, Analyzer, Merger, Dashboard).

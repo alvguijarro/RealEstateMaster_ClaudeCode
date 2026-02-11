@@ -527,6 +527,11 @@ def periodic_log_monitor(process):
         print(f"Monitor error: {e}")
         emit_log('ERR', f"❌ Error en monitor de logs: {str(e)}")
         emit_status('error', message=f"Error en monitor: {str(e)}")
+    finally:
+        # CRITICAL: Clear global process state to allow starting new batches/periodic scans
+        global periodic_process, periodic_thread
+        periodic_process = None
+        periodic_thread = None
 
 @app.route('/api/periodic-lowcost/start', methods=['POST'])
 def start_periodic_lowcost():

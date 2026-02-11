@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-11T23:29:35.926842",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/balears-illes/con-precio-hasta_2000/",
+    "properties_count": 1292,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Baleares_alquiler.xlsx",
+    "filename": "idealista_Baleares_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-11T09:47:00.999060",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/badajoz-provincia/",
     "properties_count": 107,
