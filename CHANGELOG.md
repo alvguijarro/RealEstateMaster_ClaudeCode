@@ -1,5 +1,11 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-13]
+
+### Added
+- **Architectural Deep Dive**: Completed a comprehensive analysis of the project's multi-service architecture (Scraper, Analyzer, Merger, Dashboard).
+- **Onboarding Documentation**: Created a summarized [walkthrough.md](file:///C:/Users/alvgu/.gemini/antigravity/brain/9d461782-381f-4e54-be73-85b1a6ef310f/walkthrough.md) documenting service orchestration, anti-detection mechanisms, and analytical pipelines.
+
 ## [2026-02-12]
 
 ### Added
