@@ -102,8 +102,15 @@
                                     style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
                                     <span><span style="margin-right:8px;">🗺️</span> Actualizar provincias
                                         completas</span>
-                                    <button class="btn-icon-only" onclick="toggleProvinceHelp()"
-                                        title="Ayuda sobre este proceso" style="font-size: 1rem;">ℹ️</button>
+                                    <div style="display: flex; gap: 8px; align-items: center;">
+                                        <button id="btnRefreshProvinces" class="btn-refresh"
+                                            title="Actualizar lista de archivos"
+                                            style="padding: 4px 10px; font-size: 0.75rem;">
+                                            <span class="refresh-icon">🔄</span>
+                                        </button>
+                                        <button class="btn-icon-only" onclick="toggleProvinceHelp()"
+                                            title="Ayuda sobre este proceso" style="font-size: 1rem;">ℹ️</button>
+                                    </div>
                                 </h3>
 
                                 <!-- Help text for Province Update Process (Hidden by default) -->
@@ -117,7 +124,8 @@
                                         <li>Se utilizará <strong>Smart Enrichment</strong> para evitar duplicados y
                                             actualizar precios existentes.</li>
                                         <li>El archivo Excel se guardará automáticamente en
-                                            <code>scraper/salidas</code>.</li>
+                                            <code>scraper/salidas</code>.
+                                        </li>
                                         <li>Nota: El listado de provincias se actualiza periódicamente desde Idealista
                                             para reflejar cambios en distritos.</li>
                                     </ul>
@@ -206,10 +214,17 @@
 
                             <!-- Panel 2: Actualizar estado de URLs (Excel Update) -->
                             <section class="panel excel-update-panel">
-                                <h3
-                                    style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-                                    <span style="margin-right:8px;">🔄</span> Actualizar estado de URLs
-                                </h3>
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;">
+                                    <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-main);">
+                                        <span style="margin-right:8px;">🔄</span> Actualizar estado de URLs
+                                    </h3>
+                                    <button id="btnRefreshExcelFiles" class="btn-refresh"
+                                        title="Actualizar lista de archivos"
+                                        style="padding: 4px 10px; font-size: 0.75rem;">
+                                        <span class="refresh-icon">🔄</span>
+                                    </button>
+                                </div>
 
                                 <p
                                     style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">

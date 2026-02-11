@@ -967,6 +967,7 @@ select:focus {
     background-color: var(--border);
     border-radius: 3px;
 }
+
 /* Province Dropdown - Tree View */
 .dropdown-item {
     padding: 6px 10px;
@@ -1009,7 +1010,8 @@ select:focus {
     padding-left: 28px;
     display: none;
     border-left: 1px solid var(--border);
-    margin-left: 9px; /* Align with checkbox center */
+    margin-left: 9px;
+    /* Align with checkbox center */
     margin-top: 2px;
     margin-bottom: 4px;
 }
@@ -1040,3 +1042,47 @@ input[type='checkbox']:indeterminate {
     border-color: var(--accent);
 }
 
+
+/* Refresh Button Styles */
+.btn-refresh {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500;
+}
+
+.btn-refresh:hover {
+    background: var(--glass-hover);
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+
+.btn-refresh:active {
+    transform: translateY(0);
+}
+
+.refresh-icon {
+    font-size: 1rem;
+    display: inline-block;
+    transition: transform 0.5s ease;
+}
+
+.btn-refresh.loading .refresh-icon {
+    animation: spin 1s infinite linear;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

@@ -250,6 +250,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // VPN Initialization
     initializeVpn();
+
+    // UI Refresh Buttons
+    const btnRefreshProvinces = document.getElementById('btnRefreshProvinces');
+    if (btnRefreshProvinces) {
+        btnRefreshProvinces.addEventListener('click', async () => {
+            btnRefreshProvinces.classList.add('loading');
+            await loadBatchDestinationFiles();
+            setTimeout(() => btnRefreshProvinces.classList.remove('loading'), 500);
+        });
+    }
+
+    const btnRefreshExcelFiles = document.getElementById('btnRefreshExcelFiles');
+    if (btnRefreshExcelFiles) {
+        btnRefreshExcelFiles.addEventListener('click', async () => {
+            btnRefreshExcelFiles.classList.add('loading');
+            await loadExcelFiles();
+            setTimeout(() => btnRefreshExcelFiles.classList.remove('loading'), 500);
+        });
+    }
 });
 
 // URL Update Elements
