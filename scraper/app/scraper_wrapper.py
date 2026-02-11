@@ -215,10 +215,8 @@ BROWSER_ENGINES = ["chromium", "firefox", "webkit"]
 def load_profile_cooldowns() -> dict: return {}
 def save_profile_cooldowns(cooldowns: dict) -> None: pass
 def mark_profile_blocked(engine: str) -> None: 
-    # Map engine name to our new internal marking if possible, 
-    # but run_batch calls this on the controller, not the module level usually.
-    # Module level stub:
-    pass
+    """Legacy wrapper to mark current profile as blocked."""
+    mark_current_profile_blocked()
 
 def is_profile_available(engine: str) -> bool: 
     # For legacy scripts, we just say True and let the controller handle rotation
@@ -322,7 +320,7 @@ _GPU_VENDOR, _GPU_RENDERER = get_random_gpu()
 # Deep fingerprint spoofing script - injected before any page load
 # Uses f-string to inject randomized GPU values
 def generate_stealth_script():
-    """Generate stealth script with randomized GPU fingerprint."""
+    """Generate stealth script with randomized GPU fingerprint and advanced noise."""
     return f'''
 // ==================== PHASE 1: DEEP FINGERPRINT SPOOFING ====================
 
@@ -368,7 +366,7 @@ try {{
     }}
 }} catch (e) {{}}
 
-// 3. Add realistic navigator.plugins (automated browsers often have empty plugins)
+// 3. Add realistic navigator.plugins
 try {{
     Object.defineProperty(navigator, 'plugins', {{
         get: () => {{
@@ -386,14 +384,14 @@ try {{
     }});
 }} catch (e) {{}}
 
-// 4. Fix navigator.languages (should be array, not frozen)
+// 4. Fix navigator.languages
 try {{
     Object.defineProperty(navigator, 'languages', {{
         get: () => ['es-ES', 'es', 'en-US', 'en']
     }});
 }} catch (e) {{}}
 
-// 5. Patch Permissions API (automation often lacks notifications permission)
+// 5. Patch Permissions API
 try {{
     const originalQuery = window.navigator.permissions.query;
     window.navigator.permissions.query = (params) => {{
@@ -404,21 +402,16 @@ try {{
     }};
 }} catch (e) {{}}
 
-// 6. Add slight randomization to timing functions (defeats timing analysis)
+// 6. Timing randomization
 try {{
     const originalNow = Date.now;
     const randomOffset = Math.floor(Math.random() * 50);
     Date.now = function() {{
         return originalNow() + randomOffset;
     }};
-    
-    const originalPerfNow = performance.now;
-    performance.now = function() {{
-        return originalPerfNow.call(performance) + (Math.random() * 0.1);
-    }};
 }} catch (e) {{}}
 
-// 7. Override connection info (automation often has different values)
+// 7. Override connection info
 try {{
     Object.defineProperty(navigator, 'connection', {{
         get: () => ({{
@@ -430,32 +423,91 @@ try {{
     }});
 }} catch (e) {{}}
 
-// 8. Hide automation indicators in window object
+// 8. Hide automation indicators
 try {{
-    // Remove common automation flags
     delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
     delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
     delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
     
-    // Ensure navigator.webdriver is undefined
     Object.defineProperty(navigator, 'webdriver', {{
         get: () => undefined
     }});
 }} catch (e) {{}}
 
-// 9. Realistic screen properties 
+// 11. ADVANCED: Canvas Noise Fingerprinting
 try {{
-    Object.defineProperty(screen, 'availWidth', {{ get: () => window.innerWidth }});
-    Object.defineProperty(screen, 'availHeight', {{ get: () => window.innerHeight + 40 }});
+    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function(type) {{
+        if (type === 'image/png') {{
+            const ctx = this.getContext('2d');
+            if (ctx) {{
+                const imageData = ctx.getImageData(0, 0, 1, 1);
+                imageData.data[0] = (imageData.data[0] + 1) % 255; // Subtlest noise
+                ctx.putImageData(imageData, 0, 0);
+            }}
+        }}
+        return originalToDataURL.apply(this, arguments);
+    }};
 }} catch (e) {{}}
 
-// 10. Override deviceMemory (headless often has unusual values)
+// 12. ADVANCED: WebRTC IP Protection
 try {{
-    Object.defineProperty(navigator, 'deviceMemory', {{ get: () => 8 }});
-    Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => 8 }});
+    if (window.RTCPerformerConnection || window.RTCPeerConnection) {{
+        const originalRTC = window.RTCPeerConnection || window.RTCPerformerConnection;
+        window.RTCPeerConnection = function(...args) {{
+            const conn = new originalRTC(...args);
+            const originalAddIceCandidate = conn.addIceCandidate;
+            conn.addIceCandidate = function(candidate) {{
+                if (candidate && candidate.candidate && candidate.candidate.includes('192.168.')) {{
+                     return Promise.resolve();
+                }}
+                return originalAddIceCandidate.apply(this, arguments);
+            }};
+            return conn;
+        }};
+    }}
 }} catch (e) {{}}
 
-console.log('[STEALTH] Deep fingerprint spoofing active - GPU: {_GPU_RENDERER}');
+// 13. ADVANCED: Font List Obfuscation
+try {{
+    const originalFT = document.fonts.check;
+    document.fonts.check = function(font) {{
+        const standardFonts = ['arial', 'times new roman', 'helvetica', 'sans-serif'];
+        if (standardFonts.some(f => font.toLowerCase().includes(f))) {{
+            return originalFT.apply(document.fonts, arguments);
+        }}
+        return false;
+    }};
+}} catch (e) {{}}
+
+// 14. MODERN: userAgentData Spoofing
+try {{
+    if (navigator.userAgentData) {{
+        const brands = [
+            {{ brand: 'Google Chrome', version: '132' }},
+            {{ brand: 'Not A(Brand', version: '8' }},
+            {{ brand: 'Chromium', version: '132' }}
+        ];
+        Object.defineProperty(navigator, 'userAgentData', {{
+            get: () => ({{
+                brands: brands,
+                mobile: false,
+                platform: 'Windows',
+                getHighEntropyValues: (hints) => Promise.resolve({{
+                    brands: brands,
+                    mobile: false,
+                    platform: 'Windows',
+                    platformVersion: '10.0.0',
+                    architecture: 'x86',
+                    model: '',
+                    uaFullVersion: '132.0.0.0'
+                }})
+            }})
+        }});
+    }}
+}} catch (e) {{}}
+
+console.log('[STEALTH] Advanced anti-detection active (Canvas/WebRTC/Fonts/UAData) - GPU: {_GPU_RENDERER}');
 '''
 
 # For backward compatibility, generate the script at module load
@@ -563,30 +615,54 @@ async def human_warmup_routine(page, log_func=None):
 
 async def continuous_mouse_jitter(page, stop_event):
     """
-    Background task that subtly moves the mouse at random intervals.
+    Background task that subtly moves the mouse using organic Bézier curves.
     Helps maintain "human presence" during page loads.
     """
     import random
     import asyncio
-    
+    import math
+
+    def bezier_curve(p0, p1, p2, p3, t):
+        """Calculate point on cubic Bézier curve."""
+        return (
+            (1-t)**3 * p0 +
+            3 * (1-t)**2 * t * p1 +
+            3 * (1-t) * t**2 * p2 +
+            t**3 * p3
+        )
+
+    async def organic_move(target_x, target_y, steps=20):
+        # Current mouse position estimation (Playwright doesn't expose it easily)
+        # We start from a random point or the last known point
+        start_x, start_y = random.randint(100, 500), random.randint(100, 500)
+        
+        # Control points for the curve
+        cp1_x = start_x + (target_x - start_x) * random.random()
+        cp1_y = start_y + (target_y - start_y) * random.random()
+        cp2_x = start_x + (target_x - start_x) * random.random()
+        cp2_y = start_y + (target_y - start_y) * random.random()
+        
+        for i in range(1, steps + 1):
+            t = i / steps
+            x = bezier_curve(start_x, cp1_x, cp2_x, target_x, t)
+            y = bezier_curve(start_y, cp1_y, cp2_y, target_y, t)
+            await page.mouse.move(x, y)
+            await asyncio.sleep(random.uniform(0.01, 0.03))
+
     while not stop_event.is_set():
         try:
-            await asyncio.sleep(random.uniform(3, 8))
+            await asyncio.sleep(random.uniform(4, 12))
             
             if stop_event.is_set():
                 break
                 
-            # Small random movement
-            x_offset = random.randint(-30, 30)
-            y_offset = random.randint(-30, 30)
+            # Random target in the viewport
+            target_x = random.randint(100, 1000)
+            target_y = random.randint(100, 800)
             
-            # Get current position and add offset (stay within bounds)
             try:
-                await page.mouse.move(
-                    random.randint(300, 900),
-                    random.randint(200, 600),
-                    steps=random.randint(3, 8)
-                )
+                # Use fewer steps for jitter, more for "interest"
+                await organic_move(target_x, target_y, steps=random.randint(10, 25))
             except Exception:
                 pass  # Page might be navigating
                 
@@ -1304,8 +1380,7 @@ class ScraperController:
                         self.log("ERR", f"🚫 BLOCK DETECTED on {url}: 'Uso indebido/Bloqueado'.")
                         play_blocked_alert()
                         # Mark profile as blocked for cooldown rotation
-                        if hasattr(self, 'browser_engine') and self.browser_engine:
-                            mark_profile_blocked(self.browser_engine)
+                        mark_current_profile_blocked()
                         # CRITICAL: Raise BlockedException to trigger rotation
                         raise BlockedException("Acceso bloqueado por uso indebido")
                     
@@ -1362,7 +1437,7 @@ class ScraperController:
                                 except: pass
                                 # Still stuck - mark as block and raise
                                 self.log("ERR", "CAPTCHA timeout - triggering auto-restart")
-                                mark_profile_blocked(self.browser_engine)
+                                mark_current_profile_blocked()
                                 raise Exception("CAPTCHA_TIMEOUT")
                             
                             play_captcha_alert()
@@ -2083,8 +2158,7 @@ class ScraperController:
                                     
                                     if block_type == "block":
                                         self.log("ERR", f"🚫 BLOCK DETECTED on page {page_num}: 'Uso indebido/Bloqueado'.")
-                                        if hasattr(self, 'browser_engine') and self.browser_engine:
-                                            mark_profile_blocked(self.browser_engine)
+                                        mark_current_profile_blocked()
                                         raise BlockedException("Listing loop block detection: uso indebido")
                                         
                                     if block_type == "captcha":
@@ -2108,9 +2182,9 @@ class ScraperController:
                                         # One last check on raw text
                                         raw_text = await page.evaluate("() => document.documentElement.innerText")
                                         if "uso indebido" in raw_text.lower() or "bloqueado" in raw_text.lower():
-                                             self.log("ERR", "🚫 BLOCK confirmed after deep text check.")
-                                             mark_profile_blocked(self.browser_engine)
-                                             raise BlockedException("Deep block detection")
+                                            self.log("ERR", "🚫 BLOCK confirmed after deep text check.")
+                                            mark_current_profile_blocked()
+                                            raise BlockedException("Deep block detection")
                                         
                                         self.log("WARN", "Keeping browser open 30s for manual inspection...")
                                         await asyncio.sleep(30)
