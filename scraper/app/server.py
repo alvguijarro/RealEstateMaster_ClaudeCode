@@ -333,25 +333,59 @@ def restart_server():
 
 @app.route('/api/pause', methods=['POST'])
 def pause_scraping():
-    """Pause the current scraping session."""
-    global scraper_controller
+    """Pause the current scraping session (manual or batch)."""
+    global scraper_controller, periodic_process
     
-    if not scraper_controller or not scraper_controller.is_running:
+    paused = False
+    # 1. Pause manual controller
+    if scraper_controller and scraper_controller.is_running:
+        scraper_controller.pause()
+        paused = True
+    
+    # 2. Set flags for batch/periodic processes
+    scraper_dir = Path(__file__).parent.parent
+    try:
+        (scraper_dir / "BATCH_PAUSE.flag").touch()
+        (scraper_dir / "PERIODIC_PAUSE.flag").touch()
+        if periodic_process and periodic_process.poll() is None:
+            paused = True
+    except Exception as e:
+        print(f"Error setting pause flags: {e}")
+        
+    if not paused:
         return jsonify({'error': 'No active scraping session'}), 400
     
-    scraper_controller.pause()
     return jsonify({'status': 'paused'})
 
 
 @app.route('/api/resume', methods=['POST'])
 def resume_scraping():
-    """Resume a paused scraping session."""
-    global scraper_controller
+    """Resume a paused scraping session (manual or batch)."""
+    global scraper_controller, periodic_process
     
-    if not scraper_controller:
-        return jsonify({'error': 'No active scraping session'}), 400
+    resumed = False
+    # 1. Resume manual controller
+    if scraper_controller:
+        scraper_controller.resume()
+        resumed = True
     
-    scraper_controller.resume()
+    # 2. Remove flags for batch/periodic processes
+    scraper_dir = Path(__file__).parent.parent
+    try:
+        batch_flag = scraper_dir / "BATCH_PAUSE.flag"
+        periodic_flag = scraper_dir / "PERIODIC_PAUSE.flag"
+        if batch_flag.exists(): 
+            batch_flag.unlink()
+            resumed = True
+        if periodic_flag.exists(): 
+            periodic_flag.unlink()
+            resumed = True
+    except Exception as e:
+        print(f"Error removing pause flags: {e}")
+        
+    if not resumed:
+        return jsonify({'error': 'No active scraping session to resume'}), 400
+    
     return jsonify({'status': 'running'})
 
 
@@ -378,19 +412,35 @@ def clear_resume_state():
 
 @app.route('/api/stop', methods=['POST'])
 def stop_scraping():
-    """Stop the current scraping session and export data."""
-    global scraper_controller
+    """Stop the current scraping session (manual or batch) and export data."""
+    global scraper_controller, periodic_process
     
-    if not scraper_controller:
+    stopped = False
+    
+    # 1. Stop manual scraper controller
+    if scraper_controller:
+        scraper_controller.stop()
+        stopped = True
+        
+    # 2. Stop batch/periodic process via flags
+    scraper_dir = Path(__file__).parent.parent
+    try:
+        (scraper_dir / "BATCH_STOP.flag").touch()
+        (scraper_dir / "PERIODIC_STOP.flag").touch()
+        if periodic_process and periodic_process.poll() is None:
+            stopped = True
+    except Exception as e:
+        print(f"Error setting stop flags: {e}")
+
+    if not stopped:
         return jsonify({'error': 'No active scraping session'}), 400
     
-    scraper_controller.stop()
     return jsonify({'status': 'stopped'})
 
 
 @app.route('/api/status', methods=['GET'])
 def get_status():
-    """Get current scraper status."""
+    """Get current scraper status (manual, batch, or periodic)."""
     global scraper_controller, periodic_process
     
     status = 'idle'
@@ -406,10 +456,15 @@ def get_status():
         
     # Check if batch runner (periodic_process) is active
     if periodic_process and periodic_process.poll() is None:
-        mode = 'batch'
-        # If batch is running but scraper is momentarily idle (e.g. between URLs), report running
-        if status == 'idle':
+        # If batch is running but scraper is idle/finished URL, report running
+        if status in ('idle', 'completed', 'stopped'):
             status = 'running'
+        mode = 'batch'
+        
+        # Check for pause flags to report overall status correctly
+        scraper_dir = Path(__file__).parent.parent
+        if (scraper_dir / "BATCH_PAUSE.flag").exists() or (scraper_dir / "PERIODIC_PAUSE.flag").exists():
+            status = 'paused'
             
     return jsonify({
         'status': status,
@@ -480,6 +535,9 @@ def start_periodic_lowcost():
     if periodic_process and periodic_process.poll() is None:
         return jsonify({'error': 'Periodic scan already running'}), 400
     
+    data = request.get_json() or {}
+    operation = data.get('operation', 'sale') # Default to sale as requested by context
+    
     script_path = Path(__file__).parent.parent.parent / "scripts" / "run_periodic_low_cost.py"
     scraper_dir = script_path.parent.parent / "scraper"
     
@@ -493,8 +551,12 @@ def start_periodic_lowcost():
         return jsonify({'error': f'Script not found: {script_path}'}), 500
     
     # Launch in background with PIPE for logging
+    cmd = [sys.executable, str(script_path), "--operation", operation]
+    if data.get('use_vpn'):
+        cmd.append("--nordvpn")
+
     periodic_process = subprocess.Popen(
-        [sys.executable, str(script_path)],
+        cmd,
         cwd=str(script_path.parent.parent),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, # Merge stderr to stdout

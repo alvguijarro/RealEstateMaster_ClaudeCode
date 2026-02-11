@@ -166,11 +166,11 @@ def mark_current_profile_blocked() -> None:
     save_identity_state(state)
     print(f"🚫 Profile {pool_id} ({config['name']}) marked as BLOCKED at {time.ctime()}")
 
-def rotate_identity() -> dict:
+def rotate_identity():
     """
     Rotate to the NEXT profile in the sequence (1->2->3->4->5->1).
     Strict sequential order. 
-    If the next profile is in cooldown, WAIT for it to expire.
+    Returns (target_config, wait_seconds). Caller should handle wait.
     """
     state = load_identity_state()
     current_idx = state.get("current_index", 0)
@@ -183,20 +183,13 @@ def rotate_identity() -> dict:
     pool_id = str(target_config["index"])
     blocked_time = state["cooldowns"].get(pool_id)
     
+    remaining = 0
     if blocked_time:
         elapsed = time.time() - blocked_time
         cooldown_seconds = PROFILE_COOLDOWN_MINUTES * 60
-        remaining = cooldown_seconds - elapsed
+        remaining = max(0, cooldown_seconds - elapsed)
         
-        if remaining > 0:
-            print(f"⏳ Next profile in sequence ({target_config['name']}) is in cooldown.")
-            print(f"⏳ Waiting {int(remaining)} seconds for cooldown to expire...")
-            # We must WAIT, not skip
-            time.sleep(remaining + 2) # +2s buffer
-            
-            # Clear cooldown after waiting
-            del state["cooldowns"][pool_id]
-        else:
+        if remaining == 0:
             # Cooldown already expired
             del state["cooldowns"][pool_id]
             
@@ -204,7 +197,7 @@ def rotate_identity() -> dict:
     state["current_index"] = next_idx
     save_identity_state(state)
     
-    return target_config
+    return target_config, remaining
 
 # Constants for backward compatibility (mapped to current profile)
 # These will be dynamically resolved in the class, but we keep the variables
@@ -798,6 +791,12 @@ class BlockedException(Exception):
     pass
 
 
+class StopException(Exception):
+    """Raised when the user stops the scraper."""
+    pass
+
+
+
 @dataclass
 class ScraperController:
     """Controller for the Idealista scraper with pause/stop and callbacks."""
@@ -1083,28 +1082,58 @@ class ScraperController:
         return {"width": width, "height": height}
     
     def pause(self):
-        """Pause scraping."""
-        self._pause_evt.clear()
+        """Pause scraping and save state."""
+        if self._loop:
+            self._loop.call_soon_threadsafe(self._pause_evt.clear)
+        else:
+            self._pause_evt.clear()
+        
         self.status = "paused"
         self.log("INFO", "Scraping paused")
+        
+        # Save state on pause
+        try:
+            cur_page = getattr(self, 'current_page', 1) or 1
+            self.save_state(cur_page)
+        except Exception as e:
+            self.log("WARN", f"Could not save state on pause: {e}")
+            
         if self.on_status:
             self.on_status("paused")
     
     def resume(self):
         """Resume scraping."""
-        self._pause_evt.set()
+        if self._loop:
+            self._loop.call_soon_threadsafe(self._pause_evt.set)
+        else:
+            self._pause_evt.set()
+            
         self.status = "running"
         self.log("INFO", "Scraping resumed")
         if self.on_status:
             self.on_status("running")
     
     def stop(self):
-        """Stop scraping and trigger export."""
+        """Stop scraping, save state and trigger export."""
         self._stopped_by_user = True
-        self._stop_evt.set()
-        self._pause_evt.set()  # Unpause to allow graceful stop
+        
+        if self._loop:
+            self._loop.call_soon_threadsafe(self._stop_evt.set)
+            self._loop.call_soon_threadsafe(self._pause_evt.set) # Unpause to allow graceful stop
+        else:
+            self._stop_evt.set()
+            self._pause_evt.set()
+            
         self.status = "stopping"
         self.log("INFO", "Stopping scraper...")
+        
+        # Save state on stop
+        try:
+            cur_page = getattr(self, 'current_page', 1) or 1
+            self.save_state(cur_page)
+        except Exception as e:
+            self.log("WARN", f"Could not save state on stop: {e}")
+            
         if self.on_status:
             self.on_status("stopping")
         # Force close browser to unblock any stuck operations
@@ -1510,6 +1539,11 @@ class ScraperController:
             self.log("WARN", "⏳ Scraper paused. Waiting for resume...")
             while not self._pause_evt.is_set() and not self._stop_evt.is_set():
                 await asyncio.sleep(1.0)
+            
+            if self._stop_evt.is_set():
+                self.log("INFO", "Stop signal received during pause.")
+                raise StopException("Stop event detected during pause wait.")
+                
             self.log("INFO", "▶️ Scraper resumed.")
 
     async def _interruptible_sleep(self, duration: float):
@@ -1524,11 +1558,13 @@ class ScraperController:
         
         remaining = duration
         while remaining > 0:
+            await self._wait_for_pause()
             if self._stop_evt.is_set():
-                break
+                raise StopException("Stop event detected during sleep.")
             chunk = min(0.5, remaining)  # 0.5s check interval
             await asyncio.sleep(chunk)
             remaining -= chunk
+
     
     def _export_to_excel(self, additions: List[dict], target_file: Optional[str], expired_urls: List[str]):
         """Export scraped data to Excel file."""
@@ -1978,16 +2014,18 @@ class ScraperController:
                         except:
                             pass
                         
-                        # This function handles sequential overflow and waiting cooldown if needed
-                        next_config = rotate_identity()
+                        # This function handles sequential overflow
+                        next_config, wait_time = rotate_identity()
                         
                         self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
-                        self.log("INFO", f"Restarting in 5 seconds with fresh identity...")
+                        if wait_time > 0:
+                            self.log("INFO", f"⏳ Profile is in cooldown ({int(wait_time)}s). Waiting...")
+                        self.log("INFO", f"Restarting in {int(wait_time) + 5} seconds with fresh identity...")
                         
                         if self.on_status:
                             self.on_status("blocked", message=f"Rotando a Perfil {next_config['index']}...")
                         
-                        await self._interruptible_sleep(5.0)
+                        await self._interruptible_sleep(wait_time + 5.0)
                         
                         if self._stop_evt.is_set():
                             break
@@ -2833,12 +2871,14 @@ class ScraperController:
                 # ROTATION LOGIC (2026): Strict Sequential with Cooldown
                 mark_current_profile_blocked()
                 
-                # This function calculates next profile AND handles waiting if needed
-                next_config = rotate_identity()
+                # This function calculates next profile
+                next_config, wait_time = rotate_identity()
                 
                 self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
-                self.log("INFO", f"Restarting in 5 seconds with fresh identity...")
-                wait_time = 5.0
+                if wait_time > 0:
+                    self.log("INFO", f"⏳ Profile is in cooldown ({int(wait_time)}s). Waiting...")
+                self.log("INFO", f"Restarting in {int(wait_time) + 5} seconds with fresh identity...")
+                wait_time += 5.0
                 
                 if self.on_status:
                     self.on_status("error", error=f"Bloqueado. Rotando a Perfil {next_config['index']}...")
@@ -2873,7 +2913,15 @@ class ScraperController:
                 self.log("INFO", "🔄 Restarting browser now...")
                 continue # Loop back to start (and reuse persistent profile handling which will be fresh)
 
+            except StopException as se:
+                self.log("INFO", f"🛑 STOPPED: {se}")
+                # State already saved in stop() method, but redundant call here ensures it's fresh
+                if target_file:
+                    self.save_state(self.current_page or 1, target_file)
+                break
+
             except Exception as e:
+
                 # Legacy CAPTCHA catch
                 # NOTE: Most are now caught by BlockedException above
                 err_str = str(e).upper()

@@ -1686,7 +1686,7 @@ async function syncStatus() {
             if (data.status === 'paused') {
                 pauseBtn.innerHTML = '<span class="btn-icon">▶</span> Reanudar';
             } else if (data.status === 'captcha' || data.status === 'blocked') {
-                pauseBtn.disabled = true;
+                pauseBtn.disabled = false;
                 pauseBtn.innerHTML = '<span class="btn-icon">⏱️</span> Esperando...';
             } else {
                 pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';

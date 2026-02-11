@@ -1,5 +1,19 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-12]
+
+### Added
+- **Graceful Scraper Termination**: Implemented `StopException` to handle manual stops and interruptions reliably across all scraping loops and sleep cycles.
+- **Thread-Safe Scraper Controls**: Modified `pause`, `resume`, and `stop` methods in `ScraperWrapper` to use thread-safe event manipulation, ensuring responsiveness even during browser-blocking operations.
+- **Persistent State on Interruption**: The scraper now automatically saves its progress (`current_page`, `processed_urls`) to `resume_state.json` when paused or stopped by the user, enabling seamless resumption.
+- **Robust Control API**: Updated server endpoints (`/api/pause`, `/api/resume`, `/api/stop`) to synchronize control signals across manual, batch, and periodic scraping tasks using filesystem flags.
+- **Non-blocking Identity Rotation**: Refactored the browser identity rotation logic to be asynchronous, preventing event loop blocks during profile cooldown periods.
+
+### Fixed
+- **UI Button Synchronization**: Ensured the "Stop" and "Pause" buttons in the web interface are always enabled while any scraping task (manual, batch, or periodic) is active, even when blocked or waiting for CAPTCHA.
+- **Server Control Clarity**: Renamed the server stop button from "Parar" to "Detener Serv." to clearly distinguish it from the scraper's stop button.
+- **Status Reporting**: Enhanced the `/api/status` endpoint to accurately report the combined state of manual scrapers and background batch processes, including paused states triggered by flags.
+
 ## [2026-02-11]
 
 ### Added

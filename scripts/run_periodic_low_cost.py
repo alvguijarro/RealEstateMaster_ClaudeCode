@@ -143,6 +143,7 @@ def run_scraper(province_name: str, url: str) -> bool:
 def main():
     parser = argparse.ArgumentParser(description="Run periodic low-cost scraper.")
     parser.add_argument("--nordvpn", action="store_true", help="Rotate IP via NordVPN periodically")
+    parser.add_argument("--operation", default="sale", choices=["sale", "rent"], help="Operation type to scrape (sale/rent)")
     args = parser.parse_args()
 
     log("=" * 60)
@@ -164,9 +165,18 @@ def main():
     
     for i, prov in enumerate(provinces, 1):
         name = prov["name"]
-        url = prov["url"]
         
-        log(f"\n[{i}/{len(provinces)}] Processing: {name}")
+        # Determine URL based on operation
+        if args.operation == "sale":
+            url = prov.get("url_venta")
+        else:
+            url = prov.get("url_alquiler")
+            
+        if not url:
+            log(f"[WARN] No URL found for {name} ({args.operation}). Skipping.")
+            continue
+        
+        log(f"\n[{i}/{len(provinces)}] Processing: {name} ({args.operation})")
         
         # VPN Rotation Logic
         if args.nordvpn and i > 1 and (i - 1) % NORDVPN_ROTATE_EVERY == 0:
