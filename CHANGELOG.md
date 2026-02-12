@@ -10,7 +10,7 @@
 - **Improved Navigation Logs**: Consolidated navigation attempts and progress indicators for cleaner terminal output.
 - **Batch Process Lock**: Fixed a logic deadlock where the batch runner would wait indefinitely for a "completed" status that was being masked by its own active process.
 - **Log Noise Reduction**: Removed frequent "Human interaction timed out" warning messages from the console.
-- **Improved Status Reporting**: Added internal status tracking to differentiate between the high-level batch process and the internal scraper state.
+- **Improved Status Reporting**: Added internal status tracking and a profile efficacy report showing properties scraped per browser profile.
 
 ### Added
 - **Architectural Deep Dive**: Completed a comprehensive analysis of the project's multi-service architecture (Scraper, Analyzer, Merger, Dashboard).

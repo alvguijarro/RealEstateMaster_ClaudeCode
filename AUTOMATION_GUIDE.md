@@ -8,6 +8,7 @@ El orquestador (`scripts/automated_cycle.py`):
 2.  **Gestiona el orden**: Primero realiza todas las provincias en Alquiler, y luego todas en Venta.
 3.  **Persistencia**: Si se interrumpe (cierre de ventana, reinicio de PC), al reiniciar el script continuará exactamente por donde iba gracias a `cycle_state.json`.
 4.  **Autonomía**: Enciende el servidor de scraping si es necesario y gestiona las rotaciones de identidad y VPN automáticamente.
+5.  **Reporte de Eficacia**: Al finalizar cada provincia o detenerse, el log mostrará un resumen detallado de cuántas propiedades ha extraído cada perfil de navegador (Firefox, WebKit, etc.) y su porcentaje de éxito respecto al total.
 
 ## Instrucciones para Programarlo en Windows
 

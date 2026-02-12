@@ -860,6 +860,10 @@ class ScraperController:
     _next_coffee_break: int = 0  # Property count for next coffee break
     _total_session_count: int = 0  # Total across rest breaks
     
+    # Profile efficacy tracking
+    _active_profile_name: str = "Unknown"
+    _profile_stats: Dict[str, int] = field(default_factory=dict)
+    
     # Checkpoint saving state
     _last_checkpoint_idx: int = 0  # Index of last saved property
     _checkpoint_interval: int = 50  # Save every N properties
@@ -1775,6 +1779,11 @@ class ScraperController:
                     
                     # Store current engine for block tracking
                     self.browser_engine = engine
+                    self._active_profile_name = current_config["name"]
+                    
+                    # Initialize stats for this profile if not exists
+                    if self._active_profile_name not in self._profile_stats:
+                        self._profile_stats[self._active_profile_name] = 0
                     
                     # Select a random viewport for this session
                     viewport_width, viewport_height = random.choice(VIEWPORT_SIZES)
@@ -2434,6 +2443,10 @@ class ScraperController:
                                     additions.append(row)
                                     self.scraped_properties.append(row)
                                     new_scraped += 1
+                                    
+                                    # Update profile efficacy stats
+                                    self._profile_stats[self._active_profile_name] = self._profile_stats.get(self._active_profile_name, 0) + 1
+                                    
                                     self.log("OK", f"({property_idx}/{self.total_properties_expected}) Scraped: {key}")
                                     if self.on_property:
                                         self.on_property(row)
@@ -3037,6 +3050,14 @@ class ScraperController:
                 self._context = None
                 self._browser = None
                 pass
+        
+        # Log profile efficacy report
+        total_scraped = len(self.scraped_properties)
+        if total_scraped > 0:
+            self.log("INFO", "📊 RESUMEN DE EFICACIA POR PERFIL:")
+            for profile, count in self._profile_stats.items():
+                percentage = (count / total_scraped) * 100
+                self.log("INFO", f"🔹 {profile} = {count} propiedades ({percentage:.1f}% del total)")
         
         # Clear resume state file ONLY on successful completion (not manual stop)
         if not self._stop_evt.is_set():
