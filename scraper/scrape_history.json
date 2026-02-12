@@ -1,5 +1,21 @@
 [
   {
+    "timestamp": "2026-02-12T13:36:46.012170",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/cadiz-provincia/con-precio-hasta_2000/",
+    "properties_count": 1669,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Cadiz_rent_20260202_1246.xlsx",
+    "filename": "API_BATCH_Cadiz_rent_20260202_1246.xlsx"
+  },
+  {
+    "timestamp": "2026-02-12T13:36:43.158298",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/cadiz-provincia/con-precio-hasta_2000/",
+    "properties_count": 1669,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Cadiz_rent_20260202_1246.xlsx",
+    "filename": "API_BATCH_Cadiz_rent_20260202_1246.xlsx"
+  },
+  {
     "timestamp": "2026-02-12T09:48:20.693722",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/caceres-provincia/con-precio-hasta_2000/",
     "properties_count": 374,
