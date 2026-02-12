@@ -842,6 +842,7 @@ class ScraperController:
     _stop_evt: Optional[asyncio.Event] = None
     _pause_evt: Optional[asyncio.Event] = None
     _processed: Set[str] = field(default_factory=set)
+    _seen_in_search: Set[str] = field(default_factory=set) # Track URLs seen in search pages
     _inflight: Set[str] = field(default_factory=set)
     _recent: Dict[str, float] = field(default_factory=dict)
     _index_map: Dict[str, Tuple[int, int]] = field(default_factory=dict)
@@ -1741,9 +1742,9 @@ class ScraperController:
                         
                         self.log("OK", f"📊 File status: {total_in_file} total, {enriched_count} enriched, {not_enriched} pending")
                         
-                        # Add enriched URLs to processed set (skip completely)
-                        self._processed.update(self._enriched_urls)
-                        self.log("INFO", f"⏭️ Will skip {enriched_count} already enriched properties")
+                        # Skip completely is disabled to allow 'Seen in search' tracking to update Last Seen dates
+                        # self._processed.update(self._enriched_urls)
+                        self.log("INFO", f"📊 Will identify {enriched_count} already enriched properties during search to skip detail pages")
                     else:
                         self.log("INFO", f"Province file not found - will create: {province_file}")
             else:
@@ -2323,7 +2324,7 @@ class ScraperController:
                         self.current_page = page_num
                         self.emit_progress()
                 
-                        # Scrape each property on this page (only NEW ones now)
+                        # Scrape each property on this page
                         for href in hrefs:
                             # Update delays on every iteration to respect dynamic mode switching
                             _, card_delay, post_card_delay = self.get_delays()
@@ -2334,6 +2335,26 @@ class ScraperController:
                     
                             property_idx += 1
                             key = canonical_listing_url(href)
+                            self._seen_in_search.add(key) # Mark as active (seen in search)
+                            
+                            # Smart Enrichment Optimization: Skip detail visit if already enriched & active
+                            if self.smart_enrichment and key in self._enriched_urls and key not in self._processed:
+                                self.log("INFO", f"({property_idx}/{self.total_properties_expected}) [SMART SKIP] Active & already enriched: {key}")
+                                
+                                # Use data from existing URLs map
+                                orig_row = self._all_existing_urls.get(key, {})
+                                from datetime import datetime
+                                # Update last seen date
+                                row_to_save = orig_row.copy()
+                                row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+                                row_to_save["Anuncio activo"] = "Sí"
+                                
+                                additions.append(row_to_save)
+                                self._processed.add(key)
+                                
+                                self.current_property_count = property_idx
+                                self.emit_progress()
+                                continue
                     
                             # Double-check (should not happen after filtering, but safety net)
                             if key in self._processed:
@@ -2644,6 +2665,77 @@ class ScraperController:
                         self._pages_scraped += 1
                 
                     # After phase 1 loop completes successfully
+                    # === TARGETED DEACTIVATION CHECKS (SMART ENRICHMENT) ===
+                    if self.smart_enrichment and scraping_finished and not self._stop_evt.is_set():
+                        # Only check if we successfully finished all pages (otherwise we might have missed active ones)
+                        missing_urls = [
+                            u for u in self._all_existing_urls.keys() 
+                            if u not in self._seen_in_search 
+                        ]
+                        
+                        if missing_urls:
+                            self.log("INFO", f"🔍 Found {len(missing_urls)} properties in Excel missing from search. Verifying deactivations...")
+                            
+                            # Limit checks to avoid triggering blocks (max 15 per run)
+                            check_limit = 15
+                            checked_count = 0
+                            
+                            for m_url in missing_urls:
+                                if self._stop_evt.is_set() or checked_count >= check_limit:
+                                    break
+                                
+                                # Skip if we already marked it as inactive in a previous check (avoid re-checking)
+                                orig_row = self._all_existing_urls.get(m_url, {})
+                                if orig_row.get("Anuncio activo") == "No":
+                                    continue
+                                    
+                                self.log("INFO", f"Checking missing property status ({checked_count+1}/{check_limit}): {m_url}")
+                                try:
+                                    await self._interruptible_sleep(random.uniform(5, 10))
+                                    await self._goto_with_retry(page, m_url)
+                                    
+                                    # Wait for content
+                                    try:
+                                        await page.wait_for_selector("body", timeout=5000)
+                                    except: pass
+                                    
+                                    body_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+                                    body_lower = body_text.lower()
+                                    
+                                    is_gone = any(msg in body_lower for msg in [
+                                        "no encontramos", "anuncio no disponible", 
+                                        "ya no está disponible", "ya no está publicado",
+                                        "lo sentimos", "enlace antiguo"
+                                    ])
+                                    
+                                    if is_gone:
+                                        self.log("WARN", f"Confirmed: Property deactivated -> {m_url}")
+                                        row_to_save = orig_row.copy()
+                                        row_to_save["Anuncio activo"] = "No"
+                                        from datetime import datetime
+                                        row_to_save["Baja anuncio"] = datetime.now().strftime("%d/%m/%Y")
+                                        additions.append(row_to_save)
+                                        self._processed.add(m_url) # Mark as handled
+                                    else:
+                                        # Property is still active, just not in this search result
+                                        # (Maybe it was on page > 60 or filtered out)
+                                        self.log("INFO", f"Property still active (not in search): {m_url}")
+                                        # Update last seen anyway
+                                        row_to_save = orig_row.copy()
+                                        row_to_save["Anuncio activo"] = "Sí"
+                                        from datetime import datetime
+                                        row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+                                        additions.append(row_to_save)
+                                    
+                                    checked_count += 1
+                                    
+                                except Exception as e:
+                                    self.log("WARN", f"Could not verify {m_url}: {e}")
+                                    continue
+                            
+                            if checked_count > 0:
+                                self.log("OK", f"Finished checking {checked_count} missing properties.")
+
                     self.log("INFO", f"Summary: {new_scraped} new, {updated} updated, {skipped} skipped, {len(expired_urls)} expired")
                     self._export_to_excel(additions, target_file, expired_urls)
 

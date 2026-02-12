@@ -13,6 +13,9 @@
 - **Improved Status Reporting**: Added internal status tracking and a profile efficacy report showing properties scraped per browser profile.
 
 ### Added
+- **Smart Efficiency Optimization**: Implemented a "Smart Skip" mechanism that identifies properties already present and enriched in the Excel file directly from the search results, skipping detail page navigation for confirmed active ads.
+- **Deactivation Tracking**: Added logic to track properties in Excel that are missing from current search results, performing a targeted status-only check to mark them as inactive with their deactivation date.
+- **Improved Update Scraper**: Optimized `update_urls.py` to skip properties already updated during the current day, further reducing redundant scraping.
 - **Architectural Deep Dive**: Completed a comprehensive analysis of the project's multi-service architecture (Scraper, Analyzer, Merger, Dashboard).
 - **Onboarding Documentation**: Created a summarized [walkthrough.md](file:///C:/Users/alvgu/.gemini/antigravity/brain/9d461782-381f-4e54-be73-85b1a6ef310f/walkthrough.md) documenting service orchestration, anti-detection mechanisms, and analytical pipelines.
 

@@ -544,7 +544,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             
                         if was_paused:
                             
-                        # --- ENRICHMENT SKIP: Check 'enriched' column in Excel ---
+                        # --- ENRICHMENT SKIP: Check 'enriched' column and 'Fecha Scraping' ---
                         # Get original row data from our pre-loaded map
                         orig_row_data = url_to_row.get(url, {})
                         
@@ -554,8 +554,15 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             str(orig_row_data.get('__enriched__', '')).upper() in ['VERDADERO', 'TRUE', 'YES', 'SI', '1']
                         )
                         
-                        if is_enriched_in_excel:
-                            emit_to_ui('INFO', f'({i}/{len(urls)}) [SKIP] Already enriched in file: {url}')
+                        # Efficiency Skip: If already scraped today and active, no need to re-check
+                        from datetime import datetime
+                        today_str = datetime.now().strftime("%d/%m/%Y")
+                        date_scraped = str(orig_row_data.get('Fecha Scraping', '')).strip()
+                        is_active = str(orig_row_data.get('Anuncio activo', '')).strip().lower() in ['sí', 'si', 'yes', 'true', '1']
+                        
+                        if is_enriched_in_excel or (is_active and date_scraped == today_str):
+                            reason = "Enriched" if is_enriched_in_excel else "Scraped today"
+                            emit_to_ui('INFO', f'({i}/{len(urls)}) [SKIP] {reason} & active: {url}')
                             # Add original row to updated_rows to preserve it
                             updated_rows.append(orig_row_data)
                             
