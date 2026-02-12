@@ -20,6 +20,7 @@ from flask_socketio import SocketIO
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.scraper_wrapper import ScraperController, DEFAULT_OUTPUT_DIR
+from app.province_mapping import get_province_output_file
 from idealista_scraper.nordvpn import rotate_ip, get_status as get_vpn_status
 
 app = Flask(__name__, static_folder='static', template_folder='static')
@@ -887,6 +888,14 @@ def start_batch_scraping():
     queue_file = Path(__file__).parent.parent / "batch_queue.json"
     smart_enrichment = data.get('smart_enrichment', False)
     target_file = data.get('target_file')
+    province_name = data.get('province_name')
+    operation_type = data.get('operation_type')
+    
+    # Auto-resolve target_file if missing but province/operation are provided
+    if not target_file and province_name and operation_type:
+        target_file = get_province_output_file(province_name, operation_type)
+        if target_file:
+            print(f"Auto-resolved target file for {province_name} ({operation_type}): {target_file}")
     
     with open(queue_file, 'w', encoding='utf-8') as f:
         json.dump({

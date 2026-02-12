@@ -175,30 +175,33 @@
                                     </div>
                                 </div>
 
-                                <div class="custom-dropdown-group"
-                                    style="margin-bottom: 12px; position: relative; z-index: 100;">
-                                    <label
-                                        style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Archivo
-                                        Destino (Excel)</label>
-                                    <div class="dropdown-trigger" id="triggerBatchFile" tabindex="0">
-                                        <span id="selectedTextBatchFile">(Crear nuevo archivo automático)</span>
-                                        <span class="arrow">▼</span>
-                                    </div>
-                                    <input type="hidden" id="batchDestinationFile" value="">
+                                <div id="batchDestinationContainer" style="display: none;">
+                                    <div class="custom-dropdown-group"
+                                        style="margin-bottom: 12px; position: relative; z-index: 100;">
+                                        <label
+                                            style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Archivo
+                                            Destino (Excel)</label>
+                                        <div class="dropdown-trigger" id="triggerBatchFile" tabindex="0">
+                                            <span id="selectedTextBatchFile">(Crear nuevo archivo automático)</span>
+                                            <span class="arrow">▼</span>
+                                        </div>
+                                        <input type="hidden" id="batchDestinationFile" value="">
 
-                                    <div class="dropdown-overlay" id="dropdownBatchFile">
-                                        <div class="dropdown-search">
-                                            <input type="text" placeholder="Buscar archivo..." id="searchBatchFile">
+                                        <div class="dropdown-overlay" id="dropdownBatchFile">
+                                            <div class="dropdown-search">
+                                                <input type="text" placeholder="Buscar archivo..." id="searchBatchFile">
+                                            </div>
+                                            <div class="dropdown-options" id="listBatchFile">
+                                                <!-- JS will populate -->
+                                            </div>
                                         </div>
-                                        <div class="dropdown-options" id="listBatchFile">
-                                            <!-- JS will populate -->
-                                        </div>
+                                        <small
+                                            style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block;">
+                                            El sistema intentará seleccionar automáticamente el archivo si coincide con
+                                            la
+                                            provincia.
+                                        </small>
                                     </div>
-                                    <small
-                                        style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block;">
-                                        El sistema intentará seleccionar automáticamente el archivo si coincide con la
-                                        provincia.
-                                    </small>
                                 </div>
 
                                 <div class="form-group" style="margin-top: 10px;">
