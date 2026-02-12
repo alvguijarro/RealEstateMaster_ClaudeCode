@@ -1,5 +1,53 @@
 [
   {
+    "timestamp": "2026-02-12T23:24:52.853755",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/melilla-melilla/con-precio-hasta_2000/",
+    "properties_count": 16,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Melilla_alquiler.xlsx",
+    "filename": "idealista_Melilla_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-12T23:24:48.559104",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/melilla-melilla/con-precio-hasta_2000/",
+    "properties_count": 16,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Melilla_alquiler.xlsx",
+    "filename": "idealista_Melilla_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-12T19:04:42.474597",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/ciudad-real-provincia/con-precio-hasta_2000/",
+    "properties_count": 295,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Ciudad_Real_alquiler.xlsx",
+    "filename": "idealista_Ciudad_Real_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-12T19:04:36.065707",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/ciudad-real-provincia/con-precio-hasta_2000/",
+    "properties_count": 295,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Ciudad_Real_alquiler.xlsx",
+    "filename": "idealista_Ciudad_Real_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-12T18:38:03.300510",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/ceuta-ceuta/con-precio-hasta_2000/",
+    "properties_count": 11,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Ceuta_alquiler.xlsx",
+    "filename": "idealista_Ceuta_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-12T18:34:48.521347",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/castellon/con-precio-hasta_2000/",
+    "properties_count": 906,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Castellón_alquiler.xlsx",
+    "filename": "idealista_Castellón_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-12T15:54:46.701675",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/cantabria/con-precio-hasta_2000/",
     "properties_count": 935,

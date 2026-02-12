@@ -13,10 +13,12 @@
 - **Scraper Mode Switching**: Mode switching is now allowed during execution (hot-swap).
 - **UI Button Synchronization**: Fixed an issue where "Pausar" and "Detener" buttons were disabled during identity rotation (`blocked`) and rest periods (`resting`), ensuring continuous user control.
 - **Scraper Stop Logic**: Added `StopException` propagation to ensure immediate interruption of scraping loops and proper UI state transitions when the "Detener" button is pressed.
-- **Rotation Status Sync**: Fixed an issue where the UI would disable buttons during profile rotation by correcting the status reporting from "error" to "blocked".
-- **Phase 2 Efficacy Tracking**: Extended profile efficacy statistics to include properties scraped during secondary URL processing (Phase 2).
-- **Profile Efficacy Stats**: Corrected the browser profile statistics counter to accurately reflect every successfully scraped or smart-skipped property across all profiles.
+- **Rotation Status Sync**: Fixed an issue where the UI would disable buttons during identity rotation (`blocked`) and rest periods (`resting`), ensuring continuous user control.
+- **Batch Selection Fixes**: Updated the "Todos" (Select All) functionality in province dropdowns to only impact **visible** items matching the current search filter, preventing accidental selection of unselected provinces (like A Coruña).
+- **Improved Batch Feedback**: Added console logging for selected URLs and a final "Lote Completado" summary log to the UI upon batch finish.
+- **Profile Efficacy Stats**: Corrected the browser profile statistics counter to accurately reflect every successfully scraped or smart-skipped property across all profiles (including Phase 2).
 - **Improved Status Reporting**: Added internal status tracking and a profile efficacy report showing properties scraped per browser profile.
+
 
 ### Improved
 - **Block Detection Accuracy**: Refined `_check_for_blocks` and `extract_detail_fields` to correctly identify hard blocks ("Uso indebido", "El acceso se ha bloqueado") and distinguish them from resolvable CAPTCHAs.

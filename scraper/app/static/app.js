@@ -1149,21 +1149,23 @@ function handleStatusChange(data) {
         if (dualModeBtn) dualModeBtn.disabled = true;
         pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
         seedUrlInput.disabled = true;
-    } else if (status === 'captcha') {
-        isPaused = true;
-        // Auto-resume logic: Backend will resume automatically, so we just show status
-        pauseBtn.disabled = true; // Disable resume button during CAPTCHA
-        pauseBtn.innerHTML = '<span class="btn-icon">⏱️</span> Esperando resolución...';
-        pauseBtn.classList.add('btn-warning');
-
-        // Play alarm sound
-        playAlarm();
-    } else if (status === 'stopping') {
-        // UI should disable actions while stopping
+    } else if (status === 'completed' || status === 'stopped' || status === 'idle') {
+        isRunning = false;
+        isPaused = false;
+        startBtn.disabled = false;
+        if (dualModeBtn) dualModeBtn.disabled = false;
         pauseBtn.disabled = true;
         stopBtn.disabled = true;
-        stopBtn.innerHTML = '<span class="btn-icon">⏳</span> Deteniendo...';
-    } else if (status === 'completed' || status === 'stopped' || status === 'error') {
+        seedUrlInput.disabled = false;
+        if (startApiImportBtn) startApiImportBtn.disabled = false;
+
+        // Reset batch mode if completed
+        if (status === 'completed' && isBatchMode) {
+            isBatchMode = false;
+            addLog('OK', '✅ LOTE COMPLETADO: Todos los destinos han sido procesados.');
+            // Stop timer after a small delay to show final time
+            setTimeout(stopTimer, 1000);
+        }
         // TERMINAL STATUSES
         if (isUpdateMode) {
             resetUIState();
@@ -1184,6 +1186,30 @@ function handleStatusChange(data) {
                 downloadBtn.href = '/api/download';
                 addLog('OK', `Archivo guardado: ${data.file}`);
             }
+        }
+    } else if (status === 'captcha') {
+        isPaused = true;
+        // Auto-resume logic: Backend will resume automatically, so we just show status
+        pauseBtn.disabled = true; // Disable resume button during CAPTCHA
+        pauseBtn.innerHTML = '<span class="btn-icon">⏱️</span> Esperando resolución...';
+        pauseBtn.classList.add('btn-warning');
+
+        // Play alarm sound
+        playAlarm();
+    } else if (status === 'stopping') {
+        // UI should disable actions while stopping
+        pauseBtn.disabled = true;
+        stopBtn.disabled = true;
+        stopBtn.innerHTML = '<span class="btn-icon">⏳</span> Deteniendo...';
+    } else if (status === 'error') {
+        isRunning = false;
+        isPaused = false;
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        stopBtn.disabled = true;
+        seedUrlInput.disabled = false;
+        if (data.error) {
+            addLog('ERR', `Error del scraper: ${data.error}`);
         }
     }
 }
@@ -2529,14 +2555,14 @@ function toggleAll(type, checked) {
     // Select all province checkboxes
     const provCbs = list.querySelectorAll(`.prov-cb-${type}`);
     provCbs.forEach(cb => {
+        // Find parent container to check visibility
+        const container = cb.closest('.province-group');
+        if (container.style.display === 'none') return; // Skip if hidden by search filter
+
         cb.checked = checked;
         cb.indeterminate = false;
-        // Trigger change event manually or call logic?
-        // Better call logic to cascade to zones
-        // Find parent container
-        const container = cb.closest('.province-group');
-        // Retrieve province data object (we need to pass p, but we don't have it here easily)
-        // We can just find all zone checkboxes in container and check them
+
+        // Find all zone checkboxes in container and check them
         const zoneCbs = container.querySelectorAll(`.zone-cb-${type}`);
         zoneCbs.forEach(zcb => zcb.checked = checked);
     });
@@ -2700,6 +2726,9 @@ window.startBatchFromProvinces = async function () {
     };
 
 
+    console.clear();
+    console.log('[BATCH] Building URL list from selections...');
+
     collectUrls('venta');
     collectUrls('alquiler');
 
@@ -2708,7 +2737,11 @@ window.startBatchFromProvinces = async function () {
         return;
     }
 
-    addLog('INFO', `Iniciando lote con ${urls.length} URLs (Provincias/Zonas)...`);
+    addLog('INFO', `🚀 Iniciando lote con ${urls.length} destinos seleccionados.`);
+    urls.forEach((url, i) => {
+        console.log(`[BATCH] #${i + 1}: ${url}`);
+    });
+
 
     // Set global flags correctly
     isBatchMode = true;
