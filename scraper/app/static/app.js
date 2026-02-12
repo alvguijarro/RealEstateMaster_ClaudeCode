@@ -1139,6 +1139,16 @@ function handleStatusChange(data) {
             stealthBtn.style.pointerEvents = 'auto';
             stealthBtn.style.opacity = '1';
         }
+    } else if (status === 'blocked' || status === 'resting') {
+        // Transitional active states (Identity rotation or rest)
+        isRunning = true;
+        isPaused = false;
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        stopBtn.disabled = false;
+        if (dualModeBtn) dualModeBtn.disabled = true;
+        pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
+        seedUrlInput.disabled = true;
     } else if (status === 'captcha') {
         isPaused = true;
         // Auto-resume logic: Backend will resume automatically, so we just show status

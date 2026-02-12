@@ -2381,9 +2381,13 @@ class ScraperController:
                                 row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
                                 row_to_save["Anuncio activo"] = "Sí"
                                 
-                                addictions.append(row_to_save)
+                                additions.append(row_to_save)
+                                self.scraped_properties.append(row_to_save)
                                 self._processed.add(key)
                                 smart_skipped += 1
+                                
+                                # Update profile efficacy stats (even if skipped, this profile found it in search)
+                                self._profile_stats[self._active_profile_name] = self._profile_stats.get(self._active_profile_name, 0) + 1
                                 
                                 self.current_property_count = property_idx
                                 self.emit_progress()
@@ -2626,6 +2630,9 @@ class ScraperController:
                                 additions.append(row)
                                 self.scraped_properties.append(row)
                                 self._processed.add(key)
+                                
+                                # Update profile efficacy stats
+                                self._profile_stats[self._active_profile_name] = self._profile_stats.get(self._active_profile_name, 0) + 1
                         
                                 # Checkpoint saving: save every 100 properties
                                 if len(additions) > 0 and len(additions) % self._checkpoint_interval == 0:

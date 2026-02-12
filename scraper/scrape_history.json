@@ -1,5 +1,21 @@
 [
   {
+    "timestamp": "2026-02-12T15:54:46.701675",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/cantabria/con-precio-hasta_2000/",
+    "properties_count": 935,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Cantabria_alquiler.xlsx",
+    "filename": "idealista_Cantabria_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-12T15:54:41.388950",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/cantabria/con-precio-hasta_2000/",
+    "properties_count": 935,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Cantabria_alquiler.xlsx",
+    "filename": "idealista_Cantabria_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-12T13:36:46.012170",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/cadiz-provincia/con-precio-hasta_2000/",
     "properties_count": 1669,
