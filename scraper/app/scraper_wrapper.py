@@ -1411,7 +1411,7 @@ class ScraperController:
         last_err: Optional[Exception] = None
         for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
             if self._stop_evt.is_set():
-                return
+                raise StopException("Navegación interrumpida por el usuario")
             try:
                 t_nav_start = time.time()
                 self.log("INFO", f"Navigating to {url} (Attempt {attempt})...")
@@ -2391,6 +2391,11 @@ class ScraperController:
                                 
                                 self.current_property_count = property_idx
                                 self.emit_progress()
+                                
+                                # Check for stop even in smart skip
+                                if self._stop_evt.is_set():
+                                    break
+                                    
                                 continue
                     
                             # Double-check (should not happen after filtering, but safety net)
@@ -2405,6 +2410,10 @@ class ScraperController:
                             try:
                                 await self._interruptible_sleep(random.uniform(*card_delay))
                                 await self._goto_with_retry(page, href)
+                                
+                                # CRITICAL: Check for stop immediately after navigation
+                                if self._stop_evt.is_set():
+                                    break
                         
                                 # If this is the first property, determine target file
                                 if target_file is None:
@@ -2677,6 +2686,9 @@ class ScraperController:
                                 # Save state for resume before exiting
                                 self.save_state(page_num, target_file)
                                 break
+                            except (StopException, BlockedException):
+                                # Propagate to top-level handler
+                                raise
                             except Exception as e:
                                 if str(e) == "CAPTCHA_BLOCK_DETECTED":
                                     # Save state for resume before failing
@@ -3031,6 +3043,9 @@ class ScraperController:
                                 
                                     if self.on_property:
                                         self.on_property(row)
+                                    
+                                    # Update profile efficacy stats
+                                    self._profile_stats[self._active_profile_name] = self._profile_stats.get(self._active_profile_name, 0) + 1
                                 
                                     t_start_read = time.time()
                                     await self.simulate_reading_time(row.get("Descripción"))
@@ -3039,6 +3054,8 @@ class ScraperController:
                                 
                                 except BrowserClosedException:
                                     break
+                                except (StopException, BlockedException):
+                                    raise
                                 except Exception as e:
                                     self.log("ERR", f"({self.current_property_count}/{self.total_properties_expected}) {key} -> {e}")
                                     self._processed.add(key)
@@ -3078,7 +3095,7 @@ class ScraperController:
                 wait_time += 5.0
                 
                 if self.on_status:
-                    self.on_status("error", error=f"Bloqueado. Rotando a Perfil {next_config['index']}...")
+                    self.on_status("blocked", error=f"Bloqueado. Rotando a Perfil {next_config['index']}...")
                 
                 # Close browser explicitly
                 try:

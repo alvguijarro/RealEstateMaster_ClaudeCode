@@ -12,6 +12,9 @@
 - **Log Noise Reduction**: Removed frequent "Human interaction timed out" warning messages from the console.
 - **Scraper Mode Switching**: Mode switching is now allowed during execution (hot-swap).
 - **UI Button Synchronization**: Fixed an issue where "Pausar" and "Detener" buttons were disabled during identity rotation (`blocked`) and rest periods (`resting`), ensuring continuous user control.
+- **Scraper Stop Logic**: Added `StopException` propagation to ensure immediate interruption of scraping loops and proper UI state transitions when the "Detener" button is pressed.
+- **Rotation Status Sync**: Fixed an issue where the UI would disable buttons during profile rotation by correcting the status reporting from "error" to "blocked".
+- **Phase 2 Efficacy Tracking**: Extended profile efficacy statistics to include properties scraped during secondary URL processing (Phase 2).
 - **Profile Efficacy Stats**: Corrected the browser profile statistics counter to accurately reflect every successfully scraped or smart-skipped property across all profiles.
 - **Improved Status Reporting**: Added internal status tracking and a profile efficacy report showing properties scraped per browser profile.
 
