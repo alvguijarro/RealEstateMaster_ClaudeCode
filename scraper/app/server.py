@@ -469,6 +469,7 @@ def get_status():
             
     return jsonify({
         'status': status,
+        'internal_status': scraper_controller.status if scraper_controller else 'idle',
         'properties_count': properties_count,
         'output_file': output_file,
         'mode': mode

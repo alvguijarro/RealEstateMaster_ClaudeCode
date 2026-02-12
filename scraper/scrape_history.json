@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-12T08:36:21.544427",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/burgos-provincia/con-precio-hasta_2000/",
+    "properties_count": 60,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\API_BATCH_Burgos_rent_20260202_1246.xlsx",
+    "filename": "API_BATCH_Burgos_rent_20260202_1246.xlsx"
+  },
+  {
     "timestamp": "2026-02-12T03:32:17.876066",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/barcelona-provincia/con-precio-hasta_2000/",
     "properties_count": 1748,

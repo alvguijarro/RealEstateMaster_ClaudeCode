@@ -122,13 +122,15 @@ def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_
                 if status_resp.status_code == 200:
                     status_data = status_resp.json()
                     current_status = status_data.get("status", "")
+                    internal_status = status_data.get("internal_status", "")
                     
-                    if current_status == "idle" or current_status == "completed":
+                    if current_status == "completed" or internal_status == "completed":
                         log(f"[OK] Completed: {target_prov}")
                         return True
-                    elif current_status in ["blocked", "captcha", "error", "stopped"] or "CAPTCHA" in str(status_data):
+                    elif current_status in ["blocked", "captcha", "error", "stopped"] or \
+                         internal_status in ["blocked", "captcha", "error", "stopped"]:
                         # Blocked status means the controller already triggered rotation
-                        log(f"[WARN] Session interrupted ({current_status}) on {target_prov}. Server will rotate identity.")
+                        log(f"[WARN] Session interrupted ({current_status}/{internal_status}) on {target_prov}. Server will handle rotation.")
                         return False
                 else:
                     log("[WARN] Status check failed.")

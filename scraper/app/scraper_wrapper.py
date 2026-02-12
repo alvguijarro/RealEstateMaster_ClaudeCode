@@ -1414,7 +1414,8 @@ class ScraperController:
                 try:
                     await asyncio.wait_for(simulate_human_interaction(page), timeout=5.0)
                 except asyncio.TimeoutError:
-                    self.log("WARN", "⚠️ Human interaction timed out (5s limit). Continuing...")
+                    pass
+
                 except Exception as e:
                     self.log("WARN", f"⚠️ Human interaction failed: {e}")
                 
