@@ -3,6 +3,9 @@
 ## [2026-02-13]
 
 ### Fixed
+- **Scraper Rollover Resilience**: Fixed a critical bug where the scraper would prematurely terminate during identity rotation due to a rogue stop event trigger.
+- **Improved Cooldown Handling**: Wrapped rollover wait periods in exception handlers to prevent thread failure logs when stopping during cooldown.
+- **Optimized Resume Logic**: Clarified logs when restoring processed URLs from session files to avoid confusion during restarts.
 - **Scraper Log Optimization**: Reduced console log verbosity by removing internal timing, simulation, and debug messages while preserving critical progress and error alerts.
 - **Improved Navigation Logs**: Consolidated navigation attempts and progress indicators for cleaner terminal output.
 - **Batch Process Lock**: Fixed a bug where starting a new batch process was blocked by a stale reference to a previously completed process.

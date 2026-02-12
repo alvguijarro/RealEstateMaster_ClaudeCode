@@ -2045,7 +2045,12 @@ class ScraperController:
                         if self.on_status:
                             self.on_status("blocked", message=f"Rotando a Perfil {next_config['index']}...")
                         
-                        await self._interruptible_sleep(wait_time + 5.0)
+                        # Wait cooldown
+                        try:
+                            await self._interruptible_sleep(wait_time + 5.0)
+                        except StopException:
+                            self.log("INFO", "Rollover wait cancelled by stop event.")
+                            break
                         
                         if self._stop_evt.is_set():
                             break
@@ -2141,7 +2146,11 @@ class ScraperController:
                             if saved_processed:
                                 count_before = len(self._processed)
                                 self._processed.update(saved_processed)
-                                self.log("INFO", f"🔄 RESUME: Restored {len(self._processed) - count_before} processed URLs from state.")
+                                newly_restored = len(self._processed) - count_before
+                                if newly_restored > 0:
+                                    self.log("INFO", f"🔄 RESUME: Restored {newly_restored} processed URLs from session file.")
+                                else:
+                                    self.log("INFO", f"🔄 RESUME: All saved URLs ({len(self._processed)}) are already in memory.")
                     # ====================
 
                     if page_num > 1:
@@ -2258,8 +2267,8 @@ class ScraperController:
                                         await asyncio.sleep(30)
                                 
                                 except BlockedException as be:
-                                    self.log("ERR", f"🛑 HARD STOP in loop: {be}")
-                                    self._stop_evt.set()
+                                    self.log("ERR", f"🛑 BLOCK in loop: {be}")
+                                    # self._stop_evt.set()  <-- REMOVED: Rogue stop trigger. We want ROTATION, not termination.
                                     self.dual_mode_url = None 
                                     raise be
                                 
@@ -2274,7 +2283,10 @@ class ScraperController:
                                     break
                                 else:
                                     # If no links but not at the end, it's a silent block
-                                    self.log("ERR", f"Zero property links found on page {page_num} (Expected {self.total_pages_expected} pages). Forcing ROTATION.")
+                                    body_snippet = (await page.evaluate("() => document.body ? document.body.innerText : ''"))[:200].replace('\n', ' ')
+                                    self.log("ERR", f"Zero property links found on page {page_num} (Expected {self.total_pages_expected} pages).")
+                                    self.log("DEBUG", f"Page Context: {body_snippet}...")
+                                    self.log("INFO", "Forcing identity ROTATION to bypass silent block.")
                                     mark_current_profile_blocked()
                                     raise BlockedException("Silent block: zero links on intermediate page")
                 
@@ -2919,7 +2931,11 @@ class ScraperController:
                         self.log("WARN", f"VPN: IP rotation failed: {vpn_err}. Continuing with cooldown...")
                 
                 # Wait cooldown
-                await self._interruptible_sleep(wait_time)
+                try:
+                    await self._interruptible_sleep(wait_time)
+                except StopException:
+                    self.log("INFO", "Rollover wait cancelled by stop event.")
+                    break
                 
                 if self._stop_evt.is_set():
                     break
@@ -2981,12 +2997,15 @@ class ScraperController:
                         self.on_status("blocked", message="Esperando 15 minutos para reintentar...")
 
                     self.log("OK", f"✅ Browser closed. Waiting {wait_time} seconds before restart...")
-
-                    # Wait for calculated duration (short for switch, long for cooldown)
-                    cycles = max(1, int(wait_time / 5))
-                    for _ in range(cycles): 
-                        if self._stop_evt.is_set(): break
-                        await asyncio.sleep(5)
+                    try:
+                        # Wait for calculated duration (short for switch, long for cooldown)
+                        cycles = max(1, int(wait_time / 5))
+                        for _ in range(cycles): 
+                            if self._stop_evt.is_set(): break
+                            await asyncio.sleep(5)
+                    except StopException:
+                        self.log("INFO", "Retry wait interrupted.")
+                        break
                     
                     if self._stop_evt.is_set():
                         self.log("INFO", "Retry cancelled by user.")
