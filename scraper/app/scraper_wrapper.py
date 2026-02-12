@@ -2175,6 +2175,8 @@ class ScraperController:
                     skipped = 0
                     updated = 0
                     new_scraped = 0
+                    smart_skipped = 0
+                    deactivated_count = 0
                     existing_df = pd.DataFrame()  # Will be loaded if target file exists
                     scraping_finished = False  # Track clean completion
             
@@ -2349,8 +2351,9 @@ class ScraperController:
                                 row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
                                 row_to_save["Anuncio activo"] = "Sí"
                                 
-                                additions.append(row_to_save)
+                                addictions.append(row_to_save)
                                 self._processed.add(key)
+                                smart_skipped += 1
                                 
                                 self.current_property_count = property_idx
                                 self.emit_progress()
@@ -2716,6 +2719,7 @@ class ScraperController:
                                         row_to_save["Baja anuncio"] = datetime.now().strftime("%d/%m/%Y")
                                         additions.append(row_to_save)
                                         self._processed.add(m_url) # Mark as handled
+                                        deactivated_count += 1
                                     else:
                                         # Property is still active, just not in this search result
                                         # (Maybe it was on page > 60 or filtered out)
@@ -2736,7 +2740,7 @@ class ScraperController:
                             if checked_count > 0:
                                 self.log("OK", f"Finished checking {checked_count} missing properties.")
 
-                    self.log("INFO", f"Summary: {new_scraped} new, {updated} updated, {skipped} skipped, {len(expired_urls)} expired")
+                    self.log("INFO", f"Summary: {new_scraped} new, {deactivated_count} deactivated, {smart_skipped} smart-skipped, {skipped} regular-skipped")
                     self._export_to_excel(additions, target_file, expired_urls)
 
                     # CRITICAL FIX: If we finished cleanly (last page or max page), STOP the outer recovery loop
