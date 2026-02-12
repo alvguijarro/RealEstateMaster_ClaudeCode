@@ -169,9 +169,12 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
         // Critical Block Detection
         if (document.body) {
             const bodyText = document.body.innerText.toLowerCase();
+            const titleText = document.title.toLowerCase();
             if (bodyText.includes("se ha detectado un uso indebido") || 
                 bodyText.includes("el acceso se ha bloqueado") || 
-                bodyText.includes("access denied")) {
+                bodyText.includes("uso no autorizado") ||
+                bodyText.includes("access denied") ||
+                titleText === "idealista.com" && bodyText.length < 500) {
                 return { isBlocked: true };
             }
         }

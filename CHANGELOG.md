@@ -12,6 +12,11 @@
 - **Log Noise Reduction**: Removed frequent "Human interaction timed out" warning messages from the console.
 - **Improved Status Reporting**: Added internal status tracking and a profile efficacy report showing properties scraped per browser profile.
 
+### Improved
+- **Block Detection Accuracy**: Refined `_check_for_blocks` and `extract_detail_fields` to correctly identify hard blocks ("Uso indebido", "El acceso se ha bloqueado") and distinguish them from resolvable CAPTCHAs.
+- **CAPTCHA Log Fix**: Corrected a false positive where the scraper would log "CAPTCHA solved!" if a block page title matched generic idealista patterns.
+- **Browser Stealth Reinforcement**: Added additional anti-detection arguments for Chromium (Chromium, Google Chrome, Edge) and injected more randomized hardware fingerprints (concurrency, memory, GPU) to reduce block rates on non-WebKit profiles.
+
 ### Added
 - **Smart Efficiency Optimization**: Implemented a "Smart Skip" mechanism that identifies properties already present and enriched in the Excel file directly from the search results, skipping detail page navigation for confirmed active ads.
 - **Deactivation Tracking**: Added logic to track properties in Excel that are missing from current search results, performing a targeted status-only check to mark them as inactive with their deactivation date.

@@ -428,6 +428,12 @@ try {{
     }});
 }} catch (e) {{}}
 
+// 9. Extra Hardware Randomization
+try {{
+    Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => 8 }});
+    Object.defineProperty(navigator, 'deviceMemory', {{ get: () => 8 }});
+}} catch (e) {{}}
+
 // 11. ADVANCED: Canvas Noise Fingerprinting
 try {{
     const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
@@ -477,10 +483,11 @@ try {{
 // 14. MODERN: userAgentData Spoofing
 try {{
     if (navigator.userAgentData) {{
+        const majorVersion = (navigator.userAgent.match(/Chrome\/(\d+)/) || [null, '133'])[1];
         const brands = [
-            {{ brand: 'Google Chrome', version: '132' }},
-            {{ brand: 'Not A(Brand', version: '8' }},
-            {{ brand: 'Chromium', version: '132' }}
+            {{ brand: 'Not(A:Brand', version: '99' }},
+            {{ brand: 'Google Chrome', version: majorVersion }},
+            {{ brand: 'Chromium', version: majorVersion }}
         ];
         Object.defineProperty(navigator, 'userAgentData', {{
             get: () => ({{
@@ -491,10 +498,10 @@ try {{
                     brands: brands,
                     mobile: false,
                     platform: 'Windows',
-                    platformVersion: '10.0.0',
+                    platformVersion: '15.0.0',
                     architecture: 'x86',
                     model: '',
-                    uaFullVersion: '132.0.0.0'
+                    uaFullVersion: `${{majorVersion}}.0.0.0`
                 }})
             }})
         }});
@@ -1271,41 +1278,45 @@ class ScraperController:
             
             # 3. Check for HARD BLOCKS
             hard_block_keywords = [
-                "el acceso se ha bloqueado"
+                "el acceso se ha bloqueado",
+                "se ha detectado un uso indebido",
+                "uso no autorizado",
+                "acceso bloqueado",
+                "forbidden",
+                "access denied"
             ]
             
             if any(kw in text_lower for kw in hard_block_keywords):
-                self.log("WARN", f"Hard block keywords matched: {[kw for kw in hard_block_keywords if kw in text_lower]}")
+                self.log("WARN", f"🚫 HARD BLOCK detected (Keywords: {[kw for kw in hard_block_keywords if kw in text_lower]})")
                 return "block"
                 
             # 4. Check for CAPTCHAs / Interstitials
             captcha_keywords = [
-                "estamos recibiendo muchas peticiones tuyas"
+                "estamos recibiendo muchas peticiones tuyas",
+                "confirma que eres humano",
+                "verificación necesaria",
+                "un momento, por favor"
             ]
             
             # Check for Cloudflare/WAF ID (e.g. ID: c031717f...)
-            if "id: " in text_lower and re.search(r"id: [0-9a-f]{8}-", text_lower):
+            if "id: " in text_lower and re.search(r"id: [0-9a-f]{8,32}-", text_lower):
                  self.log("WARN", "WAF/Block ID detected on page text.")
                  return "block"
 
             if any(kw in text_lower for kw in captcha_keywords) or any(kw in title for kw in captcha_keywords):
-                self.log("WARN", f"Captcha keywords matched: {[kw for kw in captcha_keywords if kw in text_lower or kw in title]}")
+                self.log("WARN", f"CAPTCHA keywords matched: {[kw for kw in captcha_keywords if kw in text_lower or kw in title]}")
                 return "captcha"
                 
             # 5. Check for CLOUDFLARE specifically
             if "cloudflare" in text_lower or "checking your browser" in text_lower:
                 return "captcha"
 
-            # 6. Special Case: Blank page or empty body (often means blocked/loading)
-            if not text_lower.strip() or len(text_lower) < 50:
-                  # Priority check for title being ONLY "idealista.com" (signature of block)
-                  if title == "idealista.com":
-                      self.log("WARN", "Page title is exactly 'idealista.com'. Treating as CAPTCHA/Block.")
-                      return "captcha"
-                  
-                  if "idealista" in text_lower and len(text_lower) < 250:
-                      self.log("WARN", "Almost empty page with Idealista header detected. Treating as CAPTCHA/Waiting.")
-                      return "captcha"
+            # 6. Special Case: Signature of blocked/poisoned profile
+            if title == "idealista.com" and len(text_lower) < 1000:
+                # If we see title "idealista.com" but none of the keywords, and it's a short page,
+                # it's usually the "uso indebido" block page.
+                self.log("WARN", "Suspiciously short 'idealista.com' page. Treating as BLOCK.")
+                return "block"
             
             return None
         except Exception as e:
@@ -1510,15 +1521,29 @@ class ScraperController:
                                 break
                             
                             try:
+                                # Check if still blocked first to avoid false 'solved' messages
+                                current_block = await self._check_for_blocks(page)
+                                if current_block == "block":
+                                    self.log("ERR", "🚫 Manual wait failed: Page is still BLOCKED (Uso indebido). Triggering rotation.")
+                                    mark_current_profile_blocked()
+                                    raise BlockedException("Acceso bloqueado persistente")
+                                
                                 # Check title again
                                 new_title = await page.title()
                                 nt_lower = new_title.lower()
+                                
+                                # If title is exactly 'idealista.com' it's usually still the block page or a reload
+                                # A solved page should have something like 'Pisos en...' or 'Alquiler en...'
+                                is_generic_title = (nt_lower == "idealista.com" or nt_lower == "idealista")
+                                
                                 # If title looks like normal Idealista page, assume solved
-                                if "idealista" in nt_lower and "captcha" not in nt_lower and "attention" not in nt_lower:
-                                    self.log("OK", "CAPTCHA solved! Resuming...")
+                                if "idealista" in nt_lower and not is_generic_title and "captcha" not in nt_lower and "attention" not in nt_lower:
+                                    self.log("OK", "✅ CAPTCHA solved! Resuming...")
                                     if self.on_status:
                                         self.on_status("running")
                                     break
+                            except BlockedException:
+                                raise
                             except Exception:
                                 pass
                 except Exception:
@@ -1800,6 +1825,11 @@ class ScraperController:
                         "--force-color-profile=srgb",
                         "--metrics-recording-only",
                         "--export-tagged-pdf",
+                        "--disable-infobars",
+                        "--disable-web-security",
+                        "--disable-features=IsolateOrigins,site-per-process",
+                        "--disable-site-isolation-trials",
+                        "--allow-running-insecure-content",
                     ]
                     
                     firefox_prefs = {
@@ -2376,6 +2406,10 @@ class ScraperController:
                                 if target_file is None:
                                     await page.wait_for_timeout(PAGE_WAIT_MS)
                                     d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
+                                    if d.get("isBlocked"):
+                                         self.log("ERR", "🚫 BLOCK detected on first property. Triggering rotation...")
+                                         mark_current_profile_blocked()
+                                         raise BlockedException("Acceso bloqueado en primera propiedad")
                                     row = {"URL": key, **d}
                             
                                     # Build target filename only if not already forced or detected from province
@@ -2428,11 +2462,18 @@ class ScraperController:
                                             # Retry extraction check (With timeout)
                                             try:
                                                 d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
+                                                if d.get("isBlocked"):
+                                                     self.log("ERR", "🚫 Manual wait failed: Page is still BLOCKED (Uso indebido).")
+                                                     mark_current_profile_blocked()
+                                                     raise BlockedException("Acceso bloqueado persistente")
+                                                
                                                 row = {"URL": key, **d}
                                                 if not missing_fields(row, is_room_mode=self._is_room_mode):
-                                                     self.log("OK", "CAPTCHA cleared! Resuming...")
+                                                     self.log("OK", "✅ CAPTCHA cleared! Resuming...")
                                                      miss = False
                                                      break 
+                                            except BlockedException:
+                                                raise
                                             except: pass
 
                                         if miss:
@@ -2486,6 +2527,12 @@ class ScraperController:
                                 # Scrape the property
                                 await page.wait_for_timeout(PAGE_WAIT_MS)
                                 d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
+                                
+                                # Immediate block check
+                                if d.get("isBlocked"):
+                                     self.log("ERR", "🚫 BLOCK detected during extraction. Triggering rotation...")
+                                     mark_current_profile_blocked()
+                                     raise BlockedException("Acceso bloqueado durante extracción")
                         
                                 row = {"URL": key, **d}
                                 miss = missing_fields(row, is_room_mode=self._is_room_mode)
@@ -2537,11 +2584,18 @@ class ScraperController:
                                         # Retry extraction check (With timeout)
                                         try:
                                             d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
+                                            if d.get("isBlocked"):
+                                                 self.log("ERR", "🚫 Manual wait failed: Page is still BLOCKED (Uso indebido).")
+                                                 mark_current_profile_blocked()
+                                                 raise BlockedException("Acceso bloqueado persistente")
+                                            
                                             row = {"URL": key, **d}
                                             if not missing_fields(row, is_room_mode=self._is_room_mode):
-                                                 self.log("OK", "CAPTCHA cleared! Resuming...")
+                                                 self.log("OK", "✅ CAPTCHA cleared! Resuming...")
                                                  miss = False
                                                  break 
+                                        except BlockedException:
+                                            raise
                                         except: pass
 
                                     if miss:
