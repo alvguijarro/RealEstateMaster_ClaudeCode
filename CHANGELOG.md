@@ -3,6 +3,7 @@
 ## [2026-02-13]
 
 ### Fixed
+- **UI Timer Stagnation**: Ensured the elapsed timer starts correctly in all scraping modes (Batch, Update, Enrichment) and persists across province transitions by preventing intermediate sub-task completions from resetting the UI state.
 - **Scraper Rollover Resilience**: Fixed a critical bug where the scraper would prematurely terminate during identity rotation due to a rogue stop event trigger.
 - **Improved Cooldown Handling**: Wrapped rollover wait periods in exception handlers to prevent thread failure logs when stopping during cooldown.
 - **Optimized Resume Logic**: Clarified logs when restoring processed URLs from session files to avoid confusion during restarts.

@@ -120,6 +120,14 @@ def emit_browser_closed():
 
 def emit_status(status: str, **kwargs):
     """Send status update to all connected clients."""
+    # If we are in middle of a batch/periodic process, suppress individual 'completed' or 'stopped' statuses
+    # arriving from sub-controllers, unless this event itself is the batch completion indicator.
+    global periodic_process
+    if periodic_process and periodic_process.poll() is None:
+        if status in ('completed', 'stopped', 'idle') and kwargs.get('mode') != 'batch':
+            # Suppress UI state change during batch sub-tasks
+            return
+
     socketio.emit('status_change', {'status': status, **kwargs})
     
     # When completed OR stopped, add to history
@@ -520,10 +528,10 @@ def periodic_log_monitor(process):
         # Emit completion status with more detail
         if process.returncode == 0:
             emit_log('OK', "✅ Proceso background finalizado correctamente.")
-            emit_status('completed', message="Proceso batch finalizado correctamente")
+            emit_status('completed', mode='batch', message="Proceso batch finalizado correctamente")
         else:
             emit_log('ERR', f"❌ Proceso background falló (Código {process.returncode}).")
-            emit_status('error', message=f"Proceso finalizado con errores (Código {process.returncode})")
+            emit_status('error', mode='batch', message=f"Proceso finalizado con errores (Código {process.returncode})")
             
     except Exception as e:
         print(f"Monitor error: {e}")

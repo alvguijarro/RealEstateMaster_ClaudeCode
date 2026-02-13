@@ -698,6 +698,8 @@ async function startUrlUpdate(resume = false) {
             if (updateUrlsBtn) updateUrlsBtn.innerHTML = '<span class="btn-icon">🔄</span> Actualizar URLs';
         } else {
             addLog('OK', 'Actualización de URLs iniciada');
+            startTime = Date.now();
+            startTimer();
         }
     } catch (error) {
         addLog('ERR', `Error de conexión: ${error.message}`);
@@ -1159,8 +1161,8 @@ function handleStatusChange(data) {
         seedUrlInput.disabled = false;
         if (startApiImportBtn) startApiImportBtn.disabled = false;
 
-        // Reset batch mode if completed
-        if (status === 'completed' && isBatchMode) {
+        // Reset batch mode if completed (only if the signal is for the batch itself)
+        if (status === 'completed' && isBatchMode && data.mode === 'batch') {
             isBatchMode = false;
             addLog('OK', '✅ LOTE COMPLETADO: Todos los destinos han sido procesados.');
             // Stop timer after a small delay to show final time
@@ -2012,6 +2014,8 @@ if (batchStartBtn) {
             if (!res.ok) {
                 addLog('ERR', `Error al iniciar lote: ${data.error}`);
                 setBatchUIState('idle');
+            } else {
+                startTimer();
             }
         } catch (e) {
             addLog('ERR', `Error de conexión: ${e.message}`);

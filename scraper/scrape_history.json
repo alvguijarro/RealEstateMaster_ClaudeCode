@@ -1,5 +1,21 @@
 [
   {
+    "timestamp": "2026-02-13T12:23:10.201852",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/granada-provincia/con-precio-hasta_2000/",
+    "properties_count": 1750,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Granada_alquiler.xlsx",
+    "filename": "idealista_Granada_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-13T12:23:08.364355",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/granada-provincia/con-precio-hasta_2000/",
+    "properties_count": 1750,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Granada_alquiler.xlsx",
+    "filename": "idealista_Granada_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-13T09:05:44.148975",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/girona-provincia/con-precio-hasta_2000/",
     "properties_count": 551,
