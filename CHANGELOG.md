@@ -16,7 +16,8 @@
 - **Browser Launch Resilience**: Fixed recurring `Timeout 90000ms exceeded` errors by increasing launch retries to 4 and implementing a progressive randomized backoff.
 - **Firefox Flag Fix**: Resolved the "unrecognized command line flag -foreground" error on Windows by explicitly ignoring it in the launch context.
 - **Silenced Browser Warnings**: Added environment overrides to suppress Firefox remote settings warnings that were cluttering the logs.
-- **Hardened Profile Cleanup**: Enhanced lock file removal logic to prevent startup hangs caused by orphaned browser sessions.
+- **Automatic Profile Cleanup**: Blocked profiles are now immediately deleted instead of being archived as `stealth_profile_BLOCKED_*`, ensuring the directory stays clean and disk space is preserved.
+- **Startup Maintenance**: Added a routine to automatically purge any existing leftover `BLOCKED` folders on scraper startup.
 - **Administrative Fallbacks**: Enhanced district inference using neighborhood dictionaries (BARRIO_TO_DISTRITO) and added smarter fallbacks for small towns where the city itself acts as the administrative district.
 - **Improved Status Reporting**: Added internal status tracking and a profile efficacy report showing properties scraped per browser profile.
 

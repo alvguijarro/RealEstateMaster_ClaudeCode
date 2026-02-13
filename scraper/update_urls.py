@@ -136,21 +136,30 @@ def emit_progress(current, total, sheet_name=None, excel_file=None):
             pass
 
 def handle_blocked_profile():
-    """Archive the current profile if it has been blocked/poisoned."""
-    from datetime import datetime
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_name = f"stealth_profile_BLOCKED_{timestamp}"
-    backup_path = os.path.join(os.path.dirname(STEALTH_PROFILE_DIR), backup_name)
+    """Delete the current profile if it has been blocked/poisoned to ensure next run is fresh."""
+    import shutil
+    import glob
     
-    emit_to_ui("WARN", "PROFILE POISONED: Dealing with blocked profile...")
+    emit_to_ui("WARN", "☣️  PROFILE POISONED: Purging blocked profile directory...")
     
     if os.path.exists(STEALTH_PROFILE_DIR):
         try:
-            shutil.move(STEALTH_PROFILE_DIR, backup_path)
-            emit_to_ui("WARN", f"Moved poisoned profile to: {backup_name}")
-            emit_to_ui("OK", "Next run will generate a fresh, clean profile.")
+            # Ensure browser is closed and remove the directory
+            shutil.rmtree(STEALTH_PROFILE_DIR, ignore_errors=True)
+            emit_to_ui("OK", "✨ Poisoned profile deleted. Next run will generate a fresh, clean identity.")
         except Exception as e:
-            emit_to_ui("ERR", f"Failed to archive profile: {e}")
+            emit_to_ui("ERR", f"Failed to delete poisoned profile: {e}")
+            
+    # Also trigger a general cleanup of any old residual blocked folders
+    try:
+        base_dir = os.path.dirname(STEALTH_PROFILE_DIR)
+        pattern = os.path.join(base_dir, "stealth_profile_BLOCKED_*")
+        blocked_folders = glob.glob(pattern)
+        for folder in blocked_folders:
+            if os.path.isdir(folder):
+                shutil.rmtree(folder, ignore_errors=True)
+    except:
+        pass
 
 async def detect_captcha(page) -> bool:
     """Check if page shows CAPTCHA/bot protection based on page title and content."""

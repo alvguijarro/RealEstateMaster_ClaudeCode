@@ -894,6 +894,12 @@ class ScraperController:
         self._stopped_by_user = False
         self._last_log_time = time.time()
         
+        # Cleanup any orphaned blocked folders from previous sessions
+        try:
+            self._cleanup_old_blocked_profiles()
+        except:
+            pass
+
         # Initialize output_file with forced_target_file if provided
         if self.forced_target_file:
             self.output_file = self.forced_target_file
@@ -1367,24 +1373,41 @@ class ScraperController:
             pass
 
     def handle_blocked_profile(self):
-        """Archive the current profile if it has been blocked/poisoned."""
+        """Delete the current profile if it has been blocked/poisoned to ensure next run is fresh."""
         import shutil
-        from datetime import datetime
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_name = f"stealth_profile_BLOCKED_{timestamp}"
-        backup_path = os.path.join(os.path.dirname(STEALTH_PROFILE_DIR), backup_name)
-        
-        self.log("WARN", "☣️  PROFILE POISONED: Dealing with blocked profile...")
+        self.log("WARN", "☣️  PROFILE POISONED: Purging blocked profile directory...")
         
         if os.path.exists(STEALTH_PROFILE_DIR):
             try:
-                # We assume browser is already closed by now
-                shutil.move(STEALTH_PROFILE_DIR, backup_path)
-                self.log("WARN", f"♻️  Moved poisoned profile to: {backup_name}")
-                self.log("OK", "✨ Next run will generate a fresh, clean profile.")
+                # Ensure browser is closed (this is double-checking as it should be closed by caller)
+                shutil.rmtree(STEALTH_PROFILE_DIR, ignore_errors=True)
+                self.log("OK", "✨ Poisoned profile deleted. Next run will generate a fresh, clean identity.")
             except Exception as e:
-                self.log("ERR", f"Failed to archive profile: {e}")
+                self.log("ERR", f"Failed to delete poisoned profile: {e}")
+        
+        # Also trigger a general cleanup of any old residual blocked folders
+        self._cleanup_old_blocked_profiles()
+
+    def _cleanup_old_blocked_profiles(self):
+        """Find and delete any old folders matching the BLOCKED pattern."""
+        import shutil
+        import glob
+        
+        # Target the parent directory of profiles
+        base_dir = os.path.dirname(STEALTH_PROFILE_DIR)
+        pattern = os.path.join(base_dir, "stealth_profile_BLOCKED_*")
+        
+        blocked_folders = glob.glob(pattern)
+        if not blocked_folders:
+            return
+            
+        for folder in blocked_folders:
+            try:
+                if os.path.isdir(folder):
+                    shutil.rmtree(folder, ignore_errors=True)
+            except:
+                pass
 
     async def _save_checkpoint(self, additions: List[dict], target_file: Optional[str], existing_df, carry_cols: Set[str]):
         """Periodically save current progress to Excel."""
