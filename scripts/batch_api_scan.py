@@ -78,6 +78,17 @@ PROVINCES_TO_SCAN = [
     {"id": "0-EU-ES-52", "name": "Melilla"},
 ]
 
+# Signal flags
+BATCH_STOP_FLAG = Path(__file__).parent.parent / "scraper" / "BATCH_STOP.flag"
+
+def check_signals():
+    """Check for stop flag."""
+    if BATCH_STOP_FLAG.exists():
+        log("WARN", "🛑 Stop signal detected. Exiting batch scan...")
+        try: BATCH_STOP_FLAG.unlink()
+        except: pass
+        sys.exit(0)
+
 def run_batch_scan(operation="rent", max_pages=50, delay_between=10, resume=False, use_vpn=False, rotate_every=5):
     """Run scanning process for all defined locations."""
     
@@ -109,6 +120,7 @@ def run_batch_scan(operation="rent", max_pages=50, delay_between=10, resume=Fals
     start_time = time.time()
 
     for i, loc in enumerate(PROVINCES_TO_SCAN):
+        check_signals()
         # NOTE: Periodic VPN rotation removed (2026-02-07)
         # VPN rotation now only happens when a block is detected in scraper_wrapper.py
 
@@ -184,6 +196,7 @@ def run_batch_scan(operation="rent", max_pages=50, delay_between=10, resume=Fals
             
             # Using manual loop instead of generator to support start_page
             for p in range(start_page, max_pages + 1):
+                check_signals()
                 # file_log("INFO" if p % 5 == 0 else "DEBUG", f"Fetching page {p}...")
                 print(f"\r   > Fetching page {p}/{max_pages}... Found {len(all_rows)} new items", end="")
                 

@@ -109,29 +109,34 @@ def run_scraper(province_name: str, url: str) -> bool:
             log(f"[OK] Scrape initiated for {province_name}.")
             
             # Poll for completion
-            # The server doesn't have a dedicated "wait for completion" endpoint.
-            # We'll poll the status endpoint.
             while True:
-                time.sleep(10)
+                # Check for script-level stop signals even while waiting for scraper
+                check_signals()
+                
+                time.sleep(5)
                 try:
                     status_resp = requests.get("http://localhost:5000/api/status", timeout=5)
                     if status_resp.status_code == 200:
                         status_data = status_resp.json()
                         current_status = status_data.get("status", "")
                         
-                        if current_status == "idle" or current_status == "completed":
+                        if current_status in ["idle", "completed"]:
                             log(f"[OK] Scrape completed for {province_name}.")
                             return True
-                        elif current_status == "blocked" or current_status == "captcha":
+                        elif current_status in ["stopped", "error"]:
+                            log(f"[INFO] Scrape stopped or failed for {province_name} (Status: {current_status}).")
+                            return False
+                        elif current_status in ["blocked", "captcha"]:
                             log(f"[WARN] Block/CAPTCHA detected for {province_name}.")
                             return False
-                        # else: still running, continue polling
+                        # else: still running (running, stopping, etc.), continue polling
                     else:
-                        log(f"[WARN] Status check failed for {province_name}.")
-                        return False
-                except:
-                    log(f"[WARN] Lost connection during scrape for {province_name}.")
-                    return False
+                        log(f"[WARN] Status check failed for {province_name} (HTTP {status_resp.status_code}).")
+                        # Don't return false yet, maybe server is briefly busy
+                except Exception as e:
+                    log(f"[WARN] Connection error during polling for {province_name}: {e}")
+                    # Brief wait then retry polling
+                    time.sleep(5)
         else:
             log(f"[ERR] Failed to start scrape for {province_name}: {resp.text}")
             return False

@@ -57,6 +57,19 @@ DELAY_BETWEEN_PAGES = (8, 20)  # seconds, randomized
 DELAY_BETWEEN_BATCHES = (120, 300)  # 2-5 minutes between batches of 20
 BATCH_SIZE = 20
 SESSION_LIMIT = 100  # Properties per session before long break
+# Signal flags
+STOP_FLAG = PROJECT_ROOT / "scraper" / "ENRICH_STOP.flag"
+
+def check_stop():
+    """Check if the user has requested to stop the process."""
+    if STOP_FLAG.exists():
+        log("WARN", "🛑 Stop signal detected. Exiting gracefully...")
+        try: STOP_FLAG.unlink()
+        except: pass
+        return True
+    return False
+
+# Session break
 SESSION_BREAK = (600, 1200)  # 10-20 minutes
 
 # Fields that the API provides (we skip these during enrichment)
@@ -252,6 +265,9 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
         enriched_data = {}  # file -> list of enriched rows
         
         for i, prop in enumerate(all_properties):
+            if check_stop():
+                break
+                
             url = prop["url"]
             file_path = prop["file"]
             
@@ -291,7 +307,11 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                 batch_count = 0
                 delay = random.uniform(*DELAY_BETWEEN_BATCHES)
                 log("INFO", f"Batch complete. Resting {delay/60:.1f} minutes...")
-                await asyncio.sleep(delay)
+                # Interruptible wait
+                for _ in range(int(delay)):
+                    if check_stop(): break
+                    await asyncio.sleep(1)
+                if check_stop(): break
             
             # Session break
             if session_count >= SESSION_LIMIT:
@@ -307,11 +327,18 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                         export_split_by_distrito(existing_df, rows, str(fp), set())
                 enriched_data = {}
                 
-                await asyncio.sleep(delay)
+                # Interruptible wait
+                for _ in range(int(delay)):
+                    if check_stop(): break
+                    await asyncio.sleep(1)
+                if check_stop(): break
             else:
                 # Normal delay between pages
                 delay = random.uniform(*DELAY_BETWEEN_PAGES)
-                await asyncio.sleep(delay)
+                for _ in range(int(delay)):
+                    if check_stop(): break
+                    await asyncio.sleep(1)
+                if check_stop(): break
         
         # Final save
         for fp, rows in enriched_data.items():

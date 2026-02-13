@@ -351,12 +351,16 @@ def pause_scraping():
         scraper_controller.pause()
         paused = True
     
-    # 2. Set flags for batch/periodic processes
+    # 2. Set flags for batch/periodic/update processes
     scraper_dir = Path(__file__).parent.parent
     try:
         (scraper_dir / "BATCH_PAUSE.flag").touch()
         (scraper_dir / "PERIODIC_PAUSE.flag").touch()
+        (scraper_dir / "update_paused.flag").touch()
+        
         if periodic_process and periodic_process.poll() is None:
+            paused = True
+        if update_process and update_process.poll() is None:
             paused = True
     except Exception as e:
         print(f"Error setting pause flags: {e}")
@@ -378,16 +382,21 @@ def resume_scraping():
         scraper_controller.resume()
         resumed = True
     
-    # 2. Remove flags for batch/periodic processes
+    # 2. Remove flags for batch/periodic/update processes
     scraper_dir = Path(__file__).parent.parent
     try:
         batch_flag = scraper_dir / "BATCH_PAUSE.flag"
         periodic_flag = scraper_dir / "PERIODIC_PAUSE.flag"
+        update_flag = scraper_dir / "update_paused.flag"
+        
         if batch_flag.exists(): 
             batch_flag.unlink()
             resumed = True
         if periodic_flag.exists(): 
             periodic_flag.unlink()
+            resumed = True
+        if update_flag.exists():
+            update_flag.unlink()
             resumed = True
     except Exception as e:
         print(f"Error removing pause flags: {e}")
@@ -431,13 +440,21 @@ def stop_scraping():
         scraper_controller.stop()
         stopped = True
         
-    # 2. Stop batch/periodic process via flags
+    # 2. Stop batch/periodic/update process via flags
     scraper_dir = Path(__file__).parent.parent
     try:
         (scraper_dir / "BATCH_STOP.flag").touch()
         (scraper_dir / "PERIODIC_STOP.flag").touch()
+        (scraper_dir / "update_stop.flag").touch() # Ensure update_urls.py also stops
+        (scraper_dir / "ENRICH_STOP.flag").touch() # Ensure enrich_worker.py also stops
+        
+        # If there's a subprocess running, we might want to be more proactive
         if periodic_process and periodic_process.poll() is None:
             stopped = True
+            
+        if update_process and update_process.poll() is None:
+            stopped = True
+            
     except Exception as e:
         print(f"Error setting stop flags: {e}")
 

@@ -18,6 +18,7 @@
 - **Advanced Zombie Cleanup**: Enhanced process cleanup on Windows to specifically target orphaned Firefox/Chrome/Edge processes tied to scraper profiles.
 - **Resume State Synchronization**: Fixed a bug where browser rotation could overwrite resume progress with "Page 1" if a block occurred immediately after restart. Progress is now restored before the first navigation.
 - **Zone mapping to Parent Province**: Fixed a bug where zone-specific URLs (e.g., Albacete Centro) would create new Excel files instead of saving data into the parent province's file.
+- **Scraper Stop Responsiveness**: Refined `ScraperController` logic to prevent accidental pausing during stop sequences and synchronized stop flags across all task types for immediate halting.
 - **UI Timer Stagnation**: Ensured the elapsed timer starts correctly in all scraping modes (Batch, Update, Enrichment) and persists across province transitions by preventing intermediate sub-task completions from resetting the UI state.
 - **Scraper Rollover Resilience**: Fixed a critical bug where the scraper would prematurely terminate during identity rotation due to a rogue stop event trigger.
 - **Improved Cooldown Handling**: Wrapped rollover wait periods in exception handlers to prevent thread failure logs when stopping during cooldown.

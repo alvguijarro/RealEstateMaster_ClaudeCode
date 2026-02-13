@@ -1601,12 +1601,15 @@ class ScraperController:
                 error_msg = str(e).lower()
                 # Detect browser close - pause and notify UI
                 if "browser has been closed" in error_msg or "target page, context or browser has been closed" in error_msg:
-                    self.log("WARN", "Browser was closed. Pausing scraper...")
-                    self._browser_closed = True
-                    self.pause()  # Pause instead of stop
-                    if self.on_browser_closed:
-                        self.on_browser_closed()
-                    raise BrowserClosedException("Browser was closed by user")
+                    if self._stop_evt.is_set():
+                        self.log("INFO", "Browser closed during stop sequence.")
+                    else:
+                        self.log("WARN", "Browser was closed. Pausing scraper...")
+                        self._browser_closed = True
+                        self.pause()  # Pause instead of stop
+                        if self.on_browser_closed:
+                            self.on_browser_closed()
+                    raise BrowserClosedException("Browser was closed")
                 
                 last_err = e
                 self.log("WARN", f"goto attempt {attempt}/{RETRY_MAX_ATTEMPTS} failed: {e}")
