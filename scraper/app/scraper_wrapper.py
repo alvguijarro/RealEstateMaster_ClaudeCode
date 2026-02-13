@@ -1208,7 +1208,7 @@ class ScraperController:
             # This prevents closing the user's personal browser.
             ps_command = (
                 "Get-CimInstance Win32_Process | "
-                "Where-Object { $_.CommandLine -like '*stealth_profile*' } | "
+                "Where-Object { ($_.Name -match 'firefox|chrome|msedge') -and ($_.CommandLine -like '*stealth_profile*') } | "
                 "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
             )
             try:
@@ -1216,6 +1216,9 @@ class ScraperController:
                                capture_output=True, check=False)
             except:
                 pass
+            
+            # Fallback: If we had a persistent hang, we might need a broader stroke (but still filtered by name in logs)
+            # The current_config['name'] check isn't available here, so we stick to the command line match which is safer.
         else:
             # Linux/macOS targeted cleanup
             targets = ["firefox", "chrome", "edge"]
@@ -1325,11 +1328,23 @@ class ScraperController:
                 return "captcha"
 
             # 6. Special Case: Signature of blocked/poisoned profile
-            if title == "idealista.com" and len(text_lower) < 1000:
-                # If we see title "idealista.com" but none of the keywords, and it's a short page,
-                # it's usually the "uso indebido" block page.
-                self.log("WARN", "Suspiciously short 'idealista.com' page. Treating as BLOCK.")
-                return "block"
+            # If we see title "idealista.com" but none of the keywords, and it's a short page,
+            # it's usually the "uso indebido" block page.
+            if title == "idealista.com" and len(text_lower) < 1200:
+                # RELIABILITY FIX: Double check if any actual cards/articles exist before flagging
+                # This prevents false positives when the page is simply slow to load its innerText
+                try:
+                    has_items = await page.evaluate("""() => {
+                        return !!document.querySelector('article, .item, [data-element-id], #h1-container');
+                    }""")
+                    if not has_items:
+                        self.log("WARN", "Suspiciously short 'idealista.com' page with NO property elements. Treating as BLOCK.")
+                        return "block"
+                    else:
+                        self.log("INFO", "Short page detected but property elements found. Proceeding...")
+                except:
+                    # If evaluate fails, play it safe and treat as suspicious
+                    return "block"
             
             return None
         except Exception as e:
@@ -1880,7 +1895,7 @@ class ScraperController:
                         "--allow-running-insecure-content",
                     ]
                     
-                    firefox_prefs = {
+                     firefox_prefs = {
                         "dom.webdriver.enabled": False,
                         "useAutomationExtension": False,
                         "browser.tabs.warnOnClose": False,
@@ -1899,6 +1914,9 @@ class ScraperController:
                         "identity.fxaccounts.enabled": False,
                         "services.sync.engine.prefs": False,
                         "dom.ipc.processCount": 1,
+                        "marionette.log.level": "Error",
+                        "browser.tabs.remote.autostart": False,
+                        "accessibility.force_disabled": 1,
                     }
                     # Silence Firefox remote settings warnings
                     os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
@@ -1921,7 +1939,7 @@ class ScraperController:
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         firefox_user_prefs=firefox_prefs,
                                         ignore_default_args=["-foreground"],
-                                        timeout=90000, 
+                                        timeout=120000, # Increased for Windows stability
                                     )
                                 elif engine == "webkit": # Webkit (Safari-like)
                                     ctx = await pw.webkit.launch_persistent_context(
@@ -1938,7 +1956,7 @@ class ScraperController:
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         args=chromium_args,
                                         channel=channel,
-                                        timeout=90000,
+                                        timeout=120000, # Increased for Windows stability
                                     )
                                 if ctx: break
                             except Exception as le:
@@ -1955,6 +1973,11 @@ class ScraperController:
                                         # If it's the last attempt, try to delete the whole dir
                                         if launch_attempt == max_launch_retries - 1:
                                             self.log("ERR", "💣 Firefox persistent hang. DELETING profile directory for fresh start.")
+                                            # Also try direct taskkill for firefox.exe as a last resort
+                                            if sys.platform == "win32":
+                                                try: subprocess.run(["taskkill", "/F", "/IM", "firefox.exe", "/T"], capture_output=True)
+                                                except: pass
+                                            
                                             import shutil
                                             shutil.rmtree(profile_dir, ignore_errors=True)
                                             os.makedirs(profile_dir, exist_ok=True)
@@ -2286,10 +2309,15 @@ class ScraperController:
 
                         self.current_page = page_num
                         list_url = build_paginated_url(self.seed_url, page_num)
-                        self.log("INFO", f"Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
-                
+                        current_url = page.url
+                        is_already_on_target = list_url in current_url or current_url in list_url
+                        
                         try:
-                            await self._goto_with_retry(page, list_url)
+                            if is_already_on_target and page_num == self.current_page:
+                                self.log("INFO", f"Already on Page {page_num} listing. Skipping redundant navigation.")
+                            else:
+                                self.log("INFO", f"Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
+                                await self._goto_with_retry(page, list_url)
                     
                             # Verify we are on the correct page (Idealista might redirect to previous page if blocked or bugged)
                             # Check if 'pagina-X' is in the URL if we expect it

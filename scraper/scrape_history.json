@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-13T15:50:22.340068",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/huesca-provincia/con-precio-hasta_2000/",
+    "properties_count": 178,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Huesca_alquiler.xlsx",
+    "filename": "idealista_Huesca_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-13T12:23:10.201852",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/granada-provincia/con-precio-hasta_2000/",
     "properties_count": 1750,
