@@ -12,10 +12,11 @@
 - **Log Noise Reduction**: Removed frequent "Human interaction timed out" warning messages from the console.
 - **Scraper Mode Switching**: Mode switching is now allowed during execution (hot-swap).
 - **UI Button Synchronization**: Fixed an issue where "Pausar" and "Detener" buttons were disabled during identity rotation (`blocked`) and rest periods (`resting`), ensuring continuous user control.
-- **Scraper Stop Logic**: Added `StopException` propagation to ensure immediate interruption of scraping loops and proper UI state transitions when the "Detener" button is pressed.
-- **Rotation Status Sync**: Fixed an issue where the UI would disable buttons during identity rotation (`blocked`) and rest periods (`resting`), ensuring continuous user control.
-- **Batch Selection Fixes**: Updated the "Todos" (Select All) functionality in province dropdowns to only impact **visible** items matching the current search filter, preventing accidental selection of unselected provinces (like A Coruña).
 - **Improved City Detection**: Implemented a robust "bottom-up" hierarchical extraction logic for the "Ciudad" field. It now automatically strips noise phrases like "Próximo a" and "Alrededores de", validates candidates against known provinces, and handles diverse formats like "Córdoba, Córdoba".
+- **Browser Launch Resilience**: Fixed recurring `Timeout 90000ms exceeded` errors by increasing launch retries to 4 and implementing a progressive randomized backoff.
+- **Firefox Flag Fix**: Resolved the "unrecognized command line flag -foreground" error on Windows by explicitly ignoring it in the launch context.
+- **Silenced Browser Warnings**: Added environment overrides to suppress Firefox remote settings warnings that were cluttering the logs.
+- **Hardened Profile Cleanup**: Enhanced lock file removal logic to prevent startup hangs caused by orphaned browser sessions.
 - **Administrative Fallbacks**: Enhanced district inference using neighborhood dictionaries (BARRIO_TO_DISTRITO) and added smarter fallbacks for small towns where the city itself acts as the administrative district.
 - **Improved Status Reporting**: Added internal status tracking and a profile efficacy report showing properties scraped per browser profile.
 

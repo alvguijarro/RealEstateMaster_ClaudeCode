@@ -1180,7 +1180,8 @@ class ScraperController:
             
         for root, dirs, files in os.walk(profile_dir):
             for name in files:
-                if name.lower() in lock_files:
+                # Match strictly or common patterns like 'lock'
+                if name.lower() in lock_files or name.startswith(".parentlock"):
                     try:
                         lock_path = os.path.join(root, name)
                         os.remove(lock_path)
@@ -1836,13 +1837,16 @@ class ScraperController:
                         "dom.webdriver.enabled": False,
                         "useAutomationExtension": False,
                     }
+                    # Silence Firefox remote settings warnings
+                    os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
+                    
                     # PRE-LAUNCH CLEANUP
                     self._cleanup_zombie_browsers()
                     self._clear_profile_locks(profile_dir)
                     
                     try:
                         # LEVERAGE CHANNEL & ENGINE with launch retries
-                        max_launch_retries = 2
+                        max_launch_retries = 4
                         ctx = None
                         
                         for launch_attempt in range(1, max_launch_retries + 1):
@@ -1853,6 +1857,7 @@ class ScraperController:
                                         headless=False,
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         firefox_user_prefs=firefox_prefs,
+                                        ignore_default_args=["-foreground"],
                                         timeout=90000, 
                                     )
                                 elif engine == "webkit": # Webkit (Safari-like)
@@ -1875,9 +1880,11 @@ class ScraperController:
                                 if ctx: break
                             except Exception as le:
                                 if launch_attempt < max_launch_retries:
-                                    self.log("WARN", f"🚀 Launch attempt {launch_attempt} failed: {le}. Retrying in 5s...")
+                                    # Progressive sleep with randomization
+                                    sleep_time = 5 + (launch_attempt * 2) + random.random() * 5
+                                    self.log("WARN", f"🚀 Launch attempt {launch_attempt} failed: {le}. Retrying in {int(sleep_time)}s...")
                                     self._clear_profile_locks(profile_dir)
-                                    await asyncio.sleep(5)
+                                    await asyncio.sleep(sleep_time)
                                 else:
                                     raise le
 
