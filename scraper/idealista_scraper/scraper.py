@@ -49,8 +49,13 @@ async def _goto_with_retry(page, url: str) -> None:
     t_start_goto = time.time()
     for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
         try:
-            # Use domcontentloaded for faster, more reliable navigation
-            await page.goto(url, wait_until=GOTO_WAIT_UNTIL, timeout=60000)
+            # Firefox systematic logic: if first attempt fails with NS_ERROR_ABORT, 
+            # try with 'commit' for the next one to follow redirects more naturally.
+            current_wait = GOTO_WAIT_UNTIL
+            if last_err and "NS_ERROR_ABORT" in str(last_err):
+                current_wait = "commit"
+            
+            await page.goto(url, wait_until=current_wait, timeout=60000)
             
             # Humanize interaction after reaching the page
             await simulate_human_interaction(page)
@@ -123,6 +128,14 @@ async def _goto_with_retry(page, url: str) -> None:
             return
         except Exception as e:
             last_err = e
+            err_str = str(e)
+            
+            # Special handling for Firefox NS_ERROR_ABORT (often transient redirects)
+            if "NS_ERROR_ABORT" in err_str:
+                if attempt < RETRY_MAX_ATTEMPTS:
+                    log("INFO", f"Navigation aborted by Firefox (NS_ERROR_ABORT) for {url}. Retrying immediately...")
+                    continue # Immediate retry, no delay backoff for aborts
+            
             log("WARN", f"goto attempt {attempt}/{RETRY_MAX_ATTEMPTS} failed for {url}: {e}")
             await asyncio.sleep(delay)
             delay *= 2
