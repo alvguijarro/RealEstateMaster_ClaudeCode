@@ -1898,7 +1898,7 @@ class ScraperController:
                         "--allow-running-insecure-content",
                     ]
                     
-                     firefox_prefs = {
+                    firefox_prefs = {
                         "dom.webdriver.enabled": False,
                         "useAutomationExtension": False,
                         "browser.tabs.warnOnClose": False,
