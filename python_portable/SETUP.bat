@@ -53,24 +53,16 @@ if not exist "%PIP%" (
     )
 )
 
-REM Install required packages
-echo Installing Flask and web dependencies...
-"%PYTHON%" -m pip install --quiet --upgrade flask flask-socketio 2>nul
-
-echo Installing data processing libraries...
-"%PYTHON%" -m pip install --quiet --upgrade pandas openpyxl xlsxwriter numpy 2>nul
-
-echo Installing analyzer dependencies...
-"%PYTHON%" -m pip install --quiet --upgrade scikit-learn google-generativeai 2>nul
-
-echo Installing scraper dependencies...
-"%PYTHON%" -m pip install --quiet --upgrade playwright playwright-stealth 2>nul
+REM Install required packages from master requirements
+echo Installing all tool dependencies from requirements_master.txt...
+"%PYTHON%" -m pip install --upgrade pip
+"%PYTHON%" -m pip install --upgrade -r "..\requirements_master.txt"
 
 echo.
-echo [3/4] Installing Playwright browsers (this may take a few minutes)...
+echo [3/4] Installing Playwright browsers (Chromium & Firefox)...
 REM Set browser path to local directory
 set PLAYWRIGHT_BROWSERS_PATH=%SCRIPT_DIR%browsers
-"%PYTHON%" -m playwright install chromium 2>nul
+"%PYTHON%" -m playwright install chromium firefox 2>nul
 if errorlevel 1 (
     echo WARNING: Playwright browser installation may have issues.
     echo The scraper might not work, but other features will.

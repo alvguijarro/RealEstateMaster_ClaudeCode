@@ -1,0 +1,14 @@
+# RealEstateMaster - Master Requirements File for Portable Installation
+flask>=2.0.0
+flask-socketio
+pandas>=1.5.0
+openpyxl>=3.0.0
+xlsxwriter>=3.0.0
+numpy>=1.20.0
+scikit-learn>=1.0.0
+google-generativeai>=0.3.0
+playwright>=1.40.0
+playwright-stealth
+requests
+python-socketio
+eventlet  # Recommended for Flask-SocketIO threading

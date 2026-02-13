@@ -2,6 +2,12 @@
 
 ## [2026-02-13]
 
+### Added
+- **Unified Portable Package**: Created a zero-install portable version of all tools in the `python_portable` directory.
+- **Smart Launcher**: Updated `START_PORTABLE.bat` with automatic setup detection and configuration.
+- **Enhanced Setup Engine**: `SETUP.bat` now installs all tool dependencies from a central `requirements_master.txt` and includes Firefox for Playwright.
+- **Master Dependency Tracking**: Simplified tool management by consolidating all requirements into `requirements_master.txt`.
+
 ### Fixed
 - **Browser Identity Robustness**: Improved Firefox launch reliability by disabling background updates/telemetry, implementing aggressive profile lock cleanup, and increasing launch timeouts to 120s.
 - **Improved Block Detection**: Reduced false "Uso indebido" detections on short pages by verifying the presence of property elements before flagging a block.
