@@ -795,6 +795,7 @@ function initializeSocket() {
     socket.on('disconnect', () => {
         addLog('WARN', 'Desconectado del servidor');
         updateServerButtons(false);
+        resetUIState(); // Ensure timer stops on disconnect
     });
 
     socket.on('log', (data) => {
@@ -1161,13 +1162,11 @@ function handleStatusChange(data) {
         seedUrlInput.disabled = false;
         if (startApiImportBtn) startApiImportBtn.disabled = false;
 
-        // Reset batch mode if completed (only if the signal is for the batch itself)
         if (status === 'completed' && isBatchMode && data.mode === 'batch') {
             isBatchMode = false;
             addLog('OK', '✅ LOTE COMPLETADO: Todos los destinos han sido procesados.');
-            // Stop timer after a small delay to show final time
-            setTimeout(stopTimer, 1000);
         }
+
         // TERMINAL STATUSES
         if (isUpdateMode) {
             resetUIState();
@@ -1394,12 +1393,6 @@ function resetUIState() {
     }
 
     stopTimer();
-}
-
-function startTimer() {
-    startTime = Date.now();
-    timerInterval = setInterval(updateTimer, 1000);
-    updateTimer();
 }
 
 function stopTimer() {
@@ -2189,12 +2182,14 @@ function setupBatchSocketListeners() {
         addLog('OK', `Lote completado: ${data.completed}/${data.total} archivos.`);
         setBatchUIState('idle');
         alert("Batch Enrichment Completed!");
-        batchStartTime = null; // Stop timer
+        batchStartTime = null;
+        stopTimer();
     });
 
     socket.on('batch_stopped', () => {
         setBatchUIState('idle');
-        batchStartTime = null; // Stop timer
+        batchStartTime = null;
+        stopTimer();
     });
 
     // Also listen for legacy status if paused manually
