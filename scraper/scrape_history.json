@@ -1,5 +1,29 @@
 [
   {
+    "timestamp": "2026-02-13T09:05:44.148975",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/girona-provincia/con-precio-hasta_2000/",
+    "properties_count": 551,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Girona_alquiler.xlsx",
+    "filename": "idealista_Girona_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-13T07:37:24.068825",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/cuenca-provincia/con-precio-hasta_2000/",
+    "properties_count": 129,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Cuenca_alquiler.xlsx",
+    "filename": "idealista_Cuenca_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-13T07:22:59.739412",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/cordoba-provincia/con-precio-hasta_2000/",
+    "properties_count": 637,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Córdoba_alquiler.xlsx",
+    "filename": "idealista_Córdoba_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-12T23:24:52.853755",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/melilla-melilla/con-precio-hasta_2000/",
     "properties_count": 16,

@@ -2780,14 +2780,12 @@ class ScraperController:
                         ]
                         
                         if missing_urls:
-                            self.log("INFO", f"🔍 Found {len(missing_urls)} properties in Excel missing from search. Verifying deactivations...")
+                            self.log("INFO", f"🔍 Found {len(missing_urls)} properties in Excel missing from search. Verifying deactivations (all)...")
                             
-                            # Limit checks to avoid triggering blocks (max 15 per run)
-                            check_limit = 15
                             checked_count = 0
                             
                             for m_url in missing_urls:
-                                if self._stop_evt.is_set() or checked_count >= check_limit:
+                                if self._stop_evt.is_set():
                                     break
                                 
                                 # Skip if we already marked it as inactive in a previous check (avoid re-checking)
@@ -2795,7 +2793,7 @@ class ScraperController:
                                 if orig_row.get("Anuncio activo") == "No":
                                     continue
                                     
-                                self.log("INFO", f"Checking missing property status ({checked_count+1}/{check_limit}): {m_url}")
+                                self.log("INFO", f"Checking missing property status ({checked_count+1}/{len(missing_urls)}): {m_url}")
                                 try:
                                     await self._interruptible_sleep(random.uniform(5, 10))
                                     await self._goto_with_retry(page, m_url)

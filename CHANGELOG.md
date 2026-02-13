@@ -20,6 +20,7 @@
 - **Startup Maintenance**: Added a routine to automatically purge any existing leftover `BLOCKED` folders on scraper startup.
 - **Administrative Fallbacks**: Enhanced district inference using neighborhood dictionaries (BARRIO_TO_DISTRITO) and added smarter fallbacks for small towns where the city itself acts as the administrative district.
 - **Firefox Navigation Guard**: Implemented specialized handling for `NS_ERROR_ABORT` in Firefox. The scraper now performs an immediate, zero-delay retry with a 'commit' wait strategy when an abort is detected, significantly speeding up navigation through Idealista's security redirects.
+- **Unlimited Deactivation Checks**: Removed the hardcoded limit of 15 properties for missing-from-search verification. The scraper now processes the entire list of missing URLs from the Excel file to ensure complete synchronization and deactivation tracking in a single session.
 - **Improved Status Reporting**: Added internal status tracking and a profile efficacy report showing properties scraped per browser profile.
 
 
