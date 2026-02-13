@@ -92,7 +92,7 @@ def detect_province_and_operation(url: str) -> Tuple[Optional[str], Optional[str
     
     # Fallback: try to extract province from URL patterns like /provincia/ or province name
     # Pattern: venta-viviendas/{province}-provincia/
-    match = re.search(r'(?:venta|alquiler)-viviendas/([^/]+?)(?:-provincia)?/?', url_lower)
+    match = re.search(r'(?:venta|alquiler)-viviendas/([^/]+)(?:-provincia)?/?', url_lower)
     if match:
         slug = match.group(1)
         # Try to find matching province by slug

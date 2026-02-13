@@ -3,6 +3,7 @@
 ## [2026-02-13]
 
 ### Fixed
+- **Zone mapping to Parent Province**: Fixed a bug where zone-specific URLs (e.g., Albacete Centro) would create new Excel files instead of saving data into the parent province's file.
 - **UI Timer Stagnation**: Ensured the elapsed timer starts correctly in all scraping modes (Batch, Update, Enrichment) and persists across province transitions by preventing intermediate sub-task completions from resetting the UI state.
 - **Scraper Rollover Resilience**: Fixed a critical bug where the scraper would prematurely terminate during identity rotation due to a rogue stop event trigger.
 - **Improved Cooldown Handling**: Wrapped rollover wait periods in exception handlers to prevent thread failure logs when stopping during cooldown.
