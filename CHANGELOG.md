@@ -15,9 +15,10 @@
 - **Scraper Stop Logic**: Added `StopException` propagation to ensure immediate interruption of scraping loops and proper UI state transitions when the "Detener" button is pressed.
 - **Rotation Status Sync**: Fixed an issue where the UI would disable buttons during identity rotation (`blocked`) and rest periods (`resting`), ensuring continuous user control.
 - **Batch Selection Fixes**: Updated the "Todos" (Select All) functionality in province dropdowns to only impact **visible** items matching the current search filter, preventing accidental selection of unselected provinces (like A Coruña).
-- **Improved Batch Feedback**: Added console logging for selected URLs and a final "Lote Completado" summary log to the UI upon batch finish.
-- **Profile Efficacy Stats**: Corrected the browser profile statistics counter to accurately reflect every successfully scraped or smart-skipped property across all profiles (including Phase 2).
+- **Improved City Detection**: Implemented a robust "bottom-up" hierarchical extraction logic for the "Ciudad" field. It now automatically strips noise phrases like "Próximo a" and "Alrededores de", validates candidates against known provinces, and handles diverse formats like "Córdoba, Córdoba".
+- **Administrative Fallbacks**: Enhanced district inference using neighborhood dictionaries (BARRIO_TO_DISTRITO) and added smarter fallbacks for small towns where the city itself acts as the administrative district.
 - **Improved Status Reporting**: Added internal status tracking and a profile efficacy report showing properties scraped per browser profile.
+
 
 
 ### Improved

@@ -78,78 +78,100 @@ def find_altura(raw: str) -> Optional[str]:
 from .dictionaries import BARRIO_TO_DISTRITO
 
 def extract_location_details(map_lis: List[str]):
-    """Parse Calle, Barrio, Distrito, Ciudad, Zona, Provincia from header map list items."""
+    """Parse Calle, Barrio, Distrito, Ciudad, Zona, Provincia from header map list items.
+    
+    Uses a bottom-up hierarchical approach to identify the most specific location 
+    entities while filtering out noise and administrative labels.
+    """
     calle = barrio = distrito = ciudad = zona = provincia = None
     
-    # First pass: Extract Ciudad from the last line with a comma (e.g., "Madrid capital, Madrid" -> "Madrid")
-    # The last item in map_lis with a comma typically has format "Zone/Area, City"
-    for raw in reversed(map_lis or []):
-        txt = (raw or "").strip()
-        if "," in txt:
-            parts = txt.split(",")
-            candidate_city = parts[-1].strip()
-            # Validate: must be a valid province (which works for major cities like Madrid, Barcelona, etc.)
-            if get_comunidad(candidate_city):
-                ciudad = candidate_city
-                provincia = candidate_city  # In Spain, major cities often match province name
-                break
+    if not map_lis:
+        return calle, barrio, distrito, ciudad, zona, provincia
+
+    # 0. Noise cleanup list
+    # Identifies and removes phrases that prepend the actual location name
+    noise_regex = r"(?i)^(pr[oó]ximo a|cercano a|alrededores de|junto a|cerca de|adyacente a|pr[oó]x\.\s*a)\s+"
     
-    # 1. Standard Extraction
-    for raw in (map_lis or []):
-        txt = (raw or "").strip()
+    # Pre-clean all items for internal logic filtering
+    clean_map = [re.sub(noise_regex, "", (r or "").strip()).strip() for r in map_lis]
+    raw_map = [(r or "").strip() for r in map_lis]
+
+    # 1. First Pass: Provincial/City anchoring (Bottom-up)
+    # The last items in Idealista's map list are usually the most macro (Province, City)
+    for i in range(len(clean_map)-1, -1, -1):
+        txt = clean_map[i]
         
-        # Try to find valid province using our lookup (fallback if not found above)
-        if "," in txt and provincia is None:
-            parts = txt.split(",")
-            candidate = parts[-1].strip()
-            # If this candidate maps to a community, it's a valid province
-            if get_comunidad(candidate):
-                provincia = candidate
+        if "," in txt:
+            parts = [p.strip() for p in txt.split(",")]
+            candidate_prov = parts[-1]
+            if get_comunidad(candidate_prov):
+                provincia = candidate_prov
+                # If "City, Province" format (e.g. "Córdoba, Córdoba"), 
+                # the first part is often the specific city/town.
+                if len(parts) > 1 and not ciudad:
+                    candidate_city = parts[0]
+                    # Exclude if it's a known administrative label
+                    if not re.match(r"(?i)^(calle|barrio|distrito|zona|cl|av|v[ií]a|urbanizaci[oó]n|urb\.)\b", candidate_city):
+                        ciudad = candidate_city
+                break
+        else:
+            if get_comunidad(txt):
+                provincia = txt
+                break
                 
-        if "," in txt and zona is None:
-            if "zona" in txt.lower():
-                potential_zona = txt.split(",")[0].strip()
-                # Validation: Block street names being assigned to Zona
-                if not re.match(r"(?i)^(cl|calle|traves[ií]a|avenida|ronda)\b", potential_zona):
-                    zona = potential_zona
-        if re.match(r"\s*calle\b", txt, flags=re.I) and calle is None:
-            m = re.search(r"(?i)\bcalle\s+(.*)", txt)
-            calle = (m.group(1).strip() if m else txt)
+    # 2. Extract specific administrative boundaries by explicitly checking labels
+    for raw in raw_map:
+        if not raw: continue
+        
+        # Identification by label prefix
+        if re.match(r"(?i)^\s*calle\b", raw) and calle is None:
+            calle = re.sub(r"(?i)^calle\s+", "", raw).strip()
             continue
-        if re.match(r"\s*barrio\b", txt, flags=re.I) and barrio is None:
-            # Remove "Barrio " prefix - e.g., "Barrio Delicias" -> "Delicias"
-            barrio = re.sub(r"(?i)^barrio\s+(de\s+)?", "", txt).strip()
+        if re.match(r"(?i)^\s*barrio\b", raw) and barrio is None:
+            barrio = re.sub(r"(?i)^barrio\s+(de\s+)?", "", raw).strip()
             continue
-        if re.match(r"\s*distrito\b", txt, flags=re.I) and distrito is None:
-            # Remove "Distrito " prefix - e.g., "Distrito Arganzuela" -> "Arganzuela"
-            distrito = re.sub(r"(?i)^distrito\s+", "", txt).strip()
+        if re.match(r"(?i)^\s*distrito\b", raw) and distrito is None:
+            distrito = re.sub(r"(?i)^distrito\s+", "", raw).strip()
             continue
-        # Fallback ciudad extraction for simple entries (only if not already set)
-        if ciudad is None and (not re.match(r"\s*(calle|barrio|distrito)\b", txt, flags=re.I)) and ("," not in txt):
-            # Validation: Block street names and urbanization names from being assigned to Ciudad
-            if not re.match(r"(?i)^(cl|calle|traves[ií]a|avenida|ronda|paseo|camino|plaza|glorieta|urb\.?|urbanizaci[oó]n)\b", txt):
-                ciudad = txt
+        if re.match(r"(?i)^\s*zona\b", raw) and zona is None:
+             zona = re.sub(r"(?i)^zona\s+", "", raw).strip()
+             continue
+    
+    # 3. Fallback for Ciudad if not found in bottom-up split
+    # Search from bottom again, picking the first non-labeled, non-provincial level.
+    if ciudad is None:
+        for i in range(len(clean_map)-1, -1, -1):
+            txt = clean_map[i]
+            raw_txt = raw_map[i]
             
-    # 2. Logic Inference / Dictionary Lookup
+            # Exclude lines that are clearly addresses or administrative levels we already have
+            forbidden_labels = (
+                r"(?i)^(calle|barrio|distrito|zona|cl|av|v[ií]a|plaza|traves[ií]a|"
+                r"paseo|urbanizaci[oó]n|urb\.|camino|ronda|carretera|cuesta|glorieta)\b"
+            )
+            is_labeled = re.match(forbidden_labels, raw_txt)
+            
+            # If it's not a label and not the whole provincia entry itself (unless only 1-2 items)
+            if not is_labeled and "," not in raw_txt:
+                # Validation: Town names are typically reasonably short
+                if len(txt) < 50:
+                    ciudad = txt
+                    break
+
+    # 4. Ultimate Fallback: minor administrative levels
     if not distrito:
-        # Strategy A: Infer from Barrio (Fastest)
+        # Strategy A: Infer from Barrio (using BARRIO_TO_DISTRITO dictionary)
         if barrio:
-            # Clean "Barrio " prefix for lookup keys if needed, or keep map keys robust.
-            # Our dict keys are like "Malasaña", but text might be "Barrio Malasaña"
-            # Let's clean standard prefixes
             clean_b = re.sub(r"(?i)^barrio\s+(de\s+)?", "", barrio).strip()
             if clean_b in BARRIO_TO_DISTRITO:
-                distrito = BARRIO_TO_DISTRITO[clean_b]  # No longer adding "Distrito " prefix
+                distrito = BARRIO_TO_DISTRITO[clean_b]
                 
         # Strategy B: Clean "Zona X" breadcrumbs
-        # Sometimes district is just "Centro" in the breadcrumbs but identified as a zone or generic text
         if not distrito and zona:
-            # If 'Zona Centro' -> Distrito Centro
             if "centro" in zona.lower():
                 distrito = "Centro"
 
-    # 3. Ultimate Fallback: Small Villages/Towns
-    # If it's a small town (no administrative districts), the "Distrito" is effectively the town itself.
+    # In small towns, "Distrito" often equals "Ciudad".
     if not distrito and ciudad:
         distrito = ciudad
 
