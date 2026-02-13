@@ -1001,157 +1001,101 @@ def phase_market(config, df_venta, df_alquiler, use_cache=True):
 def find_comparables(venta_row, df_alquiler, strict=True, alquiler_index=None):
     """
     Find ALQUILER properties comparable to a VENTA property.
-    
-    Enhanced version with:
-    - Precision scoring per comparable
-    - Extended matching criteria (garaje, terraza, ascensor)
-    - Weighted similarity calculation
-    - Optional pre-indexed lookup for performance
-    
-    Strict criteria: Same distrito, same habs, same banos, ±20% m²
-    Relaxed criteria: ±1 habs, ±1 banos, ±30% m²
-    
-    Args:
-        venta_row: Row from VENTA DataFrame
-        df_alquiler: Full ALQUILER DataFrame (fallback if no index)
-        strict: Use strict or relaxed matching criteria
-        alquiler_index: Optional dict {distrito: DataFrame} for O(1) lookup
-    
-    Returns: DataFrame of comparable ALQUILER properties with 'similarity' and 'precision' columns
+    Now supports hierarchical location search (Barrio -> Distrito -> Ciudad).
     """
-    distrito = venta_row['Distrito']
+    barrio = str(venta_row.get('Barrio', '')).strip()
+    distrito = str(venta_row.get('Distrito', '')).strip()
+    ciudad = str(venta_row.get('Ciudad', '')).strip()
+    
     m2 = venta_row['m2 construidos']
     habs = venta_row.get('habs', 2)
     banos = venta_row.get('banos', 1)
     
-    # Extended features for precision
-    venta_garaje = bool(venta_row.get('Garaje') or venta_row.get('garaje'))
-    venta_terraza = bool(venta_row.get('Terraza') or venta_row.get('terraza'))
-    venta_ascensor = bool(venta_row.get('ascensor'))
-    
     # Handle NaN values
     if pd.isna(habs): habs = 2
     if pd.isna(banos): banos = 1
-    if pd.isna(m2): m2 = 80  # Default assumption
+    if pd.isna(m2): m2 = 80
     
-    # Use pre-indexed lookup if available (O(1) instead of O(n))
-    if alquiler_index is not None and distrito in alquiler_index:
-        df_distrito = alquiler_index[distrito]
-    else:
-        # Fallback to full scan
-        df_distrito = df_alquiler[df_alquiler['Distrito'] == distrito]
+    # --- LOCATE CANDIDATES BY HIERARCHY ---
+    candidates = pd.DataFrame()
     
-    # Return empty if no properties in distrito
-    # Return empty if no properties in distrito
-    if len(df_distrito) == 0:
+    # Hierarchy levels to try
+    levels = []
+    if barrio: levels.append(('Barrio', barrio))
+    if distrito: levels.append(('Distrito', distrito))
+    if ciudad: levels.append(('Ciudad', ciudad))
+    
+    for level_name, level_val in levels:
+        mask = df_alquiler[level_name].astype(str).str.strip() == level_val
+        level_candidates = df_alquiler[mask]
+        
+        if not level_candidates.empty:
+            # Type normalization
+            def norm_tipo(t):
+                t = str(t).lower()
+                if 'casa' in t or 'chalet' in t: return 'casa'
+                return 'piso'
+            
+            v_tipo = norm_tipo(venta_row.get('tipo', 'piso'))
+            if 'tipo_norm' not in level_candidates.columns:
+                level_candidates = level_candidates.copy()
+                level_candidates['tipo_norm'] = level_candidates['tipo'].apply(norm_tipo)
+                
+            # Filter by type (Crucial)
+            level_candidates = level_candidates[level_candidates['tipo_norm'] == v_tipo]
+            
+            if not level_candidates.empty:
+                # Filter by M2 range (±40% for candidates)
+                m2_mask = (level_candidates['m2 construidos'] >= m2 * 0.6) & (level_candidates['m2 construidos'] <= m2 * 1.4)
+                candidates = level_candidates[m2_mask]
+                
+                if not candidates.empty:
+                    # Found sufficient candidates at this level
+                    break
+    
+    if candidates.empty:
         return pd.DataFrame()
-    
-    # --- TYPE NORMALIZATION ---
-    def normalize_tipo(t):
-        t = str(t).lower()
-        if 'casa' in t or 'chalet' in t or 'unifamiliar' in t or 'pareado' in t:
-            return 'casa'
-        return 'piso' # Default to piso (includes atico, duplex, estudio)
-    
-    venta_tipo = normalize_tipo(venta_row.get('tipo', 'piso'))
-    
-    # Check types in dataset
-    if 'tipo_norm' not in df_distrito.columns:
-        df_distrito = df_distrito.copy()
-        df_distrito['tipo_norm'] = df_distrito['tipo'].apply(normalize_tipo)
-    
-    if strict:
-        # Strict: Same type, same habs, same banos, ±20% m²
-        # This is CRITICAL: Do not compare Flats with Houses in strict mode
-        mask_tipo = df_distrito['tipo_norm'] == venta_tipo
+
+    # --- CALCULATE SIMILARITY & HEDONIC ADJUSTMENTS ---
+    if not candidates.empty:
+        # Import adjustments from ML module
+        try:
+            from ml_rent_model import apply_hedonic_adjustment, calculate_precision_score
+            ML_HELP = True
+        except:
+            ML_HELP = False
+            
+        results = []
+        for _, comp in candidates.iterrows():
+            comp_price = comp['price']
+            
+            # Apply adjustments if available
+            if ML_HELP:
+                adj_price = apply_hedonic_adjustment(comp_price, comp, venta_row)
+            else:
+                # Fallback: simple m2 adjustment
+                c_m2 = comp['m2 construidos']
+                adj_price = comp_price * (m2 / c_m2) if c_m2 > 0 else comp_price
+            
+            # Calculate weight for this comparable
+            # Precision score acts as the basis for weighting
+            if ML_HELP:
+                # Pass single row as DataFrame to reuse the logic
+                precision = calculate_precision_score(venta_row, pd.DataFrame([comp]))
+            else:
+                precision = 50.0 # Default
+                
+            res = comp.to_dict()
+            res['adjusted_price'] = adj_price
+            res['weight'] = (precision / 100.0) ** 2 # Square improves focus on high-quality matches
+            res['individual_precision'] = precision
+            results.append(res)
+            
+        comparables = pd.DataFrame(results).sort_values('weight', ascending=False)
         
-        m2_margin = 0.20
-        mask_habs = df_distrito['habs'] == habs
-        mask_banos = df_distrito['banos'] == banos
-        mask_m2 = (df_distrito['m2 construidos'] >= m2 * (1 - m2_margin)) & \
-                  (df_distrito['m2 construidos'] <= m2 * (1 + m2_margin))
+        # Enforce max 15 comparables for calculation
+        comparables = comparables.head(15)
         
-        mask = mask_tipo & mask_habs & mask_banos & mask_m2
-    else:
-        # Relaxed: Prefer same type but allow if needed? 
-        # Actually, for Rent Estimation, mixing types is very bad. 
-        # We will enforce type even in relaxed, but widen other params.
-        mask_tipo = df_distrito['tipo_norm'] == venta_tipo
-        
-        m2_margin = 0.30
-        mask_habs = (df_distrito['habs'] >= habs - 1) & (df_distrito['habs'] <= habs + 1)
-        mask_banos = (df_distrito['banos'] >= banos - 1) & (df_distrito['banos'] <= banos + 1)
-        mask_m2 = (df_distrito['m2 construidos'] >= m2 * (1 - m2_margin)) & \
-                  (df_distrito['m2 construidos'] <= m2 * (1 + m2_margin))
-        
-        # If we are desperate (relaxed), we might drop the type constraint?
-        # Let's keep it for now as "Type" is a strong price determinant.
-        mask = mask_tipo & mask_habs & mask_banos & mask_m2
-    
-    comparables = df_distrito[mask].copy()
-    
-    # Calculate similarity and precision for each comparable
-    if len(comparables) > 0:
-        # Similarity score (lower = more similar)
-        comp_m2 = comparables['m2 construidos'].fillna(m2)
-        comp_habs = comparables['habs'].fillna(habs)
-        comp_banos = comparables['banos'].fillna(banos)
-        
-        # Add mismatch penalty if we ever relax the type constraint
-        comp_tipo_mismatch = (comparables['tipo_norm'] != venta_tipo).astype(int)
-        
-        comparables['similarity'] = (
-            abs(comp_m2 - m2) / m2 +
-            abs(comp_habs - habs) * 0.5 +
-            abs(comp_banos - banos) * 0.5 +
-            comp_tipo_mismatch * 2.0  # Huge penalty for wrong type
-        )
-        
-        # Precision score (0-100%, higher = more precise match)
-        # VECTORIZED VERSION
-        
-        # M2 similarity (20% weight) - USER REQUEST
-        comp_m2_vals = comparables['m2 construidos'].fillna(m2)
-        m2_diffs = np.abs(comp_m2_vals - m2) / m2 if m2 > 0 else 0
-        m2_scores = 0.20 * np.maximum(0, 1 - m2_diffs)
-        
-        # Type match (15% weight) - USER REQUEST
-        tipo_scores = 0.15 * (comparables['tipo_norm'] == venta_tipo).astype(float)
-        
-        # Habs exact match (20% weight) - USER REQUEST
-        comp_habs_vals = comparables['habs'].fillna(habs)
-        habs_diffs = np.abs(comp_habs_vals - habs)
-        habs_scores = 0.20 * np.where(habs_diffs == 0, 1.0, np.where(habs_diffs == 1, 0.5, 0))
-        
-        # Banos exact match (15% weight) - USER REQUEST
-        comp_banos_vals = comparables['banos'].fillna(banos)
-        banos_diffs = np.abs(comp_banos_vals - banos)
-        banos_scores = 0.15 * np.where(banos_diffs == 0, 1.0, np.where(banos_diffs == 1, 0.5, 0))
-        
-        # Distrito always matches (15% weight) - USER REQUEST
-        distrito_scores = 0.15
-        
-        # Extras (5% each = 15% total) - REMAINING
-        # Garaje match (5% weight)
-        comp_garaje = (comparables.get('Garaje', pd.Series(False, index=comparables.index)).fillna(False).astype(bool) | 
-                       comparables.get('garaje', pd.Series(False, index=comparables.index)).fillna(False).astype(bool))
-        garaje_scores = 0.05 * np.where(comp_garaje == venta_garaje, 1.0, 0.5)
-        
-        # Terraza match (5% weight)
-        comp_terraza = (comparables.get('Terraza', pd.Series(False, index=comparables.index)).fillna(False).astype(bool) | 
-                        comparables.get('terraza', pd.Series(False, index=comparables.index)).fillna(False).astype(bool))
-        terraza_scores = 0.05 * np.where(comp_terraza == venta_terraza, 1.0, 0.5)
-        
-        # Ascensor match (5% weight)
-        comp_ascensor = comparables.get('ascensor', pd.Series(False, index=comparables.index)).fillna(False).astype(bool)
-        ascensor_scores = 0.05 * np.where(comp_ascensor == venta_ascensor, 1.0, 0.5)
-        
-        # Sum all scores
-        total_scores = m2_scores + tipo_scores + habs_scores + banos_scores + distrito_scores + garaje_scores + terraza_scores + ascensor_scores
-        
-        comparables['precision'] = np.round(total_scores * 100, 1)
-        comparables = comparables.sort_values('similarity')
-    
     return comparables
 
 
@@ -1277,132 +1221,73 @@ def phase_yields(config, df_venta, df_alquiler, zona_stats, use_cache=True):
         if i > 0 and i % progress_interval == 0:
             print(f"    Progress: {i}/{total_props} ({100*i//total_props}%)")
         
-        # Try strict criteria first (using pre-indexed lookup)
-        comps = find_comparables(row, df_alquiler, strict=True, alquiler_index=alquiler_by_distrito)
+        # Get Hierarchical Comparables with Hedonic Adjustments
+        comps = find_comparables(row, df_alquiler)
         
-        if len(comps) < 3:
-            # Fall back to relaxed criteria
-            comps = find_comparables(row, df_alquiler, strict=False, alquiler_index=alquiler_by_distrito)
-            if len(comps) >= 3:
-                n_relaxed += 1
-        else:
-            n_strict += 1
-        
-        if len(comps) > 0:
-            # Calculate rent from comparables
-            mean_val = comps['precio_m2'].mean()
+        if not comps.empty:
+            # 1. RENT CALCULATION (Weighted Mean of Adjusted Prices)
+            # Rent = Sum(AdjustedPrice * Weight) / Sum(Weight)
+            adj_prices = comps['adjusted_price']
+            weights = comps['weight']
             
-            if config.get('is_room_mode'):
-                # mean_val is Mean Room Price (since precio_m2 was aliased to price)
-                n_rooms = row.get('habs', 3)
-                if pd.isna(n_rooms) or n_rooms == 0: n_rooms = 3
-                comp_renta = mean_val * n_rooms
+            if weights.sum() > 0:
+                comp_renta = (adj_prices * weights).sum() / weights.sum()
             else:
-                 # Standard: mean_val is Price/m2
-                 comp_renta = mean_val * row['m2 construidos']
+                comp_renta = adj_prices.mean()
             
-            # Round to 10€
+            # Floor to 10€
             comp_renta = int(10 * round(comp_renta / 10))
             
-            # =================================================================
-            # STATISTICAL MARGIN OF ERROR (SEM-based)
-            # =================================================================
+            # 2. PRECISION CALCULATION
+            # Average precision of top matches
+            base_precision = comps['individual_precision'].head(5).mean()
+            
+            # 3. STATISTICAL MARGIN (Range)
             n_comps = len(comps)
+            std_adj = adj_prices.std() if n_comps > 1 else (comp_renta * 0.15)
+            sem = std_adj / math.sqrt(n_comps) if n_comps > 0 else 0
             
-            if n_comps >= 2:
-                std_price_m2 = comps['precio_m2'].std()
-                
-                # Standard Error of the Mean (SEM)
-                sem = std_price_m2 / math.sqrt(n_comps)
-                
-                # Margin of Error (%) at 95% confidence (z=1.96)
-                if mean_val > 0:
-                    margin_pct = (1.96 * sem / mean_val) * 100
-                else:
-                    margin_pct = 20.0  # Default max if mean is 0
-                
-                # Cap margin between 5% and 20%
-                margin_pct = max(5.0, min(20.0, margin_pct))
-            else:
-                # Single comparable: use default high margin
-                margin_pct = 15.0
+            margin_pct = (1.96 * sem / comp_renta) * 100 if comp_renta > 0 else 20
+            margin_pct = max(5.0, min(25.0, margin_pct))
             
-            # =================================================================
-            # PRECISION FROM MARGIN (inverse relationship)
-            # =================================================================
-            # margin < 5%  -> precision 85-100%
-            # margin 5-10% -> precision 65-85%
-            # margin 10-20% -> precision 40-65%
-            # margin > 20% -> precision 15-40%
-            
-            # Get base precision from comparable similarity
-            base_precision = calculate_aggregate_precision(comps)
-            
-            # Calculate margin-based precision (linear mapping)
-            if margin_pct <= 5:
-                margin_precision = 100 - (margin_pct * 3)  # 5% -> 85%
-            elif margin_pct <= 10:
-                margin_precision = 85 - ((margin_pct - 5) * 4)  # 10% -> 65%
-            elif margin_pct <= 20:
-                margin_precision = 65 - ((margin_pct - 10) * 2.5)  # 20% -> 40%
-            else:
-                margin_precision = 40 - ((margin_pct - 20) * 1.25)  # 25% -> 33.75%
-            
-            margin_precision = max(15.0, min(100.0, margin_precision))
-            
-            # Final precision = weighted average of similarity and margin precision
-            precision = (base_precision * 0.4) + (margin_precision * 0.6)
+            # Final precision influenced by margin
+            precision = base_precision * (1 - (margin_pct/100))
             precision = round(max(10.0, min(100.0, precision)), 1)
             
-            # =================================================================
-            # DYNAMIC RANGE based on margin
-            # =================================================================
+            # Dynamic Range
             margin_factor = margin_pct / 100
             comp_p05 = int(10 * round((comp_renta * (1 - margin_factor)) / 10))
             comp_p95 = int(10 * round((comp_renta * (1 + margin_factor)) / 10))
             
-            # Store references (top 10 by similarity)
-            ref_cols = []
-            for col in ['URL', 'titulo', 'Titulo', 'habs', 'banos', 'm2 construidos', 
-                       'Distrito', 'garaje', 'Garaje', 'terraza', 'Terraza', 'price', 
-                       'precio_m2', 'precision']:
-                if col in comps.columns:
-                    ref_cols.append(col)
+            # Store references
+            ref_cols = ['URL', 'titulo', 'Titulo', 'habs', 'banos', 'm2 construidos', 
+                        'Barrio', 'Distrito', 'price', 'adjusted_price', 'individual_precision']
+            valid_ref_cols = [c for c in ref_cols if c in comps.columns]
             
-            refs_df = comps.head(10)[ref_cols].copy()
-            rename_map = {'Titulo': 'titulo', 'Garaje': 'garaje', 'Terraza': 'terraza'}
-            refs_df = refs_df.rename(columns={k: v for k, v in rename_map.items() if k in refs_df.columns})
+            refs_df = comps.head(10)[valid_ref_cols].copy()
+            refs_df = refs_df.rename(columns={'Titulo': 'titulo', 'individual_precision': 'precision'})
             refs = refs_df.to_dict('records')
+            
+            n_strict += 1 # Metric tracking
         else:
             # No comparables found, fall back to zone median
             n_fallback += 1
-            
-            if config.get('is_room_mode'):
-                # Room mode: use median room price * num rooms
-                median_room_price = row.get('mediana_alquiler_m2', 400)  # mediana_alquiler_m2 holds room price in room mode
-                n_rooms = row.get('habs', 3)
-                if pd.isna(n_rooms) or n_rooms == 0: n_rooms = 3
-                comp_renta = median_room_price * n_rooms
-            else:
-                # Standard mode: use price/m2 * flat size
-                comp_renta = row.get('mediana_alquiler_m2', 10) * row['m2 construidos']
-            
+            comp_renta = row.get('mediana_alquiler_m2', 10) * row['m2 construidos']
             comp_renta = int(10 * round(comp_renta / 10))
-            comp_p05 = int(comp_renta * 0.80)  # ±20% for fallback (max uncertainty)
+            comp_p05 = int(comp_renta * 0.80)
             comp_p95 = int(comp_renta * 1.20)
-            precision = 15.0  # Low precision for fallback
+            precision = 15.0
             refs = []
         
-        # ALWAYS store comparable-based values (SEM range is from real data)
+        # Store results
         renta_estimada_list.append(comp_renta)
         renta_p05_list.append(comp_p05)
         renta_p95_list.append(comp_p95)
         renta_rango_list.append(f"{comp_p05}€ - {comp_p95}€")
-        
-        precision_list.append(round(precision, 1))
+        precision_list.append(precision)
         comparables_list.append(refs)
     
-    # Apply comparable-based results (ALWAYS use real data for range)
+    # Apply results
     df_venta['renta_estimada'] = renta_estimada_list
     df_venta['renta_p05'] = renta_p05_list
     df_venta['renta_p95'] = renta_p95_list
@@ -1410,28 +1295,21 @@ def phase_yields(config, df_venta, df_alquiler, zona_stats, use_cache=True):
     df_venta['precision'] = precision_list
     df_venta['comparables'] = comparables_list
     
-    print(f"  -> {n_strict} props with strict matches")
-    print(f"  -> {n_relaxed} props with relaxed matches")
-    print(f"  -> {n_fallback} props fell back to zone median")
-    print(f"  -> Mean precision: {df_venta['precision'].mean():.1f}%")
+    # ... (Final metrics logging)
+    print(f"  -> {n_strict} properties valued via Hedonic Adjustment")
+    print(f"  -> {n_fallback} properties fell back to zone median")
+    print(f"  -> Mean Valuation Precision: {df_venta['precision'].mean():.1f}%")
     
     # Gross yield
-    print("  Calculating gross yield...")
     df_venta['yield_bruta'] = (12 * df_venta['renta_estimada']) / df_venta['price']
     
     # Net yield
-    print("  Calculating net yield...")
     gastos = config['gastos_recurrentes']
     vacancia = config['vacancia']
     costes = config['costes_compra']
-    
     df_venta['renta_neta_anual'] = 12 * df_venta['renta_estimada'] * (1 - gastos) * (1 - vacancia)
     df_venta['base_invertida'] = df_venta['price'] * (1 + costes)
     df_venta['yield_neta'] = df_venta['renta_neta_anual'] / df_venta['base_invertida']
-    
-    print(f"  RESULT: Yield bruta media = {df_venta['yield_bruta'].mean()*100:.2f}%")
-    print(f"          Yield neta media = {df_venta['yield_neta'].mean()*100:.2f}%")
-    print(f"          Renta media estimada = {df_venta['renta_estimada'].mean():.0f}€/mes")
     
     save_checkpoint(config, 'yields', df_venta)
     return df_venta

@@ -552,112 +552,171 @@ def predict_rent(model_dict: Dict,
     return df
 
 
-def calculate_precision_score(venta_row: pd.Series, 
-                              comparables_df: pd.DataFrame,
-                              weights: Dict = None) -> float:
+# =============================================================================
+# SUBTASK 1.5: HEDONIC ADJUSTMENTS & HIERARCHICAL WEIGHTS
+# =============================================================================
+
+# Hedonic Adjustment Coefficients (Approximated for Spanish market)
+HEDONIC_COEFFS = {
+    'hab': 150.0,      # €/month per bedroom
+    'bano': 75.0,      # €/month per bathroom
+    'garaje': 80.0,    # €/month for garage (flat value)
+    'reforma': 0.15,   # +15% for renovated vs good condition
+    'obra_nueva': 0.25,# +25% for new build vs good condition
+    'atico': 0.15,     # +15% for penthouse
+    'bajo': -0.10,     # -10% for ground floor (without garden)
+    'exterior': 0.10,  # +10% for exterior vs interior
+    'piscina': 0.10,   # +10% for pool/common areas
+    'depreciation_year': 0.005 # 0.5% per year
+}
+
+def apply_hedonic_adjustment(comp_price: float, comp: pd.Series, target: pd.Series) -> float:
     """
-    Calculate precision score (0-100%) based on similarity to comparables.
+    Adjust a comparable's price to match the target property's features.
     
-    Higher precision means:
-    - More comparables found
-    - Comparables are very similar to target property
+    Logic: If Target is BETTER than Comp, we ADJUST Comp price UP.
+           If Target is WORSE than Comp, we ADJUST Comp price DOWN.
+    """
+    adj_price = float(comp_price)
     
-    Args:
-        venta_row: Series with target property features
-        comparables_df: DataFrame with comparable properties
-        weights: Optional custom weights for each feature
+    # 1. Rooms & Bathrooms (Flat adjustments)
+    t_habs = target.get('habs', 2) or 2
+    c_habs = comp.get('habs', 2) or 2
+    adj_price += (t_habs - c_habs) * HEDONIC_COEFFS['hab']
+    
+    t_banos = target.get('banos', 1) or 1
+    c_banos = comp.get('banos', 1) or 1
+    adj_price += (t_banos - c_banos) * HEDONIC_COEFFS['bano']
+    
+    # 2. M2 adjustment (Proportional to price/m2)
+    m2_col = 'm2 construidos' if 'm2 construidos' in target.index else 'm2_construidos'
+    t_m2 = target.get(m2_col, 80) or 80
+    c_m2 = comp.get(m2_col, 80) or 80
+    if c_m2 > 0:
+        price_m2 = comp_price / c_m2
+        adj_price += (t_m2 - c_m2) * price_m2 * 0.7 # 70% efficiency on extra m2
         
-    Returns:
-        Precision score 0-100 (percentage)
+    # 3. Extras (Garaje, Ascensor, Terraza)
+    t_garaje = bool(target.get('Garaje') or target.get('garaje'))
+    c_garaje = bool(comp.get('Garaje') or comp.get('garaje'))
+    if t_garaje and not c_garaje: adj_price += HEDONIC_COEFFS['garaje']
+    elif not t_garaje and c_garaje: adj_price -= HEDONIC_COEFFS['garaje']
+    
+    # 4. Building Features (Percentage adjustments)
+    mult = 1.0
+    
+    # Condition (Estado)
+    t_estado = str(target.get('estado', '')).lower()
+    c_estado = str(comp.get('estado', '')).lower()
+    if 'nueva' in t_estado and 'nueva' not in c_estado: mult += HEDONIC_COEFFS['obra_nueva']
+    elif 'reformar' in t_estado and 'reformar' not in c_estado: mult -= HEDONIC_COEFFS['reforma']
+    
+    # Height (Ático/Bajo)
+    t_alt = str(target.get('altura', '')).lower()
+    c_alt = str(comp.get('altura', '')).lower()
+    if 'ático' in t_alt and 'ático' not in c_alt: mult += HEDONIC_COEFFS['atico']
+    elif 'bajo' in t_alt and 'bajo' not in c_alt: mult += HEDONIC_COEFFS['bajo']
+    
+    # Piscina
+    t_piscina = bool(target.get('piscina'))
+    c_piscina = bool(comp.get('piscina'))
+    if t_piscina and not c_piscina: mult += HEDONIC_COEFFS['piscina']
+    
+    adj_price *= mult
+    
+    return max(0, adj_price)
+
+def calculate_precision_score(venta_row: pd.Series, 
+                               comparables_df: pd.DataFrame,
+                               weights: Dict = None) -> float:
+    """
+    Calculate precision score (0-100%) based on Two-Plane Similarity:
+    Plane 1: Geometric Hierarchy (Barrio > Distrito > Ciudad) - WEIGHT MULTIPLIER
+    Plane 2: Physical Similarity (m2, habs, banos, extras) - SCORE BASE
     """
     if comparables_df is None or len(comparables_df) == 0:
         return 0.0
     
-    # Updated weights per user request
+    # 1. Location Plane (Hierarchy)
+    v_barrio = str(venta_row.get('Barrio', '')).lower()
+    v_distrito = str(venta_row.get('Distrito', '')).lower()
+    v_ciudad = str(venta_row.get('Ciudad', '')).lower()
+    
+    # Prepare Physical Weights (Plane 2)
     if weights is None:
+        # Refined physical weights (relative within plane 2)
         weights = {
-            'm2': 0.20,       # Surface area (User: 20%)
-            'tipo': 0.15,     # Property Type (User: 15%)
-            'habs': 0.20,     # Bedrooms (User: 20%)
-            'distrito': 0.15, # Same district (User: 15%)
-            'banos': 0.15,    # Bathrooms (User: 15%)
-            'garaje': 0.05,   # Garage (Remaining 5%)
-            'terraza': 0.05,  # Terrace (Remaining 5%)
-            'ascensor': 0.05, # Elevator (Remaining 5%)
+            'm2': 0.30, 
+            'habs': 0.25, 
+            'banos': 0.20, 
+            'type': 0.15,
+            'extras': 0.10
         }
     
-    # helper
     def norm_tipo(t):
         t = str(t).lower()
-        if 'casa' in t or 'chalet' in t or 'unifamiliar' in t: return 'casa'
+        if 'casa' in t or 'chalet' in t: return 'casa'
         return 'piso'
 
-    # Get target property values
+    v_tipo = norm_tipo(venta_row.get('tipo', 'piso'))
     m2_col = 'm2 construidos' if 'm2 construidos' in venta_row.index else 'm2_construidos'
-    venta_m2 = venta_row.get(m2_col, 0) or 0
-    venta_habs = venta_row.get('habs', 2) or 2
-    venta_banos = venta_row.get('banos', 1) or 1
-    venta_garaje = bool(venta_row.get('Garaje') or venta_row.get('garaje'))
-    venta_terraza = bool(venta_row.get('Terraza') or venta_row.get('terraza'))
-    venta_ascensor = bool(venta_row.get('ascensor'))
-    venta_distrito = venta_row.get('Distrito', '')
-    venta_tipo = norm_tipo(venta_row.get('tipo', 'piso'))
+    v_m2 = venta_row.get(m2_col, 80) or 80
+    v_habs = venta_row.get('habs', 2) or 2
+    v_banos = venta_row.get('banos', 1) or 1
     
-    # Calculate similarity for each comparable
-    similarities = []
+    weighted_scores = []
     
     for _, comp in comparables_df.iterrows():
-        score = 0.0
+        # --- Plane 1: Geometric Weight ---
+        c_barrio = str(comp.get('Barrio', '')).lower()
+        c_distrito = str(comp.get('Distrito', '')).lower()
+        c_ciudad = str(comp.get('Ciudad', '')).lower()
         
-        # M2 similarity (20%)
-        comp_m2 = comp.get(m2_col, 0) or comp.get('m2 construidos', 0) or 0
-        if venta_m2 > 0 and comp_m2 > 0:
-            m2_diff = abs(comp_m2 - venta_m2) / venta_m2
-            m2_sim = max(0, 1 - m2_diff)
-            score += weights['m2'] * m2_sim
-            
-        # Tipo similarity (15%)
-        comp_tipo = norm_tipo(comp.get('tipo', 'piso'))
-        score += weights['tipo'] * (1.0 if comp_tipo == venta_tipo else 0.0)
+        loc_weight = 0.2 # Default: Same City
+        if v_barrio == c_barrio and v_barrio != '':
+            loc_weight = 1.0 # Same Barrio
+        elif v_distrito == c_distrito and v_distrito != '':
+            loc_weight = 0.6 # Same Distrito
         
-        # Habs similarity (20%)
-        comp_habs = comp.get('habs', 2) or 2
-        habs_diff = abs(comp_habs - venta_habs)
-        habs_sim = max(0, 1 - habs_diff * 0.5)
-        score += weights['habs'] * habs_sim
+        # --- Plane 2: Physical Similarity ---
+        phys_score = 0.0
         
-        # Distrito (15%)
-        comp_distrito = comp.get('Distrito', '')
-        score += weights['distrito'] * (1.0 if comp_distrito == venta_distrito else 0.0)
+        # M2 (30%)
+        c_m2 = comp.get(m2_col, 80) or 80
+        m2_sim = max(0, 1 - abs(c_m2 - v_m2) / v_m2)
+        phys_score += weights['m2'] * m2_sim
         
-        # Banos similarity (15%)
-        comp_banos = comp.get('banos', 1) or 1
-        banos_diff = abs(comp_banos - venta_banos)
-        banos_sim = max(0, 1 - banos_diff * 0.5)
-        score += weights['banos'] * banos_sim
+        # Habs (25%)
+        c_habs = comp.get('habs', 2) or 2
+        phys_score += weights['habs'] * (1.0 if c_habs == v_habs else (0.5 if abs(c_habs - v_habs) == 1 else 0))
         
-        # Extras (5% each)
-        comp_garaje = bool(comp.get('Garaje') or comp.get('garaje'))
-        score += weights['garaje'] * (1.0 if comp_garaje == venta_garaje else 0.5)
+        # Banos (20%)
+        c_banos = comp.get('banos', 1) or 1
+        phys_score += weights['banos'] * (1.0 if c_banos == v_banos else (0.5 if abs(c_banos - v_banos) == 1 else 0))
         
-        comp_terraza = bool(comp.get('Terraza') or comp.get('terraza'))
-        score += weights['terraza'] * (1.0 if comp_terraza == venta_terraza else 0.5)
+        # Type (15%)
+        c_tipo = norm_tipo(comp.get('tipo', 'piso'))
+        phys_score += weights['type'] * (1.0 if c_tipo == v_tipo else 0)
         
-        comp_ascensor = bool(comp.get('ascensor'))
-        score += weights['ascensor'] * (1.0 if comp_ascensor == venta_ascensor else 0.5)
+        # Extras (10%)
+        # Simple match count
+        extras_match = 0
+        for extra in ['Garaje', 'Terraza', 'ascensor']:
+            v_e = bool(venta_row.get(extra) or venta_row.get(extra.lower()))
+            c_e = bool(comp.get(extra) or comp.get(extra.lower()))
+            if v_e == c_e: extras_match += 1
+        phys_score += weights['extras'] * (extras_match / 3.0)
         
-        similarities.append(score)
+        # Combine Plane 1 and Plane 2
+        # Use Product for "Combined match quality"
+        final_weight = loc_weight * (phys_score ** 1.5) # Squaring improves priority of physically similar items
+        weighted_scores.append(final_weight)
+        
+    # Scale final result (bonus for volume of matches)
+    base_avg = np.mean(weighted_scores) if weighted_scores else 0
+    n_bonus = min(0.3, len(comparables_df) * 0.05) # Max +30% for volume
     
-    # Base precision from average similarity
-    avg_similarity = np.mean(similarities) if similarities else 0
-    
-    # Bonus for number of comparables (more = more confidence)
-    n_comps = len(comparables_df)
-    n_bonus = min(0.15, n_comps * 0.03)  # +3% per comparable, max +15%
-    
-    # Final precision (cap at 100%)
-    precision = min(100.0, (avg_similarity + n_bonus) * 100)
-    
+    precision = min(100.0, (base_avg + n_bonus) * 100)
     return round(precision, 1)
 
 
