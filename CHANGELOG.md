@@ -3,6 +3,8 @@
 ## [2026-02-13]
 
 ### Fixed
+- **Browser Identity Robustness**: Improved Firefox launch reliability by disabling background updates/telemetry and implementing aggressive profile lock cleanup.
+- **Resume State Synchronization**: Fixed a bug where browser rotation could overwrite resume progress with "Page 1" if a block occurred immediately after restart. Progess is now restored before the first navigation.
 - **Zone mapping to Parent Province**: Fixed a bug where zone-specific URLs (e.g., Albacete Centro) would create new Excel files instead of saving data into the parent province's file.
 - **UI Timer Stagnation**: Ensured the elapsed timer starts correctly in all scraping modes (Batch, Update, Enrichment) and persists across province transitions by preventing intermediate sub-task completions from resetting the UI state.
 - **Scraper Rollover Resilience**: Fixed a critical bug where the scraper would prematurely terminate during identity rotation due to a rogue stop event trigger.

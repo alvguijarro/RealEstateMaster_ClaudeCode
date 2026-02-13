@@ -1180,14 +1180,20 @@ class ScraperController:
     def _clear_profile_locks(self, profile_dir: str):
         """Remove parent.lock and other lock files to prevent startup hangs."""
         # More comprehensive list of lock files across engines (Chromium, Firefox, WebKit)
-        lock_files = ["parent.lock", "singleton_lock", "lock", ".parentlock", "lockfile"]
+        lock_files = ["parent.lock", "singleton_lock", "lock", ".parentlock", "lockfile", "sessionstore.js"]
         if not os.path.exists(profile_dir):
             return
             
         for root, dirs, files in os.walk(profile_dir):
+            # Focus primarily on the root of the profile
+            if root != profile_dir:
+                # Cleanup specific Firefox folders known for locking if needed
+                continue
+                
             for name in files:
                 # Match strictly or common patterns like 'lock'
-                if name.lower() in lock_files or name.startswith(".parentlock"):
+                lname = name.lower()
+                if lname in lock_files or lname.startswith(".parentlock") or lname.endswith(".lock"):
                     try:
                         lock_path = os.path.join(root, name)
                         os.remove(lock_path)
@@ -1727,12 +1733,30 @@ class ScraperController:
         if self.mode == "stealth":
             self.log("STEALTH", f"Ultra-long delays active: scroll {scroll_pause[0]:.1f}-{scroll_pause[1]:.1f}s, page {post_card_delay[0]:.1f}-{post_card_delay[1]:.1f}s")
         
-        # === SEED URL REGISTRY LOOKUP ===
-        # Check if this seed URL was scraped before and pre-load existing URLs
+        # === SEED URL REGISTRY LOOKUP & RESUME LOADING ===
+        # CRITICAL: Load resume state BEFORE the first navigation to prevent state overwrite on immediate block.
         target_file = None
         url_dates = {}
         preloaded_urls = set()
         
+        # 1. Load resume state first (prioritize it over everything else for continuity)
+        resume_state = self.load_state()
+        if resume_state and resume_state.get("seed_url") == self.seed_url:
+            self.current_page = resume_state.get("current_page", 1)
+            self.total_properties_expected = resume_state.get("total_properties_expected", 0)
+            self.total_pages_expected = resume_state.get("total_pages_expected", 0)
+            self._detected_sheet = resume_state.get("detected_sheet")
+            
+            if self.current_page > 1:
+                self.log("INFO", f"🔄 INIT: Found resume state for Page {self.current_page}")
+                
+            # Restore processed URLs to avoid duplicates in the same run
+            saved_processed = resume_state.get("processed_urls", [])
+            if saved_processed:
+                self._processed.update(saved_processed)
+                self.log("INFO", f"🔄 INIT: Restored {len(saved_processed)} processed URLs from session file.")
+
+        # 2. Lookup in Registry
         registry_entry = lookup_seed_url(self.seed_url)
         if registry_entry:
             target_file = registry_entry.get("output_file")
@@ -1859,6 +1883,22 @@ class ScraperController:
                     firefox_prefs = {
                         "dom.webdriver.enabled": False,
                         "useAutomationExtension": False,
+                        "browser.tabs.warnOnClose": False,
+                        "browser.shell.checkDefaultBrowser": False,
+                        "browser.startup.homepage": "about:blank",
+                        "datareporting.healthreport.uploadEnabled": False,
+                        "datareporting.policy.dataSubmissionEnabled": False,
+                        "toolkit.telemetry.enabled": False,
+                        "toolkit.telemetry.unified": False,
+                        "toolkit.telemetry.archive.enabled": False,
+                        "extensions.update.enabled": False,
+                        "extensions.getAddons.cache.enabled": False,
+                        "app.update.auto": False,
+                        "app.update.enabled": False,
+                        "app.update.silent": True,
+                        "identity.fxaccounts.enabled": False,
+                        "services.sync.engine.prefs": False,
+                        "dom.ipc.processCount": 1,
                     }
                     # Silence Firefox remote settings warnings
                     os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
@@ -1905,8 +1945,21 @@ class ScraperController:
                                 if launch_attempt < max_launch_retries:
                                     # Progressive sleep with randomization
                                     sleep_time = 5 + (launch_attempt * 2) + random.random() * 5
-                                    self.log("WARN", f"🚀 Launch attempt {launch_attempt} failed: {le}. Retrying in {int(sleep_time)}s...")
-                                    self._clear_profile_locks(profile_dir)
+                                    self.log("WARN", f"🚀 Launch attempt {launch_attempt} failed: {le}.")
+                                    
+                                    # Aggressive cleanup for Firefox on repeated failure
+                                    if engine == "firefox" and launch_attempt >= 2:
+                                        self.log("WARN", f"☣️ Firefox hang detected. Purging profile locks and re-attempting...")
+                                        self._cleanup_zombie_browsers()
+                                        self._clear_profile_locks(profile_dir)
+                                        # If it's the last attempt, try to delete the whole dir
+                                        if launch_attempt == max_launch_retries - 1:
+                                            self.log("ERR", "💣 Firefox persistent hang. DELETING profile directory for fresh start.")
+                                            import shutil
+                                            shutil.rmtree(profile_dir, ignore_errors=True)
+                                            os.makedirs(profile_dir, exist_ok=True)
+
+                                    self.log("INFO", f"Retrying in {int(sleep_time)}s...")
                                     await asyncio.sleep(sleep_time)
                                 else:
                                     raise le
@@ -2099,9 +2152,10 @@ class ScraperController:
                         
                         # Cancel mouse jitter and close browser
                         try:
-                            if 'mouse_jitter_task' in dir() and mouse_jitter_task:
+                            if 'mouse_jitter_task' in locals() and mouse_jitter_task:
                                 mouse_jitter_task.cancel()
-                            await (browser.close() if browser else ctx.close())
+                            if ctx:
+                                await ctx.close()
                         except:
                             pass
                         
@@ -2200,28 +2254,13 @@ class ScraperController:
             
                     # target_file and url_dates already set from registry lookup above (or overridden)
             
-                    # Extract starting page from seed URL (e.g., /pagina-5 starts at page 5)
-                    page_num = extract_page_from_url(self.seed_url)
-
-                    # === RESUME LOGIC ===
-                    # Attempt to load resume state if enabled
-                    resume_state = self.load_state()
-                    if resume_state and resume_state.get("seed_url") == self.seed_url:
-                        saved_page = resume_state.get("current_page", 1)
-                        if saved_page > page_num:
-                            self.log("INFO", f"🔄 RESUME: Restoring previous session at page {saved_page}")
-                            page_num = saved_page
-                            
-                            # Restore processed URLs to avoid duplicates/re-scraping
-                            saved_processed = resume_state.get("processed_urls", [])
-                            if saved_processed:
-                                count_before = len(self._processed)
-                                self._processed.update(saved_processed)
-                                newly_restored = len(self._processed) - count_before
-                                if newly_restored > 0:
-                                    self.log("INFO", f"🔄 RESUME: Restored {newly_restored} processed URLs from session file.")
-                                else:
-                                    self.log("INFO", f"🔄 RESUME: All saved URLs ({len(self._processed)}) are already in memory.")
+                    # === RUN-LOOP RESUME CHECK (Double check) ===
+                    # If we just rotated after a block, we want to start from the page we were on.
+                    # self.current_page is already set by the INIT logic above, but we refresh local variables.
+                    page_num = self.current_page or extract_page_from_url(self.seed_url) or 1
+                    
+                    if page_num > 1:
+                        self.log("INFO", f"🔄 RESUME: Initializing scraper at Page {page_num}")
                     # ====================
 
                     if page_num > 1:
