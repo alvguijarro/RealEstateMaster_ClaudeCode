@@ -3,6 +3,9 @@
 ## [2026-02-13]
 
 ### Added
+- **Advanced Hedonic Valuation Engine**: Implemented a professional property valuation algorithm that normalizes comparable prices (Habitaciones, m², Garaje, Estado, Planta) to match target property features.
+- **Hierarchical Geo-Locality**: Rewrote similarity logic to prioritize Barrio > Distrito > Ciudad, ensuring local market dynamics dominate rent estimation.
+- **Weighted Valuation Averaging**: Replaced simple means with quality-weighted averages of adjusted prices for higher statistical reliability.
 - **Unified Portable Package**: Created a zero-install portable version of all tools in the `python_portable` directory.
 - **Smart Launcher**: Updated `START_PORTABLE.bat` with automatic setup detection and configuration.
 - **Enhanced Setup Engine**: `SETUP.bat` now installs all tool dependencies from a central `requirements_master.txt` and includes Firefox for Playwright.
