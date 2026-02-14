@@ -1227,17 +1227,13 @@ class ScraperController:
             return
             
         for root, dirs, files in os.walk(profile_dir):
-            # Focus primarily on the root of the profile
-            if root != profile_dir:
-                # Cleanup specific Firefox folders known for locking if needed
-                continue
-                
             for name in files:
                 # Match strictly or common patterns like 'lock'
                 lname = name.lower()
                 if lname in lock_files or lname.startswith(".parentlock") or lname.endswith(".lock"):
                     try:
                         lock_path = os.path.join(root, name)
+                        # On Windows, we try multiple times if it's held briefly
                         os.remove(lock_path)
                     except:
                         pass
@@ -1958,9 +1954,7 @@ class ScraperController:
                         "app.update.silent": True,
                         "identity.fxaccounts.enabled": False,
                         "services.sync.engine.prefs": False,
-                        "dom.ipc.processCount": 1,
                         "marionette.log.level": "Error",
-                        "browser.tabs.remote.autostart": False,
                         "accessibility.force_disabled": 1,
                     }
                     # Silence Firefox remote settings warnings

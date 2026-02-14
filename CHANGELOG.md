@@ -12,6 +12,7 @@
 - **Alternative Browser Rotation Pool**: Expanded the identity rotation system to include Brave, Opera, and Vivaldi. 
 - **Automatic Executable Discovery**: Implemented a robust Windows-based detection logic to automatically find and use these browsers if installed.
 - **Fail-safe Browser Switching**: The scraper now intelligently skips missing browsers and rotates to the next available identity in the pool (1-8), preventing session crashes.
+- **Firefox Stability Fix**: Resolved 120s timeout hangs by enabling multi-process (e10s) and strengthening recursive lock-file cleanup for Firefox profiles.
 
 ## [2026-02-13]
 
