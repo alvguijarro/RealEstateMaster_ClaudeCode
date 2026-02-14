@@ -1,5 +1,13 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-14]
+
+### Fixed
+- **UI Timer Restoration**: Restored the `startTimer` function in `app.js` and ensured it is called correctly across all scraping modes (Manual, Batch, Update). This resolves the "startTimer is not defined" error.
+- **Improved Stop Responsiveness**: Strategically integrated `check_signals()` and `_wait_for_pause()` calls within the scraper's core loops (URL processing and property processing) to ensure the application responds to stop commands almost instantly.
+- **Standardized Signal Handling**: Synchronized the stop mechanism across `scraper_wrapper.py`, `batch_api_scan.py`, and `run_periodic_low_cost.py` using a unified filesystem flag and event-based approach.
+- **Timer Persistence**: Fixed an issue where the UI timer would reset unexpectedly during batch transitions by prioritizing the batch start time when active.
+
 ## [2026-02-13]
 
 ### Added
