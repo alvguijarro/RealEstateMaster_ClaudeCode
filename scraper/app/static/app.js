@@ -1402,6 +1402,12 @@ function stopTimer() {
     }
 }
 
+function startTimer() {
+    startTime = Date.now();
+    timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+}
+
 function updateTimer() {
     let start = startTime;
     // Prefer batch timer if active (and override standard timer)
