@@ -8,6 +8,11 @@
 - **Standardized Signal Handling**: Synchronized the stop mechanism across `scraper_wrapper.py`, `batch_api_scan.py`, and `run_periodic_low_cost.py` using a unified filesystem flag and event-based approach.
 - **Timer Persistence**: Fixed an issue where the UI timer would reset unexpectedly during batch transitions by prioritizing the batch start time when active.
 
+### Added
+- **Alternative Browser Rotation Pool**: Expanded the identity rotation system to include Brave, Opera, and Vivaldi. 
+- **Automatic Executable Discovery**: Implemented a robust Windows-based detection logic to automatically find and use these browsers if installed.
+- **Fail-safe Browser Switching**: The scraper now intelligently skips missing browsers and rotates to the next available identity in the pool (1-8), preventing session crashes.
+
 ## [2026-02-13]
 
 ### Added

@@ -154,6 +154,48 @@ def get_profile_dir(profile_index: int) -> str:
     base_dir = Path(__file__).parent.parent
     return str(base_dir / f"stealth_profile_{profile_index}")
 
+def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
+    """Get the executable path for custom browsers like Brave or Opera."""
+    if not channel or channel in ["chrome", "msedge"]:
+        return None
+    
+    if sys.platform != "win32":
+        return None # Only Windows detection for now
+
+    local_app_data = os.environ.get("LOCALAPPDATA", "")
+    program_files = os.environ.get("ProgramFiles", "C:\\Program Files")
+    program_files_x86 = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
+
+    if channel == "brave":
+        paths = [
+            os.path.join(program_files, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+            os.path.join(local_app_data, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+            os.path.join(program_files_x86, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+        ]
+        for p in paths:
+            if os.path.exists(p): return p
+            
+    elif channel == "opera":
+        paths = [
+            os.path.join(local_app_data, "Programs", "Opera", "opera.exe"),
+            os.path.join(program_files, "Opera", "opera.exe"),
+            os.path.join(local_app_data, "Opera", "opera.exe"),
+            os.path.join(program_files_x86, "Opera", "opera.exe"),
+        ]
+        for p in paths:
+            if os.path.exists(p): return p
+
+    elif channel == "vivaldi":
+        paths = [
+            os.path.join(local_app_data, "Vivaldi", "Application", "vivaldi.exe"),
+            os.path.join(program_files, "Vivaldi", "Application", "vivaldi.exe"),
+            os.path.join(program_files_x86, "Vivaldi", "Application", "vivaldi.exe"),
+        ]
+        for p in paths:
+            if os.path.exists(p): return p
+
+    return None
+
 def mark_current_profile_blocked() -> None:
     """Mark the current profile as blocked and start its cooldown."""
     state = load_identity_state()
@@ -169,7 +211,7 @@ def mark_current_profile_blocked() -> None:
 
 def rotate_identity():
     """
-    Rotate to the NEXT profile in the sequence (1->2->3->4->5->1).
+    Rotate to the NEXT profile in the sequence (1->2->3->4->5->6->7->8->1).
     Strict sequential order. 
     Returns (target_config, wait_seconds). Caller should handle wait.
     """
@@ -1952,13 +1994,26 @@ class ScraperController:
                                         timeout=90000,
                                     )
                                 else:
-                                    # Chromium / Chrome / Edge
+                                    # Chromium / Chrome / Edge / Brave / Opera
+                                    executable_path = get_browser_executable_path(channel)
+                                    # If channel is 'brave' or 'opera', Playwright needs 'channel' to be None 
+                                    # and 'executable_path' to be set.
+                                    launch_channel = channel
+                                    if channel in ["brave", "opera"]:
+                                        launch_channel = None
+                                        if not executable_path:
+                                            self.log("WARN", f"⚠️ Browser {channel} not found on system. Skipping...")
+                                            # Induce a rotation to the next one
+                                            rotate_identity()
+                                            break # Out of launch attempts, will retry recovery loop which picks new identity
+
                                     ctx = await pw.chromium.launch_persistent_context(
                                         user_data_dir=profile_dir,
                                         headless=False,
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         args=chromium_args,
-                                        channel=channel,
+                                        channel=launch_channel,
+                                        executable_path=executable_path,
                                         timeout=120000, # Increased for Windows stability
                                     )
                                 if ctx: break
