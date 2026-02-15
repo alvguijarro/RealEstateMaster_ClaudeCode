@@ -3010,6 +3010,9 @@ class ScraperController:
                                     
                                     checked_count += 1
                                     
+                                except BrowserClosedException:
+                                    # CRITICAL: Re-raise to trigger main loop restart logic
+                                    raise
                                 except Exception as e:
                                     self.log("WARN", f"Could not verify {m_url}: {e}")
                                     continue
