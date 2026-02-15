@@ -173,7 +173,8 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
     program_files_x86 = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
 
     # Check for portable versions in project root 'browsers' folder first
-    project_root = str(Path(__file__).parent.parent)
+    # app -> scraper -> RealEstateMaster
+    project_root = str(Path(__file__).parent.parent.parent)
     browsers_dir = os.path.join(project_root, "browsers")
     
     if channel == "brave":

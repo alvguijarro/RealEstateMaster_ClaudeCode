@@ -60,9 +60,9 @@ echo Installing all tool dependencies from requirements_master.txt...
 
 echo.
 echo [3/4] Installing Playwright browsers (Chromium & Firefox)...
-REM Set browser path to local directory
-set PLAYWRIGHT_BROWSERS_PATH=%SCRIPT_DIR%browsers
-"%PYTHON%" -m playwright install chromium firefox 2>nul
+REM Set browser path to shared directory in project root
+set PLAYWRIGHT_BROWSERS_PATH=%SCRIPT_DIR%..\browsers
+"%PYTHON%" -m playwright install chromium firefox webkit 2>nul
 if errorlevel 1 (
     echo WARNING: Playwright browser installation may have issues.
     echo The scraper might not work, but other features will.

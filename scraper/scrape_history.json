@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-15T12:54:12.643581",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/malaga-provincia/con-precio-hasta_2000/",
+    "properties_count": 1693,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Málaga_alquiler.xlsx",
+    "filename": "idealista_Málaga_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-13T15:50:22.340068",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/huesca-provincia/con-precio-hasta_2000/",
     "properties_count": 178,

@@ -14,7 +14,8 @@ if not exist "%~dp0.setup_complete" (
 )
 
 REM Set path to portable browsers so Playwright finds them
-set PLAYWRIGHT_BROWSERS_PATH=%~dp0browsers
+rem Use "..\browsers" relative to this script (python_portable folder)
+set PLAYWRIGHT_BROWSERS_PATH=%~dp0..\browsers
 
 REM Change directory to the project root (one level up)
 cd /d "%~dp0.."
