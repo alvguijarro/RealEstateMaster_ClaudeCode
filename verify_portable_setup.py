@@ -46,22 +46,42 @@ def main():
     # Check Custom Portable Browsers
     print("\n--- Custom Portable Browsers ---")
     
+    # Google Chrome Portable
+    check_browser("Google Chrome Portable", [
+        browsers_dir / "GoogleChromePortable" / "GoogleChromePortable.exe",
+        browsers_dir / "GoogleChromePortable" / "App" / "Chrome-bin" / "chrome.exe"
+    ])
+
+    # Opera
+    check_browser("Opera Portable", [
+        browsers_dir / "OperaPortable" / "OperaPortable.exe",
+        browsers_dir / "OperaPortable" / "App" / "Opera" / "opera.exe",
+        browsers_dir / "Opera" / "opera.exe"
+    ])
+    
+    # Chromium Portable
+    check_browser("Chromium Portable", [
+        browsers_dir / "ChromiumPortable" / "ChromiumPortable.exe",
+        browsers_dir / "ChromiumPortable" / "App" / "Chromium" / "bin" / "chrome.exe"
+    ])
+
+    # SRWare Iron
+    check_browser("Iron Portable", [
+        browsers_dir / "IronPortable" / "IronPortable.exe",
+        browsers_dir / "IronPortable" / "App" / "Iron" / "iron.exe"
+    ])
+
     # Brave
     check_browser("Brave", [
         browsers_dir / "Brave" / "brave.exe",
+        browsers_dir / "BravePortable" / "BravePortable.exe",
         browsers_dir / "BravePortable" / "App" / "Brave-64" / "brave.exe"
-    ])
-    
-    # Opera
-    check_browser("Opera", [
-        browsers_dir / "Opera" / "opera.exe",
-        browsers_dir / "OperaPortable" / "App" / "Opera" / "opera.exe"
     ])
     
     # Vivaldi
     check_browser("Vivaldi", [
         browsers_dir / "Vivaldi" / "Application" / "vivaldi.exe",
-        browsers_dir / "VivaldiPortable" / "App" / "Vivaldi" / "vivaldi.exe"
+        browsers_dir / "VivaldiPortable" / "VivaldiPortable.exe"
     ])
 
     print("-" * 50)

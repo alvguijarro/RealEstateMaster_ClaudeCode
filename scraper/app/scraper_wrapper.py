@@ -177,36 +177,57 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
     project_root = str(Path(__file__).parent.parent.parent)
     browsers_dir = os.path.join(project_root, "browsers")
     
-    if channel == "brave":
+    if channel == "chrome":
+        # Check for Google Chrome Portable in browsers dir
         paths = [
-            os.path.join(browsers_dir, "Brave", "brave.exe"),           # Custom portable structure
-            os.path.join(browsers_dir, "BravePortable", "App", "Brave-64", "brave.exe"), # PortableApps structure
-            os.path.join(program_files, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
-            os.path.join(local_app_data, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
-            os.path.join(program_files_x86, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+            os.path.join(browsers_dir, "GoogleChromePortable", "GoogleChromePortable.exe"),
+            os.path.join(browsers_dir, "GoogleChromePortable", "App", "Chrome-bin", "chrome.exe"),
         ]
         for p in paths:
             if os.path.exists(p): return p
-            
+        return None # Fallback to default system chrome via channel
+
     elif channel == "opera":
         paths = [
+            os.path.join(browsers_dir, "OperaPortable", "OperaPortable.exe"),
+            os.path.join(browsers_dir, "OperaPortable", "App", "Opera", "opera.exe"),
             os.path.join(browsers_dir, "Opera", "opera.exe"),
-            os.path.join(browsers_dir, "OperaPortable", "App", "Opera", "opera.exe"), # PortableApps
             os.path.join(local_app_data, "Programs", "Opera", "opera.exe"),
             os.path.join(program_files, "Opera", "opera.exe"),
-            os.path.join(local_app_data, "Opera", "opera.exe"),
-            os.path.join(program_files_x86, "Opera", "opera.exe"),
+        ]
+        for p in paths:
+            if os.path.exists(p): return p
+
+    elif channel == "iron":
+        paths = [
+            os.path.join(browsers_dir, "IronPortable", "IronPortable.exe"),
+            os.path.join(browsers_dir, "IronPortable", "App", "Iron", "iron.exe"),
+        ]
+        for p in paths:
+            if os.path.exists(p): return p
+
+    elif channel == "chromium-portable":
+        paths = [
+            os.path.join(browsers_dir, "ChromiumPortable", "ChromiumPortable.exe"),
+            os.path.join(browsers_dir, "ChromiumPortable", "App", "Chromium", "bin", "chrome.exe"),
+        ]
+        for p in paths:
+            if os.path.exists(p): return p
+
+    elif channel == "brave":
+        paths = [
+            os.path.join(browsers_dir, "BravePortable", "BravePortable.exe"),
+            os.path.join(browsers_dir, "Brave", "brave.exe"),
+            os.path.join(program_files, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
         ]
         for p in paths:
             if os.path.exists(p): return p
 
     elif channel == "vivaldi":
         paths = [
+            os.path.join(browsers_dir, "VivaldiPortable", "VivaldiPortable.exe"),
             os.path.join(browsers_dir, "Vivaldi", "Application", "vivaldi.exe"),
-            os.path.join(browsers_dir, "VivaldiPortable", "App", "Vivaldi", "vivaldi.exe"), # PortableApps structure often tricky, usually just Vivaldi/Application
-            os.path.join(local_app_data, "Vivaldi", "Application", "vivaldi.exe"),
             os.path.join(program_files, "Vivaldi", "Application", "vivaldi.exe"),
-            os.path.join(program_files_x86, "Vivaldi", "Application", "vivaldi.exe"),
         ]
         for p in paths:
             if os.path.exists(p): return p
