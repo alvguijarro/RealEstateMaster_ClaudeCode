@@ -145,24 +145,24 @@ def get_output_file_for_url(url: str) -> Tuple[Optional[str], Optional[str], Opt
 
 def load_enriched_urls(excel_path: str) -> Set[str]:
     """
-    Load URLs that are already enriched from an Excel file.
+    Load URLs that should be skipped (Enriched OR Inactive) from an Excel file.
     
-    A URL is considered enriched if:
-    - __enriched__ column exists and equals True/TRUE/"TRUE"/1
-    - Fecha Enriquecimiento column exists and has a non-empty value
+    A URL is skipped if:
+    1. It is already enriched (__enriched__=True AND Fecha Enriquecimiento exists)
+    2. It is marked as INACTIVE (Anuncio activo = "No")
     
     Args:
         excel_path: Path to the Excel file
         
     Returns:
-        Set of URLs that are already enriched
+        Set of URLs to skip (Enriched + Inactive)
     """
     import pandas as pd
     
-    enriched_urls = set()
+    skip_urls = set()
     
     if not os.path.exists(excel_path):
-        return enriched_urls
+        return skip_urls
     
     try:
         # Read all sheets
@@ -181,9 +181,10 @@ def load_enriched_urls(excel_path: str) -> Set[str]:
             if not url_col:
                 continue
             
-            # Check for enrichment columns
+            # Check for columns
             enriched_col = None
             fecha_col = None
+            active_col = None
             
             for col in df.columns:
                 col_lower = col.lower().replace("_", "").replace(" ", "")
@@ -191,13 +192,17 @@ def load_enriched_urls(excel_path: str) -> Set[str]:
                     enriched_col = col
                 elif "fechaenriquecimiento" in col_lower or "fecha enriquecimiento" in col.lower():
                     fecha_col = col
+                elif "anuncioactivo" in col_lower or "active" in col.lower() or "activo" in col.lower():
+                    # Prioritize "Anuncio activo" if multiple matches, but simple check is okay
+                    active_col = col
             
-            # Filter for enriched rows
+            # Filter rows
             for idx, row in df.iterrows():
                 url = row.get(url_col)
                 if not url or pd.isna(url):
                     continue
                 
+                # Check Enrichment
                 is_enriched = False
                 has_fecha = False
                 
@@ -211,25 +216,33 @@ def load_enriched_urls(excel_path: str) -> Set[str]:
                     if pd.notna(val) and str(val).strip():
                         has_fecha = True
                 
-                # Consider enriched if both conditions are met
-                if is_enriched and has_fecha:
-                    enriched_urls.add(str(url).strip())
+                # Check Inactive Status (User Request: Skip inactive properties forever)
+                is_inactive = False
+                if active_col:
+                    val = str(row.get(active_col, "")).strip().lower()
+                    # Mark as inactive if value is 'no', 'false', '0'
+                    if val in ["no", "false", "0", "falso"]:
+                        is_inactive = True
+                
+                # Add to skip set if Enriched OR Inactive
+                if (is_enriched and has_fecha) or is_inactive:
+                    skip_urls.add(str(url).strip())
         
     except Exception as e:
-        print(f"Error loading enriched URLs: {e}")
+        print(f"Error loading skip URLs: {e}")
     
-    return enriched_urls
+    return skip_urls
 
 
 def load_all_urls_from_excel(excel_path: str) -> Dict[str, dict]:
     """
-    Load all URLs from an Excel file with their enrichment status.
+    Load all URLs from an Excel file with their enrichment and active status.
     
     Args:
         excel_path: Path to the Excel file
         
     Returns:
-        Dictionary mapping URL to a dict with 'enriched', 'fecha', and 'sheet' keys
+        Dictionary mapping URL to a dict with 'enriched', 'fecha', 'sheet', 'is_inactive' keys
     """
     import pandas as pd
     
@@ -239,6 +252,7 @@ def load_all_urls_from_excel(excel_path: str) -> Dict[str, dict]:
         return url_data
     
     try:
+        # Read all sheets
         xlsx = pd.ExcelFile(excel_path)
         
         for sheet_name in xlsx.sheet_names:
@@ -254,9 +268,10 @@ def load_all_urls_from_excel(excel_path: str) -> Dict[str, dict]:
             if not url_col:
                 continue
             
-            # Find enrichment columns
+            # Find enrichment and active columns
             enriched_col = None
             fecha_col = None
+            active_col = None
             
             for col in df.columns:
                 col_lower = col.lower().replace("_", "").replace(" ", "")
@@ -264,7 +279,11 @@ def load_all_urls_from_excel(excel_path: str) -> Dict[str, dict]:
                     enriched_col = col
                 elif "fechaenriquecimiento" in col_lower:
                     fecha_col = col
-            
+                elif "anuncioactivo" in col_lower or "active" in col.lower() or "activo" in col.lower():
+                    # Check for exact match or strong likelihood
+                    if "activo" in col.lower(): 
+                         active_col = col
+
             for idx, row in df.iterrows():
                 url = row.get(url_col)
                 if not url or pd.isna(url):
@@ -274,6 +293,7 @@ def load_all_urls_from_excel(excel_path: str) -> Dict[str, dict]:
                 
                 is_enriched = False
                 fecha = None
+                is_inactive = False
                 
                 if enriched_col:
                     val = row.get(enriched_col)
@@ -285,11 +305,17 @@ def load_all_urls_from_excel(excel_path: str) -> Dict[str, dict]:
                     if pd.notna(val) and str(val).strip():
                         fecha = str(val)
                 
+                if active_col:
+                    val = str(row.get(active_col, "")).strip().lower()
+                    if val in ["no", "false", "0", "falso"]:
+                        is_inactive = True
+                
                 url_data[url_str] = {
                     'enriched': is_enriched,
                     'fecha': fecha,
                     'sheet': sheet_name,
-                    'row_index': idx
+                    'row_index': idx,
+                    'is_inactive': is_inactive
                 }
         
     except Exception as e:

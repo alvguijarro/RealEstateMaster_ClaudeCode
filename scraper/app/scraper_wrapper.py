@@ -143,8 +143,14 @@ def get_current_profile_config() -> dict:
     state = load_identity_state()
     # Ensure index is within bounds of our new POOL
     idx = state.get("current_index", 0)
-    if idx >= len(BROWSER_ROTATION_POOL):
+    
+    # Auto-heal invalid indices (e.g. from pool downsizing)
+    if idx >= len(BROWSER_ROTATION_POOL) or idx < 0:
+        print(f"⚠️ Repairing invalid profile index {idx} -> 0")
         idx = 0
+        state["current_index"] = 0
+        save_identity_state(state)
+        
     return BROWSER_ROTATION_POOL[idx]
 
 def get_profile_dir(profile_index: int) -> str:
@@ -200,6 +206,10 @@ def mark_current_profile_blocked() -> None:
     """Mark the current profile as blocked and start its cooldown."""
     state = load_identity_state()
     current_idx = state.get("current_index", 0)
+    
+    # Safety check for invalid index
+    if current_idx >= len(BROWSER_ROTATION_POOL) or current_idx < 0:
+        current_idx = 0
     
     # We use the pool config's 'index' (1-based) as the key for readability
     config = BROWSER_ROTATION_POOL[current_idx]
@@ -1182,10 +1192,19 @@ class ScraperController:
         """Stop scraping, save state and trigger export."""
         self._stopped_by_user = True
         
-        if self._loop:
-            self._loop.call_soon_threadsafe(self._stop_evt.set)
-            self._loop.call_soon_threadsafe(self._pause_evt.set) # Unpause to allow graceful stop
-        else:
+        # Signal stop/pause events safely
+        try:
+            # Check if loop exists and is still running
+            if self._loop and not self._loop.is_closed():
+                self._loop.call_soon_threadsafe(self._stop_evt.set)
+                self._loop.call_soon_threadsafe(self._pause_evt.set) # Unpause to allow graceful stop
+            else:
+                # Loop closed or not set - just set events directly (though nobody might be listening)
+                self._stop_evt.set()
+                self._pause_evt.set()
+        except Exception as e:
+            self.log("WARN", f"Could not signal stop/pause events (loop closed?): {e}")
+            # Fallback
             self._stop_evt.set()
             self._pause_evt.set()
             
@@ -1637,12 +1656,20 @@ class ScraperController:
                 return
             except Exception as e:
                 error_msg = str(e).lower()
-                # Detect browser close - pause and notify UI
-                if "browser has been closed" in error_msg or "target page, context or browser has been closed" in error_msg:
+                # Detect browser close OR crash - pause and notify UI
+                if any(msg in error_msg for msg in [
+                    "browser has been closed", 
+                    "target page, context or browser has been closed",
+                    "page crashed",
+                    "target closed"
+                ]):
+                    self.log("ERR", f"🛑 BROWSER CRASH/CLOSE DETECTED on {url}: {e}")
+                    # If stop event is set, it means the user initiated the close, so just log and raise
                     if self._stop_evt.is_set():
                         self.log("INFO", "Browser closed during stop sequence.")
                     else:
-                        self.log("WARN", "Browser was closed. Pausing scraper...")
+                        # Otherwise, it's an unexpected close/crash, so pause and notify
+                        self.log("WARN", "Browser was closed or crashed unexpectedly. Pausing scraper...")
                         self._browser_closed = True
                         self.pause()  # Pause instead of stop
                         if self.on_browser_closed:
@@ -1990,14 +2017,15 @@ class ScraperController:
                                 else:
                                     # Chromium / Chrome / Edge / Brave / Opera
                                     executable_path = get_browser_executable_path(channel)
-                                    # If channel is 'brave' or 'opera', Playwright needs 'channel' to be None 
+                                    # If channel is 'brave', 'opera', or 'vivaldi', Playwright needs 'channel' to be None 
                                     # and 'executable_path' to be set.
                                     launch_channel = channel
-                                    if channel in ["brave", "opera"]:
+                                    if channel in ["brave", "opera", "vivaldi"]:
                                         launch_channel = None
                                         if not executable_path:
                                             self.log("WARN", f"⚠️ Browser {channel} not found on system. Skipping...")
                                             # Induce a rotation to the next one
+                                            mark_current_profile_blocked() # Mark as "bad" to avoid immediate re-selection
                                             rotate_identity()
                                             break # Out of launch attempts, will retry recovery loop which picks new identity
 
@@ -2006,6 +2034,7 @@ class ScraperController:
                                         headless=False,
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         args=chromium_args,
+                                        ignore_default_args=["--enable-automation"],
                                         channel=launch_channel,
                                         executable_path=executable_path,
                                         timeout=120000, # Increased for Windows stability
@@ -2013,6 +2042,17 @@ class ScraperController:
                                 if ctx: break
                             except Exception as le:
                                 if launch_attempt < max_launch_retries:
+                                    # Fail-Fast: Detect "Unsupported chromium channel" or likely configuration errors
+                                    err_msg = str(le).lower()
+                                    if "unsupported chromium channel" in err_msg or ("unsupported" in err_msg and "channel" in err_msg):
+                                        self.log("ERR", f"🚨 Fatal configuration error: {le}")
+                                        mark_current_profile_blocked()
+                                        rotate_identity()
+                                        break # Break launch loop to restart main loop with new identity
+                                        
+                                    if self._stop_evt.is_set():
+                                        break
+
                                     # Progressive sleep with randomization
                                     sleep_time = 5 + (launch_attempt * 2) + random.random() * 5
                                     self.log("WARN", f"🚀 Launch attempt {launch_attempt} failed: {le}.")
@@ -2035,7 +2075,10 @@ class ScraperController:
                                             os.makedirs(profile_dir, exist_ok=True)
 
                                     self.log("INFO", f"Retrying in {int(sleep_time)}s...")
-                                    await asyncio.sleep(sleep_time)
+                                    # Use interruptible sleep to allow immediate stop
+                                    await self._interruptible_sleep(sleep_time)
+                                    if self._stop_evt.is_set():
+                                        break
                                 else:
                                     raise le
 
@@ -2520,10 +2563,20 @@ class ScraperController:
                             
                             # Smart Enrichment Optimization: Skip detail visit if already enriched & active
                             if self.smart_enrichment and key in self._enriched_urls and key not in self._processed:
-                                self.log("INFO", f"({property_idx}/{self.total_properties_expected}) [SMART SKIP] Active & already enriched: {key}")
-                                
                                 # Use data from existing URLs map
                                 orig_row = self._all_existing_urls.get(key, {})
+                                
+                                # STRICT SKIP: If marked as inactive, do NOT reactivate it. Skip immediately.
+                                if orig_row.get('is_inactive'):
+                                    self.log("INFO", f"({property_idx}/{self.total_properties_expected}) [SKIP] Inactive property: {key}")
+                                    self._processed.add(key) # Mark as processed so we don't handle it again
+                                    skipped += 1
+                                    self.current_property_count = property_idx
+                                    self.emit_progress()
+                                    continue
+
+                                self.log("INFO", f"({property_idx}/{self.total_properties_expected}) [SMART SKIP] Active & already enriched: {key}")
+                                
                                 from datetime import datetime
                                 # Update last seen date
                                 row_to_save = orig_row.copy()
@@ -2688,7 +2741,11 @@ class ScraperController:
                         
                                 # Scrape the property
                                 await page.wait_for_timeout(PAGE_WAIT_MS)
-                                d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
+                                try:
+                                    d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
+                                except (IndexError, AttributeError, TypeError, asyncio.TimeoutError) as extraction_err:
+                                    self.log("WARN", f"Extraction failed (possible block/change): {extraction_err}")
+                                    d = {} # Will cause missing_fields to be True, triggering CAPTCHA/Block check
                                 
                                 # Immediate block check
                                 if d.get("isBlocked"):

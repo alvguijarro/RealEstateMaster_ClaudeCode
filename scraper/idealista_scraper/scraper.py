@@ -57,6 +57,29 @@ async def _goto_with_retry(page, url: str) -> None:
             
             await page.goto(url, wait_until=current_wait, timeout=60000)
             
+        except Exception as e:
+            error_msg = str(e).lower()
+            if any(msg in error_msg for msg in ["page crashed", "target closed", "browser has been closed", "context has been closed"]):
+                log("ERR", f"🛑 BROWSER CRASH/CLOSE DETECTED on {url}: {e}")
+                raise Exception("BROWSER_CRASHED_OR_CLOSED")
+            # Re-raise heavily if it's a specific block we already handled within the try block?
+            # No, standard retry logic follows.
+            
+            last_err = e
+            err_str = str(e)
+            
+            # Special handling for Firefox NS_ERROR_ABORT (often transient redirects)
+            if "NS_ERROR_ABORT" in err_str:
+                if attempt < RETRY_MAX_ATTEMPTS:
+                    log("INFO", f"Navigation aborted by Firefox (NS_ERROR_ABORT) for {url}. Retrying immediately...")
+                    continue # Immediate retry, no delay backoff for aborts
+            
+            log("WARN", f"goto attempt {attempt}/{RETRY_MAX_ATTEMPTS} failed for {url}: {e}")
+            await asyncio.sleep(delay)
+            delay *= 2
+            continue
+
+        try:
             # Humanize interaction after reaching the page
             await simulate_human_interaction(page)
             

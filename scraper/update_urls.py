@@ -873,7 +873,9 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             emit_to_ui('ERR', f'({i}/{len(urls)}) Error processing {url}: {e}')
                             error_count += 1
                             start_index = i 
-                            if "Target closed" in str(e) or "session" in str(e).lower():
+                            err_msg = str(e).lower()
+                            if any(x in err_msg for x in ["target closed", "session", "page crashed", "browser_crashed_or_closed"]):
+                                emit_to_ui('WARN', f"Browser crash detected: {e}. Restarting context...")
                                 await asyncio.sleep(2)
                                 break 
                     
