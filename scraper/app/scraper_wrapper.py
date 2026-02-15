@@ -172,8 +172,14 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
     program_files = os.environ.get("ProgramFiles", "C:\\Program Files")
     program_files_x86 = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
 
+    # Check for portable versions in project root 'browsers' folder first
+    project_root = str(Path(__file__).parent.parent)
+    browsers_dir = os.path.join(project_root, "browsers")
+    
     if channel == "brave":
         paths = [
+            os.path.join(browsers_dir, "Brave", "brave.exe"),           # Custom portable structure
+            os.path.join(browsers_dir, "BravePortable", "App", "Brave-64", "brave.exe"), # PortableApps structure
             os.path.join(program_files, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
             os.path.join(local_app_data, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
             os.path.join(program_files_x86, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
@@ -183,6 +189,8 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
             
     elif channel == "opera":
         paths = [
+            os.path.join(browsers_dir, "Opera", "opera.exe"),
+            os.path.join(browsers_dir, "OperaPortable", "App", "Opera", "opera.exe"), # PortableApps
             os.path.join(local_app_data, "Programs", "Opera", "opera.exe"),
             os.path.join(program_files, "Opera", "opera.exe"),
             os.path.join(local_app_data, "Opera", "opera.exe"),
@@ -193,6 +201,8 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
 
     elif channel == "vivaldi":
         paths = [
+            os.path.join(browsers_dir, "Vivaldi", "Application", "vivaldi.exe"),
+            os.path.join(browsers_dir, "VivaldiPortable", "App", "Vivaldi", "vivaldi.exe"), # PortableApps structure often tricky, usually just Vivaldi/Application
             os.path.join(local_app_data, "Vivaldi", "Application", "vivaldi.exe"),
             os.path.join(program_files, "Vivaldi", "Application", "vivaldi.exe"),
             os.path.join(program_files_x86, "Vivaldi", "Application", "vivaldi.exe"),
@@ -2034,7 +2044,7 @@ class ScraperController:
                                         headless=False,
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         args=chromium_args,
-                                        ignore_default_args=["--enable-automation"],
+                                        ignore_default_args=["--enable-automation", "--no-sandbox"],
                                         channel=launch_channel,
                                         executable_path=executable_path,
                                         timeout=120000, # Increased for Windows stability
