@@ -206,10 +206,18 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
         for p in paths:
             if os.path.exists(p): return p
 
-    elif channel == "chromium-portable":
+    elif channel == "librewolf":
         paths = [
-            os.path.join(browsers_dir, "ChromiumPortable", "ChromiumPortable.exe"),
-            os.path.join(browsers_dir, "ChromiumPortable", "App", "Chromium", "bin", "chrome.exe"),
+            os.path.join(browsers_dir, "LibreWolfPortable", "LibreWolfPortable.exe"),
+            os.path.join(browsers_dir, "LibreWolfPortable", "App", "LibreWolf", "librewolf.exe"),
+        ]
+        for p in paths:
+            if os.path.exists(p): return p
+
+    elif channel == "falkon":
+        paths = [
+            os.path.join(browsers_dir, "FalkonPortable", "FalkonPortable.exe"),
+            os.path.join(browsers_dir, "FalkonPortable", "App", "Falkon", "falkon.exe"),
         ]
         for p in paths:
             if os.path.exists(p): return p
@@ -2042,12 +2050,14 @@ class ScraperController:
                         for launch_attempt in range(1, max_launch_retries + 1):
                             try:
                                 if engine == "firefox":
+                                    executable_path = get_browser_executable_path(channel)
                                     ctx = await pw.firefox.launch_persistent_context(
                                         user_data_dir=profile_dir,
                                         headless=False,
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         firefox_user_prefs=firefox_prefs,
                                         ignore_default_args=["-foreground"],
+                                        executable_path=executable_path,
                                         timeout=45000, # Reduced to 45s to fail fast
                                     )
                                 elif engine == "webkit": # Webkit (Safari-like)
@@ -2063,9 +2073,12 @@ class ScraperController:
                                     # If channel is 'brave', 'opera', or 'vivaldi', Playwright needs 'channel' to be None 
                                     # and 'executable_path' to be set.
                                     launch_channel = channel
-                                    if channel in ["brave", "opera", "vivaldi"]:
-                                        launch_channel = None
-                                        if not executable_path:
+                                    # If we have a custom portable path for these, use it by setting channel to None
+                                    if channel in ["brave", "opera", "vivaldi", "iron", "falkon", "chrome"]:
+                                        if executable_path:
+                                            launch_channel = None
+                                        elif channel in ["brave", "opera", "vivaldi", "iron", "falkon"]:
+                                            # These MUST exist if specified, except for 'chrome' which can fallback to system
                                             self.log("WARN", f"⚠️ Browser {channel} not found on system. Skipping...")
                                             # Induce a rotation to the next one
                                             mark_current_profile_blocked() # Mark as "bad" to avoid immediate re-selection

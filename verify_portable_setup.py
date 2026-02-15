@@ -59,29 +59,22 @@ def main():
         browsers_dir / "Opera" / "opera.exe"
     ])
     
-    # Chromium Portable
-    check_browser("Chromium Portable", [
-        browsers_dir / "ChromiumPortable" / "ChromiumPortable.exe",
-        browsers_dir / "ChromiumPortable" / "App" / "Chromium" / "bin" / "chrome.exe"
+    # LibreWolf Portable
+    check_browser("LibreWolf Portable", [
+        browsers_dir / "LibreWolfPortable" / "LibreWolfPortable.exe",
+        browsers_dir / "LibreWolfPortable" / "App" / "LibreWolf" / "librewolf.exe"
+    ])
+
+    # Falkon Portable
+    check_browser("Falkon Portable", [
+        browsers_dir / "FalkonPortable" / "FalkonPortable.exe",
+        browsers_dir / "FalkonPortable" / "App" / "Falkon" / "falkon.exe"
     ])
 
     # SRWare Iron
     check_browser("Iron Portable", [
         browsers_dir / "IronPortable" / "IronPortable.exe",
         browsers_dir / "IronPortable" / "App" / "Iron" / "iron.exe"
-    ])
-
-    # Brave
-    check_browser("Brave", [
-        browsers_dir / "Brave" / "brave.exe",
-        browsers_dir / "BravePortable" / "BravePortable.exe",
-        browsers_dir / "BravePortable" / "App" / "Brave-64" / "brave.exe"
-    ])
-    
-    # Vivaldi
-    check_browser("Vivaldi", [
-        browsers_dir / "Vivaldi" / "Application" / "vivaldi.exe",
-        browsers_dir / "VivaldiPortable" / "VivaldiPortable.exe"
     ])
 
     print("-" * 50)
