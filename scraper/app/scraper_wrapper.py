@@ -1550,6 +1550,17 @@ class ScraperController:
                 
                 # Check for CAPTCHA/Bot protection using unified helper
                 try:
+                    # 0. Immediate Soft Block Check (Hompage Redirect)
+                    # If we asked for 'pagina-X' but got redirected to 'idealista.com' with generic title
+                    current_url = page.url
+                    current_title = (await page.title()).lower()
+                    
+                    if "idealista.com" == current_title and url != current_url and "idealista.com" not in url:
+                         # Valid homepage visit shouldn't trigger this, only redirects from listing pages
+                         self.log("ERR", f"🚫 SOFT BLOCK DETECTED: Redirected to homepage from {url}")
+                         mark_current_profile_blocked()
+                         raise BlockedException("Soft Block: Homepage Redirect")
+
                     block_type = await self._check_for_blocks(page)
                     
                     if block_type == "block":
@@ -2016,14 +2027,14 @@ class ScraperController:
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         firefox_user_prefs=firefox_prefs,
                                         ignore_default_args=["-foreground"],
-                                        timeout=120000, # Increased for Windows stability
+                                        timeout=45000, # Reduced to 45s to fail fast
                                     )
                                 elif engine == "webkit": # Webkit (Safari-like)
                                     ctx = await pw.webkit.launch_persistent_context(
                                         user_data_dir=profile_dir,
                                         headless=False,
                                         viewport={"width": viewport_width, "height": viewport_height},
-                                        timeout=90000,
+                                        timeout=45000, # Reduced to 45s
                                     )
                                 else:
                                     # Chromium / Chrome / Edge / Brave / Opera
@@ -2048,7 +2059,7 @@ class ScraperController:
                                         ignore_default_args=["--enable-automation", "--no-sandbox"],
                                         channel=launch_channel,
                                         executable_path=executable_path,
-                                        timeout=120000, # Increased for Windows stability
+                                        timeout=60000, # 60s for Chromium
                                     )
                                 if ctx: break
                             except Exception as le:
@@ -2065,25 +2076,32 @@ class ScraperController:
                                         break
 
                                     # Progressive sleep with randomization
-                                    sleep_time = 5 + (launch_attempt * 2) + random.random() * 5
+                                    sleep_time = 3 + (launch_attempt * 2) 
                                     self.log("WARN", f"🚀 Launch attempt {launch_attempt} failed: {le}.")
                                     
-                                    # Aggressive cleanup for Firefox on repeated failure
-                                    if engine == "firefox" and launch_attempt >= 2:
-                                        self.log("WARN", f"☣️ Firefox hang detected. Purging profile locks and re-attempting...")
-                                        self._cleanup_zombie_browsers()
-                                        self._clear_profile_locks(profile_dir)
-                                        # If it's the last attempt, try to delete the whole dir
-                                        if launch_attempt == max_launch_retries - 1:
-                                            self.log("ERR", "💣 Firefox persistent hang. DELETING profile directory for fresh start.")
-                                            # Also try direct taskkill for firefox.exe as a last resort
+                                    # Aggressive cleanup for Firefox/Webkit on repeated failure
+                                    if engine in ["firefox", "webkit"]:
+                                        if launch_attempt >= 1:
+                                            self.log("WARN", f"☣️ {engine.capitalize()} hang detected. Purging profile locks...")
+                                            self._cleanup_zombie_browsers()
+                                            self._clear_profile_locks(profile_dir)
+                                        
+                                        # If it fails twice, it's likely corrupt. Nuke it.
+                                        if launch_attempt >= 2:
+                                            self.log("ERR", f"💣 {engine.capitalize()} persistent hang. DELETING profile directory for fresh start.")
+                                            # Also try direct taskkill as a last resort
                                             if sys.platform == "win32":
                                                 try: subprocess.run(["taskkill", "/F", "/IM", "firefox.exe", "/T"], capture_output=True)
                                                 except: pass
+                                                try: subprocess.run(["taskkill", "/F", "/IM", "webkit.exe", "/T"], capture_output=True) # just in case
+                                                except: pass
                                             
                                             import shutil
-                                            shutil.rmtree(profile_dir, ignore_errors=True)
-                                            os.makedirs(profile_dir, exist_ok=True)
+                                            try:
+                                                shutil.rmtree(profile_dir, ignore_errors=True)
+                                                os.makedirs(profile_dir, exist_ok=True)
+                                            except Exception as e:
+                                                self.log("ERR", f"Failed to nuke profile: {e}")
 
                                     self.log("INFO", f"Retrying in {int(sleep_time)}s...")
                                     # Use interruptible sleep to allow immediate stop
