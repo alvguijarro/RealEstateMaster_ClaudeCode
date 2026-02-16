@@ -2210,6 +2210,14 @@ class ScraperController:
                                         
                                     if self._stop_evt.is_set():
                                         break
+                                    
+                                    # FALLBACK for Incompatible Portable Browsers (e.g. LibreWolf missing Juggler)
+                                    if engine == "firefox" and executable_path and "timeout" in err_msg:
+                                        self.log("WARN", f"⚠️ Custom Browser {channel} timed out (likely missing Juggler patch). Falling back to bundled Firefox for next attempt.")
+                                        executable_path = None 
+                                        self._clear_profile_locks(profile_dir)
+                                        # Force immediately retry without wait/nuke
+                                        continue
 
                                     # Progressive sleep with randomization
                                     sleep_time = 3 + (launch_attempt * 2) 
