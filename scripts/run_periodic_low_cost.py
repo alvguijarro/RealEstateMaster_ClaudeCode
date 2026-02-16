@@ -124,7 +124,11 @@ def run_scraper(province_name: str, url: str) -> bool:
                             log(f"[OK] Scrape completed for {province_name}.")
                             return True
                         elif current_status in ["stopped", "error"]:
-                            log(f"[INFO] Scrape stopped or failed for {province_name} (Status: {current_status}).")
+                            log(f"[INFO] Scrape stopped by user (Status: {current_status}).")
+                            # If stopped by user, we should exit the entire batch, not just this province
+                            if current_status == "stopped":
+                                log("[SIGNAL] User stop detected via API status. Exiting...")
+                                sys.exit(0)
                             return False
                         elif current_status in ["blocked", "captcha"]:
                             log(f"[WARN] Block/CAPTCHA detected for {province_name}.")
@@ -201,7 +205,10 @@ def main():
                 retries += 1
                 if retries < MAX_RETRIES_PER_PROVINCE:
                     log(f"[WARN] Retry {retries}/{MAX_RETRIES_PER_PROVINCE} for {name} after {BLOCK_WAIT_TIME}s...")
-                    time.sleep(BLOCK_WAIT_TIME)
+                    # Respect stop signals during retry wait
+                    for _ in range(BLOCK_WAIT_TIME):
+                        check_signals()
+                        time.sleep(1)
         
         if success:
             success_count += 1
