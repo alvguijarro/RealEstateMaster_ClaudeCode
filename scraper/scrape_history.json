@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-16T01:16:24.206434",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/palencia-provincia/con-precio-hasta_2000/",
+    "properties_count": 88,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Palencia_alquiler.xlsx",
+    "filename": "idealista_Palencia_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-15T12:54:12.643581",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/malaga-provincia/con-precio-hasta_2000/",
     "properties_count": 1693,

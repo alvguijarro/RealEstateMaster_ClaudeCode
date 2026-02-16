@@ -15,15 +15,30 @@ def check_browser(name, possible_paths):
 
 def main():
     project_root = Path(__file__).parent
-    browsers_dir = project_root / "browsers"
+    
+    # Check multiple locations
+    # Priority 1: python_portable/browsers
+    # Priority 2: root/browsers 
+    possible_browsers_dirs = [
+        project_root / "python_portable" / "browsers",
+        project_root / "browsers"
+    ]
+    
+    browsers_dir = None
+    for d in possible_browsers_dirs:
+        # Pick the FIRST one that exists AND has files/folders inside
+        if d.exists() and any(d.iterdir()):
+            browsers_dir = d
+            break
+
+    if not browsers_dir:
+        # If neither has content, show error
+        print(f"[ERROR] No populated 'browsers' directory found.")
+        print(f"Checked locations:")
+        for d in possible_browsers_dirs: print(f"  - {d}")
+        return
     
     print(f"[CHECKING] Verifying Portable Browser Setup in: {browsers_dir}")
-    print("-" * 50)
-
-    if not browsers_dir.exists():
-        print(f"[ERROR] 'browsers' directory does not exist at {browsers_dir}")
-        print("   Did you run 'mkdir browsers'?")
-        return
 
     # Check Playwright Browsers (folders usually start with chromium-, firefox-, webkit-)
     print("\n--- Playwright Managed Browsers ---")

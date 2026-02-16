@@ -172,10 +172,30 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
     program_files = os.environ.get("ProgramFiles", "C:\\Program Files")
     program_files_x86 = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
 
-    # Check for portable versions in project root 'browsers' folder first
+    # Path detection for portable browsers
     # app -> scraper -> RealEstateMaster
-    project_root = str(Path(__file__).parent.parent.parent)
-    browsers_dir = os.path.join(project_root, "browsers")
+    project_root = Path(__file__).parent.parent.parent
+    
+    # Try multiple standard locations for the 'browsers' folder
+    # Priority 1: python_portable/browsers (Self-contained)
+    # Priority 2: root/browsers (Shared/Local)
+    possible_browsers_dirs = [
+        project_root / "python_portable" / "browsers",
+        project_root / "browsers"
+    ]
+    
+    browsers_dir = None
+    for d in possible_browsers_dirs:
+        # Pick the FIRST one that exists AND is not empty
+        if d.exists() and any(d.iterdir()):
+            browsers_dir = str(d)
+            break
+            
+    if not browsers_dir:
+        # Final fallback - if neither exists or both are empty, stick to python_portable for cleanliness
+        browsers_dir = str(project_root / "python_portable" / "browsers")
+        if not os.path.exists(browsers_dir):
+             os.makedirs(browsers_dir, exist_ok=True)
     
     if channel == "chrome":
         # Check for Google Chrome Portable in browsers dir

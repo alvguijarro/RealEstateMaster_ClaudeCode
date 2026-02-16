@@ -60,8 +60,13 @@ echo Installing all tool dependencies from requirements_master.txt...
 
 echo.
 echo [3/4] Installing Playwright browsers (Chromium & Firefox)...
-REM Set browser path to shared directory in project root
-set PLAYWRIGHT_BROWSERS_PATH=%SCRIPT_DIR%..\browsers
+REM Detect where the 'browsers' folder is located
+if exist "%SCRIPT_DIR%browsers" (
+    set PLAYWRIGHT_BROWSERS_PATH=%SCRIPT_DIR%browsers
+) else (
+    set PLAYWRIGHT_BROWSERS_PATH=%SCRIPT_DIR%..\browsers
+)
+echo Playwright Browsers Path: %PLAYWRIGHT_BROWSERS_PATH%
 "%PYTHON%" -m playwright install chromium firefox webkit 2>nul
 if errorlevel 1 (
     echo WARNING: Playwright browser installation may have issues.
