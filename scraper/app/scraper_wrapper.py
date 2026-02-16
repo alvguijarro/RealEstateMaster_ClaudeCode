@@ -16,6 +16,7 @@ import random
 import re
 import sys
 import time
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set, Tuple
@@ -198,9 +199,10 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
     
     if channel == "chrome":
         # Check for Google Chrome Portable in browsers dir
+        # IMPORTANT: Inner binary FIRST to avoid PortableApps wrapper issues
         paths = [
-            os.path.join(browsers_dir, "GoogleChromePortable", "GoogleChromePortable.exe"),
             os.path.join(browsers_dir, "GoogleChromePortable", "App", "Chrome-bin", "chrome.exe"),
+            os.path.join(browsers_dir, "GoogleChromePortable", "GoogleChromePortable.exe"),
         ]
         for p in paths:
             if os.path.exists(p): return p
@@ -208,8 +210,8 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
 
     elif channel == "opera":
         paths = [
-            os.path.join(browsers_dir, "OperaPortable", "OperaPortable.exe"),
             os.path.join(browsers_dir, "OperaPortable", "App", "Opera", "opera.exe"),
+            os.path.join(browsers_dir, "OperaPortable", "OperaPortable.exe"),
             os.path.join(browsers_dir, "Opera", "opera.exe"),
             os.path.join(local_app_data, "Programs", "Opera", "opera.exe"),
             os.path.join(program_files, "Opera", "opera.exe"),
@@ -219,30 +221,31 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
 
     elif channel == "iron":
         paths = [
-            os.path.join(browsers_dir, "IronPortable", "IronPortable.exe"),
             os.path.join(browsers_dir, "IronPortable", "App", "Iron", "iron.exe"),
+            os.path.join(browsers_dir, "IronPortable", "IronPortable.exe"),
         ]
         for p in paths:
             if os.path.exists(p): return p
 
     elif channel == "librewolf":
         paths = [
-            os.path.join(browsers_dir, "LibreWolfPortable", "LibreWolfPortable.exe"),
             os.path.join(browsers_dir, "LibreWolfPortable", "App", "LibreWolf", "librewolf.exe"),
+            os.path.join(browsers_dir, "LibreWolfPortable", "LibreWolfPortable.exe"),
         ]
         for p in paths:
             if os.path.exists(p): return p
 
     elif channel == "falkon":
         paths = [
-            os.path.join(browsers_dir, "FalkonPortable", "FalkonPortable.exe"),
             os.path.join(browsers_dir, "FalkonPortable", "App", "Falkon", "falkon.exe"),
+            os.path.join(browsers_dir, "FalkonPortable", "FalkonPortable.exe"),
         ]
         for p in paths:
             if os.path.exists(p): return p
 
     elif channel == "brave":
         paths = [
+            os.path.join(browsers_dir, "BravePortable", "App", "Brave", "brave.exe"),
             os.path.join(browsers_dir, "BravePortable", "BravePortable.exe"),
             os.path.join(browsers_dir, "Brave", "brave.exe"),
             os.path.join(program_files, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
@@ -252,6 +255,7 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
 
     elif channel == "vivaldi":
         paths = [
+            os.path.join(browsers_dir, "VivaldiPortable", "App", "Vivaldi", "Application", "vivaldi.exe"),
             os.path.join(browsers_dir, "VivaldiPortable", "VivaldiPortable.exe"),
             os.path.join(browsers_dir, "Vivaldi", "Application", "vivaldi.exe"),
             os.path.join(program_files, "Vivaldi", "Application", "vivaldi.exe"),
@@ -2141,6 +2145,10 @@ class ScraperController:
                         self._kill_browser_by_channel(channel)
 
                         for launch_attempt in range(1, max_launch_retries + 1):
+                            # CHECK STOP AT START OF EVERY ITERATION
+                            if self._stop_evt.is_set():
+                                self.log("INFO", "🛑 Stop requested. Aborting browser launch.")
+                                raise StopException("Stop requested during browser launch")
                             try:
                                 if engine == "firefox":
                                     executable_path = get_browser_executable_path(channel)
