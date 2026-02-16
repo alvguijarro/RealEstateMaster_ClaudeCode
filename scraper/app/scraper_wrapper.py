@@ -176,26 +176,25 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
     # app -> scraper -> RealEstateMaster
     project_root = Path(__file__).parent.parent.parent
     
-    # Try multiple standard locations for the 'browsers' folder
-    # Priority 1: python_portable/browsers (Self-contained)
-    # Priority 2: root/browsers (Shared/Local)
+    # Try ONE standard location for the 'browsers' folder (Strict Portable Mode)
+    # Priority: python_portable/browsers (Self-contained)
     possible_browsers_dirs = [
-        project_root / "python_portable" / "browsers",
-        project_root / "browsers"
+        project_root / "python_portable" / "browsers"
     ]
     
     browsers_dir = None
     for d in possible_browsers_dirs:
-        # Pick the FIRST one that exists AND is not empty
-        if d.exists() and any(d.iterdir()):
+        # Pick the FIRST one that exists
+        if d.exists():
             browsers_dir = str(d)
             break
             
     if not browsers_dir:
-        # Final fallback - if neither exists or both are empty, stick to python_portable for cleanliness
+        # Fallback to creating it if missing, but strictly in portable structure
         browsers_dir = str(project_root / "python_portable" / "browsers")
-        if not os.path.exists(browsers_dir):
+        try:
              os.makedirs(browsers_dir, exist_ok=True)
+        except: pass
     
     if channel == "chrome":
         # Check for Google Chrome Portable in browsers dir
@@ -2017,7 +2016,7 @@ class ScraperController:
                     viewport_width, viewport_height = random.choice(VIEWPORT_SIZES)
                     self.log("STEALTH", f"Using randomized viewport: {viewport_width}x{viewport_height}")
                     
-                    # Clean Profile Strategy (2026)
+                    # Clean Profile Strategy (2026) - Optimized for Portable Stealth
                     chromium_args = [
                         "--no-first-run",
                         "--no-default-browser-check",
@@ -2028,10 +2027,12 @@ class ScraperController:
                         "--metrics-recording-only",
                         "--export-tagged-pdf",
                         "--disable-infobars",
-                        "--disable-web-security",
-                        "--disable-features=IsolateOrigins,site-per-process",
-                        "--disable-site-isolation-trials",
-                        "--allow-running-insecure-content",
+                        # "--disable-web-security",  # REMOVED: Suspicious
+                        # "--allow-running-insecure-content", # REMOVED: Suspicious
+                        "--lang=es-ES,es", # FORCE SPANISH
+                        "--start-maximized", # Mimic human
+                        "--disable-popup-blocking", # Reduce indicators
+                        "--enable-features=NetworkService,NetworkServiceInProcess",
                     ]
                     
                     firefox_prefs = {
@@ -2054,6 +2055,12 @@ class ScraperController:
                         "services.sync.engine.prefs": False,
                         "marionette.log.level": "Error",
                         "accessibility.force_disabled": 1,
+                        # NEW STEALTH PREFS (2026)
+                        "general.useragent.locale": "es-ES",
+                        "intl.accept_languages": "es-ES, es, en-US, en",
+                        "network.http.accept-encoding": "gzip, deflate, br",
+                        "privacy.resistFingerprinting": False, # CRITICAL: True makes you unique
+                        "canvas.poisondata": False, 
                     }
                     # Silence Firefox remote settings warnings
                     os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
@@ -2088,18 +2095,19 @@ class ScraperController:
                                         timeout=45000, # Reduced to 45s
                                     )
                                 else:
-                                    # Chromium / Chrome / Edge / Brave / Opera
+                                    # Chromium / Chrome / Edge / Brave / Opera / Iron / Falkon
                                     executable_path = get_browser_executable_path(channel)
                                     # If channel is 'brave', 'opera', or 'vivaldi', Playwright needs 'channel' to be None 
                                     # and 'executable_path' to be set.
                                     launch_channel = channel
                                     # If we have a custom portable path for these, use it by setting channel to None
-                                    if channel in ["brave", "opera", "vivaldi", "iron", "falkon", "chrome"]:
+                                    if channel in ["brave", "opera", "vivaldi", "iron", "falkon", "chrome", "librewolf"]:
                                         if executable_path:
                                             launch_channel = None
-                                        elif channel in ["brave", "opera", "vivaldi", "iron", "falkon"]:
+                                            self.log("INFO", f"🚀 Launching Portable: {os.path.basename(executable_path)}")
+                                        elif channel in ["brave", "opera", "vivaldi", "iron", "falkon", "librewolf"]:
                                             # These MUST exist if specified, except for 'chrome' which can fallback to system
-                                            self.log("WARN", f"⚠️ Browser {channel} not found on system. Skipping...")
+                                            self.log("WARN", f"⚠️ Portable Browser {channel} not found. Skipping identity...")
                                             # Induce a rotation to the next one
                                             mark_current_profile_blocked() # Mark as "bad" to avoid immediate re-selection
                                             rotate_identity()
