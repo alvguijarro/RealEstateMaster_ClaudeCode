@@ -27,19 +27,28 @@ function updateScraperState(active, modeTitle = null) {
     if (pauseBtn) pauseBtn.disabled = !active;
     if (stopBtn) stopBtn.disabled = !active;
 
-    // Batch Button (if exists)
-    const startBatchBtn = document.getElementById('startBatchBtn');
-    if (startBatchBtn) {
-        startBatchBtn.disabled = active; // Disable if ANY scraping is active
-        if (active) {
-            startBatchBtn.title = "Scraper en curso...";
-            startBatchBtn.classList.add('disabled');
-        } else {
-            startBatchBtn.title = ""; // Will be updated by validateBatchButton
-            startBatchBtn.classList.remove('disabled');
-            validateBatchButton(); // Re-check selection state
+    // Batch Buttons (Split)
+    const updateBatchBtn = (btnId) => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.disabled = active;
+            if (active) {
+                btn.title = "Scraper en curso...";
+                btn.classList.add('disabled');
+            } else {
+                btn.title = "";
+                btn.classList.remove('disabled');
+            }
         }
+    };
+    updateBatchBtn('startBatchVentaBtn');
+    updateBatchBtn('startBatchAlquilerBtn');
+
+    if (!active) {
+        // Re-validate to see if they should be enabled based on selection
+        validateProvinceBatchButtons();
     }
+
 
     // URL Update Button
     if (updateUrlsBtn) updateUrlsBtn.disabled = active;
@@ -1929,29 +1938,50 @@ function toggleBatchFiles(selectAll) {
  * Validation for "Iniciar scraping de provincias" button
  * Checks if at least one province/zone is selected in the new Tree View
  */
-function validateProvinceBatchButton(selectedCount) {
-    const startBatchBtnEl = document.getElementById('startBatchBtn');
-    if (!startBatchBtnEl) return;
+/**
+ * Validation for "Iniciar scraping de provincias" buttons (Split)
+ * Checks if at least one province/zone is selected for the specific type
+ */
+function validateProvinceBatchButtons() {
+    const validate = (type) => {
+        const btn = document.getElementById(type === 'venta' ? 'startBatchVentaBtn' : 'startBatchAlquilerBtn');
+        if (!btn) return;
 
-    if (isRunning || isPaused) {
-        startBatchBtnEl.disabled = true;
-        startBatchBtnEl.style.opacity = '0.5';
-        startBatchBtnEl.style.cursor = 'not-allowed';
-        return;
-    }
+        // Check if running
+        if (isRunning || isPaused) {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+            return;
+        }
 
-    if (selectedCount > 0) {
-        startBatchBtnEl.disabled = false;
-        startBatchBtnEl.style.opacity = '1';
-        startBatchBtnEl.style.cursor = 'pointer';
-        startBatchBtnEl.title = "";
-    } else {
-        startBatchBtnEl.disabled = true;
-        startBatchBtnEl.style.opacity = '0.5';
-        startBatchBtnEl.style.cursor = 'not-allowed';
-        startBatchBtnEl.title = "Selecciona al menos una provincia o zona.";
-    }
+        // Check Count
+        const list = document.getElementById(type === 'venta' ? 'listVenta' : 'listAlquiler');
+        let count = 0;
+        if (list) {
+            const provCbs = list.querySelectorAll(`.prov-cb-${type}`);
+            provCbs.forEach(cb => {
+                if (cb.checked || cb.indeterminate) count++;
+            });
+        }
+
+        if (count > 0) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+            btn.title = "";
+        } else {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+            btn.title = "Selecciona al menos una provincia o zona.";
+        }
+    };
+
+    validate('venta');
+    validate('alquiler');
 }
+
 
 /**
  * Validation for "Iniciar Lote" button (Excel Enrichment)
@@ -2651,7 +2681,7 @@ function updateSelectionUI() {
     // But for backward compatibility with simple logic:
     // ...
 
-    validateProvinceBatchButton(total);
+    validateProvinceBatchButtons();
 
     // Trigger Auto-Select File
     if (typeof autoSelectBatchFile === 'function') {
@@ -2660,90 +2690,97 @@ function updateSelectionUI() {
 }
 
 // Global startBatchFromProvinces function (needs to be defined or updated)
-window.startBatchFromProvinces = async function () {
-    // Traverse DOM to build URL list
+// Global startBatchFromProvinces function (Split by Type)
+window.startBatchFromProvinces = async function (type) {
+    if (!type) {
+        console.error("Type (venta|alquiler) is required for batch start.");
+        return;
+    }
+
+    // Traverse DOM to build URL list for specific type
     const urls = [];
 
-    const collectUrls = (type) => {
-        const list = document.getElementById(type === 'venta' ? 'listVenta' : 'listAlquiler');
+    const collectUrls = (targetType) => {
+        const list = document.getElementById(targetType === 'venta' ? 'listVenta' : 'listAlquiler');
         if (!list) return;
 
         // Find all Province Groups
         const groups = list.querySelectorAll('.province-group');
         groups.forEach(group => {
-            const provCb = group.querySelector(`.prov-cb-${type}`);
-            const zoneCbs = group.querySelectorAll(`.zone-cb-${type}`); // All zones
+            const provCb = group.querySelector(`.prov-cb-${targetType}`);
+            const zoneCbs = group.querySelectorAll(`.zone-cb-${targetType}`); // All zones
             const checkedZones = Array.from(zoneCbs).filter(z => z.checked);
 
-            // 1. If Province is Fully Checked (no indeterminate), send Province URL (Server expands) 
-            // OR if all zones are checked manually
-            const allZonesChecked = (zoneCbs.length > 0 && checkedZones.length === zoneCbs.length);
-            // Debug log
-            if (provCb.checked || checkedZones.length > 0) {
-                console.log(`[DEBUG] Province: ${provCb.dataset.slug}, Checked: ${provCb.checked}, Indet: ${provCb.indeterminate}, Zones: ${checkedZones.length}/${zoneCbs.length}`);
-            }
-
-            // LOGIC FIX: Prioritize Full Province URL if the province header is successfully checked
-            // The user wants "Almería" -> Province URL, not 10 Zone URLs.
-            // If provCb is checked, it means the user wants the whole province. 
-            // Even if indeterminate is technically true (browser quirk?), if checked is true we usually want the parent.
-            // But standard behavior: Checked = All descendents. Indeterminate = Some.
-
+            // Logic: Full province check takes precedence
             const isFullProvince = provCb.checked && !provCb.indeterminate;
-
-            // Force full province if all zones are checked (double check)
             const explicitAllZones = (zoneCbs.length > 0 && checkedZones.length === zoneCbs.length);
 
             if (isFullProvince || explicitAllZones) {
-                const pSlug = provCb.dataset.slug;
-                if (provinceUrls[pSlug]) {
-                    const url = type === 'venta' ? provinceUrls[pSlug].venta_url : provinceUrls[pSlug].alquiler_url;
-                    if (url) {
-                        urls.push(url);
-                        console.log(`[DEBUG] Added Full Province URL: ${url}`);
-                    } else {
-                        // Fallback: If no province URL (shouldn't happen), send all zones
-                        checkedZones.forEach(z => {
-                            urls.push(getZoneUrl(z, type));
-                        });
+                // Modified: Always prefer Zone URLs if available, to ensure deep scraping and correct price filtering
+                if (zoneCbs.length > 0) {
+                    zoneCbs.forEach(z => {
+                        urls.push(getZoneUrl(z, targetType));
+                    });
+                } else {
+                    // No zones defined (e.g. Ceuta), use province URL
+                    const pSlug = provCb.dataset.slug;
+                    if (provinceUrls[pSlug]) {
+                        const url = targetType === 'venta' ? provinceUrls[pSlug].venta_url : provinceUrls[pSlug].alquiler_url;
+                        if (url) urls.push(url);
                     }
                 }
             } else {
-                // Partial selection: Send specific Zone URLs
+                // Partial selection
                 checkedZones.forEach(z => {
-                    urls.push(getZoneUrl(z, type));
+                    urls.push(getZoneUrl(z, targetType));
                 });
             }
         });
     };
 
-    const getZoneUrl = (checkbox, type) => {
+    const getZoneUrl = (checkbox, targetType) => {
         const href = checkbox.dataset.href;
         let finalHref = href;
-        if (type === 'alquiler' && finalHref.includes('/venta-viviendas/')) {
+        if (targetType === 'alquiler' && finalHref.includes('/venta-viviendas/')) {
             finalHref = finalHref.replace('/venta-viviendas/', '/alquiler-viviendas/');
-        } else if (type === 'venta' && finalHref.includes('/alquiler-viviendas/')) {
+        } else if (targetType === 'venta' && finalHref.includes('/alquiler-viviendas/')) {
             finalHref = finalHref.replace('/alquiler-viviendas/', '/venta-viviendas/');
         }
-        const fullUrl = `https://www.idealista.com${finalHref}`;
-        console.log(`[DEBUG] Added Zone URL: ${fullUrl}`);
-        return fullUrl;
+        return `https://www.idealista.com${finalHref}`;
     };
 
 
     console.clear();
-    console.log('[BATCH] Building URL list from selections...');
+    console.log(`[BATCH] Building URL list for ${type}...`);
 
-    collectUrls('venta');
-    collectUrls('alquiler');
+    collectUrls(type);
 
     if (urls.length === 0) {
         alert("Por favor, selecciona al menos una provincia o zona.");
         return;
     }
 
-    addLog('INFO', `🚀 Iniciando lote con ${urls.length} destinos seleccionados.`);
-    urls.forEach((url, i) => {
+    // Price Limit Logic
+    let finalUrls = urls;
+    const priceCheckIdx = type === 'venta' ? 'checkPriceVenta' : 'checkPriceAlquiler';
+    const priceInputIdx = type === 'venta' ? 'priceVenta' : 'priceAlquiler';
+
+    const usePriceLimit = document.getElementById(priceCheckIdx)?.checked;
+    const priceValue = document.getElementById(priceInputIdx)?.value;
+
+    if (usePriceLimit && priceValue) {
+        addLog('INFO', `Aplicando filtro de precio: Max ${priceValue}€`);
+        finalUrls = urls.map(u => {
+            // Remove trailing slash to append safely
+            let base = u.endsWith('/') ? u : u + '/';
+            // standard idealista structure: .../provincia/ OR .../zona/
+            // params go after. e.g. .../provincia/con-precio-hasta_300000/
+            return `${base}con-precio-hasta_${priceValue}/`;
+        });
+    }
+
+    addLog('INFO', `🚀 Iniciando lote ${type.toUpperCase()} con ${finalUrls.length} destinos.`);
+    finalUrls.forEach((url, i) => {
         console.log(`[BATCH] #${i + 1}: ${url}`);
     });
 
@@ -2752,7 +2789,14 @@ window.startBatchFromProvinces = async function () {
     isBatchMode = true;
     isUpdateMode = false;
 
-    updateScraperState(true, 'Scraping por Provincias');
+    // Trigger UI Update disabling buttons
+    updateScraperState(true, `Scraping Batch ${type.toUpperCase()}`);
+
+    // Disable the OTHER start button explicitly (redundant with updateScraperState but safe)
+    const otherType = type === 'venta' ? 'alquiler' : 'venta';
+    const otherBtn = document.getElementById(otherType === 'venta' ? 'startBatchVentaBtn' : 'startBatchAlquilerBtn');
+    if (otherBtn) otherBtn.disabled = true;
+
 
     // Get target file
     let targetFile = null;
@@ -2767,11 +2811,13 @@ window.startBatchFromProvinces = async function () {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                urls: urls,
+                urls: finalUrls,
                 mode: 'fast',
                 expand: false,
                 smart_enrichment: true,
-                target_file: targetFile
+                target_file: targetFile,
+                province_name: urls.length === 1 ? 'SingleProvince' : 'MultiProvince', // Naive, server can handle
+                operation_type: type
             })
         });
 
@@ -2782,11 +2828,30 @@ window.startBatchFromProvinces = async function () {
             startTimer();
         } else {
             addLog('ERR', `Error: ${data.error}`);
+            updateScraperState(false); // Reset if failed
         }
     } catch (e) {
         addLog('ERR', `Error de conexión: ${e.message}`);
+        updateScraperState(false);
     }
 };
+
+// Bind new buttons
+const bindBatchButtons = () => {
+    const btnVenta = document.getElementById('startBatchVentaBtn');
+    const btnAlquiler = document.getElementById('startBatchAlquilerBtn');
+
+    if (btnVenta) {
+        btnVenta.onclick = () => startBatchFromProvinces('venta');
+    }
+    if (btnAlquiler) {
+        btnAlquiler.onclick = () => startBatchFromProvinces('alquiler');
+    }
+};
+// Call immediately in case DOM is ready, and also ensure called on load
+bindBatchButtons();
+document.addEventListener('DOMContentLoaded', bindBatchButtons);
+
 
 
 /**
@@ -2814,21 +2879,7 @@ function validateStartButton() {
  * Enabled if at least one province is selected.
  */
 function validateBatchButton() {
-    // This function is now mostly an alias or called from updateScraperState
-    // We'll calculate the count and call validateProvinceBatchButton
-    let total = 0;
-    const countSelection = (type) => {
-        const list = document.getElementById(type === 'venta' ? 'listVenta' : 'listAlquiler');
-        if (!list) return 0;
-        const provCbs = list.querySelectorAll(`.prov-cb-${type}`);
-        let count = 0;
-        provCbs.forEach(cb => {
-            if (cb.checked || cb.indeterminate) count++;
-        });
-        return count;
-    };
-    total = countSelection('venta') + countSelection('alquiler');
-    validateProvinceBatchButton(total);
+    validateProvinceBatchButtons();
 }
 
 /**

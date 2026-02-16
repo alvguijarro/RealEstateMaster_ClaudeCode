@@ -133,48 +133,103 @@
 
                                 <!-- Multi-Province Selectors (Managed by app.js) -->
                                 <div class="multi-select-container"
-                                    style="display: flex; gap: 15px; margin-bottom: 20px;">
-                                    <!-- VENTA -->
-                                    <div class="custom-dropdown-group"
-                                        style="flex: 1; position: relative; z-index: 101;">
-                                        <label
-                                            style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Provincias
-                                            (Venta < 300k)</label>
-                                                <div class="dropdown-trigger" id="triggerVenta" tabindex="0">
-                                                    <span id="selectedTextVenta">Selecciona provincias...</span>
-                                                    <span class="arrow">▼</span>
+                                    style="display: flex; gap: 20px; margin-bottom: 20px;">
+
+                                    <!-- COLUMN 1: VENTA -->
+                                    <div class="province-col"
+                                        style="flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid var(--border); padding-right: 20px;">
+                                        <div class="col-header"
+                                            style="display: flex; justify-content: space-between; align-items: center;">
+                                            <label style="font-weight: 600; color: var(--text-main);">Venta</label>
+                                            <span style="font-size: 0.75rem; color: var(--text-muted);">(&lt;
+                                                300k)</span>
+                                        </div>
+
+                                        <!-- Dropdown Venta -->
+                                        <div class="custom-dropdown-group" style="position: relative; z-index: 102;">
+                                            <div class="dropdown-trigger" id="triggerVenta" tabindex="0">
+                                                <span id="selectedTextVenta">Selecciona provincias...</span>
+                                                <span class="arrow">▼</span>
+                                            </div>
+                                            <div class="dropdown-overlay" id="dropdownVenta">
+                                                <div class="dropdown-search">
+                                                    <input type="text" placeholder="Buscar..." id="searchVenta">
                                                 </div>
-                                                <div class="dropdown-overlay" id="dropdownVenta">
-                                                    <div class="dropdown-search">
-                                                        <input type="text" placeholder="Buscar..." id="searchVenta">
-                                                    </div>
-                                                    <div class="dropdown-options" id="listVenta">
-                                                        <!-- JS will populate -->
-                                                    </div>
+                                                <div class="dropdown-options" id="listVenta">
+                                                    <!-- JS will populate -->
                                                 </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Price Limit Venta -->
+                                        <div class="price-limit-control"
+                                            style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px;">
+                                            <input type="checkbox" id="checkPriceVenta" checked
+                                                style="cursor: pointer;">
+                                            <label for="checkPriceVenta"
+                                                style="font-size: 0.85rem; cursor: pointer; flex: 1;">Max
+                                                Precio:</label>
+                                            <input type="number" id="priceVenta" value="300000" step="5000"
+                                                style="width: 90px; padding: 4px; font-size: 0.85rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text-main);">
+                                            <span style="font-size: 0.85rem;">€</span>
+                                        </div>
+
+                                        <!-- Button Venta -->
+                                        <button class="btn btn-primary" id="startBatchVentaBtn"
+                                            style="width: 100%; margin-top: 5px;" disabled>
+                                            <span class="btn-icon">🏠</span> Iniciar Venta
+                                        </button>
                                     </div>
 
-                                    <!-- ALQUILER -->
-                                    <div class="custom-dropdown-group"
-                                        style="flex: 1; position: relative; z-index: 101;">
-                                        <label
-                                            style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Provincias
-                                            (Alquiler)</label>
-                                        <div class="dropdown-trigger" id="triggerAlquiler" tabindex="0">
-                                            <span id="selectedTextAlquiler">Selecciona provincias...</span>
-                                            <span class="arrow">▼</span>
+                                    <!-- COLUMN 2: ALQUILER -->
+                                    <div class="province-col"
+                                        style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                                        <div class="col-header"
+                                            style="display: flex; justify-content: space-between; align-items: center;">
+                                            <label style="font-weight: 600; color: var(--text-main);">Alquiler</label>
+                                            <span style="font-size: 0.75rem; color: var(--text-muted);">(Mensual)</span>
                                         </div>
-                                        <div class="dropdown-overlay" id="dropdownAlquiler">
-                                            <div class="dropdown-search">
-                                                <input type="text" placeholder="Buscar..." id="searchAlquiler">
+
+                                        <!-- Dropdown Alquiler -->
+                                        <div class="custom-dropdown-group" style="position: relative; z-index: 101;">
+                                            <div class="dropdown-trigger" id="triggerAlquiler" tabindex="0">
+                                                <span id="selectedTextAlquiler">Selecciona provincias...</span>
+                                                <span class="arrow">▼</span>
                                             </div>
-                                            <div class="dropdown-options" id="listAlquiler">
-                                                <!-- JS will populate -->
+                                            <div class="dropdown-overlay" id="dropdownAlquiler">
+                                                <div class="dropdown-search">
+                                                    <input type="text" placeholder="Buscar..." id="searchAlquiler">
+                                                </div>
+                                                <div class="dropdown-options" id="listAlquiler">
+                                                    <!-- JS will populate -->
+                                                </div>
                                             </div>
                                         </div>
+
+                                        <!-- Price Limit Alquiler -->
+                                        <div class="price-limit-control"
+                                            style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px;">
+                                            <input type="checkbox" id="checkPriceAlquiler" checked
+                                                style="cursor: pointer;">
+                                            <label for="checkPriceAlquiler"
+                                                style="font-size: 0.85rem; cursor: pointer; flex: 1;">Max
+                                                Precio:</label>
+                                            <input type="number" id="priceAlquiler" value="2000" step="100"
+                                                style="width: 90px; padding: 4px; font-size: 0.85rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text-main);">
+                                            <span style="font-size: 0.85rem;">€</span>
+                                        </div>
+
+                                        <!-- Button Alquiler -->
+                                        <button class="btn btn-info" id="startBatchAlquilerBtn"
+                                            style="width: 100%; margin-top: 5px;" disabled>
+                                            <span class="btn-icon">🔑</span> Iniciar Alquiler
+                                        </button>
                                     </div>
+
                                 </div>
+                                <!-- End Two Column Layout -->
 
+                                <!-- Batch Destination (Common) -->
                                 <div id="batchDestinationContainer" style="display: none;">
                                     <div class="custom-dropdown-group"
                                         style="margin-bottom: 12px; position: relative; z-index: 100;">
@@ -202,16 +257,6 @@
                                             provincia.
                                         </small>
                                     </div>
-                                </div>
-
-                                <div class="form-group" style="margin-top: 10px;">
-                                    <button class="btn btn-primary" id="startBatchBtn" style="width: 100%;" disabled>
-                                        <span class="btn-icon">⚡</span> Iniciar scraping de provincias
-                                    </button>
-                                    <small
-                                        style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 8px;">
-                                        Modo Fast. Selecciona provincias arriba para activar.
-                                    </small>
                                 </div>
                             </section>
 

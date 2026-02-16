@@ -1,5 +1,15 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-16]
+
+### Added
+- **Split Province Scraper UI**: Refactored the "Actualizar provincias completas" panel into distinct "Venta" and "Alquiler" columns for clearer operation separation.
+- **Price Limit Filters**: Added optional "Precio Máx" filters (default 300k€ for Venta, 2k€ for Alquiler) to batch scraping.
+  - Automatically appends `/con-precio-hasta_X/` to generated URLs.
+  - Ensures filters are applied efficiently across all sub-zones of a province.
+- **Improved URL Expansion**: Frontend now strictly prioritizes sub-zone expansion for whole-province selections to guarantee 100% pricing filter coverage.
+- **Independent Start Buttons**: Replaced the global start button with separate "Iniciar Venta" and "Iniciar Alquiler" actions to prevent mode confusion.
+
 ## [2026-02-14]
 
 ### Fixed
