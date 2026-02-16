@@ -227,13 +227,6 @@ def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
         for p in paths:
             if os.path.exists(p): return p
 
-    elif channel == "librewolf":
-        paths = [
-            os.path.join(browsers_dir, "LibreWolfPortable", "App", "LibreWolf", "librewolf.exe"),
-            os.path.join(browsers_dir, "LibreWolfPortable", "LibreWolfPortable.exe"),
-        ]
-        for p in paths:
-            if os.path.exists(p): return p
 
     elif channel == "falkon":
         paths = [
@@ -1328,7 +1321,7 @@ class ScraperController:
         if channel == "chrome": targets = ["chrome.exe", "GoogleChromePortable.exe"]
         elif channel == "msedge": targets = ["msedge.exe"]
         elif channel == "firefox": targets = ["firefox.exe"] # Standard Firefox
-        elif channel == "librewolf": targets = ["librewolf.exe", "LibreWolfPortable.exe"]
+
         elif channel == "opera": targets = ["opera.exe", "OperaPortable.exe"]
         elif channel == "brave": targets = ["brave.exe", "BravePortable.exe"]
         elif channel == "vivaldi": targets = ["vivaldi.exe", "VivaldiPortable.exe"]
@@ -1355,7 +1348,6 @@ class ScraperController:
         if "chrome" in c: targets = ["chrome.exe", "GoogleChromePortable.exe"]
         elif "edge" in c: targets = ["msedge.exe"]
         elif "firefox" in c: targets = ["firefox.exe"] 
-        elif "librewolf" in c: targets = ["librewolf.exe", "LibreWolfPortable.exe"]
         elif "opera" in c: targets = ["opera.exe", "OperaPortable.exe"]
         elif "brave" in c: targets = ["brave.exe", "BravePortable.exe"]
         elif "vivaldi" in c: targets = ["vivaldi.exe", "VivaldiPortable.exe"]
@@ -1383,7 +1375,7 @@ class ScraperController:
             ps_command = (
                 "Get-CimInstance Win32_Process | "
                 "Where-Object { "
-                "  ($_.Name -match 'firefox|chrome|msedge|librewolf|iron|falkon|opera') -and "
+                "  ($_.Name -match 'firefox|chrome|msedge|iron|falkon|opera') -and "
                 "  ($_.CommandLine -like '*stealth_profile*' -or $_.Name -like '*Portable.exe') "
                 "} | "
                 "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
@@ -2175,11 +2167,11 @@ class ScraperController:
                                     # and 'executable_path' to be set.
                                     launch_channel = channel
                                     # If we have a custom portable path for these, use it by setting channel to None
-                                    if channel in ["brave", "opera", "vivaldi", "iron", "falkon", "chrome", "librewolf"]:
+                                    if channel in ["brave", "opera", "vivaldi", "iron", "falkon", "chrome"]:
                                         if executable_path:
                                             launch_channel = None
                                             self.log("INFO", f"🚀 Launching Portable: {os.path.basename(executable_path)}")
-                                        elif channel in ["brave", "opera", "vivaldi", "iron", "falkon", "librewolf"]:
+                                        elif channel in ["brave", "opera", "vivaldi", "iron", "falkon"]:
                                             # These MUST exist if specified, except for 'chrome' which can fallback to system
                                             self.log("WARN", f"⚠️ Portable Browser {channel} not found. Skipping identity...")
                                             # Induce a rotation to the next one
@@ -2211,13 +2203,7 @@ class ScraperController:
                                     if self._stop_evt.is_set():
                                         break
                                     
-                                    # FALLBACK for Incompatible Portable Browsers (e.g. LibreWolf missing Juggler)
-                                    if engine == "firefox" and executable_path and "timeout" in err_msg:
-                                        self.log("WARN", f"⚠️ Custom Browser {channel} timed out (likely missing Juggler patch). Falling back to bundled Firefox for next attempt.")
-                                        executable_path = None 
-                                        self._clear_profile_locks(profile_dir)
-                                        # Force immediately retry without wait/nuke
-                                        continue
+
 
                                     # Progressive sleep with randomization
                                     sleep_time = 3 + (launch_attempt * 2) 
