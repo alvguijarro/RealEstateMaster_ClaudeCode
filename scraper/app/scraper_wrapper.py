@@ -1316,15 +1316,72 @@ class ScraperController:
                     except:
                         pass
 
+    def _kill_browser_by_channel(self, channel):
+        """Aggressively kills processes associated with a specific browser channel."""
+        if not channel: return
+
+        targets = []
+        if channel == "chrome": targets = ["chrome.exe", "GoogleChromePortable.exe"]
+        elif channel == "msedge": targets = ["msedge.exe"]
+        elif channel == "firefox": targets = ["firefox.exe"] # Standard Firefox
+        elif channel == "librewolf": targets = ["librewolf.exe", "LibreWolfPortable.exe"]
+        elif channel == "opera": targets = ["opera.exe", "OperaPortable.exe"]
+        elif channel == "brave": targets = ["brave.exe", "BravePortable.exe"]
+        elif channel == "vivaldi": targets = ["vivaldi.exe", "VivaldiPortable.exe"]
+        elif channel == "iron": targets = ["iron.exe", "IronPortable.exe"]
+        elif channel == "falkon": targets = ["falkon.exe", "FalkonPortable.exe"]
+        
+        if targets:
+            self.log("INFO", f"🔪 Pre-launch cleanup: Killing {', '.join(targets)}")
+            for exe in targets:
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", exe], 
+                    stdout=subprocess.DEVNULL, 
+                    stderr=subprocess.DEVNULL
+                )
+            time.sleep(1) # Breath after kill
+
+    def _kill_browser_by_channel(self, channel):
+        """Aggressively kills processes associated with a specific browser channel."""
+        if sys.platform != "win32" or not channel:
+            return
+
+        targets = []
+        c = channel.lower()
+        if "chrome" in c: targets = ["chrome.exe", "GoogleChromePortable.exe"]
+        elif "edge" in c: targets = ["msedge.exe"]
+        elif "firefox" in c: targets = ["firefox.exe"] 
+        elif "librewolf" in c: targets = ["librewolf.exe", "LibreWolfPortable.exe"]
+        elif "opera" in c: targets = ["opera.exe", "OperaPortable.exe"]
+        elif "brave" in c: targets = ["brave.exe", "BravePortable.exe"]
+        elif "vivaldi" in c: targets = ["vivaldi.exe", "VivaldiPortable.exe"]
+        elif "iron" in c: targets = ["iron.exe", "IronPortable.exe"]
+        elif "falkon" in c: targets = ["falkon.exe", "FalkonPortable.exe"]
+        
+        if targets:
+            self.log("INFO", f"🔪 Pre-launch cleanup: Killing {', '.join(targets)}")
+            for exe in targets:
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", exe], 
+                    stdout=subprocess.DEVNULL, 
+                    stderr=subprocess.DEVNULL
+                )
+            time.sleep(1) # Wait for release
+
     def _cleanup_zombie_browsers(self):
         """Kill only left-behind browser processes tied to the scraper's profiles."""
         import subprocess
         if sys.platform == "win32":
             # Targeted PowerShell cleanup: only kill browsers if their command line contains 'stealth_profile'
             # This prevents closing the user's personal browser.
+            # Targeted PowerShell cleanup: only kill browsers if their command line contains 'stealth_profile'
+            # OR if they are known portable executables that might be hanging
             ps_command = (
                 "Get-CimInstance Win32_Process | "
-                "Where-Object { ($_.Name -match 'firefox|chrome|msedge') -and ($_.CommandLine -like '*stealth_profile*') } | "
+                "Where-Object { "
+                "  ($_.Name -match 'firefox|chrome|msedge|librewolf|iron|falkon|opera') -and "
+                "  ($_.CommandLine -like '*stealth_profile*' -or $_.Name -like '*Portable.exe') "
+                "} | "
                 "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
             )
             try:
@@ -2074,6 +2131,9 @@ class ScraperController:
                         max_launch_retries = 4
                         ctx = None
                         
+                        # Pre-launch specific cleanup for this channel
+                        self._kill_browser_by_channel(channel)
+
                         for launch_attempt in range(1, max_launch_retries + 1):
                             try:
                                 if engine == "firefox":
