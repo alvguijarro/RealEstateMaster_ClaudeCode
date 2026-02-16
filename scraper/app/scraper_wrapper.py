@@ -1718,7 +1718,8 @@ class ScraperController:
                         
                         while True:
                             if self._stop_evt.is_set():
-                                break
+                                self.log("INFO", "🛑 Stop received during CAPTCHA wait.")
+                                raise StopException("Stop received during CAPTCHA wait")
                             
                             # Check timeout
                             elapsed = asyncio.get_running_loop().time() - captcha_wait_start
@@ -1747,7 +1748,7 @@ class ScraperController:
                                 await asyncio.sleep(0.1)
                             
                             if self._stop_evt.is_set():
-                                break
+                                raise StopException("Stop received during CAPTCHA wait")
                             
                             try:
                                 # Check if still blocked first to avoid false 'solved' messages
@@ -1781,7 +1782,12 @@ class ScraperController:
 
                 await self._interruptible_sleep(3.0)
                 return
+            except StopException:
+                raise
             except Exception as e:
+                if self._stop_evt.is_set():
+                     raise StopException("Stop event detected during navigation error.")
+                     
                 error_msg = str(e).lower()
                 # Detect browser close OR crash - pause and notify UI
                 if any(msg in error_msg for msg in [
