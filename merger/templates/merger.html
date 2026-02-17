@@ -325,6 +325,7 @@
         .custom-dropdown-group {
             position: relative;
             width: 100%;
+            z-index: 100;
         }
 
         .dropdown-trigger {
@@ -700,7 +701,7 @@
                     if (!file2Input.value) document.getElementById('selectedText2').textContent = '-- Seleccionar archivo --';
 
                     renderFiles();
-                    setupDropdownUI();
+                    // setupDropdownUI(); // MOVED OUTSIDE to prevent duplicates
                 } catch (err) {
                     console.error('Error loading files:', err);
                     document.getElementById('selectedText1').textContent = 'Error al cargar';
@@ -711,6 +712,7 @@
             }
 
             document.getElementById('btnRefresh').addEventListener('click', loadFiles);
+            setupDropdownUI(); // Initialize once
             loadFiles();
 
             function getFileType(filename) {
