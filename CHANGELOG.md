@@ -15,6 +15,8 @@
 - **Analytics Pro Fix**: Resolved JSON serialization errors: fixed `WindowsPath` object error AND implemented recursive `NaN` cleaning to prevent frontend parsing failures.
 - **Merger Tool UI Fix**: Fixed dropdown stacking context issue by applying `z-index` to the parent card container, ensuring options render above the action button.
 
+- **Analytics Pro Refinement**: Improved data quality by filtering out comparables with invalid data (price/m² <= 0) and excluding properties from "Opportunities" if their estimated rent or yield cannot be calculated, resolving the "0€ - 0€" display issue.
+
 ## [2026-02-16]
 
 ### Added

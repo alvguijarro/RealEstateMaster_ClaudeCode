@@ -1030,6 +1030,13 @@ def find_comparables(venta_row, df_alquiler, strict=True, alquiler_index=None):
         level_candidates = df_alquiler[mask]
         
         if not level_candidates.empty:
+            # Filter invalid data (no zero price or zero m2)
+            level_candidates = level_candidates[
+                (level_candidates['price'] > 0) & 
+                (level_candidates['m2 construidos'] > 0)
+            ]
+
+        if not level_candidates.empty:
             # Type normalization
             def norm_tipo(t):
                 t = str(t).lower()
@@ -1404,7 +1411,12 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
     pesos = config['pesos_score']
     
     # Get opportunities sorted by score (best first)
-    opps = df_venta[df_venta['oportunidad']].sort_values('score', ascending=False).copy()
+    # Filter out invalid opportunities (rent <= 0 or yield <= 0)
+    opps = df_venta[
+        (df_venta['oportunidad']) & 
+        (df_venta['renta_estimada'] > 0) & 
+        (df_venta['yield_bruta'] > 0)
+    ].sort_values('score', ascending=False).copy()
     
     # Create clean output dataframe with standardized columns
     # Find Titulo column (may be named differently)
