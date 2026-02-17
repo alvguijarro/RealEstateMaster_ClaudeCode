@@ -316,6 +316,18 @@ def get_results():
     try:
         with open(latest_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
+        # Clean data of NaNs which break JSON in JS
+        def clean_nans(obj):
+            if isinstance(obj, float):
+                import math
+                return None if math.isnan(obj) else obj
+            elif isinstance(obj, dict):
+                return {k: clean_nans(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [clean_nans(v) for v in obj]
+            return obj
+            
+        data = clean_nans(data)
         return jsonify({'data': data, 'file': str(latest_file)})
     except Exception as e:
         return jsonify({'error': str(e)})
