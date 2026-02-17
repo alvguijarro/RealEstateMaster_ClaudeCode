@@ -3,9 +3,10 @@
 ## [2026-02-17]
 
 ### Fixed
+- **Firefox Launch Stability**: Removed invalid Chromium-specific flags (`--disable-gpu`, `--disable-dev-shm-usage`) from Firefox launch arguments that caused repeated `Timeout 120000ms exceeded` errors and "unrecognized command line flag" warnings. Added `MOZ_REMOTE_SETTINGS_DEVTOOLS` env var to suppress noisy log warnings.
+- **Stop Button During Missing Property Checks**: Fixed bug where `StopException` raised by `_interruptible_sleep` and `_goto_with_retry` was caught and swallowed by a generic `except Exception` handler, causing the scraper to continue checking URLs even after the user pressed "Stop". The stop signal now correctly breaks the loop and saves progress.
 - **Browser Safety Safeguards**: Rewrote process termination logic to explicitly prevent killing user sessions (Chrome, Firefox, Edge). Scraper now only targets processes with `stealth_profile` in their command line.
 - **Falkon Blacklist**: Added a hard-coded block in the launch loop to prevent the unstable Falkon browser from being used, even if present in configuration.
-- **Firefox Disabled**: Removed Firefox from the browser rotation pool due to persistent instability and launch timeouts in the current environment. Scraper will now rely on Chromium-based browsers (Standard, Chrome, Edge, Opera) and Webkit.
 - **Santa Cruz de Tenerife Batch Fix**: Unified "Santa Cruz de Tenerife" province scraping. Removed sub-zone splitting (El Hierro, etc.) to ensure the scraper targets the full province URL as intended.
 - **Cleanup Refactor**: Removed duplicate and dangerous `_kill_browser_by_channel` method that was causing redundant process kills.
 

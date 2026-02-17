@@ -35,6 +35,9 @@ except ImportError:
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Silence Mozilla Remote Settings DevTools warnings during automation
+os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
+
 from idealista_scraper.config import (
     HARVEST_DEBOUNCE_SECONDS, PAGE_WAIT_MS, RETRY_MAX_ATTEMPTS, RETRY_BASE_DELAY,
     GOTO_WAIT_UNTIL, SCROLL_STEPS, LISTING_LINKS_PER_PAGE_MAX,
@@ -2133,7 +2136,6 @@ class ScraperController:
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         firefox_user_prefs=firefox_prefs,
                                         ignore_default_args=["-foreground"],
-                                        # args=["--disable-gpu", "--disable-dev-shm-usage"], # REMOVED: Invalid for Firefox
                                         executable_path=executable_path,
                                         timeout=120000, # Increased to 120s for stability
                                     )
@@ -3172,6 +3174,9 @@ class ScraperController:
                                 except BrowserClosedException:
                                     # CRITICAL: Re-raise to trigger main loop restart logic
                                     raise
+                                except StopException:
+                                    self.log("INFO", "Stop requested during missing property checks. Saving progress...")
+                                    break
                                 except Exception as e:
                                     self.log("WARN", f"Could not verify {m_url}: {e}")
                                     continue
