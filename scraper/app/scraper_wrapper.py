@@ -1314,55 +1314,38 @@ class ScraperController:
                         pass
 
     def _kill_browser_by_channel(self, channel):
-        """Aggressively kills processes associated with a specific browser channel."""
+        """
+        Kill processes for a specific channel. 
+        SAFEGUARDED: Only kills if we can identify it as a portable isolation or Falkon.
+        Never kills system Chrome/Firefox/Edge.
+        """
         if not channel: return
 
-        targets = []
-        if channel == "chrome": targets = ["chrome.exe", "GoogleChromePortable.exe"]
-        elif channel == "msedge": targets = ["msedge.exe"]
-        elif channel == "firefox": targets = ["firefox.exe"] # Standard Firefox
+        # 1. First run the safe zombie cleanup which targets "stealth_profile"
+        self._cleanup_zombie_browsers()
 
-        elif channel == "opera": targets = ["opera.exe", "OperaPortable.exe"]
-        elif channel == "brave": targets = ["brave.exe", "BravePortable.exe"]
-        elif channel == "vivaldi": targets = ["vivaldi.exe", "VivaldiPortable.exe"]
-        elif channel == "iron": targets = ["iron.exe", "IronPortable.exe"]
+        targets = []
+        # ONLY include executables that are strictly portable/isolated and NOT common user browsers
+        # We explicitly EXCLUDE "chrome.exe", "firefox.exe", "msedge.exe", "opera.exe", "brave.exe"
+        # to avoid killing the user's personal sessions.
+        
+        if channel == "iron": targets = ["iron.exe", "IronPortable.exe"]
         elif channel == "falkon": targets = ["falkon.exe", "FalkonPortable.exe"]
+        elif channel == "vivaldi": targets = ["VivaldiPortable.exe"] # Standard vivaldi.exe might be user's
         
+        # Portable versions often use specific names, but if they use the standard name (e.g. chrome.exe),
+        # we cannot safe-kill them by name alone. We rely on _cleanup_zombie_browsers() for those.
+
         if targets:
-            self.log("INFO", f"🔪 Pre-launch cleanup: Killing {', '.join(targets)}")
+            self.log("INFO", f"🔪 Pre-launch cleanup: Ensuring {', '.join(targets)} are closed...")
             for exe in targets:
                 subprocess.run(
                     ["taskkill", "/F", "/IM", exe], 
                     stdout=subprocess.DEVNULL, 
                     stderr=subprocess.DEVNULL
                 )
-            time.sleep(1) # Breath after kill
+            time.sleep(1)
 
-    def _kill_browser_by_channel(self, channel):
-        """Aggressively kills processes associated with a specific browser channel."""
-        if sys.platform != "win32" or not channel:
-            return
-
-        targets = []
-        c = channel.lower()
-        if "chrome" in c: targets = ["chrome.exe", "GoogleChromePortable.exe"]
-        elif "edge" in c: targets = ["msedge.exe"]
-        elif "firefox" in c: targets = ["firefox.exe"] 
-        elif "opera" in c: targets = ["opera.exe", "OperaPortable.exe"]
-        elif "brave" in c: targets = ["brave.exe", "BravePortable.exe"]
-        elif "vivaldi" in c: targets = ["vivaldi.exe", "VivaldiPortable.exe"]
-        elif "iron" in c: targets = ["iron.exe", "IronPortable.exe"]
-        elif "falkon" in c: targets = ["falkon.exe", "FalkonPortable.exe"]
-        
-        if targets:
-            self.log("INFO", f"🔪 Pre-launch cleanup: Killing {', '.join(targets)}")
-            for exe in targets:
-                subprocess.run(
-                    ["taskkill", "/F", "/IM", exe], 
-                    stdout=subprocess.DEVNULL, 
-                    stderr=subprocess.DEVNULL
-                )
-            time.sleep(1) # Wait for release
 
     def _cleanup_zombie_browsers(self):
         """Kill only left-behind browser processes tied to the scraper's profiles."""
@@ -2150,15 +2133,16 @@ class ScraperController:
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         firefox_user_prefs=firefox_prefs,
                                         ignore_default_args=["-foreground"],
+                                        args=["--disable-gpu", "--disable-dev-shm-usage"],
                                         executable_path=executable_path,
-                                        timeout=45000, # Reduced to 45s to fail fast
+                                        timeout=120000, # Increased to 120s for stability
                                     )
                                 elif engine == "webkit": # Webkit (Safari-like)
                                     ctx = await pw.webkit.launch_persistent_context(
                                         user_data_dir=profile_dir,
                                         headless=False,
                                         viewport={"width": viewport_width, "height": viewport_height},
-                                        timeout=45000, # Reduced to 45s
+                                        timeout=120000, # Increased to 120s
                                     )
                                 else:
                                     # Chromium / Chrome / Edge / Brave / Opera / Iron / Falkon
@@ -2166,12 +2150,20 @@ class ScraperController:
                                     # If channel is 'brave', 'opera', or 'vivaldi', Playwright needs 'channel' to be None 
                                     # and 'executable_path' to be set.
                                     launch_channel = channel
+                                    
+                                    # EXPLICIT BLOCK: Falkon is unstable/unsupported
+                                    if channel == "falkon":
+                                        self.log("WARN", "🚫 Falkon is blacklisted due to stability issues. Skipping.")
+                                        mark_current_profile_blocked()
+                                        rotate_identity()
+                                        break
+
                                     # If we have a custom portable path for these, use it by setting channel to None
-                                    if channel in ["brave", "opera", "vivaldi", "iron", "falkon", "chrome"]:
+                                    if channel in ["brave", "opera", "vivaldi", "iron", "chrome"]:
                                         if executable_path:
                                             launch_channel = None
                                             self.log("INFO", f"🚀 Launching Portable: {os.path.basename(executable_path)}")
-                                        elif channel in ["brave", "opera", "vivaldi", "iron", "falkon"]:
+                                        elif channel in ["brave", "opera", "vivaldi", "iron"]:
                                             # These MUST exist if specified, except for 'chrome' which can fallback to system
                                             self.log("WARN", f"⚠️ Portable Browser {channel} not found. Skipping identity...")
                                             # Induce a rotation to the next one
@@ -2212,19 +2204,27 @@ class ScraperController:
                                     # Aggressive cleanup for Firefox/Webkit on repeated failure
                                     if engine in ["firefox", "webkit"]:
                                         if launch_attempt >= 1:
-                                            self.log("WARN", f"☣️ {engine.capitalize()} hang detected. Purging profile locks...")
+                                            self.log("WARN", f"☣️ {engine.capitalize()} hang detected. Killing processes & purging locks...")
+                                            # Aggressive kill of zombies - SAFEGUARDED
+                                            # ONLY kill if we can be reasonably sure it's not the user's main browser.
+                                            # Actually, for Firefox, 'taskkill /IM firefox.exe' KILLS ALL INSTANCES.
+                                            # We must NOT do this if the user uses Firefox personally.
+                                            # DISABLED GLOBAL KILL for safety based on user report.
+                                            # if sys.platform == "win32":
+                                            #     try: subprocess.run(["taskkill", "/F", "/IM", "firefox.exe", "/T"], capture_output=True)
+                                            #     except: pass
+                                            
                                             self._cleanup_zombie_browsers()
                                             self._clear_profile_locks(profile_dir)
                                         
                                         # If it fails twice, it's likely corrupt. Nuke it.
                                         if launch_attempt >= 2:
                                             self.log("ERR", f"💣 {engine.capitalize()} persistent hang. DELETING profile directory for fresh start.")
-                                            # Also try direct taskkill as a last resort
-                                            if sys.platform == "win32":
-                                                try: subprocess.run(["taskkill", "/F", "/IM", "firefox.exe", "/T"], capture_output=True)
-                                                except: pass
-                                                try: subprocess.run(["taskkill", "/F", "/IM", "webkit.exe", "/T"], capture_output=True) # just in case
-                                                except: pass
+                                            self.log("ERR", f"💣 {engine.capitalize()} persistent hang. DELETING profile directory for fresh start.")
+                                            # Redundant kill - DISABLED for safety
+                                            # if sys.platform == "win32":
+                                            #     try: subprocess.run(["taskkill", "/F", "/IM", "firefox.exe", "/T"], capture_output=True)
+                                            #     except: pass
                                             
                                             import shutil
                                             try:

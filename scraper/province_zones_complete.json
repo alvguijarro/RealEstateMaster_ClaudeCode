@@ -1636,28 +1636,7 @@
   },
   "Santa Cruz de Tenerife": {
     "id": "0-EU-ES-38",
-    "zones": [
-      {
-        "id": "0-EU-ES-38-04",
-        "name": "El Hierro",
-        "href": "/venta-viviendas/santa-cruz-de-tenerife/el-hierro/"
-      },
-      {
-        "id": "0-EU-ES-38-03",
-        "name": "La Gomera",
-        "href": "/venta-viviendas/santa-cruz-de-tenerife/la-gomera/"
-      },
-      {
-        "id": "0-EU-ES-38-02",
-        "name": "La Palma",
-        "href": "/venta-viviendas/santa-cruz-de-tenerife/la-palma/"
-      },
-      {
-        "id": "0-EU-ES-38-01",
-        "name": "Tenerife",
-        "href": "/venta-viviendas/santa-cruz-de-tenerife/tenerife/"
-      }
-    ]
+    "zones": []
   },
   "Segovia": {
     "id": "0-EU-ES-40",

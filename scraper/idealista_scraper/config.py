@@ -75,6 +75,5 @@ BROWSER_ROTATION_POOL: List[dict] = [
     {"index": 3, "engine": "chromium", "channel": "msedge", "name": "Microsoft Edge"},
     {"index": 4, "engine": "firefox", "channel": None, "name": "Firefox"},
     {"index": 5, "engine": "webkit", "channel": None, "name": "Webkit (Safari)"},
-    {"index": 6, "engine": "chromium", "channel": "opera", "name": "Opera Browser"},
-    {"index": 7, "engine": "chromium", "channel": "falkon", "name": "Falkon Browser"}
+    {"index": 6, "engine": "chromium", "channel": "opera", "name": "Opera Browser"}
 ]
