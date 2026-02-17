@@ -1268,7 +1268,7 @@ def phase_yields(config, df_venta, df_alquiler, zona_stats, use_cache=True):
             
             # Store references
             ref_cols = ['URL', 'titulo', 'Titulo', 'habs', 'banos', 'm2 construidos', 
-                        'Barrio', 'Distrito', 'price', 'adjusted_price', 'individual_precision']
+                        'Barrio', 'Distrito', 'price', 'precio_m2', 'adjusted_price', 'individual_precision']
             valid_ref_cols = [c for c in ref_cols if c in comps.columns]
             
             refs_df = comps.head(10)[valid_ref_cols].copy()
