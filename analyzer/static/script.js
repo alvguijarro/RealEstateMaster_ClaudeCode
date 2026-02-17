@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
     // Setup file refresh button
     const refreshBtn = document.getElementById('btnRefreshFiles');
     if (refreshBtn) {
@@ -10,7 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
     setupAnalyze();
     setupSorting();
     startHeartbeat();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    // DOM already loaded
+    init();
+}
 
 function startHeartbeat() {
     setInterval(() => {
@@ -314,10 +321,11 @@ async function pollLogs() {
                         }
                     }, 500);
                 }
-            } catch (e) {
-                console.error("Polling error", e);
             }
-        }, 500);
+        } catch (e) {
+            console.error("Polling error", e);
+        }
+    }, 500);
 }
 
 // Global state for results and sorting
@@ -632,28 +640,7 @@ window.sortTable = function (table, col) {
     }
 };
 
-// ... existing updateSortHeaders ...
 
-th.addEventListener('click', () => {
-    const col = th.dataset.sort;
-    if (currentSort.col === col) {
-        currentSort.dir *= -1;
-    } else {
-        currentSort.col = col;
-        if (['Puntuación', 'Rentabilidad_Bruta_%', 'Descuento_%'].includes(col)) {
-            currentSort.dir = -1;
-        } else {
-            currentSort.dir = 1;
-        }
-    }
-    renderResults();
-    updateSortHeaders();
-});
-    });
-
-// Initial Header State
-updateSortHeaders();
-}
 
 function updateSortHeaders() {
     document.querySelectorAll('.results-table th[data-sort]').forEach(th => {
