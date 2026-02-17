@@ -17,6 +17,7 @@
 
 - **Analytics Pro Refinement**: Improved data quality by filtering out comparables with invalid data (price/m² <= 0) and excluding properties from "Opportunities" if their estimated rent or yield cannot be calculated, resolving the "0€ - 0€" display issue.
 - **Comparables UI Fix**: Added missing `precio_m2` field to the JSON output for reference properties, fixing the issue where the "€/m²" column showed "-" despite valid price/size data.
+- **UI Enhancement**: Added an information tooltip to the "Principales oportunidades" table header to explain the inclusion criteria (Statistical Undervaluation or AI Model prediction).
 
 ## [2026-02-16]
 
