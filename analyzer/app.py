@@ -125,25 +125,33 @@ def index():
 @app.route('/list-files')
 def list_files():
     # Find xlsx files in the scraper's salidas output directory
-    salidas_dir = Path(__file__).parent.parent / "scraper" / "salidas"
+    # Find xlsx files in the scraper's salidas output directory (INPUTS)
+    salidas_dir = str(Path(__file__).parent.parent / "scraper" / "salidas")
     files = []
-    if salidas_dir.exists():
-        for f in salidas_dir.glob("*.xlsx"):
-            # simple heuristic for type
-            f_lower = f.name.lower()
-            ftype = 'unknown'
-            if 'venta' in f_lower or 'sale' in f_lower: ftype = 'venta'
-            elif 'alquiler' in f_lower or 'rent' in f_lower: ftype = 'alquiler'
-            
-            # Get modification time
-            mtime = os.path.getmtime(f)
-            mtime_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(mtime))
-            
-            files.append({
-                'filename': f.name, 
-                'type': ftype,
-                'last_modified': mtime_str
-            })
+    
+    try:
+        if os.path.exists(salidas_dir):
+            with os.scandir(salidas_dir) as entries:
+                for entry in entries:
+                    if entry.is_file() and entry.name.endswith('.xlsx') and not entry.name.startswith('~$'):
+                        # simple heuristic for type
+                        f_lower = entry.name.lower()
+                        ftype = 'unknown'
+                        if 'venta' in f_lower or 'sale' in f_lower: ftype = 'venta'
+                        elif 'alquiler' in f_lower or 'rent' in f_lower: ftype = 'alquiler'
+                        
+                        # Get modification time from entry (fast)
+                        mtime = entry.stat().st_mtime
+                        mtime_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(mtime))
+                        
+                        files.append({
+                            'filename': entry.name, 
+                            'type': ftype,
+                            'last_modified': mtime_str
+                        })
+    except Exception as e:
+        print(f"Error listing files: {e}")
+        
     return jsonify(files)
 
 
@@ -160,9 +168,10 @@ def start_analysis():
     filters_raw = data.get('filters', {})
     
     # Prepend salidas path to file names
-    salidas_dir = Path(__file__).parent.parent / "scraper" / "salidas"
-    venta_file = str(salidas_dir / venta_file_name) if venta_file_name else None
-    alquiler_file = str(salidas_dir / alquiler_file_name) if alquiler_file_name else None
+    # Prepend salidas path to file names (INPUTS from scraper/salidas)
+    scraper_salidas_dir = Path(__file__).parent.parent / "scraper" / "salidas"
+    venta_file = str(scraper_salidas_dir / venta_file_name) if venta_file_name else None
+    alquiler_file = str(scraper_salidas_dir / alquiler_file_name) if alquiler_file_name else None
     
     # Reset state
     ANALYSIS_STATUS = 'running'
@@ -268,9 +277,13 @@ def start_analysis():
             # resultado_<Ciudad>_<#habs>habs_<#baños>banos_<min-precio>_<max-precio>.xlsx
             new_filename = f"resultado_{city}_{habs_str}habs_{banos_str}banos_{p_min_str}_{p_max_str}.xlsx"
             
-            print(f"Directory for output: {salidas_dir}/{new_filename}")
-            config['output_file'] = str(salidas_dir / new_filename)
-            CURRENT_OUTPUT_FILE = str(salidas_dir / new_filename)
+            # Analyzer Output Directory (RESULTS go to analyzer/salidas)
+            analyzer_salidas_dir = Path(__file__).parent / "salidas"
+            analyzer_salidas_dir.mkdir(exist_ok=True)
+            
+            print(f"Directory for output: {analyzer_salidas_dir}/{new_filename}")
+            config['output_file'] = str(analyzer_salidas_dir / new_filename)
+            CURRENT_OUTPUT_FILE = str(analyzer_salidas_dir / new_filename)
             
             # Redirect stdout handled by global capture
             analysis.run_pipeline(config, force=True)
@@ -307,7 +320,12 @@ def stream_logs():
 def get_results():
     """Return JSON results if available"""
     # Look for the latest JSON output file in salidas folder (robust path)
+    # Look for the latest JSON output file in analyzer/salidas folder
     salidas_dir = Path(__file__).parent / "salidas"
+    # Ensure dir exists
+    if not salidas_dir.exists():
+        return jsonify({'error': 'No hay resultados disponibles (carpeta vacía). Ejecuta el análisis primero.'})
+        
     json_files = sorted(salidas_dir.glob('resultado_*.json'), key=os.path.getmtime, reverse=True)
     if not json_files:
         return jsonify({'error': 'No hay resultados disponibles. Ejecuta el análisis primero.'})
