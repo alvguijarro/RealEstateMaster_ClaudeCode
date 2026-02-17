@@ -316,7 +316,7 @@ def get_results():
     try:
         with open(latest_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        return jsonify({'data': data, 'file': latest_file})
+        return jsonify({'data': data, 'file': str(latest_file)})
     except Exception as e:
         return jsonify({'error': str(e)})
 
