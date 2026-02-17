@@ -131,6 +131,7 @@ def index():
 @app.route('/list-files')
 def list_files():
     global FILE_CACHE
+    print("  [DEBUG] Received /list-files request")
     
     # Return cached data if fresh (within 5 seconds)
     if time.time() - FILE_CACHE['timestamp'] < 5:
@@ -518,4 +519,4 @@ if __name__ == '__main__':
         except:
             pass
         
-    app.run(port=port, debug=False, use_reloader=False)
+    app.run(port=port, debug=False, use_reloader=False, threaded=True)
