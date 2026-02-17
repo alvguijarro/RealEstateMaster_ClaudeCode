@@ -303,6 +303,48 @@
                     </div>
                 </section>
 
+                <section class="card" style="margin-top: 1.5rem;">
+                    <button class="accordion-header" id="top100Header"
+                        style="width: 100%; border: none; background: transparent; color: inherit; text-align: left; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+                        <h2 class="card-title">Top 100 viviendas (Rentabilidad Bruta)</h2>
+                        <span class="accordion-icon"
+                            style="transform: rotate(0deg); transition: transform 0.3s;">▼</span>
+                    </button>
+                    <div id="top100Content" class="accordion-content"
+                        style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; margin-top: 1rem;">
+                        <div style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
+                            <!-- Same table structure -->
+                            <table class="results-table">
+                                <thead>
+                                    <tr>
+                                        <!-- Same columns as main table -->
+                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Propiedad')">
+                                            Propiedad</th>
+                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Distrito')">Distrito
+                                        </th>
+                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'm2')">m²</th>
+                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Precio')">Precio</th>
+                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Renta_Rango')">Rango
+                                            Renta</th>
+                                        <th style="cursor: pointer;"
+                                            onclick="sortTable('top100', 'Rentabilidad_Bruta_%')">Rentabilidad Bruta
+                                        </th>
+                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Precision')">
+                                            Precisión estim. renta</th>
+                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Puntuación')">
+                                            Puntuación</th>
+                                        <th>Referencias cálculo renta</th>
+                                        <th>Calcular rent. neta</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="top100Body">
+                                    <!-- Results go here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- District Report Section -->
                 <section class="card hidden" id="districtReportSection"
                     style="margin-top: 1.5rem; border: 1px solid var(--accent-color);">

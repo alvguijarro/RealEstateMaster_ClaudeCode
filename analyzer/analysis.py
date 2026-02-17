@@ -1418,6 +1418,13 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
         (df_venta['yield_bruta'] > 0)
     ].sort_values('score', ascending=False).copy()
     
+    # --- NEW: Get Top 100 by Gross Yield (Unfiltered by opportunity status) ---
+    # Must have valid rent and valid yield
+    top100_df = df_venta[
+        (df_venta['renta_estimada'] > 0) & 
+        (df_venta['yield_bruta'] > 0)
+    ].sort_values('yield_bruta', ascending=False).head(100).copy()
+    
     # Create clean output dataframe with standardized columns
     # Find Titulo column (may be named differently)
     titulo_col = next((c for c in opps.columns if c.lower() in ['titulo', 'title', 'nombre']), None)
@@ -1644,9 +1651,35 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
     # transform dataframe to list of dicts
     records = opps_output.to_dict(orient='records')
     
+    # Process Top 100 for JSON output (similar formatting to opps_output)
+    top100_final = top100_df.copy()
+    # Apply same column mapping/renaming as opps_output if needed, 
+    # but for simplicity we rely on the raw columns which match mostly.
+    # We DO need to rename specific cols for UI:
+    top100_final = top100_final.rename(columns={
+        'titulo': 'Propiedad',
+        'renta_estimada': 'Renta_estimada/mes', 
+        'renta_rango': 'Renta_Rango',
+        'yield_bruta': 'Rentabilidad_Bruta_%',
+        'yield_neta': 'Rentabilidad_Neta_%',
+        'precision': 'Precision',
+        'descuento_vs_mercado_pct': 'Descuento_%',
+        'score': 'Puntuación',
+        'price': 'Precio',
+        'm2 construidos': 'm2'
+    })
+    
+    # Ensure URL is present (it is in raw df_venta)
+    top100_records = top100_final.to_dict(orient='records')
+    
+    final_json_data = {
+        'opportunities': records,
+        'top_100': top100_records
+    }
+    
     try:
         with open(json_file, 'w', encoding='utf-8') as f:
-            json.dump(records, f, ensure_ascii=False, indent=2)
+            json.dump(final_json_data, f, ensure_ascii=False, indent=2)
             
         print(f"  [OK] JSON saved: {json_file}")
     except Exception as e:

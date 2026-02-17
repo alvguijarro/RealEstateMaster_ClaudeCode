@@ -328,7 +328,17 @@ def get_results():
             return obj
             
         data = clean_nans(data)
-        return jsonify({'data': data, 'file': str(latest_file)})
+        
+        # Standardize structure for Frontend
+        final_data = data
+        if isinstance(data, list):
+            # Old format (just opportunities list)
+            final_data = {
+                'opportunities': data,
+                'top_100': []
+            }
+        
+        return jsonify({'data': final_data, 'file': str(latest_file)})
     except Exception as e:
         return jsonify({'error': str(e)})
 
