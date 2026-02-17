@@ -10,6 +10,8 @@
 - **Santa Cruz de Tenerife Batch Fix**: Unified "Santa Cruz de Tenerife" province scraping. Removed sub-zone splitting (El Hierro, etc.) to ensure the scraper targets the full province URL as intended.
 - **Cleanup Refactor**: Removed duplicate and dangerous `_kill_browser_by_channel` method that was causing redundant process kills.
 - **Batch URL Logic Fix**: Disabled automatic expansion of Province URLs into zones. Full province selections now prioritizing the single verified Seed URL (e.g., `/venta-viviendas/alicante/`) over iterating all individual zones, reducing request count and improving stability. Sub-zone expansion is now only performed if explicitly requested via partial selection.
+- **Robust Zombie Process Cleanup**: Enhanced `_cleanup_zombie_browsers` to use PowerShell for aggressively finding and terminating hung Firefox instances that block profile directories, specifically targeting processes with `stealth_profile` or residing in `ms-playwright`, while strictly avoiding user's personal browsers.
+- **Proactive Lock Cleanup**: Added explicit profile lock file removal (`parent.lock`, etc.) before every browser launch attempt to prevent "Timeout exceeded" startup hangs.
 
 ## [2026-02-16]
 

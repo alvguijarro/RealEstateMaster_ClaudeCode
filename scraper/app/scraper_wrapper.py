@@ -1311,10 +1311,11 @@ class ScraperController:
                 if lname in lock_files or lname.startswith(".parentlock") or lname.endswith(".lock"):
                     try:
                         lock_path = os.path.join(root, name)
-                        # On Windows, we try multiple times if it's held briefly
-                        os.remove(lock_path)
-                    except:
-                        pass
+                        if os.path.exists(lock_path):
+                            os.remove(lock_path)
+                            self.log("WARN", f"🔓 Removed stale lock file: {name}")
+                    except Exception as e:
+                        self.log("WARN", f"Failed to remove lock {name}: {e}")
 
     def _kill_browser_by_channel(self, channel):
         """
@@ -1354,26 +1355,33 @@ class ScraperController:
         """Kill only left-behind browser processes tied to the scraper's profiles."""
         import subprocess
         if sys.platform == "win32":
-            # Targeted PowerShell cleanup: only kill browsers if their command line contains 'stealth_profile'
-            # This prevents closing the user's personal browser.
-            # Targeted PowerShell cleanup: only kill browsers if their command line contains 'stealth_profile'
-            # OR if they are known portable executables that might be hanging
+            # Targeted cleanup: Kill browsers matching 'stealth_profile' in CLI OR residing in 'ms-playwright' folder
+            # This is safe because user's personal browsers are in Program Files, not ms-playwright.
             ps_command = (
-                "Get-CimInstance Win32_Process | "
+                "$procs = Get-CimInstance Win32_Process | "
                 "Where-Object { "
                 "  ($_.Name -match 'firefox|chrome|msedge|iron|falkon|opera') -and "
-                "  ($_.CommandLine -like '*stealth_profile*' -or $_.Name -like '*Portable.exe') "
-                "} | "
-                "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+                "  ($_.CommandLine -like '*stealth_profile*' -or $_.ExecutablePath -like '*ms-playwright*') "
+                "}; "
+                "if ($procs) { "
+                "  $procs | ForEach-Object { "
+                "    Write-Output ('Killing PID ' + $_.ProcessId + ' (' + $_.Name + ')'); "
+                "    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue "
+                "  } "
+                "}"
             )
             try:
-                subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps_command], 
-                               capture_output=True, check=False)
-            except:
-                pass
+                result = subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps_command], 
+                               capture_output=True, check=False, text=True)
+                if result.stdout.strip():
+                    self.log("WARN", f"🔪 Zombie cleanup: {result.stdout.strip()}")
+            except Exception as e:
+                self.log("WARN", f"Cleanup error: {e}")
             
-            # Fallback: If we had a persistent hang, we might need a broader stroke (but still filtered by name in logs)
-            # The current_config['name'] check isn't available here, so we stick to the command line match which is safer.
+            # Fallback: Kill known portable executables directly by name (safely unique)
+            # targets = ["ungoogled-chromium.exe", "IronPortable.exe", "FalkonPortable.exe"]
+            # for t in targets:
+            #    subprocess.run(f"taskkill /F /IM {t} /T", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             # Linux/macOS targeted cleanup
             targets = ["firefox", "chrome", "edge"]
@@ -2121,6 +2129,7 @@ class ScraperController:
                         
                         # Pre-launch specific cleanup for this channel
                         self._kill_browser_by_channel(channel)
+                        self._clear_profile_locks(profile_dir)
 
                         for launch_attempt in range(1, max_launch_retries + 1):
                             # CHECK STOP AT START OF EVERY ITERATION
@@ -2137,7 +2146,7 @@ class ScraperController:
                                         firefox_user_prefs=firefox_prefs,
                                         ignore_default_args=["-foreground"],
                                         executable_path=executable_path,
-                                        timeout=120000, # Increased to 120s for stability
+                                        timeout=60000, # Reduced to 60s to fail faster on hangs
                                     )
                                 elif engine == "webkit": # Webkit (Safari-like)
                                     ctx = await pw.webkit.launch_persistent_context(
