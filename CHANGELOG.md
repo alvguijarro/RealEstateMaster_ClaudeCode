@@ -5,6 +5,7 @@
 ### Fixed
 - **Browser Safety Safeguards**: Rewrote process termination logic to explicitly prevent killing user sessions (Chrome, Firefox, Edge). Scraper now only targets processes with `stealth_profile` in their command line.
 - **Falkon Blacklist**: Added a hard-coded block in the launch loop to prevent the unstable Falkon browser from being used, even if present in configuration.
+- **Firefox Disabled**: Removed Firefox from the browser rotation pool due to persistent instability and launch timeouts in the current environment. Scraper will now rely on Chromium-based browsers (Standard, Chrome, Edge, Opera) and Webkit.
 - **Santa Cruz de Tenerife Batch Fix**: Unified "Santa Cruz de Tenerife" province scraping. Removed sub-zone splitting (El Hierro, etc.) to ensure the scraper targets the full province URL as intended.
 - **Cleanup Refactor**: Removed duplicate and dangerous `_kill_browser_by_channel` method that was causing redundant process kills.
 

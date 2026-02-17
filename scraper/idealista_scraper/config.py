@@ -69,11 +69,10 @@ PROFILE_COOLDOWN_MINUTES: int = 15
 
 # Browser Rotation Sequence (Strict Sequential)
 # 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 1
-BROWSER_ROTATION_POOL: List[dict] = [
     {"index": 1, "engine": "chromium", "channel": None, "name": "Chromium (Default)"},
     {"index": 2, "engine": "chromium", "channel": "chrome", "name": "Google Chrome"},
     {"index": 3, "engine": "chromium", "channel": "msedge", "name": "Microsoft Edge"},
-    {"index": 4, "engine": "firefox", "channel": None, "name": "Firefox"},
+    # {"index": 4, "engine": "firefox", "channel": None, "name": "Firefox"}, # DISABLED: Unstable on this environment
     {"index": 5, "engine": "webkit", "channel": None, "name": "Webkit (Safari)"},
     {"index": 6, "engine": "chromium", "channel": "opera", "name": "Opera Browser"}
 ]

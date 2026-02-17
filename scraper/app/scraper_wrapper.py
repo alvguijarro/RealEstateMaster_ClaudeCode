@@ -2133,7 +2133,7 @@ class ScraperController:
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         firefox_user_prefs=firefox_prefs,
                                         ignore_default_args=["-foreground"],
-                                        args=["--disable-gpu", "--disable-dev-shm-usage"],
+                                        # args=["--disable-gpu", "--disable-dev-shm-usage"], # REMOVED: Invalid for Firefox
                                         executable_path=executable_path,
                                         timeout=120000, # Increased to 120s for stability
                                     )
