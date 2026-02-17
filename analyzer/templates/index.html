@@ -15,91 +15,6 @@
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-        /* Info Tooltip */
-        .info-tooltip-container {
-            position: relative;
-            display: inline-flex;
-            margin-left: 8px;
-            cursor: help;
-        }
-
-        .info-icon {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            width: 18px;
-            height: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-style: italic;
-            font-family: serif;
-            color: var(--text-muted, #ccc);
-            transition: all 0.2s;
-        }
-
-        .info-tooltip-container:hover .info-icon {
-            background: var(--accent-color, #fb923c);
-            color: white;
-            border-color: transparent;
-        }
-
-        .tooltip-content {
-            visibility: hidden;
-            opacity: 0;
-            position: absolute;
-            bottom: 140%;
-            left: 50%;
-            transform: translateX(-50%) translateY(10px);
-            width: 340px;
-            background: #1e293b;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 8px;
-            padding: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            z-index: 9999;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-            font-size: 0.85rem;
-            line-height: 1.5;
-            color: #cbd5e1;
-            text-align: left;
-            pointer-events: none;
-        }
-
-        .tooltip-content h4 {
-            margin: 0 0 8px 0;
-            color: var(--accent-color, #fb923c);
-            font-size: 0.95rem;
-            font-weight: 600;
-        }
-
-        .tooltip-content ul {
-            margin: 0;
-            padding-left: 18px;
-        }
-
-        .tooltip-content li {
-            margin-bottom: 6px;
-        }
-
-        .info-tooltip-container:hover .tooltip-content {
-            visibility: visible;
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-
-        .tooltip-content::after {
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -6px;
-            border-width: 6px;
-            border-style: solid;
-            border-color: #1e293b transparent transparent transparent;
-        }
-
         /* Refresh Button Styles */
         .btn-refresh {
             background: rgba(255, 255, 255, 0.05);
@@ -337,30 +252,23 @@
                 <section class="card" style="margin-top: 1.5rem;">
                     <div class="card-header">
                         <div style="display: flex; gap: 1rem; align-items: center;">
-                            <div style="display: flex; align-items: center;">
-                                <h2 class="card-title">Principales oportunidades</h2>
-                                <div class="info-tooltip-container">
-                                    <span class="info-icon">i</span>
-                                    <div class="tooltip-content">
-                                        <h4>Criterios de Oportunidad</h4>
-                                        <p style="margin-bottom:8px;">Una propiedad se incluye si cumple al menos uno de
-                                            estos criterios de infravaloración:</p>
-                                        <ul>
-                                            <li><strong>Método Estadístico:</strong> Precio/m² inferior al percentil 25
-                                                de la zona (más barato que el 75%) O es un outlier estadístico (Mediana
-                                                - IQR).</li>
-                                            <li><strong>Método IA:</strong> El precio real es al menos un 10% inferior a
-                                                la predicción de nuestro modelo de valoración.</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
+                            <h2 class="card-title">Principales oportunidades</h2>
                             <button id="btnGenerateDistrictReport" class="btn-analyze"
                                 style="padding: 0.4rem 1rem; font-size: 0.9rem; width: auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; align-items: center; gap: 0.5rem;">
                                 <span>Generar informe con IA</span>
                             </button>
                         </div>
                         <div style="display: flex; gap: 1rem; align-items: center;">
+                            <div
+                                style="position: relative; display: inline-flex; align-items: center; margin-right: 8px;">
+                                <span class="info-icon">i</span>
+                                <div class="tooltip-text">
+                                    <strong>Criterios de Oportunidad:</strong><br>
+                                    1. <strong>Precio Bajo:</strong> Inferior al mercado (Percentil 25 o Modelo IA).<br>
+                                    2. <strong>Datos Válidos:</strong> Se ha podido calcular una Renta > 0€ y
+                                    Rentabilidad Bruta > 0%.
+                                </div>
+                            </div>
                             <span class="subtitle" id="resultCount"></span>
                             <button id="btnDownload" class="btn-analyze"
                                 style="padding: 0.5rem 1rem; font-size: 0.9rem; width: auto; background: var(--success-color);">

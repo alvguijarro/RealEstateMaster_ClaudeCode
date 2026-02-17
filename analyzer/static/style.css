@@ -326,3 +326,74 @@ input:focus {
     max-width: 600px;
     border: 1px solid var(--border);
 }
+
+/* Info Icon & Tooltip */
+.info-icon {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--text-muted);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: help;
+    transition: all 0.2s;
+    user-select: none;
+    background: transparent;
+}
+
+.info-icon:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(251, 146, 60, 0.1);
+}
+
+.tooltip-text {
+    visibility: hidden;
+    opacity: 0;
+    width: 300px;
+    background-color: var(--card-bg);
+    color: #e2e8f0;
+    text-align: left;
+    border-radius: 8px;
+    padding: 12px;
+    position: absolute;
+    z-index: 1000;
+    bottom: 140%;
+    /* Position above */
+    right: -10px;
+    /* Align right edge roughly with icon */
+    transform: none;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.tooltip-text strong {
+    color: var(--accent);
+}
+
+/* Arrow */
+.tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    right: 18px;
+    /* Align with icon center */
+    border-width: 5px;
+    border-style: solid;
+    border-color: var(--card-bg) transparent transparent transparent;
+}
+
+/* Show tooltip */
+.info-icon:hover+.tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
