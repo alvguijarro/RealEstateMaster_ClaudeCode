@@ -9,6 +9,7 @@
 - **Falkon Blacklist**: Added a hard-coded block in the launch loop to prevent the unstable Falkon browser from being used, even if present in configuration.
 - **Santa Cruz de Tenerife Batch Fix**: Unified "Santa Cruz de Tenerife" province scraping. Removed sub-zone splitting (El Hierro, etc.) to ensure the scraper targets the full province URL as intended.
 - **Cleanup Refactor**: Removed duplicate and dangerous `_kill_browser_by_channel` method that was causing redundant process kills.
+- **Batch URL Logic Fix**: Disabled automatic expansion of Province URLs into zones. Full province selections now prioritizing the single verified Seed URL (e.g., `/venta-viviendas/alicante/`) over iterating all individual zones, reducing request count and improving stability. Sub-zone expansion is now only performed if explicitly requested via partial selection.
 
 ## [2026-02-16]
 

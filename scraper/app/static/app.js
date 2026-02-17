@@ -2716,18 +2716,24 @@ window.startBatchFromProvinces = async function (type) {
             const explicitAllZones = (zoneCbs.length > 0 && checkedZones.length === zoneCbs.length);
 
             if (isFullProvince || explicitAllZones) {
-                // Modified: Always prefer Zone URLs if available, to ensure deep scraping and correct price filtering
-                if (zoneCbs.length > 0) {
+                // MODIFIED: Prioritize Province URL as requested
+                // If the user selects the full province (or all zones explicitly), we send the Province Seed URL.
+                const pSlug = provCb.dataset.slug;
+                let addedProvinceUrl = false;
+
+                if (provinceUrls[pSlug]) {
+                    const url = targetType === 'venta' ? provinceUrls[pSlug].venta_url : provinceUrls[pSlug].alquiler_url;
+                    if (url) {
+                        urls.push(url);
+                        addedProvinceUrl = true;
+                    }
+                }
+
+                // fallback to zones if province URL not found (shouldn't happen with verified data)
+                if (!addedProvinceUrl && zoneCbs.length > 0) {
                     zoneCbs.forEach(z => {
                         urls.push(getZoneUrl(z, targetType));
                     });
-                } else {
-                    // No zones defined (e.g. Ceuta), use province URL
-                    const pSlug = provCb.dataset.slug;
-                    if (provinceUrls[pSlug]) {
-                        const url = targetType === 'venta' ? provinceUrls[pSlug].venta_url : provinceUrls[pSlug].alquiler_url;
-                        if (url) urls.push(url);
-                    }
                 }
             } else {
                 // Partial selection
