@@ -1304,6 +1304,7 @@ class ScraperController:
         if not os.path.exists(profile_dir):
             return
             
+        removed_count = 0
         for root, dirs, files in os.walk(profile_dir):
             for name in files:
                 # Match strictly or common patterns like 'lock'
@@ -1313,9 +1314,12 @@ class ScraperController:
                         lock_path = os.path.join(root, name)
                         if os.path.exists(lock_path):
                             os.remove(lock_path)
-                            self.log("WARN", f"🔓 Removed stale lock file: {name}")
+                            removed_count += 1
                     except Exception as e:
                         self.log("WARN", f"Failed to remove lock {name}: {e}")
+        
+        if removed_count > 0:
+            self.log("WARN", f"🔓 Cleaned up {removed_count} stale lock files in profile.")
 
     def _kill_browser_by_channel(self, channel):
         """
@@ -1980,11 +1984,7 @@ class ScraperController:
                 # File doesn't exist yet - keep the registered filename, it will be created
                 self.log("INFO", f"Registered file not found: {target_file} - will be created during this scrape")
         
-        # === SMART ENRICHMENT MODE ===
-        # If smart_enrichment is enabled, try to use province-file mapping
         if self.smart_enrichment:
-            self.log("INFO", "🔍 Smart Enrichment Mode enabled")
-            
             # Try to detect province/operation from URL if not already set
             if not self.province_name or not self.operation_type:
                 detected_province, detected_operation = detect_province_and_operation(self.seed_url)
@@ -1994,21 +1994,19 @@ class ScraperController:
                     self.operation_type = detected_operation
             
             if self.province_name and self.operation_type:
-                self.log("INFO", f"📍 Province: {self.province_name}, Operation: {self.operation_type}")
-                
                 # Get province-based target file
                 if self.forced_target_file:
                     province_file = self.forced_target_file
-                    self.log("INFO", f"📂 Using forced target file: {province_file}")
                 else:
                     province_file, _, _ = get_output_file_for_url(self.seed_url)
+                
                 if province_file:
                     self._province_target_file = province_file
                     province_path = os.path.join(self.output_dir, province_file)
                     
                     # Override target_file with province-based file
                     target_file = province_file
-                    self.log("INFO", f"📂 Province target file: {target_file}")
+                    self.log("INFO", f"🔍 Smart Enrichment: {self.province_name} ({self.operation_type}) -> {target_file}")
                     
                     # Load already enriched URLs (to skip completely)
                     if os.path.exists(province_path):

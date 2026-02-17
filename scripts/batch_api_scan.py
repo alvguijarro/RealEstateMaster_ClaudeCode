@@ -178,10 +178,7 @@ def run_batch_scan(operation="rent", max_pages=50, delay_between=10, resume=Fals
         est_min = int(est_remaining_time // 60)
         est_sec = int(est_remaining_time % 60)
         
-        file_log("INFO", f"---------------------------------------------------")
-        file_log("INFO", f"PROGRESS: {progress_pct:.1f}% | Completed: {i} | Remaining: {remaining_provinces}")
-        file_log("INFO", f"Est. Remaining Time: {est_min}m {est_sec}s")
-        file_log("INFO", f"Processing Province: {loc_name} ({loc_id})... Page {start_page} to {max_pages}")
+        file_log("INFO", f"🚀 [{i}/{stats['total_provinces']}] {loc_name} ({loc_id}) | Progress: {progress_pct:.1f}% | Est. Remaining: {est_min}m {est_sec}s")
         
         try:
             # Modified generator to accept start_page? No, we have to loop manually or modify generator.

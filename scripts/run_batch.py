@@ -106,7 +106,7 @@ def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_
     }
     
     try:
-        log(f"🚀 Starting scrape for: {target_prov}")
+        # log(f"🚀 Starting scrape for: {target_prov}") # Removed to avoid redundancy with next log
         resp = requests.post("http://localhost:5003/api/start", json=payload, timeout=10)
         
         if resp.status_code != 200:
@@ -147,9 +147,9 @@ def main():
     # Identity status for user info
     if HAS_PROFILE_MGMT:
         conf = get_current_profile_config()
-        log(f"🎭 Current Identity: {conf['name']} (Profile {conf['index']})")
-    else:
-        log("⚠️ Multi-browser rotation NOT available (using chromium only)")
+        # log(f"🎭 Current Identity: {conf['name']} (Profile {conf['index']})")
+    # else:
+    #    log("⚠️ Multi-browser rotation NOT available (using chromium only)")
     
     if not QUEUE_FILE.exists():
         log("[ERR] No batch queue file found.")
@@ -166,9 +166,9 @@ def main():
         log(f"[ERR] Failed to read queue: {e}")
         sys.exit(1)
         
-    log(f"Queue size: {len(urls)} URLs. Mode: {mode}")
-    if smart_enrichment:
-        log("🔍 Smart Enrichment Mode: ENABLED")
+    # log(f"Queue size: {len(urls)} URLs. Mode: {mode}")
+    # if smart_enrichment:
+    #    log("🔍 Smart Enrichment Mode: ENABLED")
     
     success_count = 0
     
@@ -177,7 +177,7 @@ def main():
             log(f"[{i}/{len(urls)}] Skipping invalid URL (None/Empty)...", "WARN")
             continue
             
-        log(f"\n[{i}/{len(urls)}] Processing URL: {url}...")
+        log(f"🚀 [{i}/{len(urls)}] Processing: {url}")
         
         # Simplified loop: Delegate internal rotation to ScraperController
         success = False

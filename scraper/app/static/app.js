@@ -795,8 +795,14 @@ async function loadDefaultConfig() {
 function initializeSocket() {
     socket = io();
 
+    let firstConnect = true;
+
     socket.on('connect', () => {
-        addLog('INFO', 'Conectado al servidor');
+        if (!firstConnect) {
+            addLog('INFO', 'Conexión restablecida con el servidor');
+        }
+        firstConnect = false;
+        console.log('Socket.io connected');
         updateServerButtons(true);
         syncStatus();
     });

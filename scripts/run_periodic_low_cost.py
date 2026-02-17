@@ -185,7 +185,7 @@ def main():
             log(f"[WARN] No URL found for {name} ({args.operation}). Skipping.")
             continue
         
-        log(f"\n[{i}/{len(provinces)}] Processing: {name} ({args.operation})")
+        log(f"🚀 [{i}/{len(provinces)}] Processing: {name} ({args.operation})")
         
         # VPN Rotation Logic
         if args.nordvpn and i > 1 and (i - 1) % NORDVPN_ROTATE_EVERY == 0:

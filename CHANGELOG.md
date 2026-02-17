@@ -1,5 +1,20 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-18]
+
+### Improved
+- **Log Noise Reduction (Core Scraper)**: Streamlined startup and execution logs to reduce terminal clutter.
+  - **Lock Cleanup**: Consolidated multiple "Removed stale lock file" messages into a single summary log.
+  - **Smart Enrichment**: Merged three separate startup logs (Enrichment Mode, Province/Operation, Target File) into one concise line.
+- **Log Noise Reduction (Batch & Periodic Scripts)**:
+  - **run_batch.py**: Removed redundant Identity and Mode logs. Combined progress and processing information into a single line.
+  - **batch_api_scan.py**: Refactored the progress indicator to consolidate multi-line statistics (Progress, Remaining, ETA) into one clear status line.
+  - **run_periodic_low_cost.py**: Removed unnecessary vertical whitespace in per-province logs.
+- **UI Refinement**:
+  - **Terminal Placeholder**: Removed the initial "Esperando inicio del scraping..." entry from the logs panel to keep the interface clean on startup.
+  - **Connection Logs**: Suppressed the initial "Conectado al servidor" message in the UI; it now only appears during reconnection events.
+
+
 ## [2026-02-17]
 
 ### Fixed
