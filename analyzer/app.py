@@ -52,6 +52,12 @@ ANALYSIS_THREAD = None
 LAST_ERROR = None
 CURRENT_OUTPUT_FILE = 'Salidas/analisis_resultado.xlsx'
 
+# Cache for file list (timestamp, data)
+FILE_CACHE = {
+    'timestamp': 0,
+    'data': []
+}
+
 # =============================================================================
 # SYSTEM PROMPT FOR GEMINI LLM REPORTS
 # =============================================================================
@@ -124,7 +130,12 @@ def index():
 
 @app.route('/list-files')
 def list_files():
-    # Find xlsx files in the scraper's salidas output directory
+    global FILE_CACHE
+    
+    # Return cached data if fresh (within 5 seconds)
+    if time.time() - FILE_CACHE['timestamp'] < 5:
+        return jsonify(FILE_CACHE['data'])
+
     # Find xlsx files in the scraper's salidas output directory (INPUTS)
     salidas_dir = str(Path(__file__).parent.parent / "scraper" / "salidas")
     files = []
@@ -149,9 +160,17 @@ def list_files():
                             'type': ftype,
                             'last_modified': mtime_str
                         })
+                        
+        # Update Cache
+        FILE_CACHE['timestamp'] = time.time()
+        FILE_CACHE['data'] = files
+        
     except Exception as e:
         print(f"Error listing files: {e}")
-        
+        # Return stale cache if error, or empty list
+        if FILE_CACHE['data']:
+            return jsonify(FILE_CACHE['data'])
+            
     return jsonify(files)
 
 
