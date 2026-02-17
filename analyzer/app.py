@@ -268,9 +268,9 @@ def start_analysis():
             # resultado_<Ciudad>_<#habs>habs_<#baños>banos_<min-precio>_<max-precio>.xlsx
             new_filename = f"resultado_{city}_{habs_str}habs_{banos_str}banos_{p_min_str}_{p_max_str}.xlsx"
             
-            print(f"Directory for output: salidas/{new_filename}")
-            config['output_file'] = f"salidas/{new_filename}"
-            CURRENT_OUTPUT_FILE = f"salidas/{new_filename}"
+            print(f"Directory for output: {salidas_dir}/{new_filename}")
+            config['output_file'] = str(salidas_dir / new_filename)
+            CURRENT_OUTPUT_FILE = str(salidas_dir / new_filename)
             
             # Redirect stdout handled by global capture
             analysis.run_pipeline(config, force=True)
@@ -306,8 +306,9 @@ def stream_logs():
 @app.route('/api/results')
 def get_results():
     """Return JSON results if available"""
-    # Look for the latest JSON output file in salidas folder
-    json_files = sorted(glob.glob('salidas/resultado_*.json'), key=os.path.getmtime, reverse=True)
+    # Look for the latest JSON output file in salidas folder (robust path)
+    salidas_dir = Path(__file__).parent / "salidas"
+    json_files = sorted(salidas_dir.glob('resultado_*.json'), key=os.path.getmtime, reverse=True)
     if not json_files:
         return jsonify({'error': 'No hay resultados disponibles. Ejecuta el análisis primero.'})
         
@@ -389,8 +390,10 @@ def get_results_from_excel():
         filename = CURRENT_OUTPUT_FILE
         
         if not os.path.exists(filename):
-            if os.path.exists('salidas/analisis_resultado.xlsx'):
-                filename = 'salidas/analisis_resultado.xlsx'
+            salidas_dir = Path(__file__).parent / "salidas"
+            default_file = salidas_dir / 'analisis_resultado.xlsx'
+            if default_file.exists():
+                filename = str(default_file)
         
         df = pd.read_excel(filename, sheet_name='oportunidades')
         records = df.to_dict(orient='records')
@@ -404,8 +407,10 @@ def download_results():
     global CURRENT_OUTPUT_FILE
     filename = CURRENT_OUTPUT_FILE
     if not os.path.exists(filename):
-        if os.path.exists('salidas/analisis_resultado.xlsx'):
-            filename = 'salidas/analisis_resultado.xlsx'
+        salidas_dir = Path(__file__).parent / "salidas"
+        default_file = salidas_dir / 'analisis_resultado.xlsx'
+        if default_file.exists():
+            filename = str(default_file)
         else:
             return "No results found", 404
     
