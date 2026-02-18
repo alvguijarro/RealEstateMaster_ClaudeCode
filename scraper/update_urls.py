@@ -809,10 +809,6 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 final_row = d.copy() # Start fresh with scraped data
                                 final_row['URL'] = url
                                 
-                            updated_rows.append(final_row)
-                            emit_progress(i, len(urls), url_to_sheet.get(url, 'Unknown'), os.path.basename(excel_file))
-                            emit_property(final_row) # Real-time table update
-                                
                                 for col in preserved_cols:
                                     val = orig_row.get(col)
                                     if val is not None and pd.notna(val) and str(val).strip() != "":
@@ -821,6 +817,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 # Also ensure we don't have a 'Baja anuncio' date if it is active
                                 if 'Baja anuncio' in final_row:
                                     del final_row['Baja anuncio']
+                            
+                            updated_rows.append(final_row)
+                            emit_progress(i, len(urls), url_to_sheet.get(url, 'Unknown'), os.path.basename(excel_file))
+                            emit_property(final_row) # Real-time table update
                             
                             # Helper to clean types
                             def clean_for_json(obj):
