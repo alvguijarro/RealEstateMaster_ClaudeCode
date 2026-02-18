@@ -177,31 +177,53 @@ def main():
             log(f"[{i}/{len(urls)}] Skipping invalid URL (None/Empty)...", "WARN")
             continue
             
-        log(f"🚀 [{i}/{len(urls)}] Processing: {url}")
+        target_prov = "Unknown"
+        parts = url.split('/')
+        for p in parts:
+            if "provincia" in p or "madrid" in p or "barcelona" in p:
+                target_prov = p
         
-        # Simplified loop: Delegate internal rotation to ScraperController
+        log(f"🚀 [{i}/{len(urls)}] Processing: {target_prov} ({url})")
+        
         success = False
-        while not success:
-            # We don't pre-select the engine here because the server does it
-            # just before launching via get_current_profile_config()
+        retries = 0
+        
+        while not success and retries < RETRY_LIMIT_PER_URL:
+            if retries > 0:
+                log(f"🔄 Retry {retries}/{RETRY_LIMIT_PER_URL} for {target_prov}...", "INFO")
+                
             success = run_single_url(url, mode, "auto", smart_enrichment, target_file)
             
             if not success:
-                log("⚠️ Scrape paused/blocked. Waiting 10 seconds before letting server retry with fresh identity...", "WARN")
+                retries += 1
+                if retries >= RETRY_LIMIT_PER_URL:
+                    log(f"❌ Giving up on {target_prov} after {RETRY_LIMIT_PER_URL} failed attempts.", "ERR")
+                    break
+                    
+                log(f"⚠️ Scrape interrupted. Waiting 10 seconds before letting server retry with fresh identity...", "WARN")
                 time.sleep(10)
                 check_signals()
         
-        if success: success_count += 1
+        if success:
+            success_count += 1
+            log(f"✅ [{i}/{len(urls)}] Finished: {target_prov}", "OK")
         
         # Delay between items
         if i < len(urls):
             delay = random.randint(*DELAY_BETWEEN)
-            log(f"Waiting {delay}s before next item...")
-            check_signals()
-            time.sleep(delay)
+            next_url = urls[i]
+            next_prov = "next item"
+            for p in next_url.split('/'):
+                if "provincia" in p: next_prov = p
+                
+            log(f"⏱️ Waiting {delay}s before starting NEXT province: {next_prov}...", "INFO")
             
-    log("\n=== BATCH COMPLETE ===")
-    log(f"Success: {success_count}/{len(urls)}")
+            # Check for signals during sleep
+            for _ in range(delay):
+                if check_signals(): break 
+                time.sleep(1)
+            
+    log(f"🏁 Batch finished! Successfully processed {success_count}/{len(urls)} URLs.")
 
 if __name__ == "__main__":
     main()
