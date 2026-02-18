@@ -404,6 +404,21 @@ select:focus {
     align-items: center;
 }
 
+#pauseLogBtn {
+    background: rgba(56, 189, 248, 0.2) !important;
+    color: #38bdf8 !important;
+    border: 1px solid rgba(56, 189, 248, 0.4) !important;
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-weight: bold;
+    opacity: 1 !important;
+}
+
+#pauseLogBtn:hover {
+    background: rgba(56, 189, 248, 0.3) !important;
+    transform: scale(1.05);
+}
+
 /* Logs */
 .logs-container {
     flex: 1;

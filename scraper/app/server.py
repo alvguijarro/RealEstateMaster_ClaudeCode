@@ -1261,7 +1261,7 @@ def handle_progress(data):
 @socketio.on('log_message')
 def handle_relay_log(data):
     """Relay log messages from background scripts to UI."""
-    socketio.emit('log_message', data)
+    socketio.emit('log', data)
 
 @socketio.on('property_scraped')
 def handle_relay_property(data):

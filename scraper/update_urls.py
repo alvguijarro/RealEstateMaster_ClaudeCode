@@ -327,16 +327,8 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     # Connect to WebSocket for real-time logging (silently)
     if HAS_SOCKET:
         try:
-            import io
-            old_stdout = sys.stdout
-            old_stderr = sys.stderr
-            sys.stdout = io.StringIO()
-            sys.stderr = io.StringIO()
-            try:
-                sio.connect('http://127.0.0.1:5003', wait_timeout=5)
-            finally:
-                sys.stdout = old_stdout
-                sys.stderr = old_stderr
+            # Connect to WebSocket for real-time logging
+            sio.connect('http://127.0.0.1:5003', wait_timeout=5)
         except Exception:
             pass 
     
