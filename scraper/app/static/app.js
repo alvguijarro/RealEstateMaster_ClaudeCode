@@ -725,6 +725,17 @@ function initializeSocket() {
 
     socket.on('log', (data) => {
         addLog(data.level, data.message);
+
+        // Dynamic Province Name Detection
+        // Match Pattern: 🚀 [1/52] Madrid (0-EU-ES-28) ...
+        // Match Pattern: 🚀 [1/52] Processing: Madrid (sale/rent) ...
+        const provinceMatch = data.message.match(/🚀\s\[\d+\/\d+\]\s(?:Processing:\s)?(.*?)(?:\s\(.*\)|$)/);
+        if (provinceMatch && provinceMatch[1]) {
+            const provinceBadge = document.getElementById('currentProvince');
+            if (provinceBadge) {
+                provinceBadge.textContent = `: ${provinceMatch[1].trim()}`;
+            }
+        }
     });
 
     socket.on('property_scraped', (data) => {
@@ -1318,6 +1329,10 @@ function resetUIState() {
     }
 
     stopTimer();
+
+    // Clear province badge
+    const provinceBadge = document.getElementById('currentProvince');
+    if (provinceBadge) provinceBadge.textContent = '';
 }
 
 function stopTimer() {
