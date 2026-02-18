@@ -12,3 +12,4 @@ playwright-stealth
 requests
 python-socketio
 eventlet  # Recommended for Flask-SocketIO threading
+2captcha-python
