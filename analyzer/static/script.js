@@ -6,6 +6,7 @@ function init() {
     }
 
     loadFiles();
+    loadResults();
     setupFilters();
     setupAnalyze();
     setupSorting();
@@ -292,23 +293,10 @@ async function pollLogs() {
                 clearInterval(interval);
                 resetBtn();
                 if (data.status === 'done') {
-                    if (data.data && data.data.opportunities) {
-                        // New Format
-                        currentResults = data.data.opportunities;
-                        currentTop100 = data.data.top_100 || [];
-                    } else if (Array.isArray(data.data)) {
-                        // Old Format fallback
-                        currentResults = data.data;
-                        currentTop100 = [];
-                    } else {
-                        currentResults = [];
-                        currentTop100 = [];
-                    }
+                    // Fetch final results from API
+                    await loadResults();
 
-                    document.getElementById('resultCount').textContent = `${currentResults.length} Oportunidades encontradas`;
                     document.getElementById('resultsArea').classList.remove('hidden');
-
-                    renderResults();
 
                     const logDiv = document.getElementById('logTerminal');
                     logDiv.scrollTop = logDiv.scrollHeight;
@@ -345,7 +333,18 @@ async function loadResults() {
             return;
         }
 
-        currentResults = response.data || [];
+        if (response.data && response.data.opportunities) {
+            // New Format
+            currentResults = response.data.opportunities;
+            currentTop100 = response.data.top_100 || [];
+        } else if (Array.isArray(response.data)) {
+            // Old Format fallback
+            currentResults = response.data;
+            currentTop100 = [];
+        } else {
+            currentResults = [];
+            currentTop100 = [];
+        }
 
         // Extract Province/City from filename (Salidas/resultado_Valencia_...)
         currentAnalysisProvince = null;
@@ -360,6 +359,9 @@ async function loadResults() {
         renderResults();
 
         document.getElementById('resultCount').textContent = `${currentResults.length} Oportunidades encontradas`;
+        if (currentResults.length > 0) {
+            document.getElementById('resultsArea').classList.remove('hidden');
+        }
 
     } catch (e) {
         console.error("Error loading results", e);
