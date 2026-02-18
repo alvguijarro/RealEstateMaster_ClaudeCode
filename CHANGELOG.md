@@ -3,10 +3,10 @@
 ## [2026-02-18] - 2Captcha Integration & Advanced Solver
 - **2Captcha Support**: Integrated 2Captcha API to handle complex CAPTCHAs (GeeTest and others) when simple slider-drag simulation fails.
 - **Advanced Solver Pipeline**: Created `solve_captcha_advanced` in `utils.py` that first attempts a human-like slider solve (free) and falls back to 2Captcha (paid) if needed.
-- **GeeTest Resolution**: Implemented automatic detection and solving of GeeTest parameters via 2Captcha with result injection back into the browser session.
-- **Global Deployment**: Updated `scraper.py`, `scraper_wrapper.py`, `update_urls.py`, and `extract_zones.py` to use the new advanced solver.
-- **Configuration**: Added `TWOCAPTCHA_API_KEY` to `shared/config.py` for centralized management.
-- **Dependency**: Added `2captcha-python` to the project.
+- **GeeTest & Slider Support**: Implemented `solve_slider_2captcha` using the **Coordinates** method to handle the "Desliza hacia la derecha" bar seen in latest Idealista blocks.
+- **Improved Advanced Solver**: `solve_captcha_advanced` now intelligently detects GeeTest vs standard sliders and uses the appropriate 2Captcha method (Token-based vs Coordinate-based).
+- **Cross-Profile Integration**: Ensured all browser profiles (Stealth, Fast, etc.) across all scripts utilize the unified advanced solver.
+- **Safety**: Screenshots for CAPTCHA solving are now handled in the system's temporary directory to avoid workspace clutter.
 
 ## [2026-02-18]
 

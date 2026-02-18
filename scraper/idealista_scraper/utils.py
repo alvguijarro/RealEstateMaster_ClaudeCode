@@ -12,7 +12,10 @@ from functools import lru_cache
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
+import asyncio
+import os
 import sys
+import tempfile
 from pathlib import Path
 # Add project root to sys.path to import shared config
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -654,30 +657,148 @@ async def solve_geetest_2captcha(page):
         
     return False
 
+async def solve_slider_2captcha(page):
+    """Solve simple slider captchas using 2Captcha Coordinates method."""
+    if not SOLVER:
+        return False
+        
+    try:
+        # 1. Detect any slider-like containers
+        selectors = [
+            ".px-captcha-container", 
+            "#captcha-container",
+            ".geetest_holder",
+            ".nc-container",
+            "div[class*='captcha']"
+        ]
+        
+        container = None
+        for sel in selectors:
+            try:
+                elem = await page.query_selector(sel)
+                if elem and await elem.is_visible():
+                    container = elem
+                    break
+            except: continue
+            
+        if not container:
+            container = await page.query_selector("body")
+            
+        if not container: return False
+
+        log("INFO", "📸 Capturando screenshot del captcha para 2Captcha...")
+        # Use a temporary file in the system temp directory
+        fd, img_path = tempfile.mkstemp(suffix=".png", prefix="captcha_")
+        os.close(fd) # Close the file descriptor, we'll use the path with Playwright
+        
+        await container.screenshot(path=img_path)
+        
+        # 3. Request Coordinates from 2Captcha
+        log("INFO", "📤 Enviando coordenadas a 2Captcha (Slider)...")
+        result = await asyncio.to_thread(
+            SOLVER.coordinates,
+            file=img_path,
+            textinstructions="Haz clic en el extremo DERECHO de la barra de deslizar (donde termina el recorrido) / Click on the RIGHT end of the slider bar"
+        )
+        
+        # Cleanup image
+        if os.path.exists(img_path):
+            try: os.remove(img_path)
+            except: pass
+            
+        if result and len(result) > 0:
+            target = result[0]
+            # Coordinates are string 'x', 'y'
+            tx = float(target['x'])
+            ty = float(target['y'])
+            
+            box = await container.bounding_box()
+            if not box: return False
+            
+            # Map image-relative coords to page-relative
+            dest_x = box['x'] + tx
+            dest_y = box['y'] + ty
+            
+            # 4. Find the slider handle to start dragging
+            handle_selectors = [
+                 ".px-captcha-slider-button", ".geetest_slider_button", 
+                 ".nc_iconfont.btn_slide", "#nc_1_n1z", ".slid_btn",
+                 "div[role='button']", "span:has-text('→')"
+            ]
+            handle = None
+            for hs in handle_selectors:
+                try:
+                    h = await page.query_selector(hs)
+                    if h and await h.is_visible():
+                        handle = h
+                        break
+                except: continue
+                
+            if not handle:
+                log("WARN", "Slider handle not found. Attempting a simple click at target...")
+                await page.mouse.click(dest_x, dest_y)
+                return True
+                
+            h_box = await handle.bounding_box()
+            if not h_box: return False
+            
+            start_x = h_box['x'] + h_box['width'] / 2
+            start_y = h_box['y'] + h_box['height'] / 2
+            
+            log("INFO", f"🖱️ Dragging handle from {start_x:.0f} to target {dest_x:.0f}...")
+            
+            await page.mouse.move(start_x, start_y)
+            await page.mouse.down()
+            await asyncio.sleep(random.uniform(0.3, 0.6))
+            
+            # Use steps for smoother movement
+            await page.mouse.move(dest_x, dest_y, steps=20)
+            await asyncio.sleep(random.uniform(0.5, 0.8))
+            await page.mouse.up()
+            
+            return True
+            
+    except Exception as e:
+        log("ERR", f"2Captcha Slider solver error: {e}")
+        
+    return False
+
 async def solve_captcha_advanced(page):
-    """Orchestrator for CAPTCHA solving: Slider -> 2Captcha."""
+    """Orchestrator for CAPTCHA solving: Slider (Local) -> 2Captcha (Slider/GeeTest)."""
     # 1. Try Slider (Fast & Free)
-    log("INFO", "🤖 Attempting automatic slider solve...")
+    log("INFO", "🤖 Intentando resolución local (Slider)...")
     if await solve_slider_captcha(page):
         # Brief wait to see if it clears
-        await asyncio.sleep(2)
+        await asyncio.sleep(3)
         title = (await page.title()).lower()
-        if "idealista" in title and "captcha" not in title and "attention" not in title:
-            log("OK", "✅ Slider solved the CAPTCHA!")
+        if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
+            log("OK", "✅ Local slider solved the CAPTCHA!")
             return True
-        log("WARN", "Slider moved but CAPTCHA still present. Trying 2Captcha...")
+        log("WARN", "Slider local falló o el bloqueo persiste. Probando 2Captcha...")
     
-    # 2. Try 2Captcha (paid, but powerful)
+    # 2. Try 2Captcha (paid)
     if SOLVER:
-        log("INFO", "🚀 Launching 2Captcha advanced solver...")
-        if await solve_geetest_2captcha(page):
-             # Verification
-             await asyncio.sleep(3)
+        # A. Try solving as GeeTest first (if identifiable)
+        is_geetest = await page.evaluate("() => !!(window.initGeetest || document.querySelector('.geetest_holder'))")
+        
+        if is_geetest:
+            log("INFO", "🚀 Iniciando solver 2Captcha para GeeTest...")
+            if await solve_geetest_2captcha(page):
+                 await asyncio.sleep(3)
+                 title = (await page.title()).lower()
+                 if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
+                     log("OK", "✅ 2Captcha GeeTest solved!")
+                     return True
+
+        # B. Fallback to Coordinate-based Slider solve
+        log("INFO", "🚀 Iniciando solver 2Captcha por Coordenadas (Screenshot)...")
+        if await solve_slider_2captcha(page):
+             await asyncio.sleep(4)
              title = (await page.title()).lower()
-             if "idealista" in title and "captcha" not in title and "attention" not in title:
-                 log("OK", "✅ 2Captcha solved the CAPTCHA!")
+             if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
+                 log("OK", "✅ 2Captcha Coordinates solved!")
                  return True
     else:
-        log("WARN", "2Captcha not available (No API Key).")
+        log("WARN", "2Captcha no disponible (Sin API Key).")
         
     return False
