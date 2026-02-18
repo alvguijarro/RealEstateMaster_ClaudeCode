@@ -1098,9 +1098,11 @@ function handleStatusChange(data) {
         seedUrlInput.disabled = false;
         if (startApiImportBtn) startApiImportBtn.disabled = false;
 
-        if (status === 'completed' && isBatchMode && data.mode === 'batch') {
+        if ((status === 'completed' || status === 'stopped' || status === 'idle') && isBatchMode) {
             isBatchMode = false;
-            addLog('OK', '✅ LOTE COMPLETADO: Todos los destinos han sido procesados.');
+            if (status === 'completed') {
+                addLog('OK', '✅ LOTE COMPLETADO: Todos los destinos han sido procesados.');
+            }
         }
 
         // TERMINAL STATUSES

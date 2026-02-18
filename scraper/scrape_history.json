@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-18T11:54:39.632048",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/soria-provincia/con-precio-hasta_2000/",
+    "properties_count": 60,
+    "category": "alquiler",
+    "output_file": "idealista_Soria_alquiler.xlsx",
+    "filename": "idealista_Soria_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-17T19:34:56.336943",
     "seed_url": "https://www.idealista.com/venta-viviendas/pilar-de-la-horadada-alicante/con-precio-hasta_300000/",
     "properties_count": 513,

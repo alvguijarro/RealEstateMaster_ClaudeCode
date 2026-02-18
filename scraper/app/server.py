@@ -412,25 +412,30 @@ def stop_scraping():
         scraper_controller.stop()
         stopped = True
         
-    # 2. Stop batch/periodic/update process via flags
-    scraper_dir = Path(__file__).parent.parent
-    try:
-        (scraper_dir / "BATCH_STOP.flag").touch()
-        (scraper_dir / "PERIODIC_STOP.flag").touch()
-        (scraper_dir / "update_stop.flag").touch() # Ensure update_urls.py also stops
-        (scraper_dir / "ENRICH_STOP.flag").touch() # Ensure enrich_worker.py also stops
+    # 2. Proactively terminate background processes
+    if periodic_process and periodic_process.poll() is None:
+        try:
+            periodic_process.terminate()
+            stopped = True
+        except: pass
         
-        # If there's a subprocess running, we might want to be more proactive
-        if periodic_process and periodic_process.poll() is None:
+    if update_process and update_process.poll() is None:
+        try:
+            update_process.terminate()
             stopped = True
-            
-        if update_process and update_process.poll() is None:
-            stopped = True
-            
-    except Exception as e:
-        print(f"Error setting stop flags: {e}")
+        except: pass
 
-    if not stopped:
+    # 3. Set stop flags for scripts to exit gracefully
+    scraper_dir = Path(__file__).parent.parent
+    flags = ["BATCH_STOP.flag", "PERIODIC_STOP.flag", "update_stop.flag", "ENRICH_STOP.flag"]
+    for f_name in flags:
+        try: (scraper_dir / f_name).touch()
+        except: pass
+
+    if stopped:
+        emit_status('stopped')
+        return jsonify({'status': 'stopped'})
+    else:
         return jsonify({'error': 'No active scraping session'}), 400
     
     return jsonify({'status': 'stopped'})
@@ -1407,6 +1412,8 @@ def start_background_task(cmd, task_name, cwd=None):
                 env={**os.environ, "PYTHONUNBUFFERED": "1"} # Force unbuffered output
             )
             
+            emit_status("running", mode="batch")
+            
             for line in iter(update_process.stdout.readline, ''):
                 if line:
                     emit_log("INFO", line.strip())
@@ -1414,10 +1421,22 @@ def start_background_task(cmd, task_name, cwd=None):
             update_process.wait()
             rc = update_process.returncode
             
+            scraper_dir = Path(__file__).parent.parent
+            stop_flag_exists = (scraper_dir / "BATCH_STOP.flag").exists() or (scraper_dir / "PERIODIC_STOP.flag").exists() or (scraper_dir / "update_stop.flag").exists()
+
             if rc == 0:
                 emit_log("OK", f"Task '{task_name}' completed successfully.")
+                emit_status("completed")
+            elif stop_flag_exists:
+                emit_log("INFO", f"Task '{task_name}' was stopped by user.")
+                emit_status("stopped")
+                # Cleanup flag
+                for f_name in ["BATCH_STOP.flag", "PERIODIC_STOP.flag", "update_stop.flag"]:
+                    try: (scraper_dir / f_name).unlink()
+                    except: pass
             else:
                 emit_log("ERR", f"Task '{task_name}' failed with exit code {rc}")
+                emit_status("error", message=f"Exit code {rc}")
                 
         except Exception as e:
             emit_log("ERR", f"Failed to start task: {e}")
