@@ -244,7 +244,7 @@ async function setupAnalyze() {
         btn.disabled = true;
         document.getElementById('btnText').textContent = "ANALIZANDO...";
         document.getElementById('btnLoader').classList.remove('hidden');
-        document.getElementById('resultsArea').classList.remove('hidden');
+        document.getElementById('resultsArea').style.display = 'block';
         const terminal = document.getElementById('logTerminal');
         terminal.innerHTML = '<div class="log-line log-info">> Starting analysis...</div>';
 
@@ -359,11 +359,9 @@ async function loadResults() {
         renderResults();
 
         document.getElementById('resultCount').textContent = `${currentResults.length} Oportunidades encontradas`;
-        if (currentResults.length > 0) {
-            document.getElementById('resultsArea').classList.remove('hidden');
-            document.getElementById('opportunitiesCard').classList.remove('hidden');
-            document.getElementById('top100Card').classList.remove('hidden');
-        }
+        document.getElementById('resultsArea').style.display = 'block';
+        document.getElementById('opportunitiesCard').style.display = 'block';
+        document.getElementById('top100Card').style.display = 'block';
 
     } catch (e) {
         console.error("Error loading results", e);

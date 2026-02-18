@@ -244,172 +244,178 @@
             </button>
 
             <!-- RESULTS -->
-            <div id="resultsArea" class="hidden">
+            <div id="resultsArea" style="display: none;">
                 <div class="terminal" id="logTerminal">
                     <div class="log-line log-info">> Preparado para analizar...</div>
                 </div>
 
-                <section id="opportunitiesCard" class="card hidden" style="margin-top: 1.5rem;">
-                    <button id="btnGenerateDistrictReport" class="btn-analyze"
-                        style="padding: 0.4rem 1rem; font-size: 0.9rem; width: auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; align-items: center; gap: 0.5rem;">
-                        <span>Generar informe con IA</span>
+                <section id="opportunitiesCard" class="card" style="margin-top: 1.5rem; display: none;">
+                    <div class="card-header">
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <h2 class="card-title">Principales oportunidades</h2>
+                            <button id="btnGenerateDistrictReport" class="btn-analyze"
+                                style="padding: 0.4rem 1rem; font-size: 0.9rem; width: auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>Generar informe con IA</span>
+                            </button>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <div
+                                style="position: relative; display: inline-flex; align-items: center; margin-right: 8px;">
+                                <span class="info-icon">i</span>
+                                <div class="tooltip-text">
+                                    <strong>Criterios de Oportunidad:</strong><br>
+                                    1. <strong>Precio Bajo:</strong> Inferior al mercado (Percentil 25 o Modelo IA).<br>
+                                    2. <strong>Datos Válidos:</strong> Se ha podido calcular una Renta > 0€ y
+                                    Rentabilidad Bruta > 0%.
+                                </div>
+                            </div>
+                            <span class="subtitle" id="resultCount"></span>
+                            <button id="btnDownload" class="btn-analyze"
+                                style="padding: 0.5rem 1rem; font-size: 0.9rem; width: auto; background: var(--success-color);">
+                                Descargar Excel
+                            </button>
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="Propiedad" style="cursor: pointer;">Propiedad</th>
+                                    <th data-sort="Distrito" style="cursor: pointer;">Distrito</th>
+                                    <th data-sort="m2" style="cursor: pointer;">m²</th>
+                                    <th data-sort="Precio" style="cursor: pointer;">Precio</th>
+                                    <th data-sort="Renta_Rango" style="cursor: pointer;">Rango Renta</th>
+                                    <th data-sort="Rentabilidad_Bruta_%" style="cursor: pointer;">
+                                        Rentabilidad Bruta
+                                    </th>
+                                    <th data-sort="Precision" style="cursor: pointer;">Precisión estim.
+                                        renta</th>
+                                    <th data-sort="Puntuación" style="cursor: pointer;">Puntuación</th>
+                                    <th>Referencias cálculo renta</th>
+                                    <th>Calcular rent. neta</th>
+                                </tr>
+                            </thead>
+                            <tbody id="opportunitiesBody">
+                                <!-- Results will go here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="top100Card" class="card" style="margin-top: 1.5rem; display: none;">
+                    <button class="accordion-header" id="top100Header"
+                        style="width: 100%; border: none; background: transparent; color: inherit; text-align: left; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+                        <h2 class="card-title">Top 100 viviendas (Rentabilidad Bruta)</h2>
+                        <span class="accordion-icon"
+                            style="transform: rotate(0deg); transition: transform 0.3s;">▼</span>
                     </button>
+                    <div id="top100Content" class="accordion-content"
+                        style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; margin-top: 1rem;">
+                        <div style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
+                            <!-- Same table structure -->
+                            <table class="results-table" id="top100Table">
+                                <thead>
+                                    <tr>
+                                        <!-- Same columns as main table -->
+                                        <th style="cursor: pointer;" data-sort="Propiedad"
+                                            onclick="sortTable('top100', 'Propiedad')">
+                                            Propiedad</th>
+                                        <th style="cursor: pointer;" data-sort="Distrito"
+                                            onclick="sortTable('top100', 'Distrito')">
+                                            Distrito
+                                        </th>
+                                        <th style="cursor: pointer;" data-sort="m2" onclick="sortTable('top100', 'm2')">
+                                            m²</th>
+                                        <th style="cursor: pointer;" data-sort="Precio"
+                                            onclick="sortTable('top100', 'Precio')">
+                                            Precio</th>
+                                        <th style="cursor: pointer;" data-sort="Renta_Rango"
+                                            onclick="sortTable('top100', 'Renta_Rango')">Rango
+                                            Renta</th>
+                                        <th style="cursor: pointer;" data-sort="Rentabilidad_Bruta_%"
+                                            onclick="sortTable('top100', 'Rentabilidad_Bruta_%')">Rentabilidad Bruta
+                                        </th>
+                                        <th style="cursor: pointer;" data-sort="Precision"
+                                            onclick="sortTable('top100', 'Precision')">
+                                            Precisión estim. renta</th>
+                                        <th style="cursor: pointer;" data-sort="Puntuación"
+                                            onclick="sortTable('top100', 'Puntuación')">
+                                            Puntuación</th>
+                                        <th>Referencias cálculo renta</th>
+                                        <th>Calcular rent. neta</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="top100Body">
+                                    <!-- Results go here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- District Report Section -->
+                <section class="card hidden" id="districtReportSection"
+                    style="margin-top: 1.5rem; border: 1px solid var(--accent-color);">
+                    <div class="card-header">
+                        <h2 class="card-title" style="color: var(--accent-color);">Informe de inversión por
+                            distrito
+                            (IA)</h2>
+                        <!-- Dropdown removed as requested -->
+                    </div>
+                    <div id="districtReportContent" class="markdown-body"
+                        style="padding: 20px; max-height: 800px; overflow-y: auto;">
+                        <!-- Report content goes here -->
+                    </div>
+                </section>
+
+                <!-- Referencias Table Section (initially hidden) -->
+                <section class="card" id="referenciasSection" style="margin-top: 1.5rem; display: none;">
+                    <div class="card-header">
+                        <h2 class="card-title">Referencias de alquiler</h2>
+                        <span class="subtitle" id="referenciasTitle"></span>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Título</th>
+                                    <th>Habitaciones</th>
+                                    <th>Baños</th>
+                                    <th>Tamaño (m²)</th>
+                                    <th>Distrito</th>
+                                    <th>Garaje</th>
+                                    <th>Terraza</th>
+                                    <th>€/m²</th>
+                                    <th>Precio alquiler</th>
+                                </tr>
+                            </thead>
+                            <tbody id="referenciasBody">
+                                <!-- References will go here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
-            <div style="display: flex; gap: 1rem; align-items: center;">
-                <div style="position: relative; display: inline-flex; align-items: center; margin-right: 8px;">
-                    <span class="info-icon">i</span>
-                    <div class="tooltip-text">
-                        <strong>Criterios de Oportunidad:</strong><br>
-                        1. <strong>Precio Bajo:</strong> Inferior al mercado (Percentil 25 o Modelo IA).<br>
-                        2. <strong>Datos Válidos:</strong> Se ha podido calcular una Renta > 0€ y
-                        Rentabilidad Bruta > 0%.
+            <!-- LLM REPORT MODAL -->
+            <div id="reportModal" class="modal hidden">
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <h2>Generar Informe IA</h2>
+                    <div class="form-group">
+                        <label for="districtModalSelect">Selecciona el Distrito a analizar:</label>
+                        <select id="districtModalSelect"
+                            style="width: 100%; padding: 10px; background: rgba(0,0,0,0.2); color: white; border: 1px solid var(--border-color); border-radius: 4px;">
+                            <!-- Options populated via JS -->
+                        </select>
+                    </div>
+                    <button id="btnGenerateReport" class="btn-analyze">GENERAR INFORME</button>
+
+                    <div id="reportOutput" class="markdown-body hidden">
+                        <!-- Report content -->
                     </div>
                 </div>
-                <span class="subtitle" id="resultCount"></span>
-                <button id="btnDownload" class="btn-analyze"
-                    style="padding: 0.5rem 1rem; font-size: 0.9rem; width: auto; background: var(--success-color);">
-                    Descargar Excel
-                </button>
             </div>
-    </div>
-    <div style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
-        <table class="results-table">
-            <thead>
-                <tr>
-                    <th data-sort="Propiedad" style="cursor: pointer;">Propiedad</th>
-                    <th data-sort="Distrito" style="cursor: pointer;">Distrito</th>
-                    <th data-sort="m2" style="cursor: pointer;">m²</th>
-                    <th data-sort="Precio" style="cursor: pointer;">Precio</th>
-                    <th data-sort="Renta_Rango" style="cursor: pointer;">Rango Renta</th>
-                    <th data-sort="Rentabilidad_Bruta_%" style="cursor: pointer;">
-                        Rentabilidad Bruta
-                    </th>
-                    <th data-sort="Precision" style="cursor: pointer;">Precisión estim.
-                        renta</th>
-                    <th data-sort="Puntuación" style="cursor: pointer;">Puntuación</th>
-                    <th>Referencias cálculo renta</th>
-                    <th>Calcular rent. neta</th>
-                </tr>
-
-            </thead>
-            <tbody id="opportunitiesBody">
-                <!-- Results will go here -->
-            </tbody>
-        </table>
-    </div>
-    </section>
-
-    <section id="top100Card" class="card hidden" style="margin-top: 1.5rem;">
-        <button class="accordion-header" id="top100Header"
-            style="width: 100%; border: none; background: transparent; color: inherit; text-align: left; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
-            <h2 class="card-title">Top 100 viviendas (Rentabilidad Bruta)</h2>
-            <span class="accordion-icon" style="transform: rotate(0deg); transition: transform 0.3s;">▼</span>
-        </button>
-        <div id="top100Content" class="accordion-content"
-            style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; margin-top: 1rem;">
-            <div style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
-                <!-- Same table structure -->
-                <table class="results-table" id="top100Table">
-                    <thead>
-                        <tr>
-                            <!-- Same columns as main table -->
-                            <th style="cursor: pointer;" data-sort="Propiedad"
-                                onclick="sortTable('top100', 'Propiedad')">
-                                Propiedad</th>
-                            <th style="cursor: pointer;" data-sort="Distrito" onclick="sortTable('top100', 'Distrito')">
-                                Distrito
-                            </th>
-                            <th style="cursor: pointer;" data-sort="m2" onclick="sortTable('top100', 'm2')">
-                                m²</th>
-                            <th style="cursor: pointer;" data-sort="Precio" onclick="sortTable('top100', 'Precio')">
-                                Precio</th>
-                            <th style="cursor: pointer;" data-sort="Renta_Rango"
-                                onclick="sortTable('top100', 'Renta_Rango')">Rango
-                                Renta</th>
-                            <th style="cursor: pointer;" data-sort="Rentabilidad_Bruta_%"
-                                onclick="sortTable('top100', 'Rentabilidad_Bruta_%')">Rentabilidad Bruta
-                            </th>
-                            <th style="cursor: pointer;" data-sort="Precision"
-                                onclick="sortTable('top100', 'Precision')">
-                                Precisión estim. renta</th>
-                            <th style="cursor: pointer;" data-sort="Puntuación"
-                                onclick="sortTable('top100', 'Puntuación')">
-                                Puntuación</th>
-                            <th>Referencias cálculo renta</th>
-                            <th>Calcular rent. neta</th>
-                        </tr>
-                    </thead>
-                    <tbody id="top100Body">
-                        <!-- Results go here -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </section>
-
-    <!-- District Report Section -->
-    <section class="card hidden" id="districtReportSection"
-        style="margin-top: 1.5rem; border: 1px solid var(--accent-color);">
-        <div class="card-header">
-            <h2 class="card-title" style="color: var(--accent-color);">Informe de inversión por
-                distrito
-                (IA)</h2>
-            <!-- Dropdown removed as requested -->
-        </div>
-        <div id="districtReportContent" class="markdown-body"
-            style="padding: 20px; max-height: 800px; overflow-y: auto;">
-            <!-- Report content goes here -->
-        </div>
-    </section>
-
-    <!-- Referencias Table Section (initially hidden) -->
-    <section class="card" id="referenciasSection" style="margin-top: 1.5rem; display: none;">
-        <div class="card-header">
-            <h2 class="card-title">Referencias de alquiler</h2>
-            <span class="subtitle" id="referenciasTitle"></span>
-        </div>
-        <div style="overflow-x: auto;">
-            <table class="results-table">
-                <thead>
-                    <tr>
-                        <th>Título</th>
-                        <th>Habitaciones</th>
-                        <th>Baños</th>
-                        <th>Tamaño (m²)</th>
-                        <th>Distrito</th>
-                        <th>Garaje</th>
-                        <th>Terraza</th>
-                        <th>€/m²</th>
-                        <th>Precio alquiler</th>
-                    </tr>
-                </thead>
-                <tbody id="referenciasBody">
-                    <!-- References will go here -->
-                </tbody>
-            </table>
-        </div>
-    </section>
-    </div>
-    <!-- LLM REPORT MODAL -->
-    <div id="reportModal" class="modal hidden">
-        <div class="modal-content">
-            <span class="close-modal">&times;</span>
-            <h2>Generar Informe IA</h2>
-            <div class="form-group">
-                <label for="districtModalSelect">Selecciona el Distrito a analizar:</label>
-                <select id="districtModalSelect"
-                    style="width: 100%; padding: 10px; background: rgba(0,0,0,0.2); color: white; border: 1px solid var(--border-color); border-radius: 4px;">
-                    <!-- Options populated via JS -->
-                </select>
-            </div>
-            <button id="btnGenerateReport" class="btn-analyze">GENERAR INFORME</button>
-
-            <div id="reportOutput" class="markdown-body hidden">
-                <!-- Report content -->
-            </div>
-        </div>
-    </div>
-    </main>
+        </main>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>

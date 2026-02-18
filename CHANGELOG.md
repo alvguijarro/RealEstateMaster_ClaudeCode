@@ -1,3 +1,19 @@
+## [2026-02-18] - Scraper Port Fix & Analytics Pro UI Polish
+### Fixed
+- **Scraper Module (Service Availability)**:
+  - Resolved "Service unavailable" error by correctly routing the Scraper server to **port 5003**.
+  - Synchronized `server.py` and `shared/config.py` to ensure consistent port allocation.
+- **Supabase Integration Cleanup**:
+  - **TOTAL REMOVAL**: Deleted all residual Supabase-related files (`database_manager.py`, `import_historical_data.py`, etc.).
+  - Removed all Supabase buttons ("Subir a Supabase", "Borrar Todo") and the "Base de Datos" section from the Scraper UI.
+  - Purged all Supabase API endpoints from the backend server.
+- **Scraper UI Layout**:
+  - Refined the dashboard layout to ensure the right-hand panels ("Actualizar provincias completas" and "Actualizar estado de URLs") share vertical space (50-50 split), providing a more balanced visual experience.
+- **Analytics Pro (Result Visibility)**:
+  - **Hidden by Default**: Both the primary results table (including headers) and the "Top 100" accordion are now completely hidden until the profitability analysis is finished.
+  - **Repaired HTML Structure**: Fixed a nesting bug in `index.html` where result cards were outside the hidden results container.
+  - **JS Logic Update**: Ensured the results area is explicitly shown using `style.display = 'block'` upon analysis completion, even if only the terminal was previously visible.
+
 ## [2026-02-18] - Analytics Pro & Scraper UI Fixes
 ### Fixed
 - **Analytics Pro (Table Formatting)**:
