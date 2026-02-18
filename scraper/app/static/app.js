@@ -2210,7 +2210,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         const tabId = btn.getAttribute('data-tab');
         const pane = document.getElementById(`tab-${tabId}`);
         if (pane) {
-            pane.style.display = tabId === 'scraper' ? 'contents' : 'block';
+            pane.style.display = 'block';
         }
     });
 });

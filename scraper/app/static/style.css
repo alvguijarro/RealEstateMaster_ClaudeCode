@@ -98,10 +98,9 @@ h1 {
 /* Panels & Grid */
 /* Panels & Grid */
 .controls-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    align-items: flex-start;
+    display: block;
+    /* Avoid flex container issues with nested blocks */
+    width: 100%;
 }
 
 .panel {
@@ -136,8 +135,8 @@ h1 {
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     width: 100%;
-    align-items: stretch;
-    /* Left panel stretches to match right panels combined height */
+    align-items: flex-start;
+    /* Don't stretch by default, let stack define height */
 }
 
 /* Left Panel: Main Controls - fills full height */
@@ -179,7 +178,6 @@ h1 {
     .scraper-layout-row {
         grid-template-columns: 1fr;
         height: auto;
-        /* Remove fixed height on mobile */
         min-height: unset;
     }
 
