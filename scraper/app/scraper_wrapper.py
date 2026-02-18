@@ -96,7 +96,7 @@ def build_paginated_url(seed_url: str, page_number: int) -> str:
         if not base_path.endswith("/"):
             base_path += "/"
         new_path = f"{base_path}pagina-{page_number}.htm"
-        return urlunsplit((parts.scheme, parts.netloc, new_path, "", parts.fragment))
+        return urlunsplit((parts.scheme, parts.netloc, new_path, parts.query, parts.fragment))
 
 
 def extract_page_from_url(url: str) -> int:
@@ -1921,12 +1921,15 @@ class ScraperController:
         # Apply mandatory limits: Alquiler <= 2000, Venta <= 300.000
         original_url = self.seed_url
         if "/alquiler-viviendas/" in self.seed_url.lower() and "con-precio-hasta_" not in self.seed_url.lower():
-            if not self.seed_url.endswith("/"): self.seed_url += "/"
-            self.seed_url += "con-precio-hasta_2000/"
+            # Apply to normalized base path to avoid corrupting existing page numbers or extensions
+            base_url = normalize_seed_url(self.seed_url)
+            if not base_url.endswith("/"): base_url += "/"
+            self.seed_url = base_url + "con-precio-hasta_2000/"
             self.log("INFO", f"🏷️ Applied rental price filter: {self.seed_url}")
         elif "/venta-viviendas/" in self.seed_url.lower() and "con-precio-hasta_" not in self.seed_url.lower():
-            if not self.seed_url.endswith("/"): self.seed_url += "/"
-            self.seed_url += "con-precio-hasta_300000/"
+            base_url = normalize_seed_url(self.seed_url)
+            if not base_url.endswith("/"): base_url += "/"
+            self.seed_url = base_url + "con-precio-hasta_300000/"
             self.log("INFO", f"🏷️ Applied sale price filter: {self.seed_url}")
         
         # Detect room mode based on seed URL
@@ -2571,10 +2574,15 @@ class ScraperController:
                         self.current_page = page_num
                         list_url = build_paginated_url(self.seed_url, page_num)
                         current_url = page.url
-                        is_already_on_target = list_url in current_url or current_url in list_url
+                        
+                        # Robust navigation check: compare page numbers and normalized base paths
+                        target_page = extract_page_from_url(list_url)
+                        curr_page = extract_page_from_url(current_url)
+                        paths_match = normalize_seed_url(list_url) == normalize_seed_url(current_url)
+                        is_already_on_target = (target_page == curr_page) and paths_match
                         
                         try:
-                            if is_already_on_target and page_num == self.current_page:
+                            if is_already_on_target:
                                 self.log("INFO", f"Already on Page {page_num} listing. Skipping redundant navigation.")
                             else:
                                 self.log("INFO", f"Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
