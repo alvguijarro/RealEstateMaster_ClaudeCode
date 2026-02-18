@@ -503,11 +503,14 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     start_index = scan_idx
                 # ------------------------------------
 
-                # Launch PERSISTENT context
+                # Headless Mode: Faster for URL updates if not in Stealth mode
+                is_stealth = os.path.exists(STEALTH_FLAG_FILE)
+                is_headless = not is_stealth 
+                
                 try:
                     context = await pw.chromium.launch_persistent_context(
                         user_data_dir=STEALTH_PROFILE_DIR,
-                        headless=False,
+                        headless=is_headless,
                         args=browser_args,
                         ignore_default_args=["--enable-automation", "--no-sandbox"],
                         
@@ -524,7 +527,8 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     if start_index == 0:
                         try:
                             await page.goto("https://www.idealista.com", timeout=30000)
-                            await asyncio.sleep(2)
+                            if is_stealth:
+                                await asyncio.sleep(2)
                             # Accept cookies
                             await page.evaluate(r"""() => {
                                 const acceptBtn = document.querySelector('#didomi-notice-agree-button, [id*="accept"], .onetrust-accept-btn');
@@ -629,10 +633,9 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 card_delay = EXTRA_STEALTH_CARD_DELAY_RANGE
                                 post_delay = EXTRA_STEALTH_POST_CARD_DELAY_RANGE
                             else:
-                                card_delay = FAST_CARD_DELAY_RANGE
-                                post_delay = FAST_POST_CARD_DELAY_RANGE
-                                
-                                posts_delay = FAST_POST_CARD_DELAY_RANGE
+                                card_delay = (0.01, 0.05)
+                                post_delay = (0.01, 0.05)
+                                posts_delay = (0.01, 0.05)
                                 
                             # --- STEALTH: Coffee Break & Session Rest ---
                             if os.path.exists(STEALTH_FLAG_FILE):
@@ -664,7 +667,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             
                             # Navigate
                             t0 = time.time()
-                            await _goto_with_retry(page, url)
+                            await _goto_with_retry(page, url, humanize=is_stealth)
                             nav_time = time.time() - t0
                             
                             # Check Block immediately
@@ -674,10 +677,11 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 
                             # Enhanced Stealth Scroll
                             t0 = time.time()
-                            if os.path.exists(STEALTH_FLAG_FILE):
-                                await variable_scroll(page)
-                            else:
-                                await simulate_human_interaction(page)
+                            if is_stealth:
+                                if os.path.exists(STEALTH_FLAG_FILE):
+                                    await variable_scroll(page)
+                                else:
+                                    await simulate_human_interaction(page)
                             scroll_time = time.time() - t0
                                 
                             await asyncio.sleep(random.uniform(*post_delay))

@@ -41,7 +41,7 @@ def build_paginated_url(seed_url: str, page_number: int) -> str:
         new_path = f"{base_path}pagina-{page_number}.htm"
         return urlunsplit((parts.scheme, parts.netloc, new_path, "", parts.fragment))
 
-async def _goto_with_retry(page, url: str) -> None:
+async def _goto_with_retry(page, url: str, humanize: bool = True) -> None:
     """Navigate to URL with retry logic and proper content loading."""
     import time
     delay = RETRY_BASE_DELAY
@@ -81,7 +81,8 @@ async def _goto_with_retry(page, url: str) -> None:
 
         try:
             # Humanize interaction after reaching the page
-            await simulate_human_interaction(page)
+            if humanize:
+                await simulate_human_interaction(page)
             
             # Check for CAPTCHA/Bot protection
             try:
