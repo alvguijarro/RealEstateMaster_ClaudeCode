@@ -785,6 +785,10 @@ function handleProgressUpdate(data) {
         if (statCurrentProps) statCurrentProps.textContent = globalCurrent;
         if (statTotalProps) statTotalProps.textContent = globalTotal;
 
+        // Sync main stats for URL update feedback
+        if (statCurrentPage) statCurrentPage.textContent = String(data.current_page || 1).padStart(2, '0');
+        if (statTotalPages) statTotalPages.textContent = String(data.total_pages || 1).padStart(2, '0');
+
         // Update Batch Progress Box
         if (batchProgressText) {
             batchProgressText.innerHTML = `Enriqueciendo '${data.excel_file}'\nDistrito: '${data.sheet_name || 'Generando...'}'\nProgreso: ${data.current_properties} / ${data.total_properties}`;

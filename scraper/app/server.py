@@ -1258,6 +1258,16 @@ def handle_progress(data):
     """Forward progress events from update_urls.py to UI."""
     socketio.emit('progress_update', data)
 
+@socketio.on('log_message')
+def handle_relay_log(data):
+    """Relay log messages from background scripts to UI."""
+    socketio.emit('log_message', data)
+
+@socketio.on('property_scraped')
+def handle_relay_property(data):
+    """Relay property data from background scripts to UI."""
+    socketio.emit('property_scraped', data)
+
 
 def run_server(host='127.0.0.1', port=5003):
     """Run the Flask-SocketIO server."""
