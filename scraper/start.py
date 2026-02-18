@@ -43,6 +43,7 @@ DEPENDENCIES = [
     "python-engineio>=4.8.0",
     "python-socketio>=5.10.0",
     "simple-websocket>=1.0.0",
+    "2captcha-python>=2.0.0",
 ]
 
 

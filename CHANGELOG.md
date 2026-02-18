@@ -1,3 +1,14 @@
+## [2026-02-18] - CAPTCHA Solver Refinement & Dependency Fix
+### Fixed
+- **CAPTCHA Solver (2Captcha)**:
+  - **Missing Dependency**: Fixed a critical issue where `2captcha-python` was missing from the embedded environment, preventing any cloud-based solving.
+  - **Refined Selection**: Added more robust selectors for Datadome/Idealista slider handles (`.arrow-right`, `[aria-label*='Slide']`, etc.).
+  - **Improved organic movement**: Implemented a more natural ease-in-out drag motion with random micro-jitter and a pre-drag "wiggle".
+  - **Automatic Verification**: The solver now explicitly checks if the CAPTCHA container has disappeared after a drag attempt before reporting success.
+
+### Changed
+- Updated `start.py` to ensure `2captcha-python` is installed on startup.
+
 ## [2026-02-18] - BigQuery Restoration & UI Regression Fixes
 ### Fixed
 - Fixed `IndentationError` in `update_urls.py` reported by user.

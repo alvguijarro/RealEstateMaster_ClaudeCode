@@ -665,15 +665,16 @@ async def solve_slider_2captcha(page):
     try:
         # 1. Detect any slider-like containers with expanded selectors
         selectors = [
-            "#captcha-container",
             ".px-captcha-container", 
+            "#captcha-container",
             "#challenge-container",
             ".geetest_holder",
             ".nc-container",
             "div[class*='captcha']",
             "div[id*='captcha']",
             "iframe[title*='captcha']",
-            "iframe[src*='captcha']"
+            "iframe[src*='captcha']",
+            ".captcha-box"
         ]
         
         container = None
@@ -682,6 +683,8 @@ async def solve_slider_2captcha(page):
                 elem = await page.query_selector(sel)
                 if elem and await elem.is_visible():
                     container = elem
+                    # Ensure it's in view for a good screenshot
+                    await elem.scroll_into_view_if_needed()
                     break
             except: continue
             
@@ -734,9 +737,12 @@ async def solve_slider_2captcha(page):
                  "#nc_1_n1z", 
                  ".slid_btn",
                  "div[role='button'][aria-label*='Desliza']",
+                 "div[role='button'][aria-label*='Slide']",
                  "div[class*='slider-handle']",
+                 "div[class*='captcha-slider-handle']",
                  "span:has-text('→')",
-                 "div:has-text('→')"
+                 "div:has-text('→')",
+                 ".arrow-right"
             ]
             handle = None
             for hs in handle_selectors:
@@ -770,11 +776,15 @@ async def solve_slider_2captcha(page):
             await page.mouse.move(start_x, start_y, steps=5)
             await asyncio.sleep(random.uniform(0.1, 0.3))
             
+            # Simple wiggle to simulate human touch
+            await page.mouse.move(start_x + random.randint(-2, 2), start_y + random.randint(-2, 2))
+            await asyncio.sleep(random.uniform(0.1, 0.2))
+            
             await page.mouse.down()
-            await asyncio.sleep(random.uniform(0.2, 0.5))
+            await asyncio.sleep(random.uniform(0.3, 0.6))
             
             # Organic drag movement (faster in middle, slower at ends)
-            steps = random.randint(30, 50)
+            steps = random.randint(40, 60)
             for i in range(1, steps + 1):
                 # Ease-in-out curve
                 t = i / steps
@@ -793,6 +803,20 @@ async def solve_slider_2captcha(page):
             await asyncio.sleep(random.uniform(0.3, 0.7))
             await page.mouse.up()
             
+            # 5. Verification: Check if captcha container is still present/visible
+            await asyncio.sleep(3)
+            still_there = False
+            try:
+                # Re-check the container visibility
+                curr_container = await page.query_selector(selectors[0]) # Use first/main selector
+                if curr_container and await curr_container.is_visible():
+                    still_there = True
+            except: pass
+            
+            if still_there:
+                log("WARN", "⚠️ El slider se movió pero el captcha sigue visible.")
+                return False
+                
             return True
             
     except Exception as e:
