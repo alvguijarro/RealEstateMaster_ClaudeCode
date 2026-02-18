@@ -755,6 +755,10 @@ function initializeSocket() {
         handleProgressUpdate(data);
     });
 
+    socket.on('progress', (data) => {
+        handleProgressUpdate(data);
+    });
+
     socket.on('browser_closed', (data) => {
         addLog('WARN', 'El navegador fue cerrado. Scraping pausado.');
         showBrowserClosedModal();
@@ -856,9 +860,9 @@ function initializeUI() {
     clearHistoryBtn.addEventListener('click', clearHistory);
 
     // Auto-scroll toggle for logs
-    const toggleAutoScrollBtn = document.getElementById('toggleAutoScrollBtn');
-    if (toggleAutoScrollBtn) {
-        toggleAutoScrollBtn.addEventListener('click', toggleAutoScroll);
+    const pauseLogBtn = document.getElementById('pauseLogBtn');
+    if (pauseLogBtn) {
+        pauseLogBtn.addEventListener('click', toggleAutoScroll);
     }
 
     // NordVPN Rotate Button
@@ -971,15 +975,15 @@ function clearLogs() {
 
 function toggleAutoScroll() {
     autoScrollEnabled = !autoScrollEnabled;
-    const btn = document.getElementById('toggleAutoScrollBtn');
+    const btn = document.getElementById('pauseLogBtn');
     if (btn) {
         if (autoScrollEnabled) {
-            btn.textContent = '⏸️';
+            btn.textContent = '⏸';
             btn.title = 'Pausar auto-scroll';
             // Jump to bottom when re-enabling
             logsContainer.scrollTop = logsContainer.scrollHeight;
         } else {
-            btn.textContent = '▶️';
+            btn.textContent = '▶';
             btn.title = 'Reanudar auto-scroll';
         }
     }

@@ -1,3 +1,15 @@
+## [2026-02-18] - BigQuery Restoration & UI Regression Fixes
+### Fixed
+- Fixed `IndentationError` in `update_urls.py` reported by user.
+- Repaired UI scorecards showing 0/0 by standardizing layout and unifying socket listeners.
+- Restored missing "Pause Log" button in the Live Logs panel.
+- Fixed real-time Results table updates for "Actualizar estado de URLs" mode.
+
+### Changed
+- Restored BigQuery integration via a dedicated `DatabaseManager` (Supabase remains removed).
+- Adjusted Content Grid layout to give more space to the Results table (60% width).
+- Updated `database_manager.py` to auto-upload to BigQuery if credentials are found.
+
 ## [2026-02-18] - Scraper Port Fix & Analytics Pro UI Polish
 ### Fixed
 - **Scraper Module (Service Availability)**:

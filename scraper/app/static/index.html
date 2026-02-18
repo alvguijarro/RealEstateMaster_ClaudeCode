@@ -247,22 +247,35 @@
 
         <!-- Stats Bar -->
         <section class="stats-bar" id="statsBar">
-            <div class="stat-item"><span class="stat-value" id="statCurrentPage">0</span> / <span
-                    id="statTotalPages">0</span><span class="stat-label">Páginas</span></div>
-            <div class="stat-item"><span class="stat-value" id="statCurrentProps">0</span> / <span
-                    id="statTotalProps">0</span><span class="stat-label">Propiedades</span></div>
-            <div class="stat-item"><span class="stat-value" id="statTime">00:00</span><span
-                    class="stat-label">Tiempo</span></div>
-            <div class="stat-item"><span class="stat-value" id="statMode">-</span><span class="stat-label">Modo</span>
+            <div class="stat-item">
+                <span class="stat-label">Páginas</span>
+                <span class="stat-value"><span id="statCurrentPage">0</span> / <span id="statTotalPages">0</span></span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Propiedades</span>
+                <span class="stat-value"><span id="statCurrentProps">0</span> / <span
+                        id="statTotalProps">0</span></span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Tiempo</span>
+                <span class="stat-value" id="statTime">00:00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Modo</span>
+                <span class="stat-value" id="statMode">-</span>
             </div>
         </section>
 
         <!-- Bottom Grid: Logs & Results -->
-        <div class="content-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px;">
+        <div class="content-grid" style="display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 20px; padding: 20px;">
             <!-- Logs Panel -->
             <section class="panel logs-panel">
                 <div class="panel-header">
-                    <h2>📋 Log en vivo</h2><button class="btn-icon-only" id="clearLogsBtn">🗑️</button>
+                    <h2>📋 Log en vivo</h2>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-icon-only" id="pauseLogBtn" title="Pausar desplazamiento">⏸</button>
+                        <button class="btn-icon-only" id="clearLogsBtn" title="Limpiar logs">🗑️</button>
+                    </div>
                 </div>
                 <div class="logs-container" id="logsContainer"
                     style="height: 400px; overflow-y: auto; font-family: monospace; font-size: 11px; padding: 10px; background: #000; color: #0f0; border-radius: 8px;">

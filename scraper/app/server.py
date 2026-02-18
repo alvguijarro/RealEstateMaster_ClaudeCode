@@ -22,6 +22,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.scraper_wrapper import ScraperController, DEFAULT_OUTPUT_DIR
 from app.province_mapping import get_province_output_file
+from database_manager import DatabaseManager
+
+# Initialize Database Manager (BigQuery only)
+db_manager = DatabaseManager()
 
 app = Flask(__name__, static_folder='static', template_folder='static')
 app.config['SECRET_KEY'] = 'idealista-scraper-secret'
@@ -1438,6 +1442,27 @@ def start_background_task(cmd, task_name, cwd=None):
     thread.start()
     
     return jsonify({'status': 'started', 'task': task_name})
+
+@app.route('/api/save-to-bigquery', methods=['POST'])
+def save_to_bigquery():
+    """Manual trigger to save an Excel file's data to BigQuery."""
+    data = request.json or {}
+    file_path = data.get('file_path')
+    
+    if not file_path:
+        return jsonify({'error': 'No file path provided'}), 400
+        
+    try:
+        import pandas as pd
+        df = pd.read_excel(file_path)
+        success = db_manager.save_listings_from_df(df, source_file=os.path.basename(file_path))
+        
+        if success:
+            return jsonify({'status': 'ok', 'message': f'Uploaded {len(df)} rows to BigQuery'})
+        else:
+            return jsonify({'error': 'BigQuery upload failed. Check server logs.'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     run_server(port=5003)

@@ -135,6 +135,14 @@ def emit_progress(current, total, sheet_name=None, excel_file=None):
         except:
             pass
 
+def emit_property(property_data):
+    """Emit a single scraped property to the UI for real-time table update."""
+    if HAS_SOCKET and sio.connected:
+        try:
+            sio.emit('property_scraped', property_data)
+        except:
+            pass
+
 def handle_blocked_profile():
     """Delete the current profile if it has been blocked/poisoned to ensure next run is fresh."""
     import shutil
@@ -552,6 +560,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             break 
                             
                         if was_paused:
+                            emit_to_ui('INFO', '[STATUS] resumed')
                             
                         # --- ENRICHMENT SKIP: Check 'enriched' column and 'Fecha Scraping' ---
                         # Get original row data from our pre-loaded map
@@ -609,6 +618,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             
                             updated_rows.append(final_row)
                             emit_progress(i, len(urls), url_to_sheet.get(url, 'Unknown'), os.path.basename(excel_file))
+                            emit_property(final_row) # Real-time table update
                             # Don't sleep if skipping
                             start_index = i
                             continue
@@ -798,6 +808,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 
                                 final_row = d.copy() # Start fresh with scraped data
                                 final_row['URL'] = url
+                                
+                            updated_rows.append(final_row)
+                            emit_progress(i, len(urls), url_to_sheet.get(url, 'Unknown'), os.path.basename(excel_file))
+                            emit_property(final_row) # Real-time table update
                                 
                                 for col in preserved_cols:
                                     val = orig_row.get(col)
