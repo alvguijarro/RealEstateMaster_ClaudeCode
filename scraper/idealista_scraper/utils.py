@@ -658,18 +658,22 @@ async def solve_geetest_2captcha(page):
     return False
 
 async def solve_slider_2captcha(page):
-    """Solve simple slider captchas using 2Captcha Coordinates method."""
+    """Solve simple slider captchas using 2Captcha Coordinates method (Refined version)."""
     if not SOLVER:
         return False
         
     try:
-        # 1. Detect any slider-like containers
+        # 1. Detect any slider-like containers with expanded selectors
         selectors = [
-            ".px-captcha-container", 
             "#captcha-container",
+            ".px-captcha-container", 
+            "#challenge-container",
             ".geetest_holder",
             ".nc-container",
-            "div[class*='captcha']"
+            "div[class*='captcha']",
+            "div[id*='captcha']",
+            "iframe[title*='captcha']",
+            "iframe[src*='captcha']"
         ]
         
         container = None
@@ -682,23 +686,27 @@ async def solve_slider_2captcha(page):
             except: continue
             
         if not container:
+            log("INFO", "No explicit captcha container found. Using body fallback.")
             container = await page.query_selector("body")
             
         if not container: return False
 
         log("INFO", "📸 Capturando screenshot del captcha para 2Captcha...")
-        # Use a temporary file in the system temp directory
+        # Precise screenshot
         fd, img_path = tempfile.mkstemp(suffix=".png", prefix="captcha_")
-        os.close(fd) # Close the file descriptor, we'll use the path with Playwright
+        os.close(fd)
         
         await container.screenshot(path=img_path)
         
         # 3. Request Coordinates from 2Captcha
         log("INFO", "📤 Enviando coordenadas a 2Captcha (Slider)...")
+        # Updated instructions to be more precise
+        instructions = "Haz clic en el PUNTO DESTINO (extremo derecho) donde debe llegar el botón deslizante. / Click on the DESTINATION point (far right) where the slider button should end."
+        
         result = await asyncio.to_thread(
             SOLVER.coordinates,
             file=img_path,
-            textinstructions="Haz clic en el extremo DERECHO de la barra de deslizar (donde termina el recorrido) / Click on the RIGHT end of the slider bar"
+            textinstructions=instructions
         )
         
         # Cleanup image
@@ -708,7 +716,6 @@ async def solve_slider_2captcha(page):
             
         if result and len(result) > 0:
             target = result[0]
-            # Coordinates are string 'x', 'y'
             tx = float(target['x'])
             ty = float(target['y'])
             
@@ -719,11 +726,17 @@ async def solve_slider_2captcha(page):
             dest_x = box['x'] + tx
             dest_y = box['y'] + ty
             
-            # 4. Find the slider handle to start dragging
+            # 4. Find the slider handle with expanded selectors
             handle_selectors = [
-                 ".px-captcha-slider-button", ".geetest_slider_button", 
-                 ".nc_iconfont.btn_slide", "#nc_1_n1z", ".slid_btn",
-                 "div[role='button']", "span:has-text('→')"
+                 ".px-captcha-slider-button", 
+                 ".geetest_slider_button", 
+                 ".nc_iconfont.btn_slide", 
+                 "#nc_1_n1z", 
+                 ".slid_btn",
+                 "div[role='button'][aria-label*='Desliza']",
+                 "div[class*='slider-handle']",
+                 "span:has-text('→')",
+                 "div:has-text('→')"
             ]
             handle = None
             for hs in handle_selectors:
@@ -735,6 +748,12 @@ async def solve_slider_2captcha(page):
                 except: continue
                 
             if not handle:
+                # If no handle, try to find the FIRST visible role='button' inside the container
+                try:
+                    handle = await container.query_selector("div[role='button'], button")
+                except: pass
+
+            if not handle:
                 log("WARN", "Slider handle not found. Attempting a simple click at target...")
                 await page.mouse.click(dest_x, dest_y)
                 return True
@@ -745,15 +764,33 @@ async def solve_slider_2captcha(page):
             start_x = h_box['x'] + h_box['width'] / 2
             start_y = h_box['y'] + h_box['height'] / 2
             
-            log("INFO", f"🖱️ Dragging handle from {start_x:.0f} to target {dest_x:.0f}...")
+            log("INFO", f"🖱️ Dragging handle from {start_x:.0f} to target {dest_x:.0f} (Organic)...")
             
-            await page.mouse.move(start_x, start_y)
+            # Move to handle
+            await page.mouse.move(start_x, start_y, steps=5)
+            await asyncio.sleep(random.uniform(0.1, 0.3))
+            
             await page.mouse.down()
-            await asyncio.sleep(random.uniform(0.3, 0.6))
+            await asyncio.sleep(random.uniform(0.2, 0.5))
             
-            # Use steps for smoother movement
-            await page.mouse.move(dest_x, dest_y, steps=20)
-            await asyncio.sleep(random.uniform(0.5, 0.8))
+            # Organic drag movement (faster in middle, slower at ends)
+            steps = random.randint(30, 50)
+            for i in range(1, steps + 1):
+                # Ease-in-out curve
+                t = i / steps
+                # Quadratic ease in out: t < 0.5 ? 2*t*t : -1 + (4-2*t)*t
+                ease_t = 2*t*t if t < 0.5 else -1 + (4-2*t)*t
+                
+                curr_x = start_x + (dest_x - start_x) * ease_t
+                # Small vertical jitter
+                curr_y = start_y + (dest_y - start_y) * ease_t + random.uniform(-1, 1)
+                
+                await page.mouse.move(curr_x, curr_y)
+                # Small variable sleep to simulate human inconsistency
+                await asyncio.sleep(random.uniform(0.01, 0.04))
+            
+            # Hold at destination for a moment
+            await asyncio.sleep(random.uniform(0.3, 0.7))
             await page.mouse.up()
             
             return True

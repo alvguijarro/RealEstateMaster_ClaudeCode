@@ -38,6 +38,16 @@
 - **Improved Captcha Orchestration**: The `solve_captcha_advanced` function now seamlessly prioritizes local solving and falls back to 2Captcha (Coordinate or GeeTest modes) without needing VPN rotation.
 - **Improved Scraper Safety**: Captcha screenshots are now saved to the system's temporary directory to avoid project clutter.
 
+
+## [2026-02-18] - CAPTCHA Debugging & Refinement
+### Fixed
+- **CAPTCHA Solver (2Captcha)**:
+  - **Identified Root Cause**: Diagnosed that recent solver failures were due to an exhausted 2Captcha account balance ($0.00).
+  - **Refined Solver Logic**: hardened `solve_slider_2captcha` in `utils.py` to be more robust for future use:
+    - **Expanded Selectors**: Added support for new Idealista/Datadome container types and handle buttons.
+    - **Organic Humanization**: Implemented cubic ease-in-out mouse acceleration and vertical jitter to better mimic human drag behavior.
+    - **Targeting Precision**: Improved screenshot area validation to ensure the solver receives the correct challenge image.
+
 ## [2026-02-18]
 
 ### Improved
