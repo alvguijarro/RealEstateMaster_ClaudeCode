@@ -10,6 +10,7 @@ import asyncio
 import threading
 import json
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -48,6 +49,13 @@ update_process = None
 # Scrape history storage
 HISTORY_FILE = Path(__file__).parent.parent / "scrape_history.json"
 scrape_history: list = []
+
+# Caches for Excel file listing
+EXCEL_FILES_GLOBAL_CACHE = {
+    'timestamp': 0,
+    'data': None
+}
+EXCEL_METADATA_CACHE = {}  # path -> {mtime, count}
 
 
 def load_history():
@@ -672,9 +680,14 @@ def clear_history():
 @app.route('/api/excel-files', methods=['GET'])
 def get_excel_files():
     """Get list of Excel files in the output directory and project directories."""
-    import glob
+    global EXCEL_FILES_GLOBAL_CACHE, EXCEL_METADATA_CACHE
     import pandas as pd
     
+    # Check TTL cache (5 seconds)
+    if time.time() - EXCEL_FILES_GLOBAL_CACHE['timestamp'] < 5:
+        if EXCEL_FILES_GLOBAL_CACHE['data']:
+            return jsonify(EXCEL_FILES_GLOBAL_CACHE['data'])
+            
     files = []
     
     # Search in multiple directories
@@ -691,22 +704,35 @@ def get_excel_files():
         if search_path.exists():
             for f in search_path.glob('*.xlsx'):
                 if f.is_file():
-                    # count rows
-                    count = 0
-                    try:
-                        # Read all sheets (sheet_name=None returns a dict of DataFrames)
-                        # We only need one column to count, but reading all sheets can be heavy if big.
-                        # Still, it's the only way to get total count.
-                        dfs = pd.read_excel(f, sheet_name=None, usecols=[0])
-                        count = sum(len(df) for df in dfs.values())
-                    except Exception as e:
-                        print(f"Error counting rows in {f.name}: {e}")
-                        pass
+                    path_str = str(f.resolve())
+                    mtime = f.stat().st_mtime
+                    
+                    # Check metadata cache
+                    if path_str in EXCEL_METADATA_CACHE and EXCEL_METADATA_CACHE[path_str]['mtime'] == mtime:
+                        count = EXCEL_METADATA_CACHE[path_str]['count']
+                    else:
+                        # count rows (this is the slow part)
+                        count = 0
+                        try:
+                            # Optimization: Use openpyxl directly to count rows if possible, 
+                            # or just read the first column of each sheet.
+                            dfs = pd.read_excel(f, sheet_name=None, usecols=[0], engine='openpyxl')
+                            count = sum(len(df) for df in dfs.values())
+                            
+                            # Store in metadata cache
+                            EXCEL_METADATA_CACHE[path_str] = {
+                                'mtime': mtime,
+                                'count': count
+                            }
+                        except Exception as e:
+                            print(f"Error counting rows in {f.name}: {e}")
+                            pass
                         
                     files.append({
                         'name': f.name,
-                        'path': str(f.resolve()),
-                        'count': count
+                        'path': path_str,
+                        'count': count,
+                        'mtime': mtime
                     })
     
     # Deduplicate by path
@@ -716,8 +742,17 @@ def get_excel_files():
         if f['path'] not in seen_paths:
             seen_paths.add(f['path'])
             unique_files.append(f)
+            
+    # Sort by mtime (newest first)
+    unique_files.sort(key=lambda x: x.get('mtime', 0), reverse=True)
     
-    return jsonify({'files': unique_files})
+    result = {'files': unique_files}
+    
+    # Update global cache
+    EXCEL_FILES_GLOBAL_CACHE['timestamp'] = time.time()
+    EXCEL_FILES_GLOBAL_CACHE['data'] = result
+    
+    return jsonify(result)
 
 
 @app.route('/api/provinces-list', methods=['GET'])

@@ -149,8 +149,10 @@
                             <!-- Panel: Excel Status Update -->
                             <section class="panel excel-update-panel">
                                 <h3
-                                    style="margin: 0 0 10px 0; font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-                                    <span style="margin-right:8px;">🔄</span> Actualizar estado de URLs
+                                    style="display: flex; justify-content: space-between; align-items: center; margin: 0 0 10px 0; font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                                    <span><span style="margin-right:8px;">🔄</span> Actualizar estado de URLs</span>
+                                    <button class="btn-icon-only" id="btnRefreshExcelFiles"
+                                        title="Refrescar archivos">🔄</button>
                                 </h3>
                                 <div class="input-group" style="margin-bottom: 15px;">
                                     <label for="updateExcelFile">Archivo Excel</label>
@@ -186,8 +188,11 @@
                 <!-- TAB 2: API & Database -->
                 <div id="tab-api-db" class="tab-pane" style="display: none;">
                     <section class="panel api-db-panel" style="grid-column: 1 / -1;">
-                        <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">
-                            <span style="margin-right:8px;">🚀</span> API & Database Operations
+                        <h3
+                            style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">
+                            <span><span style="margin-right:8px;">🚀</span> API & Database Operations</span>
+                            <button class="btn-icon-only" id="btnRefreshProvinces"
+                                title="Refrescar provincias">🔄</button>
                         </h3>
                         <div class="api-db-grid">
                             <div class="api-group">
