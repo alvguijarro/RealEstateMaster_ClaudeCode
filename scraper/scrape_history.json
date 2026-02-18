@@ -1,5 +1,29 @@
 [
   {
+    "timestamp": "2026-02-17T19:34:56.336943",
+    "seed_url": "https://www.idealista.com/venta-viviendas/pilar-de-la-horadada-alicante/con-precio-hasta_300000/",
+    "properties_count": 513,
+    "category": "venta",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Baix_Segura_venta.xlsx",
+    "filename": "idealista_Baix_Segura_venta.xlsx"
+  },
+  {
+    "timestamp": "2026-02-17T18:51:52.976271",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/pilar-de-la-horadada-alicante/con-precio-hasta_2000/",
+    "properties_count": 134,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Baix_Segura_alquiler.xlsx",
+    "filename": "idealista_Baix_Segura_alquiler.xlsx"
+  },
+  {
+    "timestamp": "2026-02-17T18:38:52.694347",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/alicante/con-precio-hasta_2000/",
+    "properties_count": 579,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Alicante_alquiler.xlsx",
+    "filename": "idealista_Alicante_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-16T01:16:24.206434",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/palencia-provincia/con-precio-hasta_2000/",
     "properties_count": 88,

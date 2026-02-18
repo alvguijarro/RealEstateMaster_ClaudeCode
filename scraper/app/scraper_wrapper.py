@@ -49,7 +49,7 @@ from idealista_scraper.config import (
     EXTRA_STEALTH_READING_TIME_PER_100_CHARS, USER_AGENTS, VIEWPORT_SIZES,
     BROWSER_ROTATION_POOL, MAX_PROFILE_POOL_SIZE, PROFILE_COOLDOWN_MINUTES
 )
-from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_slider_captcha
+from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_captcha_advanced
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
@@ -1685,7 +1685,8 @@ class ScraperController:
                         # 1. Try automatic slider solve (With strict 30s timeout)
                         self.log("INFO", "🤖 Attempting automatic slider solve...")
                         try:
-                            solved = await asyncio.wait_for(solve_slider_captcha(page), timeout=30.0)
+                            # Use advanced solver (Slider -> 2Captcha)
+                            solved = await asyncio.wait_for(solve_captcha_advanced(page), timeout=60.0)
                             if solved:
                                 # Check again
                                 try:

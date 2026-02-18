@@ -12,6 +12,22 @@ from functools import lru_cache
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
+import sys
+from pathlib import Path
+# Add project root to sys.path to import shared config
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+try:
+    from shared.config import TWOCAPTCHA_API_KEY
+except ImportError:
+    TWOCAPTCHA_API_KEY = None
+
+try:
+    from twocaptcha import TwoCaptcha
+    SOLVER = TwoCaptcha(TWOCAPTCHA_API_KEY) if TWOCAPTCHA_API_KEY else None
+except ImportError:
+    TwoCaptcha = None
+    SOLVER = None
+
 
 
 # =============================================================================
@@ -566,3 +582,102 @@ async def solve_slider_captcha(page):
     except Exception as e:
         log("WARN", f"Slider solver attempt failed: {e}")
         return False
+
+async def solve_geetest_2captcha(page):
+    """Solve GeeTest CAPTCHA using 2Captcha service."""
+    if not SOLVER:
+        log("WARN", "2Captcha SOLVER not initialized (check API Key).")
+        return False
+        
+    try:
+        log("INFO", "🌀 Detecting GeeTest parameters...")
+        # Idealista usually puts GeeTest params in a specific script or object
+        # We try to extract gt and challenge
+        params = await page.evaluate("""() => {
+            const scripts = Array.from(document.querySelectorAll('script'));
+            for (const s of scripts) {
+                if (s.textContent.includes('gt') && s.textContent.includes('challenge')) {
+                    const gtMatch = s.textContent.match(/gt\\s*:\\s*['"]([^'"]+)['"]/);
+                    const challengeMatch = s.textContent.match(/challenge\\s*:\\s*['"]([^'"]+)['"]/);
+                    if (gtMatch && challengeMatch) {
+                        return { gt: gtMatch[1], challenge: challengeMatch[1] };
+                    }
+                }
+            }
+            // Fallback: search in window object if possible
+            if (window.initGeetest) return { type: 'dynamic' };
+            return null;
+        }""")
+        
+        if not params:
+            log("WARN", "Could not find GeeTest parameters automatically.")
+            return False
+            
+        log("INFO", f"📦 GeeTest params found. Sending to 2Captcha... (gt: {params.get('gt', 'detected')})")
+        
+        result = await asyncio.to_thread(
+            SOLVER.geetest,
+            gt=params['gt'],
+            challenge=params['challenge'],
+            url=page.url
+        )
+        
+        if result and 'code' in result:
+            code = result['code']
+            log("OK", "✅ 2Captcha returned solution. Injecting into page...")
+            
+            # Inject the solution
+            await page.evaluate(f"""(code) => {{
+                // Standard GeeTest callback
+                if (window.geetest_callback) {{
+                    window.geetest_callback(code);
+                }} else {{
+                    // Try to find the hidden inputs and fill them
+                    const validate = document.querySelector('input[name="geetest_validate"]');
+                    const challenge = document.querySelector('input[name="geetest_challenge"]');
+                    const seccode = document.querySelector('input[name="geetest_seccode"]');
+                    
+                    if (validate) validate.value = code;
+                    if (seccode) seccode.value = code + '|jordan';
+                    
+                    // Submit form if present
+                    const form = validate ? validate.form : null;
+                    if (form) form.submit();
+                }}
+            }}""", code)
+            
+            await asyncio.sleep(3)
+            return True
+            
+    except Exception as e:
+        log("ERR", f"2Captcha GeeTest solver failed: {e}")
+        
+    return False
+
+async def solve_captcha_advanced(page):
+    """Orchestrator for CAPTCHA solving: Slider -> 2Captcha."""
+    # 1. Try Slider (Fast & Free)
+    log("INFO", "🤖 Attempting automatic slider solve...")
+    if await solve_slider_captcha(page):
+        # Brief wait to see if it clears
+        await asyncio.sleep(2)
+        title = (await page.title()).lower()
+        if "idealista" in title and "captcha" not in title and "attention" not in title:
+            log("OK", "✅ Slider solved the CAPTCHA!")
+            return True
+        log("WARN", "Slider moved but CAPTCHA still present. Trying 2Captcha...")
+    
+    # 2. Try 2Captcha (paid, but powerful)
+    if SOLVER:
+        log("INFO", "🚀 Launching 2Captcha advanced solver...")
+        if await solve_geetest_2captcha(page):
+             # Verification
+             await asyncio.sleep(3)
+             title = (await page.title()).lower()
+             if "idealista" in title and "captcha" not in title and "attention" not in title:
+                 log("OK", "✅ 2Captcha solved the CAPTCHA!")
+                 return True
+    else:
+        log("WARN", "2Captcha not available (No API Key).")
+        
+    return False

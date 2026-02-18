@@ -8,11 +8,11 @@ import random
 sys.path.append(os.path.join(os.getcwd(), 'scraper'))
 
 from playwright.async_api import async_playwright
-# Import solve_slider_captcha if possible
+# Import solve_captcha_advanced if possible
 try:
-    from idealista_scraper.utils import solve_slider_captcha
+    from idealista_scraper.utils import solve_captcha_advanced
 except ImportError:
-    solve_slider_captcha = None
+    solve_captcha_advanced = None
 
 async def run():
     async with async_playwright() as p:
@@ -64,10 +64,10 @@ async def run():
             title = await page.title()
             if "attention" in title.lower() or "robot" in title.lower() or "captcha" in title.lower() or (response and response.status == 403):
                 print("CAPTCHA or Block detected (403)!")
-                if solve_slider_captcha:
-                    print("Attempting to solve slider...")
-                    if await solve_slider_captcha(page):
-                        print("Slider solve attempt finished.")
+                if solve_captcha_advanced:
+                    print("Attempting to solve CAPTCHA/Slider...")
+                    if await solve_captcha_advanced(page):
+                        print("Solve attempt finished.")
                         await asyncio.sleep(5)
                 
                 # If still blocked, wait for manual help

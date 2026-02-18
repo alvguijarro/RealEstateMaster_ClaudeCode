@@ -35,7 +35,7 @@ if sys.platform == 'win32':
 
 from idealista_scraper.scraper import _goto_with_retry
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
-from idealista_scraper.utils import log, play_captcha_alert, simulate_human_interaction, solve_slider_captcha
+from idealista_scraper.utils import log, play_captcha_alert, simulate_human_interaction, solve_captcha_advanced
 from idealista_scraper.config import (
     FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE,
     STEALTH_CARD_DELAY_RANGE, STEALTH_POST_CARD_DELAY_RANGE,
@@ -728,7 +728,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
 
                                 emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado.')
                                 emit_to_ui('INFO', 'Intentando resolver CAPTCHA automáticamente...')
-                                if await solve_slider_captcha(page):
+                                if await solve_captcha_advanced(page):
                                      if not await detect_captcha(page):
                                           emit_to_ui('OK', 'CAPTCHA resuelto automáticamente!')
                                           d = await extract_detail_fields(page, debug_items=False)

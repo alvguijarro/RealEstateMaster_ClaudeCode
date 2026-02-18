@@ -1,5 +1,13 @@
 # Changelog - RealEstateMaster
 
+## [2026-02-18] - 2Captcha Integration & Advanced Solver
+- **2Captcha Support**: Integrated 2Captcha API to handle complex CAPTCHAs (GeeTest and others) when simple slider-drag simulation fails.
+- **Advanced Solver Pipeline**: Created `solve_captcha_advanced` in `utils.py` that first attempts a human-like slider solve (free) and falls back to 2Captcha (paid) if needed.
+- **GeeTest Resolution**: Implemented automatic detection and solving of GeeTest parameters via 2Captcha with result injection back into the browser session.
+- **Global Deployment**: Updated `scraper.py`, `scraper_wrapper.py`, `update_urls.py`, and `extract_zones.py` to use the new advanced solver.
+- **Configuration**: Added `TWOCAPTCHA_API_KEY` to `shared/config.py` for centralized management.
+- **Dependency**: Added `2captcha-python` to the project.
+
 ## [2026-02-18]
 
 ### Improved

@@ -37,6 +37,9 @@ RAPIDAPI_KEY = os.environ.get(
 # Google Gemini API Key
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "AIzaSyC7IGitg94xGP_ojTEbcnW9sHa24C1tFNM")
 
+# 2Captcha API Key
+TWOCAPTCHA_API_KEY = os.environ.get("TWOCAPTCHA_API_KEY", "f49b4e9ed2e2b36add9c6ef3af3e6e4c")
+
 # =============================================================================
 # API FILTERS (Default constraints)
 # =============================================================================
