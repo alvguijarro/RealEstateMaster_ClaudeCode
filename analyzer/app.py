@@ -45,6 +45,11 @@ def health_check():
     """Simple health check endpoint for service readiness polling."""
     return jsonify({'status': 'ok'})
 
+@app.route('/heartbeat', methods=['POST'])
+def heartbeat():
+    """Heartbeat endpoint to keep connection alive."""
+    return jsonify({'status': 'ok'})
+
 # Global state
 ANALYSIS_STATUS = 'idle' # idle, running, done, error
 LOG_BUFFER = []

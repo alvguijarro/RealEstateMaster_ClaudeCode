@@ -6,7 +6,7 @@ function init() {
     }
 
     loadFiles();
-    loadResults();
+    // Removed loadResults() from init to keep tables empty on start
     setupFilters();
     setupAnalyze();
     setupSorting();
@@ -526,28 +526,10 @@ function renderTable(tbodyId, data, sortConfig, isMainTable) {
         else precisionColor = '#d9534f';
 
         const punt = opp.Puntuación || opp.score || 0;
+        const formattedPunt = typeof punt === 'number' ? punt.toFixed(0) : punt;
 
         // Refs link
         const refsLink = `<a href="#" onclick="loadReferencias(${arrIdx}); return false;" style="color:var(--text-muted); font-size:0.9em;">Ver Refs</a>`;
-        if (isMainTable) {
-            // For main table, index maps directly to sortedResults (handled by setupConsultarLinks)
-        } else {
-            // For Top 100, we might need a different way to load refs or just disable it for simplicity initially,
-            // BUT let's try to support it. The `loadReferencias` uses `sortedResults` which is currently only for the main table.
-            // For now, let's disable Refs link for Top 100 to avoid index confusion, or link to main logic if needed.
-            // The user didn't explicitly ask for Refs in Top 100 but said structure should be the same.
-            // Let's create a specific handler `loadReferenciasTop100`.
-        }
-
-        // Re-creating the calc button logic
-        let comunidad = 'madrid'; // default
-        // ... logic to find comunidad ...
-        const p = (opp.Provincia || '').toLowerCase();
-        if (p) {
-            // simple map lookup
-            // ... (omitted for brevity, assume global map access or simplified)
-            // Reuse the existing helper `getComunidad` if we extract it, or just defaulting
-        }
 
         // Calculate Button
         const calcBtn = `
@@ -574,7 +556,7 @@ function renderTable(tbodyId, data, sortConfig, isMainTable) {
                     ${precision.toFixed ? precision.toFixed(0) : precision}%
                 </span>
             </td>
-            <td><span class="score-badge">${punt}</span></td>
+            <td><span class="score-badge">${formattedPunt}</span></td>
             <td>${isMainTable ? refsLink : '-'}</td>
             <td>${calcBtn}</td>
         `;
@@ -665,6 +647,34 @@ function updateSortHeaders() {
             window.location.href = '/download-results';
         });
     }
+}
+
+function updateSortHeaders() {
+    // Main Table
+    document.querySelectorAll('.results-table:not(#top100Table) th[data-sort]').forEach(th => {
+        const col = th.dataset.sort;
+        let text = th.innerText.replace(/[↕↑↓]/g, '').trim();
+        if (currentSort.col === col) {
+            th.classList.add('sort-active');
+            th.innerText = `${text} ${currentSort.dir === 1 ? '↑' : '↓'}`;
+        } else {
+            th.classList.remove('sort-active');
+            th.innerText = text;
+        }
+    });
+
+    // Top 100 Table
+    document.querySelectorAll('#top100Table th[data-sort]').forEach(th => {
+        const col = th.dataset.sort;
+        let text = th.innerText.replace(/[↕↑↓]/g, '').trim();
+        if (currentSortTop100.col === col) {
+            th.classList.add('sort-active');
+            th.innerText = `${text} ${currentSortTop100.dir === 1 ? '↑' : '↓'}`;
+        } else {
+            th.classList.remove('sort-active');
+            th.innerText = text;
+        }
+    });
 }
 
 // Store sorted results for Referencias lookup AND District Report

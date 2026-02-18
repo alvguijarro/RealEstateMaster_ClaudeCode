@@ -160,6 +160,16 @@
                                         <option value="">Cargando...</option>
                                     </select>
                                 </div>
+
+                                <!-- Added missing worksheet selector -->
+                                <div id="worksheetSelectorGroup" style="display: none; margin-bottom: 15px;">
+                                    <label>Hojas de Excel a actualizar</label>
+                                    <div id="worksheetList" class="worksheet-checklist"
+                                        style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 5px; border-radius: 4px; background: rgba(0,0,0,0.1);">
+                                    </div>
+                                    <div id="selectionInfo"
+                                        style="font-size: 0.8rem; color: var(--text-muted); margin-top: 5px;"></div>
+                                </div>
                                 <button class="btn btn-primary" id="updateUrlsBtn" style="width: 100%;">🔄 Actualizar
                                     URLs</button>
                             </section>

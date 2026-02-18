@@ -314,24 +314,31 @@
                         style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; margin-top: 1rem;">
                         <div style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
                             <!-- Same table structure -->
-                            <table class="results-table">
+                            <table class="results-table" id="top100Table">
                                 <thead>
                                     <tr>
                                         <!-- Same columns as main table -->
-                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Propiedad')">
+                                        <th style="cursor: pointer;" data-sort="Propiedad"
+                                            onclick="sortTable('top100', 'Propiedad')">
                                             Propiedad</th>
-                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Distrito')">Distrito
+                                        <th style="cursor: pointer;" data-sort="Distrito"
+                                            onclick="sortTable('top100', 'Distrito')">Distrito
                                         </th>
-                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'm2')">m²</th>
-                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Precio')">Precio</th>
-                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Renta_Rango')">Rango
+                                        <th style="cursor: pointer;" data-sort="m2" onclick="sortTable('top100', 'm2')">
+                                            m²</th>
+                                        <th style="cursor: pointer;" data-sort="Precio"
+                                            onclick="sortTable('top100', 'Precio')">Precio</th>
+                                        <th style="cursor: pointer;" data-sort="Renta_Rango"
+                                            onclick="sortTable('top100', 'Renta_Rango')">Rango
                                             Renta</th>
-                                        <th style="cursor: pointer;"
+                                        <th style="cursor: pointer;" data-sort="Rentabilidad_Bruta_%"
                                             onclick="sortTable('top100', 'Rentabilidad_Bruta_%')">Rentabilidad Bruta
                                         </th>
-                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Precision')">
+                                        <th style="cursor: pointer;" data-sort="Precision"
+                                            onclick="sortTable('top100', 'Precision')">
                                             Precisión estim. renta</th>
-                                        <th style="cursor: pointer;" onclick="sortTable('top100', 'Puntuación')">
+                                        <th style="cursor: pointer;" data-sort="Puntuación"
+                                            onclick="sortTable('top100', 'Puntuación')">
                                             Puntuación</th>
                                         <th>Referencias cálculo renta</th>
                                         <th>Calcular rent. neta</th>

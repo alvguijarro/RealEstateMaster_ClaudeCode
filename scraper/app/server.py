@@ -1485,5 +1485,4 @@ def start_background_task(cmd, task_name, cwd=None):
     return jsonify({'status': 'started', 'task': task_name})
 
 if __name__ == '__main__':
-
-    run_server()
+    socketio.run(app, host='127.0.0.1', port=5000, debug=False, allow_unsafe_werkzeug=True)

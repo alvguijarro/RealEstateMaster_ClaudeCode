@@ -1,6 +1,18 @@
-# Changelog - RealEstateMaster
+## [2026-02-18] - Analytics Pro & Scraper UI Fixes
+### Fixed
+- **Analytics Pro (Table Formatting)**:
+  - Tables ("Principales oportunidades" and "Top 100 viviendas") now start EMPTY on initialization for a cleaner UI.
+  - Corrected "Puntuación" formatting: values are now rounded to the nearest integer (e.g., 83 instead of 82.5).
+  - Restored and enhanced sorting arrows (↑/↓) for both main and Top 100 tables.
+  - Ensured "Top 100" table uses the same color-coding for Precision and Score badges as the main table.
+  - Added missing `/heartbeat` endpoint to `app.py` to eliminate 404 errors.
+  - Fixed a critical `ReferenceError: calcBtn is not defined` that was preventing table rendering.
+- **Scraper Tool (URL Status Update)**:
+  - **Auto-Initialization**: Fixed bug where "Archivo Excel" dropdown remained stuck on "Cargando...". It now populates automatically on load with file names, property counts, and modification dates (formatted as `[DD/MM HH:MM]`).
+  - **UI Restoration**: Restored the missing "Hojas de Excel a actualizar" checklist in `index.html`, allowing users to select specific worksheets for URL status updates.
+  - **Standardized Connectivity**: Forced Scraper server to port 5000 and added `allow_unsafe_werkzeug=True` for reliable development startup.
 
-## [2026-02-18] - 2Captcha Integration & Advanced Solver
+
 - **2Captcha Support**: Integrated 2Captcha API to handle complex CAPTCHAs (GeeTest and others) when simple slider-drag simulation fails.
 - **Advanced Solver Pipeline**: Created `solve_captcha_advanced` in `utils.py` that first attempts a human-like slider solve (free) and falls back to 2Captcha (paid) if needed.
 - **GeeTest & Slider Support**: Implemented `solve_slider_2captcha` using the **Coordinates** method to handle the "Desliza hacia la derecha" bar seen in latest Idealista blocks.
