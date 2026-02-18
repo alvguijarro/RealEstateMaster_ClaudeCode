@@ -6,7 +6,9 @@
 - **GeeTest & Slider Support**: Implemented `solve_slider_2captcha` using the **Coordinates** method to handle the "Desliza hacia la derecha" bar seen in latest Idealista blocks.
 - **Improved Advanced Solver**: `solve_captcha_advanced` now intelligently detects GeeTest vs standard sliders and uses the appropriate 2Captcha method (Token-based vs Coordinate-based).
 - **Cross-Profile Integration**: Ensured all browser profiles (Stealth, Fast, etc.) across all scripts utilize the unified advanced solver.
-- **Safety**: Screenshots for CAPTCHA solving are now handled in the system's temporary directory to avoid workspace clutter.
+- **NordVPN Removal**: Completely removed NordVPN integration, including automated IP rotation logic, frontend status badges, and manual rotation controls to simplify the codebase.
+- **Improved Captcha Orchestration**: The `solve_captcha_advanced` function now seamlessly prioritizes local solving and falls back to 2Captcha (Coordinate or GeeTest modes) without needing VPN rotation.
+- **Improved Scraper Safety**: Captcha screenshots are now saved to the system's temporary directory to avoid project clutter.
 
 ## [2026-02-18]
 

@@ -25,628 +25,606 @@
                     <span class="status-dot"></span>
                     <span class="status-text">Inactivo</span>
                 </div>
-                <!-- NordVPN Badge -->
-                <div class="status-badge vpn-badge" id="vpnBadge" title="Estado de NordVPN">
-                    <span class="status-dot"></span>
-                    <span class="status-text">NordVPN: Inactivo</span>
-                    <button id="rotateVpnBtn" title="Rotar IP ahora">🔄</button>
-                </div>
             </div>
-        </header>
+    </div>
+    </header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Tab Navigation -->
-            <div class="tabs-nav">
-                <button class="tab-btn active" data-tab="scraper">🕷️ Scraper Tool</button>
-                <button class="tab-btn" data-tab="api-db">🔄 API & Database</button>
-                <button class="tab-btn" data-tab="enricher">✨ Enricher Tool</button>
-            </div>
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Tab Navigation -->
+        <div class="tabs-nav">
+            <button class="tab-btn active" data-tab="scraper">🕷️ Scraper Tool</button>
+            <button class="tab-btn" data-tab="api-db">🔄 API & Database</button>
+            <button class="tab-btn" data-tab="enricher">✨ Enricher Tool</button>
+        </div>
 
-            <!-- Top Controls Grid -->
-            <div class="controls-grid">
-                <!-- Tab: Scraper Standard -->
-                <div id="tab-scraper" class="tab-pane active" style="display: contents;">
-                    <!-- Two-column layout for panels -->
-                    <div class="scraper-layout-row">
-                        <!-- LEFT: Main Controls Module -->
-                        <section class="panel control-panel-main">
-                            <div class="input-section">
-                                <div class="input-group">
-                                    <label for="seedUrl">URL de búsqueda en Idealista</label>
-                                    <input type="url" id="seedUrl"
-                                        placeholder="https://www.idealista.com/alquiler-viviendas/madrid-madrid/"
-                                        autocomplete="off">
-                                </div>
-
-                                <div class="input-group">
-                                    <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">
-                                        <strong>Directorio de salida (Excel):</strong> <span
-                                            id="outputDirDisplay">Cargando...</span>
-                                    </p>
-                                </div>
-
-                                <div class="mode-toggle">
-                                    <label>Modo de scraping</label>
-                                    <div class="toggle-buttons">
-                                        <button class="toggle-btn active" data-mode="fast" id="fastBtn">
-                                            <span class="mode-icon">⚡</span>
-                                            <span class="mode-name">Fast</span>
-                                            <span class="mode-desc">Más rápido (aprox. 13 propiedades/min), con algún
-                                                captcha</span>
-                                        </button>
-                                        <button class="toggle-btn" data-mode="stealth" id="stealthBtn">
-                                            <span class="mode-icon">🛡️</span>
-                                            <span class="mode-name">Stealth</span>
-                                            <span class="mode-desc">Más lento (aprox. 1 propiedad/min), sin
-                                                captchas</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="input-group" style="margin-top: 15px;">
-                                    <label class="checkbox-container"
-                                        style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.9rem;">
-                                        <input type="checkbox" id="useVpnToggle" style="width: auto;">
-                                        <span>Rotar IP con NordVPN al detectar bloqueo</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </section>
-
-                        <!-- RIGHT: Two-panel stack -->
-                        <div class="right-panel-stack">
-                            <!-- Panel 1: Actualizar provincias completas (Province Selection + Batch Scrape) -->
-                            <section class="panel province-selection-panel">
-                                <h3
-                                    style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                                    <span><span style="margin-right:8px;">🗺️</span> Actualizar provincias
-                                        completas</span>
-                                    <div style="display: flex; gap: 8px; align-items: center;">
-                                        <button id="btnRefreshProvinces" class="btn-refresh"
-                                            title="Actualizar lista de archivos"
-                                            style="padding: 4px 10px; font-size: 0.75rem;">
-                                            <span class="refresh-icon">🔄</span>
-                                        </button>
-                                        <button class="btn-icon-only" onclick="toggleProvinceHelp()"
-                                            title="Ayuda sobre este proceso" style="font-size: 1rem;">ℹ️</button>
-                                    </div>
-                                </h3>
-
-                                <!-- Help text for Province Update Process (Hidden by default) -->
-                                <div id="provinceHelpText"
-                                    style="display: none; background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius: 6px; padding: 12px; margin-bottom: 15px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; animation: fadeIn 0.3s ease;">
-                                    <p style="margin-top: 0;"><strong>Proceso de Actualización:</strong></p>
-                                    <ul style="padding-left: 20px; margin-bottom: 0;">
-                                        <li>Selecciona una o varias provincias de las listas desplegables.</li>
-                                        <li>El sistema generará una cola de tareas para descargar los datos vía API
-                                            (Modo Fast).</li>
-                                        <li>Se utilizará <strong>Smart Enrichment</strong> para evitar duplicados y
-                                            actualizar precios existentes.</li>
-                                        <li>El archivo Excel se guardará automáticamente en
-                                            <code>scraper/salidas</code>.
-                                        </li>
-                                        <li>Nota: El listado de provincias se actualiza periódicamente desde Idealista
-                                            para reflejar cambios en distritos.</li>
-                                    </ul>
-                                </div>
-
-                                <!-- Multi-Province Selectors (Managed by app.js) -->
-                                <div class="multi-select-container"
-                                    style="display: flex; gap: 20px; margin-bottom: 20px;">
-
-                                    <!-- COLUMN 1: VENTA -->
-                                    <div class="province-col"
-                                        style="flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid var(--border); padding-right: 20px;">
-                                        <div class="col-header"
-                                            style="display: flex; justify-content: space-between; align-items: center;">
-                                            <label style="font-weight: 600; color: var(--text-main);">Venta</label>
-                                            <span style="font-size: 0.75rem; color: var(--text-muted);">(&lt;
-                                                300k)</span>
-                                        </div>
-
-                                        <!-- Dropdown Venta -->
-                                        <div class="custom-dropdown-group" style="position: relative; z-index: 102;">
-                                            <div class="dropdown-trigger" id="triggerVenta" tabindex="0">
-                                                <span id="selectedTextVenta">Selecciona provincias...</span>
-                                                <span class="arrow">▼</span>
-                                            </div>
-                                            <div class="dropdown-overlay" id="dropdownVenta">
-                                                <div class="dropdown-search">
-                                                    <input type="text" placeholder="Buscar..." id="searchVenta">
-                                                </div>
-                                                <div class="dropdown-options" id="listVenta">
-                                                    <!-- JS will populate -->
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <!-- Price Limit Venta -->
-                                        <div class="price-limit-control"
-                                            style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px;">
-                                            <input type="checkbox" id="checkPriceVenta" checked
-                                                style="cursor: pointer;">
-                                            <label for="checkPriceVenta"
-                                                style="font-size: 0.85rem; cursor: pointer; flex: 1;">Max
-                                                Precio:</label>
-                                            <input type="number" id="priceVenta" value="300000" step="5000"
-                                                style="width: 90px; padding: 4px; font-size: 0.85rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text-main);">
-                                            <span style="font-size: 0.85rem;">€</span>
-                                        </div>
-
-                                        <!-- Button Venta -->
-                                        <button class="btn btn-primary" id="startBatchVentaBtn"
-                                            style="width: 100%; margin-top: 5px;" disabled>
-                                            <span class="btn-icon">🏠</span> Iniciar Venta
-                                        </button>
-                                    </div>
-
-                                    <!-- COLUMN 2: ALQUILER -->
-                                    <div class="province-col"
-                                        style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
-                                        <div class="col-header"
-                                            style="display: flex; justify-content: space-between; align-items: center;">
-                                            <label style="font-weight: 600; color: var(--text-main);">Alquiler</label>
-                                            <span style="font-size: 0.75rem; color: var(--text-muted);">(Mensual)</span>
-                                        </div>
-
-                                        <!-- Dropdown Alquiler -->
-                                        <div class="custom-dropdown-group" style="position: relative; z-index: 101;">
-                                            <div class="dropdown-trigger" id="triggerAlquiler" tabindex="0">
-                                                <span id="selectedTextAlquiler">Selecciona provincias...</span>
-                                                <span class="arrow">▼</span>
-                                            </div>
-                                            <div class="dropdown-overlay" id="dropdownAlquiler">
-                                                <div class="dropdown-search">
-                                                    <input type="text" placeholder="Buscar..." id="searchAlquiler">
-                                                </div>
-                                                <div class="dropdown-options" id="listAlquiler">
-                                                    <!-- JS will populate -->
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <!-- Price Limit Alquiler -->
-                                        <div class="price-limit-control"
-                                            style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px;">
-                                            <input type="checkbox" id="checkPriceAlquiler" checked
-                                                style="cursor: pointer;">
-                                            <label for="checkPriceAlquiler"
-                                                style="font-size: 0.85rem; cursor: pointer; flex: 1;">Max
-                                                Precio:</label>
-                                            <input type="number" id="priceAlquiler" value="2000" step="100"
-                                                style="width: 90px; padding: 4px; font-size: 0.85rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text-main);">
-                                            <span style="font-size: 0.85rem;">€</span>
-                                        </div>
-
-                                        <!-- Button Alquiler -->
-                                        <button class="btn btn-info" id="startBatchAlquilerBtn"
-                                            style="width: 100%; margin-top: 5px;" disabled>
-                                            <span class="btn-icon">🔑</span> Iniciar Alquiler
-                                        </button>
-                                    </div>
-
-                                </div>
-                                <!-- End Two Column Layout -->
-
-                                <!-- Batch Destination (Common) -->
-                                <div id="batchDestinationContainer" style="display: none;">
-                                    <div class="custom-dropdown-group"
-                                        style="margin-bottom: 12px; position: relative; z-index: 100;">
-                                        <label
-                                            style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Archivo
-                                            Destino (Excel)</label>
-                                        <div class="dropdown-trigger" id="triggerBatchFile" tabindex="0">
-                                            <span id="selectedTextBatchFile">(Crear nuevo archivo automático)</span>
-                                            <span class="arrow">▼</span>
-                                        </div>
-                                        <input type="hidden" id="batchDestinationFile" value="">
-
-                                        <div class="dropdown-overlay" id="dropdownBatchFile">
-                                            <div class="dropdown-search">
-                                                <input type="text" placeholder="Buscar archivo..." id="searchBatchFile">
-                                            </div>
-                                            <div class="dropdown-options" id="listBatchFile">
-                                                <!-- JS will populate -->
-                                            </div>
-                                        </div>
-                                        <small
-                                            style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block;">
-                                            El sistema intentará seleccionar automáticamente el archivo si coincide con
-                                            la
-                                            provincia.
-                                        </small>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <!-- Panel 2: Actualizar estado de URLs (Excel Update) -->
-                            <section class="panel excel-update-panel">
-                                <div
-                                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;">
-                                    <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-main);">
-                                        <span style="margin-right:8px;">🔄</span> Actualizar estado de URLs
-                                    </h3>
-                                    <button id="btnRefreshExcelFiles" class="btn-refresh"
-                                        title="Actualizar lista de archivos"
-                                        style="padding: 4px 10px; font-size: 0.75rem;">
-                                        <span class="refresh-icon">🔄</span>
-                                    </button>
-                                </div>
-
-                                <p
-                                    style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
-                                    Revisa propiedades existentes para detectar anuncios dados de baja (Fast mode)
-                                </p>
-
-                                <div class="input-group" style="margin-bottom: 15px;">
-                                    <label for="updateExcelFile">Archivo Excel a actualizar</label>
-                                    <select id="updateExcelFile">
-                                        <option value="">Cargando archivos...</option>
-                                    </select>
-                                </div>
-
-                                <!-- Worksheet Multi-Select (hidden initially) -->
-                                <div class="input-group" id="worksheetSelectorGroup"
-                                    style="margin-bottom: 15px; display: none;">
-                                    <label for="worksheetSearch">Distritos a actualizar</label>
-                                    <div class="worksheet-dropdown" style="position: relative;">
-                                        <input type="text" id="worksheetSearch" placeholder="Buscar distritos..."
-                                            style="margin-bottom: 5px;">
-                                        <div id="worksheetList"
-                                            style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.2); padding: 5px;">
-                                        </div>
-                                    </div>
-                                    <small id="worksheetSelectionInfo"
-                                        style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Seleccionadas:
-                                        0</small>
-                                </div>
-
-                                <div class="form-group" style="margin-top: 15px;">
-                                    <div style="display: flex; gap: 10px;">
-                                        <button class="btn btn-primary" id="updateUrlsBtn" style="flex: 1;">
-                                            <span class="btn-icon">🔄</span> Actualizar URLs
-                                        </button>
-                                        <button class="btn btn-info" id="resumeUpdateBtn"
-                                            style="flex: 1; display: none;">
-                                            <span class="btn-icon">▶</span> Reanudar Update
-                                        </button>
-                                    </div>
-                                </div>
-                            </section>
-                        </div>
-                    </div>
-
-                    <!-- Global Action Buttons Row -->
-                    <div class="global-actions-row">
-                        <button class="btn btn-primary" id="startBtn">
-                            <span class="btn-icon">▶</span>
-                            Iniciar Scraping
-                        </button>
-                        <button class="btn btn-secondary" id="resumeBtn" style="display: none;">
-                            <span class="btn-icon">⏩</span>
-                            Reanudar Sesión
-                        </button>
-                        <button class="btn btn-warning" id="pauseBtn" disabled>
-                            <span class="btn-icon">⏸</span>
-                            Pausar
-                        </button>
-                        <button class="btn btn-danger" id="stopBtn" disabled>
-                            <span class="btn-icon">⏹</span>
-                            Detener
-                        </button>
-                        <button class="btn btn-primary" id="dualModeBtn" disabled style="cursor: not-allowed;"
-                            title="Introduce una URL sin 'pagina-X' para activar">
-                            <span class="btn-icon">🔄</span>
-                            Scraping alquiler+venta
-                        </button>
-                        <div class="server-buttons" style="display: flex; gap: 5px; margin-left: auto;">
-                            <button class="btn btn-danger btn-sm" id="stopServerBtn"
-                                style="padding: 8px 14px; font-size: 12px;">
-                                <span class="btn-icon">⏹</span>
-                                Detener Serv.
-                            </button>
-                            <button class="btn btn-warning btn-sm" id="restartServerBtn"
-                                style="padding: 8px 14px; font-size: 12px;">
-                                <span class="btn-icon">🔄</span>
-                                Reiniciar
-                            </button>
-                        </div>
-                    </div>
-
-                </div> <!-- End Tab Scraper -->
-
-                <!-- Tab: API & Database (New) -->
-                <div id="tab-api-db" class="tab-pane" style="display: none;">
-                    <section class="panel api-db-panel" style="grid-column: 1 / -1;">
-                        <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">
-                            <span style="margin-right:8px;">🚀</span> API & Database Operations
-                        </h3>
-
-                        <div class="api-db-grid">
-                            <!-- API Scanning -->
-                            <div class="api-group">
-                                <h4>📥 Descarga API (Batch)</h4>
-                                <p class="desc-text">Escaneo completo por provincias.</p>
-
-                                <div class="premium-select-group">
-                                    <label class="premium-label">Filtrar Provincias</label>
-                                    <input type="text" id="provinceSearch"
-                                        placeholder="🔍 Teclea para filtrar la lista..." class="premium-select"
-                                        style="margin-bottom: 8px; height: 40px; font-size: 0.9rem;">
-
-                                    <select id="apiProvinces" class="premium-select" multiple
-                                        style="height: 160px; font-size: 0.9rem;">
-                                        <option value="">Cargando provincias...</option>
-                                    </select>
-
-                                    <div style="display:flex; justify-content:space-between; margin-top: 6px;">
-                                        <small id="selectedCount" style="color: var(--text-muted); font-size: 0.7rem;">0
-                                            seleccionadas</small>
-                                        <div style="display: flex; gap: 10px;">
-                                            <a href="#" onclick="selectAllProvinces(); return false;"
-                                                style="font-size: 0.7rem; color: var(--accent); text-decoration: none; font-weight: 500;">SEL.
-                                                FILTRADAS</a>
-                                            <a href="#"
-                                                onclick="document.getElementById('apiProvinces').selectedIndex = -1; updateProvinceCount(); return false;"
-                                                style="font-size: 0.7rem; color: var(--text-muted); text-decoration: none;">LIMPIAR</a>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="btn-group-vertical">
-                                    <button class="btn btn-primary" onclick="runApiTask('batch-scan', 'sale')">
-                                        <span class="btn-icon">🏠</span> LANZAR VENTA
-                                    </button>
-                                    <button class="btn btn-info" onclick="runApiTask('batch-scan', 'rent')">
-                                        <span class="btn-icon">🔑</span> LANZAR ALQUILER
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Database -->
-                            <div class="api-group">
-                                <h4>☁️ Base de Datos</h4>
-                                <p class="desc-text">Gestión de Supabase y BigQuery.</p>
-                                <div class="btn-group-vertical">
-                                    <button class="btn btn-success" onclick="runApiTask('db/upload', null)">
-                                        <span class="btn-icon">⬆️</span> Subir a Supabase
-                                    </button>
-                                    <button class="btn btn-warning" onclick="runApiTask('db/sync-bq', null)">
-                                        <span class="btn-icon">🔄</span> Sincronizar BigQuery
-                                    </button>
-                                    <button class="btn btn-danger"
-                                        onclick="if(confirm('¿Seguro que quieres BORRAR TODO?')) runApiTask('db/delete', null)">
-                                        <span class="btn-icon">🗑️</span> Borrar Supabase
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-                </div>
-
-                <!-- Tab: Enricher Tool (New) -->
-                <div id="tab-enricher" class="tab-pane" style="display: none;">
+        <!-- Top Controls Grid -->
+        <div class="controls-grid">
+            <!-- Tab: Scraper Standard -->
+            <div id="tab-scraper" class="tab-pane active" style="display: contents;">
+                <!-- Two-column layout for panels -->
+                <div class="scraper-layout-row">
+                    <!-- LEFT: Main Controls Module -->
                     <section class="panel control-panel-main">
                         <div class="input-section">
-                            <h3
-                                style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-                                ✨ Batch Enrichment Tool
-                            </h3>
-                            <p
-                                style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
-                                Selecciona archivos de <code>scraper/salidas</code> para enriquecerlos
-                                secuencialmente
-                                en modo Stealth.
-                            </p>
-
-                            <!-- File List Container Two-Column -->
                             <div class="input-group">
-                                <div
-                                    style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:5px;">
-                                    <label>Gestión de Archivos</label>
-                                    <div>
-                                        <a href="#" onclick="toggleBatchFiles(true); return false;"
-                                            style="font-size:0.8rem; color:var(--text-main);">Sel.
-                                            Pendientes</a> |
-                                        <a href="#" onclick="toggleBatchFiles(false); return false;"
-                                            style="font-size:0.8rem; color:var(--text-muted);">Ninguno</a>
-                                    </div>
-                                </div>
-
-                                <div style="display: flex; gap: 10px; height: 350px;">
-                                    <!-- Pending Files Column -->
-                                    <div style="flex: 1; display:flex; flex-direction:column;">
-                                        <div
-                                            style="padding:5px; background:rgba(255,255,255,0.05); font-weight:600; font-size:0.85rem; border-radius:4px 4px 0 0;">
-                                            📂 Pendientes</div>
-                                        <div id="batchPendingList"
-                                            style="flex:1; overflow-y:auto; border:1px solid var(--border); padding:5px; background:rgba(0,0,0,0.2); border-radius:0 0 4px 4px; display:flex; flex-direction:column; gap:5px;">
-                                            <div style="text-align:center; padding:10px; color:var(--text-muted);">
-                                                Cargando...</div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Completed Files Column -->
-                                    <div style="flex: 1; display:flex; flex-direction:column;">
-                                        <div
-                                            style="padding:5px; background:rgba(16, 185, 129, 0.1); color: #10b981; font-weight:600; font-size:0.85rem; border-radius:4px 4px 0 0;">
-                                            ✅ Completados (Histórico)</div>
-                                        <div id="batchCompletedList"
-                                            style="flex:1; overflow-y:auto; border:1px solid var(--border); border-color: rgba(16, 185, 129, 0.3); padding:5px; background:rgba(0,0,0,0.2); border-radius:0 0 4px 4px; display:flex; flex-direction:column; gap:5px;">
-                                            <div style="text-align:center; padding:10px; color:var(--text-muted);">
-                                                --
-                                                Vacío --</div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div style="text-align:right; margin-top:5px;">
-                                    <small id="batchSelectedCount" style="color:var(--text-muted);">0
-                                        archivos
-                                        seleccionados</small>
-                                </div>
+                                <label for="seedUrl">URL de búsqueda en Idealista</label>
+                                <input type="url" id="seedUrl"
+                                    placeholder="https://www.idealista.com/alquiler-viviendas/madrid-madrid/"
+                                    autocomplete="off">
                             </div>
 
-                            <!-- Status Info -->
-                            <div class="batch-status"
-                                style="margin-top:15px; padding:12px; background:rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius:4px; font-size:0.9rem;">
-                                <div
-                                    style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                                    <strong>Progreso del Lote:</strong>
-                                    <button class="btn-icon-only" id="clearBatchLogsBtn" title="Limpiar logs del lote"
-                                        style="font-size:14px; padding:2px 6px; background:transparent; border:none; color:var(--text-muted); cursor:pointer;">
-                                        🗑️
+                            <div class="input-group">
+                                <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">
+                                    <strong>Directorio de salida (Excel):</strong> <span
+                                        id="outputDirDisplay">Cargando...</span>
+                                </p>
+                            </div>
+
+                            <div class="mode-toggle">
+                                <label>Modo de scraping</label>
+                                <div class="toggle-buttons">
+                                    <button class="toggle-btn active" data-mode="fast" id="fastBtn">
+                                        <span class="mode-icon">⚡</span>
+                                        <span class="mode-name">Fast</span>
+                                        <span class="mode-desc">Más rápido (aprox. 13 propiedades/min), con algún
+                                            captcha</span>
+                                    </button>
+                                    <button class="toggle-btn" data-mode="stealth" id="stealthBtn">
+                                        <span class="mode-icon">🛡️</span>
+                                        <span class="mode-name">Stealth</span>
+                                        <span class="mode-desc">Más lento (aprox. 1 propiedad/min), sin
+                                            captchas</span>
                                     </button>
                                 </div>
-                                <div id="batchProgressText"
-                                    style="font-family:monospace; font-weight:bold; white-space: pre-wrap; line-height: 1.5; color: var(--text-main);">
-                                    Inactivo
-                                </div>
-                                <div id="batchCurrentFile" style="display:none"></div>
                             </div>
+
+                        </div>
+                </div>
+                </section>
+
+                <!-- RIGHT: Two-panel stack -->
+                <div class="right-panel-stack">
+                    <!-- Panel 1: Actualizar provincias completas (Province Selection + Batch Scrape) -->
+                    <section class="panel province-selection-panel">
+                        <h3
+                            style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                            <span><span style="margin-right:8px;">🗺️</span> Actualizar provincias
+                                completas</span>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button id="btnRefreshProvinces" class="btn-refresh"
+                                    title="Actualizar lista de archivos" style="padding: 4px 10px; font-size: 0.75rem;">
+                                    <span class="refresh-icon">🔄</span>
+                                </button>
+                                <button class="btn-icon-only" onclick="toggleProvinceHelp()"
+                                    title="Ayuda sobre este proceso" style="font-size: 1rem;">ℹ️</button>
+                            </div>
+                        </h3>
+
+                        <!-- Help text for Province Update Process (Hidden by default) -->
+                        <div id="provinceHelpText"
+                            style="display: none; background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius: 6px; padding: 12px; margin-bottom: 15px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; animation: fadeIn 0.3s ease;">
+                            <p style="margin-top: 0;"><strong>Proceso de Actualización:</strong></p>
+                            <ul style="padding-left: 20px; margin-bottom: 0;">
+                                <li>Selecciona una o varias provincias de las listas desplegables.</li>
+                                <li>El sistema generará una cola de tareas para descargar los datos vía API
+                                    (Modo Fast).</li>
+                                <li>Se utilizará <strong>Smart Enrichment</strong> para evitar duplicados y
+                                    actualizar precios existentes.</li>
+                                <li>El archivo Excel se guardará automáticamente en
+                                    <code>scraper/salidas</code>.
+                                </li>
+                                <li>Nota: El listado de provincias se actualiza periódicamente desde Idealista
+                                    para reflejar cambios en distritos.</li>
+                            </ul>
                         </div>
 
-                        <div class="action-buttons">
-                            <button class="btn btn-primary" id="batchStartBtn">
-                                <span class="btn-icon">▶</span> Iniciar Lote
+                        <!-- Multi-Province Selectors (Managed by app.js) -->
+                        <div class="multi-select-container" style="display: flex; gap: 20px; margin-bottom: 20px;">
+
+                            <!-- COLUMN 1: VENTA -->
+                            <div class="province-col"
+                                style="flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid var(--border); padding-right: 20px;">
+                                <div class="col-header"
+                                    style="display: flex; justify-content: space-between; align-items: center;">
+                                    <label style="font-weight: 600; color: var(--text-main);">Venta</label>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted);">(&lt;
+                                        300k)</span>
+                                </div>
+
+                                <!-- Dropdown Venta -->
+                                <div class="custom-dropdown-group" style="position: relative; z-index: 102;">
+                                    <div class="dropdown-trigger" id="triggerVenta" tabindex="0">
+                                        <span id="selectedTextVenta">Selecciona provincias...</span>
+                                        <span class="arrow">▼</span>
+                                    </div>
+                                    <div class="dropdown-overlay" id="dropdownVenta">
+                                        <div class="dropdown-search">
+                                            <input type="text" placeholder="Buscar..." id="searchVenta">
+                                        </div>
+                                        <div class="dropdown-options" id="listVenta">
+                                            <!-- JS will populate -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Price Limit Venta -->
+                                <div class="price-limit-control"
+                                    style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px;">
+                                    <input type="checkbox" id="checkPriceVenta" checked style="cursor: pointer;">
+                                    <label for="checkPriceVenta"
+                                        style="font-size: 0.85rem; cursor: pointer; flex: 1;">Max
+                                        Precio:</label>
+                                    <input type="number" id="priceVenta" value="300000" step="5000"
+                                        style="width: 90px; padding: 4px; font-size: 0.85rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text-main);">
+                                    <span style="font-size: 0.85rem;">€</span>
+                                </div>
+
+                                <!-- Button Venta -->
+                                <button class="btn btn-primary" id="startBatchVentaBtn"
+                                    style="width: 100%; margin-top: 5px;" disabled>
+                                    <span class="btn-icon">🏠</span> Iniciar Venta
+                                </button>
+                            </div>
+
+                            <!-- COLUMN 2: ALQUILER -->
+                            <div class="province-col"
+                                style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                                <div class="col-header"
+                                    style="display: flex; justify-content: space-between; align-items: center;">
+                                    <label style="font-weight: 600; color: var(--text-main);">Alquiler</label>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted);">(Mensual)</span>
+                                </div>
+
+                                <!-- Dropdown Alquiler -->
+                                <div class="custom-dropdown-group" style="position: relative; z-index: 101;">
+                                    <div class="dropdown-trigger" id="triggerAlquiler" tabindex="0">
+                                        <span id="selectedTextAlquiler">Selecciona provincias...</span>
+                                        <span class="arrow">▼</span>
+                                    </div>
+                                    <div class="dropdown-overlay" id="dropdownAlquiler">
+                                        <div class="dropdown-search">
+                                            <input type="text" placeholder="Buscar..." id="searchAlquiler">
+                                        </div>
+                                        <div class="dropdown-options" id="listAlquiler">
+                                            <!-- JS will populate -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Price Limit Alquiler -->
+                                <div class="price-limit-control"
+                                    style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px;">
+                                    <input type="checkbox" id="checkPriceAlquiler" checked style="cursor: pointer;">
+                                    <label for="checkPriceAlquiler"
+                                        style="font-size: 0.85rem; cursor: pointer; flex: 1;">Max
+                                        Precio:</label>
+                                    <input type="number" id="priceAlquiler" value="2000" step="100"
+                                        style="width: 90px; padding: 4px; font-size: 0.85rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text-main);">
+                                    <span style="font-size: 0.85rem;">€</span>
+                                </div>
+
+                                <!-- Button Alquiler -->
+                                <button class="btn btn-info" id="startBatchAlquilerBtn"
+                                    style="width: 100%; margin-top: 5px;" disabled>
+                                    <span class="btn-icon">🔑</span> Iniciar Alquiler
+                                </button>
+                            </div>
+
+                        </div>
+                        <!-- End Two Column Layout -->
+
+                        <!-- Batch Destination (Common) -->
+                        <div id="batchDestinationContainer" style="display: none;">
+                            <div class="custom-dropdown-group"
+                                style="margin-bottom: 12px; position: relative; z-index: 100;">
+                                <label
+                                    style="font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; display: block;">Archivo
+                                    Destino (Excel)</label>
+                                <div class="dropdown-trigger" id="triggerBatchFile" tabindex="0">
+                                    <span id="selectedTextBatchFile">(Crear nuevo archivo automático)</span>
+                                    <span class="arrow">▼</span>
+                                </div>
+                                <input type="hidden" id="batchDestinationFile" value="">
+
+                                <div class="dropdown-overlay" id="dropdownBatchFile">
+                                    <div class="dropdown-search">
+                                        <input type="text" placeholder="Buscar archivo..." id="searchBatchFile">
+                                    </div>
+                                    <div class="dropdown-options" id="listBatchFile">
+                                        <!-- JS will populate -->
+                                    </div>
+                                </div>
+                                <small
+                                    style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block;">
+                                    El sistema intentará seleccionar automáticamente el archivo si coincide con
+                                    la
+                                    provincia.
+                                </small>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Panel 2: Actualizar estado de URLs (Excel Update) -->
+                    <section class="panel excel-update-panel">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;">
+                            <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-main);">
+                                <span style="margin-right:8px;">🔄</span> Actualizar estado de URLs
+                            </h3>
+                            <button id="btnRefreshExcelFiles" class="btn-refresh" title="Actualizar lista de archivos"
+                                style="padding: 4px 10px; font-size: 0.75rem;">
+                                <span class="refresh-icon">🔄</span>
                             </button>
-                            <button class="btn btn-warning" id="batchPauseBtn" disabled>
-                                <span class="btn-icon">⏸</span> Pausar
-                            </button>
-                            <button class="btn btn-info" id="batchResumeBtn" style="display:none;">
-                                <span class="btn-icon">⏩</span> Reanudar
-                            </button>
-                            <button class="btn btn-danger" id="batchStopBtn" disabled>
-                                <span class="btn-icon">⏹</span> Detener
-                            </button>
+                        </div>
+
+                        <p style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+                            Revisa propiedades existentes para detectar anuncios dados de baja (Fast mode)
+                        </p>
+
+                        <div class="input-group" style="margin-bottom: 15px;">
+                            <label for="updateExcelFile">Archivo Excel a actualizar</label>
+                            <select id="updateExcelFile">
+                                <option value="">Cargando archivos...</option>
+                            </select>
+                        </div>
+
+                        <!-- Worksheet Multi-Select (hidden initially) -->
+                        <div class="input-group" id="worksheetSelectorGroup"
+                            style="margin-bottom: 15px; display: none;">
+                            <label for="worksheetSearch">Distritos a actualizar</label>
+                            <div class="worksheet-dropdown" style="position: relative;">
+                                <input type="text" id="worksheetSearch" placeholder="Buscar distritos..."
+                                    style="margin-bottom: 5px;">
+                                <div id="worksheetList"
+                                    style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.2); padding: 5px;">
+                                </div>
+                            </div>
+                            <small id="worksheetSelectionInfo"
+                                style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Seleccionadas:
+                                0</small>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 15px;">
+                            <div style="display: flex; gap: 10px;">
+                                <button class="btn btn-primary" id="updateUrlsBtn" style="flex: 1;">
+                                    <span class="btn-icon">🔄</span> Actualizar URLs
+                                </button>
+                                <button class="btn btn-info" id="resumeUpdateBtn" style="flex: 1; display: none;">
+                                    <span class="btn-icon">▶</span> Reanudar Update
+                                </button>
+                            </div>
                         </div>
                     </section>
                 </div>
-
-
             </div>
 
-            <!-- Stats Bar -->
-            <section class="stats-bar" id="statsBar">
-                <div class="stat-item">
-                    <span class="stat-value"><span id="statCurrentPage">0</span> / <span
-                            id="statTotalPages">0</span></span>
-                    <span class="stat-label">Páginas</span>
+            <!-- Global Action Buttons Row -->
+            <div class="global-actions-row">
+                <button class="btn btn-primary" id="startBtn">
+                    <span class="btn-icon">▶</span>
+                    Iniciar Scraping
+                </button>
+                <button class="btn btn-secondary" id="resumeBtn" style="display: none;">
+                    <span class="btn-icon">⏩</span>
+                    Reanudar Sesión
+                </button>
+                <button class="btn btn-warning" id="pauseBtn" disabled>
+                    <span class="btn-icon">⏸</span>
+                    Pausar
+                </button>
+                <button class="btn btn-danger" id="stopBtn" disabled>
+                    <span class="btn-icon">⏹</span>
+                    Detener
+                </button>
+                <button class="btn btn-primary" id="dualModeBtn" disabled style="cursor: not-allowed;"
+                    title="Introduce una URL sin 'pagina-X' para activar">
+                    <span class="btn-icon">🔄</span>
+                    Scraping alquiler+venta
+                </button>
+                <div class="server-buttons" style="display: flex; gap: 5px; margin-left: auto;">
+                    <button class="btn btn-danger btn-sm" id="stopServerBtn"
+                        style="padding: 8px 14px; font-size: 12px;">
+                        <span class="btn-icon">⏹</span>
+                        Detener Serv.
+                    </button>
+                    <button class="btn btn-warning btn-sm" id="restartServerBtn"
+                        style="padding: 8px 14px; font-size: 12px;">
+                        <span class="btn-icon">🔄</span>
+                        Reiniciar
+                    </button>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-value"><span id="statCurrentProps">0</span> / <span
-                            id="statTotalProps">0</span></span>
-                    <span class="stat-label">Propiedades</span>
+            </div>
+
+        </div> <!-- End Tab Scraper -->
+
+        <!-- Tab: API & Database (New) -->
+        <div id="tab-api-db" class="tab-pane" style="display: none;">
+            <section class="panel api-db-panel" style="grid-column: 1 / -1;">
+                <h3 style="border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">
+                    <span style="margin-right:8px;">🚀</span> API & Database Operations
+                </h3>
+
+                <div class="api-db-grid">
+                    <!-- API Scanning -->
+                    <div class="api-group">
+                        <h4>📥 Descarga API (Batch)</h4>
+                        <p class="desc-text">Escaneo completo por provincias.</p>
+
+                        <div class="premium-select-group">
+                            <label class="premium-label">Filtrar Provincias</label>
+                            <input type="text" id="provinceSearch" placeholder="🔍 Teclea para filtrar la lista..."
+                                class="premium-select" style="margin-bottom: 8px; height: 40px; font-size: 0.9rem;">
+
+                            <select id="apiProvinces" class="premium-select" multiple
+                                style="height: 160px; font-size: 0.9rem;">
+                                <option value="">Cargando provincias...</option>
+                            </select>
+
+                            <div style="display:flex; justify-content:space-between; margin-top: 6px;">
+                                <small id="selectedCount" style="color: var(--text-muted); font-size: 0.7rem;">0
+                                    seleccionadas</small>
+                                <div style="display: flex; gap: 10px;">
+                                    <a href="#" onclick="selectAllProvinces(); return false;"
+                                        style="font-size: 0.7rem; color: var(--accent); text-decoration: none; font-weight: 500;">SEL.
+                                        FILTRADAS</a>
+                                    <a href="#"
+                                        onclick="document.getElementById('apiProvinces').selectedIndex = -1; updateProvinceCount(); return false;"
+                                        style="font-size: 0.7rem; color: var(--text-muted); text-decoration: none;">LIMPIAR</a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="btn-group-vertical">
+                            <button class="btn btn-primary" onclick="runApiTask('batch-scan', 'sale')">
+                                <span class="btn-icon">🏠</span> LANZAR VENTA
+                            </button>
+                            <button class="btn btn-info" onclick="runApiTask('batch-scan', 'rent')">
+                                <span class="btn-icon">🔑</span> LANZAR ALQUILER
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Database -->
+                    <div class="api-group">
+                        <h4>☁️ Base de Datos</h4>
+                        <p class="desc-text">Gestión de Supabase y BigQuery.</p>
+                        <div class="btn-group-vertical">
+                            <button class="btn btn-success" onclick="runApiTask('db/upload', null)">
+                                <span class="btn-icon">⬆️</span> Subir a Supabase
+                            </button>
+                            <button class="btn btn-warning" onclick="runApiTask('db/sync-bq', null)">
+                                <span class="btn-icon">🔄</span> Sincronizar BigQuery
+                            </button>
+                            <button class="btn btn-danger"
+                                onclick="if(confirm('¿Seguro que quieres BORRAR TODO?')) runApiTask('db/delete', null)">
+                                <span class="btn-icon">🗑️</span> Borrar Supabase
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-value" id="statTime">00:00</span>
-                    <span class="stat-label">Tiempo</span>
+            </section>
+        </div>
+
+        <!-- Tab: Enricher Tool (New) -->
+        <div id="tab-enricher" class="tab-pane" style="display: none;">
+            <section class="panel control-panel-main">
+                <div class="input-section">
+                    <h3
+                        style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                        ✨ Batch Enrichment Tool
+                    </h3>
+                    <p style="margin: 0 0 15px 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+                        Selecciona archivos de <code>scraper/salidas</code> para enriquecerlos
+                        secuencialmente
+                        en modo Stealth.
+                    </p>
+
+                    <!-- File List Container Two-Column -->
+                    <div class="input-group">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:5px;">
+                            <label>Gestión de Archivos</label>
+                            <div>
+                                <a href="#" onclick="toggleBatchFiles(true); return false;"
+                                    style="font-size:0.8rem; color:var(--text-main);">Sel.
+                                    Pendientes</a> |
+                                <a href="#" onclick="toggleBatchFiles(false); return false;"
+                                    style="font-size:0.8rem; color:var(--text-muted);">Ninguno</a>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; height: 350px;">
+                            <!-- Pending Files Column -->
+                            <div style="flex: 1; display:flex; flex-direction:column;">
+                                <div
+                                    style="padding:5px; background:rgba(255,255,255,0.05); font-weight:600; font-size:0.85rem; border-radius:4px 4px 0 0;">
+                                    📂 Pendientes</div>
+                                <div id="batchPendingList"
+                                    style="flex:1; overflow-y:auto; border:1px solid var(--border); padding:5px; background:rgba(0,0,0,0.2); border-radius:0 0 4px 4px; display:flex; flex-direction:column; gap:5px;">
+                                    <div style="text-align:center; padding:10px; color:var(--text-muted);">
+                                        Cargando...</div>
+                                </div>
+                            </div>
+
+                            <!-- Completed Files Column -->
+                            <div style="flex: 1; display:flex; flex-direction:column;">
+                                <div
+                                    style="padding:5px; background:rgba(16, 185, 129, 0.1); color: #10b981; font-weight:600; font-size:0.85rem; border-radius:4px 4px 0 0;">
+                                    ✅ Completados (Histórico)</div>
+                                <div id="batchCompletedList"
+                                    style="flex:1; overflow-y:auto; border:1px solid var(--border); border-color: rgba(16, 185, 129, 0.3); padding:5px; background:rgba(0,0,0,0.2); border-radius:0 0 4px 4px; display:flex; flex-direction:column; gap:5px;">
+                                    <div style="text-align:center; padding:10px; color:var(--text-muted);">
+                                        --
+                                        Vacío --</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="text-align:right; margin-top:5px;">
+                            <small id="batchSelectedCount" style="color:var(--text-muted);">0
+                                archivos
+                                seleccionados</small>
+                        </div>
+                    </div>
+
+                    <!-- Status Info -->
+                    <div class="batch-status"
+                        style="margin-top:15px; padding:12px; background:rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius:4px; font-size:0.9rem;">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <strong>Progreso del Lote:</strong>
+                            <button class="btn-icon-only" id="clearBatchLogsBtn" title="Limpiar logs del lote"
+                                style="font-size:14px; padding:2px 6px; background:transparent; border:none; color:var(--text-muted); cursor:pointer;">
+                                🗑️
+                            </button>
+                        </div>
+                        <div id="batchProgressText"
+                            style="font-family:monospace; font-weight:bold; white-space: pre-wrap; line-height: 1.5; color: var(--text-main);">
+                            Inactivo
+                        </div>
+                        <div id="batchCurrentFile" style="display:none"></div>
+                    </div>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-value" id="statMode">-</span>
-                    <span class="stat-label">Modo</span>
+
+                <div class="action-buttons">
+                    <button class="btn btn-primary" id="batchStartBtn">
+                        <span class="btn-icon">▶</span> Iniciar Lote
+                    </button>
+                    <button class="btn btn-warning" id="batchPauseBtn" disabled>
+                        <span class="btn-icon">⏸</span> Pausar
+                    </button>
+                    <button class="btn btn-info" id="batchResumeBtn" style="display:none;">
+                        <span class="btn-icon">⏩</span> Reanudar
+                    </button>
+                    <button class="btn btn-danger" id="batchStopBtn" disabled>
+                        <span class="btn-icon">⏹</span> Detener
+                    </button>
+                </div>
+            </section>
+        </div>
+
+
+        </div>
+
+        <!-- Stats Bar -->
+        <section class="stats-bar" id="statsBar">
+            <div class="stat-item">
+                <span class="stat-value"><span id="statCurrentPage">0</span> / <span id="statTotalPages">0</span></span>
+                <span class="stat-label">Páginas</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value"><span id="statCurrentProps">0</span> / <span
+                        id="statTotalProps">0</span></span>
+                <span class="stat-label">Propiedades</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="statTime">00:00</span>
+                <span class="stat-label">Tiempo</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="statMode">-</span>
+                <span class="stat-label">Modo</span>
+            </div>
+        </section>
+
+        <!-- Two Column Layout -->
+        <div class="content-grid">
+            <!-- Logs Panel -->
+            <section class="panel logs-panel">
+                <div class="panel-header">
+                    <h2>📋 Log en vivo</h2>
+                    <div class="panel-header-actions">
+                        <button class="btn-icon-only" id="toggleAutoScrollBtn" title="Pausar auto-scroll">⏸️</button>
+                        <button class="btn-icon-only" id="clearLogsBtn" title="Limpiar logs">🗑️</button>
+                    </div>
+                </div>
+                <div class="logs-container" id="logsContainer">
+                    <!-- Logs will appear here -->
                 </div>
             </section>
 
-            <!-- Two Column Layout -->
-            <div class="content-grid">
-                <!-- Logs Panel -->
-                <section class="panel logs-panel">
-                    <div class="panel-header">
-                        <h2>📋 Log en vivo</h2>
-                        <div class="panel-header-actions">
-                            <button class="btn-icon-only" id="toggleAutoScrollBtn"
-                                title="Pausar auto-scroll">⏸️</button>
-                            <button class="btn-icon-only" id="clearLogsBtn" title="Limpiar logs">🗑️</button>
-                        </div>
-                    </div>
-                    <div class="logs-container" id="logsContainer">
-                        <!-- Logs will appear here -->
-                    </div>
-                </section>
-
-                <!-- Results Panel -->
-                <section class="panel results-panel">
-                    <div class="panel-header">
-                        <h2>📊 Resultados</h2>
-                        <div class="panel-actions">
-                            <span class="results-count" id="resultsCount">0 propiedades</span>
-                            <a href="#" class="btn btn-success" id="downloadBtn" style="display: none;">
-                                <span class="btn-icon">📥</span>
-                                Descargar Excel
-                            </a>
-                        </div>
-                    </div>
-                    <div class="table-container">
-                        <table class="results-table" id="resultsTable">
-                            <thead>
-                                <tr id="tableHeader">
-                                    <!-- Headers will be populated dynamically -->
-                                </tr>
-                            </thead>
-                            <tbody id="tableBody">
-                                <!-- Data will be populated dynamically -->
-                            </tbody>
-                        </table>
-                        <div class="empty-state" id="emptyState">
-                            <span class="empty-icon">🏘️</span>
-                            <p>Las propiedades aparecerán aquí mientras se realiza el scraping</p>
-                        </div>
-                    </div>
-                </section>
-            </div>
-
-            <!-- Scrape History Section -->
-            <section class="panel history-panel">
+            <!-- Results Panel -->
+            <section class="panel results-panel">
                 <div class="panel-header">
-                    <h2>📜 Historial de Enriquecimiento</h2>
-                    <button class="btn-icon-only" id="clearHistoryBtn" title="Limpiar historial">🗑️</button>
+                    <h2>📊 Resultados</h2>
+                    <div class="panel-actions">
+                        <span class="results-count" id="resultsCount">0 propiedades</span>
+                        <a href="#" class="btn btn-success" id="downloadBtn" style="display: none;">
+                            <span class="btn-icon">📥</span>
+                            Descargar Excel
+                        </a>
+                    </div>
                 </div>
-                <div class="history-table-container">
-                    <table class="history-table" id="historyTable">
+                <div class="table-container">
+                    <table class="results-table" id="resultsTable">
                         <thead>
-                            <tr>
-                                <th>Fecha/Hora</th>
-                                <th>URL semilla</th>
-                                <th>Propiedades</th>
-                                <th>Archivo Excel</th>
+                            <tr id="tableHeader">
+                                <!-- Headers will be populated dynamically -->
                             </tr>
                         </thead>
-                        <tbody id="historyBody">
-                            <!-- History entries will be populated dynamically -->
+                        <tbody id="tableBody">
+                            <!-- Data will be populated dynamically -->
                         </tbody>
                     </table>
-                    <div class="empty-state" id="historyEmptyState">
-                        <span class="empty-icon">📋</span>
-                        <p>El historial de scrapes aparecerá aquí</p>
+                    <div class="empty-state" id="emptyState">
+                        <span class="empty-icon">🏘️</span>
+                        <p>Las propiedades aparecerán aquí mientras se realiza el scraping</p>
                     </div>
                 </div>
             </section>
-        </main>
+        </div>
 
-        <!-- Footer -->
-        <footer class="footer">
-            <p>Idealista Scraper v1.0</p>
-        </footer>
-
-        <!-- Browser Closed Modal -->
-        <div class="modal-overlay" id="browserClosedModal" style="display: none;">
-            <div class="modal-content">
-                <div class="modal-icon">⚠️</div>
-                <h3>Navegador cerrado</h3>
-                <p>El navegador Chromium fue cerrado. El scraping está pausado.</p>
-                <p>¿Qué deseas hacer?</p>
-                <div class="modal-buttons">
-                    <button class="btn btn-primary" id="modalResumeBtn">
-                        <span class="btn-icon">▶</span> Reanudar
-                    </button>
-                    <button class="btn btn-danger" id="modalStopBtn">
-                        <span class="btn-icon">⏹</span> Detener y guardar
-                    </button>
+        <!-- Scrape History Section -->
+        <section class="panel history-panel">
+            <div class="panel-header">
+                <h2>📜 Historial de Enriquecimiento</h2>
+                <button class="btn-icon-only" id="clearHistoryBtn" title="Limpiar historial">🗑️</button>
+            </div>
+            <div class="history-table-container">
+                <table class="history-table" id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Fecha/Hora</th>
+                            <th>URL semilla</th>
+                            <th>Propiedades</th>
+                            <th>Archivo Excel</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody">
+                        <!-- History entries will be populated dynamically -->
+                    </tbody>
+                </table>
+                <div class="empty-state" id="historyEmptyState">
+                    <span class="empty-icon">📋</span>
+                    <p>El historial de scrapes aparecerá aquí</p>
                 </div>
             </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>Idealista Scraper v1.0</p>
+    </footer>
+
+    <!-- Browser Closed Modal -->
+    <div class="modal-overlay" id="browserClosedModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-icon">⚠️</div>
+            <h3>Navegador cerrado</h3>
+            <p>El navegador Chromium fue cerrado. El scraping está pausado.</p>
+            <p>¿Qué deseas hacer?</p>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" id="modalResumeBtn">
+                    <span class="btn-icon">▶</span> Reanudar
+                </button>
+                <button class="btn btn-danger" id="modalStopBtn">
+                    <span class="btn-icon">⏹</span> Detener y guardar
+                </button>
+            </div>
         </div>
+    </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>

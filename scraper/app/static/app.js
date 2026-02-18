@@ -96,10 +96,6 @@ const historyBody = document.getElementById('historyBody');
 const historyEmptyState = document.getElementById('historyEmptyState');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
-const vpnBadge = document.getElementById('vpnBadge');
-const rotateVpnBtn = document.getElementById('rotateVpnBtn');
-const useVpnToggle = document.getElementById('useVpnToggle');
-
 // State
 let currentMode = 'fast';
 let isPaused = false;
@@ -163,88 +159,6 @@ let isBatchMode = false;
 let provinceUrls = {};
 let isBatchFileManual = false;
 
-// ==========================================
-// NordVPN UI LOGIC
-// ==========================================
-
-let vpnPollInterval = null;
-
-function initializeVpn() {
-    if (!useVpnToggle) return;
-
-    // Add listener to the toggle
-    useVpnToggle.addEventListener('change', () => {
-        if (useVpnToggle.checked) {
-            updateVpnStatus();
-            if (!vpnPollInterval) {
-                vpnPollInterval = setInterval(updateVpnStatus, 30000);
-            }
-        } else {
-            if (vpnPollInterval) {
-                clearInterval(vpnPollInterval);
-                vpnPollInterval = null;
-            }
-            // Reset badge to a neutral state
-            const badgeText = vpnBadge.querySelector('.status-text');
-            if (badgeText) badgeText.textContent = 'NordVPN: Inactivo';
-            vpnBadge.classList.remove('connected', 'disconnected');
-        }
-    });
-
-    // Only do initial check if already checked on load (unlikely as it's disabled by default)
-    if (useVpnToggle.checked) {
-        updateVpnStatus();
-        vpnPollInterval = setInterval(updateVpnStatus, 30000);
-    }
-}
-
-async function updateVpnStatus() {
-    if (!vpnBadge) return;
-
-    try {
-        const response = await fetch('/api/nordvpn/status');
-        const data = await response.json();
-        const status = data.status || 'Unknown';
-
-        const badgeText = vpnBadge.querySelector('.status-text');
-        badgeText.textContent = `NordVPN: ${status}`;
-
-        vpnBadge.classList.remove('connected', 'disconnected');
-        if (status === 'Connected') {
-            vpnBadge.classList.add('connected');
-        } else if (status === 'Disconnected') {
-            vpnBadge.classList.add('disconnected');
-        }
-    } catch (error) {
-        console.error('Error updating VPN status:', error);
-    }
-}
-
-async function manualVpnRotate() {
-    if (rotateVpnBtn.classList.contains('rotating')) return;
-
-    rotateVpnBtn.classList.add('rotating');
-    addLog('INFO', 'Solicitando rotación de IP...');
-
-    try {
-        const response = await fetch('/api/nordvpn/rotate', { method: 'POST' });
-        if (response.ok) {
-            addLog('OK', 'Proceso de rotación iniciado.');
-            // Status will update via logs from server too
-        } else {
-            addLog('ERR', 'Error al solicitar rotación.');
-        }
-    } catch (error) {
-        addLog('ERR', 'Error de conexión para rotación.');
-    } finally {
-        // Keep spinning for 15s or until status updates? 
-        // Let's just half-fake it for visual feedback
-        setTimeout(() => {
-            rotateVpnBtn.classList.remove('rotating');
-            updateVpnStatus();
-        }, 15000);
-    }
-}
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initializeSocket();
@@ -256,9 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadExcelFiles();    // Load Excel files for URL update dropdown
     loadProvincesList(); // Load provinces for multi-select
     setupMultiSelectUI(); // Setup dropdown listeners
-
-    // VPN Initialization
-    initializeVpn();
 
     // UI Refresh Buttons
     const btnRefreshProvinces = document.getElementById('btnRefreshProvinces');
@@ -572,7 +483,6 @@ window.runApiTask = async function (endpoint, operation) {
         if (operation) body.operation = operation;
 
         if (endpoint === 'batch-scan') {
-            body.use_vpn = useVpnToggle ? useVpnToggle.checked : false;
             const select = document.getElementById('apiProvinces');
             if (select && select.selectedOptions.length > 0) {
                 const selected = Array.from(select.selectedOptions).map(opt => opt.value);

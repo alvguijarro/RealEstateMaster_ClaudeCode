@@ -926,10 +926,7 @@ class ScraperController:
     sheet_name: str = "idealista"
     output_dir: str = DEFAULT_OUTPUT_DIR  # Configurable output directory
     dual_mode_url: Optional[str] = None  # Second URL for DUAL MODE (same browser session)
-    use_vpn: bool = False
     browser_engine: str = "chromium"  # "chromium" or "firefox" - for multi-browser rotation
-    rotate_every: int = 5  # Rotate every N properties or pages? User said provinces, but here we only have one URL.
-    # For standard scraper, maybe rotate every N pages.
     
     # Smart Enrichment Mode
     smart_enrichment: bool = False  # If True, use province-file mapping and skip already enriched URLs
@@ -3487,15 +3484,7 @@ class ScraperController:
                 except:
                     pass
                 
-                # === VPN IP Rotation on Block ===
-                if self.use_vpn:
-                    self.log("INFO", "🌐 VPN: Rotating IP after block detection...")
-                    try:
-                        from idealista_scraper.nordvpn import rotate_ip
-                        rotate_ip()
-                        self.log("OK", "🌐 VPN: IP rotated successfully.")
-                    except Exception as vpn_err:
-                        self.log("WARN", f"VPN: IP rotation failed: {vpn_err}. Continuing with cooldown...")
+
                 
                 # Wait cooldown
                 try:
@@ -3550,15 +3539,7 @@ class ScraperController:
                     if target_file and self.current_page:
                         self.save_state(self.current_page, target_file)
 
-                    # === VPN IP Rotation on CAPTCHA ===
-                    if self.use_vpn:
-                        self.log("INFO", "🌐 VPN: Rotating IP after CAPTCHA detection...")
-                        try:
-                            from idealista_scraper.nordvpn import rotate_ip
-                            rotate_ip()
-                            self.log("OK", "🌐 VPN: IP rotated successfully.")
-                        except Exception as vpn_err:
-                            self.log("WARN", f"VPN: IP rotation failed: {vpn_err}. Continuing with wait...")
+
 
                     if self.on_status:
                         self.on_status("blocked", message="Esperando 15 minutos para reintentar...")

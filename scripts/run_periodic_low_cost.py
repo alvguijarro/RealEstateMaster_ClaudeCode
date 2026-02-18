@@ -21,7 +21,6 @@ from datetime import datetime
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from scraper.idealista_scraper.nordvpn import rotate_ip
 
 # Paths
 SCRIPT_DIR = Path(__file__).parent.parent / "scraper"
@@ -33,7 +32,6 @@ LOG_FILE = OUTPUT_DIR / f"periodic_lowcost_log_{datetime.now().strftime('%Y%m%d_
 DELAY_BETWEEN_PROVINCES = (30, 60)  # seconds
 MAX_RETRIES_PER_PROVINCE = 2
 BLOCK_WAIT_TIME = 900  # 15 minutes
-NORDVPN_ROTATE_EVERY = 3 # Rotate IP every 3 provinces if enabled
 
 # Signal flags
 STOP_FLAG = SCRIPT_DIR / "PERIODIC_STOP.flag"
@@ -151,7 +149,6 @@ def run_scraper(province_name: str, url: str) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Run periodic low-cost scraper.")
-    parser.add_argument("--nordvpn", action="store_true", help="Rotate IP via NordVPN periodically")
     parser.add_argument("--operation", default="sale", choices=["sale", "rent"], help="Operation type to scrape (sale/rent)")
     args = parser.parse_args()
 
@@ -187,13 +184,7 @@ def main():
         
         log(f"🚀 [{i}/{len(provinces)}] Processing: {name} ({args.operation})")
         
-        # VPN Rotation Logic
-        if args.nordvpn and i > 1 and (i - 1) % NORDVPN_ROTATE_EVERY == 0:
-            log(f"[VPN] Periodic IP rotation (every {NORDVPN_ROTATE_EVERY} provinces)...")
-            try:
-                rotate_ip()
-            except Exception as e:
-                log(f"[VPN] IP rotation failed: {e}")
+
 
         retries = 0
         success = False
