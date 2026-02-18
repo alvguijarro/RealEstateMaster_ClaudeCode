@@ -361,6 +361,8 @@ async function loadResults() {
         document.getElementById('resultCount').textContent = `${currentResults.length} Oportunidades encontradas`;
         if (currentResults.length > 0) {
             document.getElementById('resultsArea').classList.remove('hidden');
+            document.getElementById('opportunitiesCard').classList.remove('hidden');
+            document.getElementById('top100Card').classList.remove('hidden');
         }
 
     } catch (e) {

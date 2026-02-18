@@ -153,12 +153,13 @@ h1 {
     gap: 20px;
 }
 
-/* Right panels maintain natural height */
+/* Right panels share height evenly (50/50) to match left column */
 .province-selection-panel,
 .excel-update-panel {
-    flex: none;
-    /* Natural height, don't stretch */
-    overflow-y: visible;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    /* Allow shrinking below content size if container is small */
 }
 
 /* Global Action Buttons Row */

@@ -1257,8 +1257,8 @@ def handle_progress(data):
 
 def run_server(host='127.0.0.1', port=5003):
     """Run the Flask-SocketIO server."""
-    print(f"Starting server at http://{host}:{port}")
-    socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
+    print(f"Starting Scraper Server on port 5003...")
+    socketio.run(app, host='127.0.0.1', port=5003, debug=False, allow_unsafe_werkzeug=True)
 
 
 
@@ -1374,52 +1374,7 @@ def run_enrichment():
     cmd = [sys.executable, str(script_path), "--input", input_pattern, "--max-price", "300000"]
     return start_background_task(cmd, f"Enrichment ({operation.upper()})")
 
-@app.route('/api/db/upload', methods=['POST'])
-def run_db_upload():
-    """Run upload to Supabase script."""
-    global update_process
-    if update_process and update_process.poll() is None:
-        return jsonify({'status': 'error', 'message': 'A task is already running. Please wait.'}), 409
-        
-    script_path = (Path(__file__).parent.parent / "import_historical_data.py").resolve()
-    
-    cmd = [sys.executable, str(script_path)]
-    return start_background_task(cmd, "Supabase Upload")
-
-@app.route('/api/db/sync-bq', methods=['POST'])
-def run_bq_sync():
-    """Run BigQuery sync script."""
-    global update_process
-    if update_process and update_process.poll() is None:
-        return jsonify({'status': 'error', 'message': 'A task is already running. Please wait.'}), 409
-        
-    script_path = (Path(__file__).parent.parent / "migrate_to_gbq.py").resolve()
-    
-    cmd = [sys.executable, str(script_path)]
-    return start_background_task(cmd, "BigQuery Sync")
-
-@app.route('/api/db/delete', methods=['POST'])
-def run_db_delete():
-    """Delete all data from Supabase."""
-    # This is quick enough to run synchronously in the request, or we can background it.
-    # Let's background it to keep UI responsive and consistent logging.
-    
-    # We'll run a small inline script or just call the function if we can import it.
-    # To keep logging consistent with other tasks, let's run a one-liner script.
-    
-    global update_process
-    if update_process and update_process.poll() is None:
-        return jsonify({'status': 'error', 'message': 'A task is already running. Please wait.'}), 409
-
-    # Python one-liner to call delete
-    cmd = [
-        sys.executable, "-c", 
-        "import sys; sys.path.insert(0, 'scraper'); from database_manager import DatabaseManager; db=DatabaseManager(); db.delete_all_listings()"
-    ]
-    # We need to run this from project root so 'scraper' import works if sys.path isn't set right by default
-    cwd = str(Path(__file__).parent.parent.parent)
-    
-    return start_background_task(cmd, "Supabase Delete", cwd=cwd)
+# Supabase endpoints removed
 
 
 def start_background_task(cmd, task_name, cwd=None):

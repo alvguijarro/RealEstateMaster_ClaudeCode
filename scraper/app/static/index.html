@@ -45,7 +45,7 @@
 
                     <!-- TWO-COLUMN LAYOUT -->
                     <div class="scraper-layout-row"
-                        style="display: flex; gap: 20px; width: 100%; align-items: flex-start; margin-bottom: 20px;">
+                        style="display: flex; gap: 20px; width: 100%; align-items: stretch; margin-bottom: 20px;">
 
                         <!-- LEFT COLUMN: Configuration -->
                         <section class="panel control-panel-main" style="flex: 1; min-width: 0;">
@@ -219,19 +219,7 @@
                                         ALQUILER</button>
                                 </div>
                             </div>
-                            <div class="api-group">
-                                <h4>☁️ Base de Datos</h4>
-                                <div class="btn-group-vertical"
-                                    style="display: flex; flex-direction: column; gap: 8px;">
-                                    <button class="btn btn-success" onclick="runApiTask('db/upload', null)">⬆️ Subir a
-                                        Supabase</button>
-                                    <button class="btn btn-warning" onclick="runApiTask('db/sync-bq', null)">🔄
-                                        Sincronizar BigQuery</button>
-                                    <button class="btn btn-danger"
-                                        onclick="if(confirm('¿Seguro?')) runApiTask('db/delete', null)">🗑️ Borrar
-                                        Todo</button>
-                                </div>
-                            </div>
+                            <!-- Supabase Database section removed -->
                         </div>
                     </section>
                 </div>
