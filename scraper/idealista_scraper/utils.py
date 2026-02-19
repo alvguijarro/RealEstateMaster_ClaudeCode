@@ -679,11 +679,13 @@ async def solve_datadome_2captcha(page, logger=None):
         l("INFO", f"📤 Enviando tarea DataDome a 2Captcha... (URL: {captcha_url[:50]}...)")
         
         # Call 2Captcha DataDome method
+        # NOTE: proxy is a required positional argument in 2captcha-python for datadome
         result = await asyncio.to_thread(
             SOLVER.datadome,
             captcha_url=captcha_url,
             pageurl=page.url,
-            userAgent=user_agent
+            userAgent=user_agent,
+            proxy=None # No proxy for now
         )
         
         if result and 'code' in result:
@@ -712,13 +714,14 @@ async def solve_datadome_2captcha(page, logger=None):
 
 async def solve_slider_2captcha(page, logger=None):
     """Solve simple slider captchas using 2Captcha Coordinates method (Refined version)."""
+    l = logger or log
     if not SOLVER:
         return False
         
     try:
         # Get Device Pixel Ratio for coordinate scaling
         pixel_ratio = await page.evaluate("window.devicePixelRatio || 1.0")
-        if logger: logger("INFO", f"📐 Detection Scale (DPI): {pixel_ratio}")
+        l("INFO", f"📐 Detection Scale (DPI): {pixel_ratio}")
 
         # 1. Detect any slider-like containers with expanded selectors
         selectors = [
@@ -746,12 +749,12 @@ async def solve_slider_2captcha(page, logger=None):
             except: continue
             
         if not container:
-            log("INFO", "No explicit captcha container found. Using body fallback.")
+            l("INFO", "No explicit captcha container found. Using body fallback.")
             container = await page.query_selector("body")
             
         if not container: return False
 
-        log("INFO", "📸 Capturando screenshot del captcha para 2Captcha...")
+        l("INFO", "📸 Capturando screenshot del captcha para 2Captcha...")
         # Precise screenshot
         fd, img_path = tempfile.mkstemp(suffix=".png", prefix="captcha_")
         os.close(fd)
@@ -759,7 +762,7 @@ async def solve_slider_2captcha(page, logger=None):
         await container.screenshot(path=img_path)
         
         # 3. Request Coordinates from 2Captcha
-        log("INFO", "📤 Enviando coordenadas a 2Captcha (Slider)...")
+        l("INFO", "📤 Enviando coordenadas a 2Captcha (Slider)...")
         # Updated instructions to be more precise
         instructions = "Haz clic en el PUNTO DESTINO (extremo derecho) donde debe llegar el botón deslizante. / Click on the DESTINATION point (far right) where the slider button should end."
         
@@ -788,7 +791,7 @@ async def solve_slider_2captcha(page, logger=None):
             dest_x = box['x'] + (tx / pixel_ratio)
             dest_y = box['y'] + (ty / pixel_ratio)
             
-            if logger: logger("INFO", f"🎯 Target mapped: {int(dest_x)},{int(dest_y)} (Original: {tx},{ty} @ {pixel_ratio}x)")
+            l("INFO", f"🎯 Target mapped: {int(dest_x)},{int(dest_y)} (Original: {tx},{ty} @ {pixel_ratio}x)")
             
             # 4. Find the slider handle with expanded selectors
             handle_selectors = [
@@ -825,7 +828,7 @@ async def solve_slider_2captcha(page, logger=None):
                 except: pass
 
             if not handle:
-                log("WARN", "Slider handle not found. Attempting a simple click at target...")
+                l("WARN", "Slider handle not found. Attempting a simple click at target...")
                 await page.mouse.click(dest_x, dest_y)
                 return True
                 
@@ -835,7 +838,7 @@ async def solve_slider_2captcha(page, logger=None):
             start_x = h_box['x'] + h_box['width'] / 2
             start_y = h_box['y'] + h_box['height'] / 2
             
-            log("INFO", f"🖱️ Dragging handle from {start_x:.0f} to target {dest_x:.0f} (Organic)...")
+            l("INFO", f"🖱️ Dragging handle from {start_x:.0f} to target {dest_x:.0f} (Organic)...")
             
             # Move to handle
             await page.mouse.move(start_x, start_y, steps=5)
@@ -879,15 +882,15 @@ async def solve_slider_2captcha(page, logger=None):
             except: pass
             
             if still_there:
-                log("WARN", "⚠️ El slider se movió pero el captcha sigue visible.")
+                l("WARN", "⚠️ El slider se movió pero el captcha sigue visible.")
                 return False
                 
             return True
             
     except Exception as e:
-        log("ERR", f"2Captcha Slider solver error: {e}")
+        l("ERR", f"2Captcha Slider solver error: {e}")
         
-    log("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
+    l("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
     return False
 
 async def solve_captcha_advanced(page, logger=None):
