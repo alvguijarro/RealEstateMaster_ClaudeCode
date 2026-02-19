@@ -1478,8 +1478,12 @@ class ScraperController:
             # Normalize whitespace for reliable matching
             text_lower = re.sub(r'\s+', ' ', text_lower).strip()
             
+
+                
             # 2. Check for HARD BLOCKS (Highest Priority)
-            # If the page explicitly says blocked, it's a block even if datadome scripts are present.
+            # Check for WAF/Block IDs (e.g. ID: c031717f...) or explicit block text
+            has_block_id = "id: " in text_lower and re.search(r"id: [0-9a-f]{8,32}-", text_lower)
+            
             hard_block_keywords = [
                 "el acceso se ha bloqueado",
                 "se ha detectado un uso indebido",
@@ -1489,8 +1493,9 @@ class ScraperController:
                 "access denied"
             ]
             
-            if any(kw in text_lower for kw in hard_block_keywords):
-                self.log("WARN", f"🛑 HARD BLOCK detected (Keywords: {[kw for kw in hard_block_keywords if kw in text_lower]})")
+            if any(kw in text_lower for kw in hard_block_keywords) or has_block_id:
+                reason = "Keywords" if not has_block_id else "WAF ID"
+                self.log("WARN", f"🛑 HARD BLOCK detected ({reason}). Deteniendo y rotando...")
                 return "block"
 
             # 3. Check for DATADOME specifically
@@ -1511,11 +1516,6 @@ class ScraperController:
                 "verificación necesaria",
                 "un momento, por favor"
             ]
-            
-            # Check for Cloudflare/WAF ID (e.g. ID: c031717f...)
-            if "id: " in text_lower and re.search(r"id: [0-9a-f]{8,32}-", text_lower):
-                 self.log("WARN", "WAF/Block ID detected on page text.")
-                 return "block"
 
             if any(kw in text_lower for kw in captcha_keywords) or any(kw in title for kw in captcha_keywords):
                 self.log("WARN", f"CAPTCHA keywords matched: {[kw for kw in captcha_keywords if kw in text_lower or kw in title]}")

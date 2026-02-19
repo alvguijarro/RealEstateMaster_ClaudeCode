@@ -689,14 +689,13 @@ async def solve_datadome_2captcha(page, logger=None):
             'uri': 'u5b30cedd579a05ca-zone-custom:u5b30cedd579a05ca@eu.proxy.2captcha.com:2334'
         }
         
-        # Call 2Captcha DataDome method - using native ASYNC solver
-        # This will wait until the solution is ready (polling internally)
-        # Create the solver task as a background task to allow for manual solve detection
+        # Create the solver task
         solver_task = asyncio.create_task(ASYNC_SOLVER.datadome(
             captcha_url=captcha_url,
             pageurl=page.url,
             userAgent=user_agent,
-            proxy=proxy_config
+            proxy=proxy_config['uri'],
+            proxytype=proxy_config['type']
         ))
         
         l("INFO", "⏳ Esperando solución de 2Captcha (Suele tardar 45-120s)...")
