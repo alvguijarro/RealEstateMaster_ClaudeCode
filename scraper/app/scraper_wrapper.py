@@ -280,36 +280,57 @@ def mark_current_profile_blocked() -> None:
 
 def rotate_identity():
     """
-    Rotate to the NEXT profile in the sequence (1->2->3->4->5->6->7->8->1).
-    Strict sequential order. 
-    Returns (target_config, wait_seconds). Caller should handle wait.
+    Rotate to the NEXT available profile in the sequence.
+    If multiple profiles are available, pick the next one in round-robin.
+    If ALL are in cooldown, wait for the one with the minimum remaining time.
+    Strictly ensures infinite rotation and waiting for cooldown expiration.
     """
     state = load_identity_state()
     current_idx = state.get("current_index", 0)
+    pool_size = len(BROWSER_ROTATION_POOL)
     
-    # Calculate next index (round-robin)
-    next_idx = (current_idx + 1) % len(BROWSER_ROTATION_POOL)
-    
-    # Check cooldown for the TARGET profile
-    target_config = BROWSER_ROTATION_POOL[next_idx]
-    pool_id = str(target_config["index"])
-    blocked_time = state["cooldowns"].get(pool_id)
-    
-    remaining = 0
-    if blocked_time:
-        elapsed = time.time() - blocked_time
-        cooldown_seconds = PROFILE_COOLDOWN_MINUTES * 60
-        remaining = max(0, cooldown_seconds - elapsed)
-        
-        if remaining == 0:
-            # Cooldown already expired
-            del state["cooldowns"][pool_id]
+    # Update cooldowns status based on current time
+    cooldown_seconds = PROFILE_COOLDOWN_MINUTES * 60
+    now = time.time()
+    for pid in list(state["cooldowns"].keys()):
+        blocked_time = state["cooldowns"][pid]
+        if now - blocked_time >= cooldown_seconds:
+            del state["cooldowns"][pid]
+
+    # 1. Try to find the next available index in the pool (Round-Robin)
+    available_indices = []
+    for i in range(pool_size):
+        idx = (current_idx + 1 + i) % pool_size
+        config = BROWSER_ROTATION_POOL[idx]
+        pid = str(config["index"])
+        if pid not in state["cooldowns"]:
+            available_indices.append(idx)
             
-    # Commit the rotation
+    if available_indices:
+        # Pick the first available in the round-robin sequence starting from current_idx + 1
+        next_idx = available_indices[0]
+        state["current_index"] = next_idx
+        save_identity_state(state)
+        return BROWSER_ROTATION_POOL[next_idx], 0
+    
+    # 2. If NO profiles are available, find the one with the SHORTEST remaining wait
+    wait_info = []
+    for i in range(pool_size):
+        config = BROWSER_ROTATION_POOL[i]
+        pid = str(config["index"])
+        blocked_time = state["cooldowns"].get(pid, now)
+        remaining = max(1, cooldown_seconds - (now - blocked_time))
+        wait_info.append((remaining, i))
+    
+    # Sort by remaining time (shortest first)
+    wait_info.sort()
+    min_wait, next_idx = wait_info[0]
+    
+    # Commit the rotation to the one we will wait for
     state["current_index"] = next_idx
     save_identity_state(state)
     
-    return target_config, remaining
+    return BROWSER_ROTATION_POOL[next_idx], min_wait
 
 # Constants for backward compatibility (mapped to current profile)
 # These will be dynamically resolved in the class, but we keep the variables
@@ -2089,6 +2110,10 @@ class ScraperController:
                             try:
                                 if engine == "firefox":
                                     executable_path = get_browser_executable_path(channel)
+                                    # Add extra stability env vars for Firefox on Windows
+                                    os.environ["MOZ_PROXY_ALLOW_BYPASS_FROM_SETTINGS"] = "1"
+                                    os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
+                                    
                                     ctx = await pw.firefox.launch_persistent_context(
                                         user_data_dir=profile_dir,
                                         headless=False,
@@ -2096,7 +2121,8 @@ class ScraperController:
                                         firefox_user_prefs=firefox_prefs,
                                         ignore_default_args=["-foreground"],
                                         executable_path=executable_path,
-                                        timeout=60000, # Reduced to 60s to fail faster on hangs
+                                        args=["--no-remote"],
+                                        timeout=120000, # Increased to 120s for Windows Juggler stability
                                     )
                                 elif engine == "webkit": # Webkit (Safari-like)
                                     ctx = await pw.webkit.launch_persistent_context(
@@ -2380,10 +2406,23 @@ class ScraperController:
             
                     # If still no count after all retries, likely a block/CAPTCHA
                     if total_count == 0:
-                        self.log("WARN", "⚠️ BLOCK DETECTED: 0 properties found on page (CAPTCHA/Block)")
+                        self.log("WARN", "⚠️ 0 properties found. Checking for CAPTCHA/Block...")
                         
-                        # ROTATION LOGIC (2026): Strict Sequential with Cooldown
-                        mark_current_profile_blocked()
+                        # Try to solve captcha if present
+                        if await solve_captcha_advanced(page):
+                            self.log("OK", "CAPTCHA solve attempted. Re-verifying page...")
+                            await self._interruptible_sleep(5.0)
+                            h1txt = await page.evaluate(r"() => { const el = document.querySelector('#h1-container__text') || document.querySelector('#h1-container') || document.querySelector('h1'); return el ? el.textContent.trim() : ''; }")
+                            if h1txt:
+                                match = re.search(r'(\d{1,3}(?:\.\d{3})*)\s*(?:vivienda|pisos?|casas?|inmuebles?|anuncios?|habitaci[oó]n|habitaciones)', h1txt, re.IGNORECASE)
+                                if match:
+                                    total_count = int(match.group(1).replace('.', ''))
+                                    self.log("OK", f"Success after solve: {total_count} properties found")
+
+                        if total_count == 0:
+                            self.log("WARN", "⚠️ HARD BLOCK/CAPTCHA FAIL: 0 properties found. Initiating rotation.")
+                            # ROTATION LOGIC (2026): Strict Sequential with Cooldown
+                            mark_current_profile_blocked()
                         
                         # Save state for resume
                         self.save_state(self.current_page or 1, target_file)
@@ -3412,9 +3451,9 @@ class ScraperController:
                         break
             
             except BlockedException:
-                self.log("ERR", "🛑 HARD STOP: Scraper blocked by Idealista (Uso Indebido).")
+                self.log("ERR", "🛑 HARD BLOCK: Scraper blocked by Idealista (Uso Indebido).")
                 self.save_state(self.current_page or 1, target_file)
-                self.log("WARN", "Resume state saved for later retry.")
+                self.log("WARN", "Rotating identity to continue...")
                 self.handle_blocked_profile()
                 
                 # ROTATION LOGIC (2026): Strict Sequential with Cooldown
@@ -3478,8 +3517,10 @@ class ScraperController:
                     next_config, wait_time = rotate_identity()
                     
                     self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
-                    self.log("INFO", f"Restarting in 5 seconds with fresh identity...")
-                    wait_time = 5.0
+                    if wait_time > 0:
+                        self.log("INFO", f"⏳ Profile is in cooldown ({int(wait_time)}s). Waiting...")
+                    self.log("INFO", f"Restarting in {int(wait_time) + 5} seconds with fresh identity...")
+                    wait_time += 5.0
                     
                     if self.on_status:
                         self.on_status("blocked", error=f"CAPTCHA. Rotando a Perfil {next_config['index']}...")

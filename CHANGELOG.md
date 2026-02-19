@@ -1,3 +1,12 @@
+## [2026-02-19] - Browser Robustness & Infinite Rotation
+### Added
+- **Infinite Identity Rotation**: Overhauled `rotate_identity` logic to ensure the scraper never stops. It now searches the entire pool for available profiles and, if all are blocked, waits for the one with the shortest remaining cooldown before continuing.
+- **CAPTCHA-First Block Logic**: Integrated `solve_captcha_advanced` into the "0 properties found" detection. The scraper now attempts to solve CAPTCHAs before triggering a profile rotation on potential blocks.
+
+### Fixed
+- **Firefox Launch Stability**: Increased launch timeout to 120s and added `--no-remote` along with stability environment variables (`MOZ_REMOTE_SETTINGS_DEVTOOLS`, `MOZ_PROXY_ALLOW_BYPASS_FROM_SETTINGS`) to resolve Windows Juggler timeout issues.
+- **Persistent Continuity**: Updated `BlockedException` handling to ensure the scraper continues by rotating identity instead of performing a "Hard Stop".
+
 ## [2026-02-18] - Log Control & CAPTCHA Statistics
 ### Fixed
 - **Log Panel (Pause Button)**: Fixed the "Pause" button functionality in the live log panel. It now correctly stops auto-scrolling when paused, allowing users to inspect past events. Added a visual indicator (orange border and background) when the log is in a paused state.
