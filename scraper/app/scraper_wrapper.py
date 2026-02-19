@@ -96,7 +96,7 @@ def build_paginated_url(seed_url: str, page_number: int) -> str:
         if not base_path.endswith("/"):
             base_path += "/"
         new_path = f"{base_path}pagina-{page_number}.htm"
-        return urlunsplit((parts.scheme, parts.netloc, new_path, parts.query, parts.fragment))
+        return urlunsplit((parts.scheme, parts.netloc, new_path, "", parts.fragment))
 
 
 def extract_page_from_url(url: str) -> int:
@@ -1647,12 +1647,10 @@ class ScraperController:
                 # Check for CAPTCHA/Bot protection using unified helper
                 try:
                     # 0. Immediate Soft Block Check (Hompage Redirect)
-                    # If we asked for 'pagina-X' but got redirected to 'idealista.com' with generic title
                     current_url = page.url
                     current_title = (await page.title()).lower()
                     
                     if "idealista.com" == current_title and url != current_url and "idealista.com" not in url:
-                         # Valid homepage visit shouldn't trigger this, only redirects from listing pages
                          self.log("ERR", f"🚫 SOFT BLOCK DETECTED: Redirected to homepage from {url}")
                          mark_current_profile_blocked()
                          raise BlockedException("Soft Block: Homepage Redirect")
@@ -1662,9 +1660,7 @@ class ScraperController:
                     if block_type == "block":
                         self.log("ERR", f"🚫 BLOCK DETECTED on {url}: 'Uso indebido/Bloqueado'.")
                         play_blocked_alert()
-                        # Mark profile as blocked for cooldown rotation
                         mark_current_profile_blocked()
-                        # CRITICAL: Raise BlockedException to trigger rotation
                         raise BlockedException("Acceso bloqueado por uso indebido")
                     
                     # Check for deactivated listing (specific text patterns)
@@ -1673,103 +1669,61 @@ class ScraperController:
                         self.log("WARN", f"El anuncio ya no está activo: {url}")
                         return
 
-                    is_captcha = (block_type == "captcha")
-                    
-                    if is_captcha:
+                    if block_type == "captcha":
                         curr_title = await page.title()
                         self.log("WARN", f"CAPTCHA DETECTED on {url} (Title: '{curr_title}')")
                         
-                        # 1. Try automatic slider solve (With strict 30s timeout)
+                        # Automatic/Manual solver logic...
                         self.log("INFO", "🤖 Attempting automatic slider solve...")
                         try:
-                            # Use advanced solver (Slider -> 2Captcha)
                             solved = await asyncio.wait_for(solve_captcha_advanced(page), timeout=60.0)
                             if solved:
-                                # Check again
                                 try:
                                     title_after = await asyncio.wait_for(page.title(), timeout=5.0)
                                     if not any(kw in (title_after or "").lower() for kw in ["moment", "challenge", "robot", "captcha", "verification"]):
                                         self.log("OK", "✅ CAPTCHA solved automatically!")
                                         return 
                                 except: pass
-                                self.log("WARN", "❌ Slider moved but CAPTCHA still present.")
-                            else:
-                                self.log("WARN", "❌ Automatic solver could not find slider.")
                         except asyncio.TimeoutError:
-                            self.log("WARN", "❌ Automatic slider solver timed out (30s limit).")
+                            self.log("WARN", "❌ Automatic slider solver timed out (60s).")
                         except Exception as e:
-                            self.log("WARN", f"❌ Automatic slider solver error: {e}")
+                            self.log("WARN", f"❌ Automatic solver error: {e}")
 
                         self.log("WARN", ">>> PLEASE SOLVE THE CAPTCHA MANUALLY IN THE BROWSER <<<")
-                        if self.on_status:
-                            self.on_status("captcha")
+                        if self.on_status: self.on_status("captcha")
                         
-                        # Loop until resolved - with 60s timeout to prevent infinite hang
                         captcha_wait_start = asyncio.get_running_loop().time()
-                        captcha_timeout = 60  # seconds
+                        captcha_timeout = 60
                         
                         while True:
-                            if self._stop_evt.is_set():
-                                self.log("INFO", "🛑 Stop received during CAPTCHA wait.")
-                                raise StopException("Stop received during CAPTCHA wait")
-                            
-                            # Check timeout
+                            if self._stop_evt.is_set(): raise StopException("Interrumpido por el usuario")
                             elapsed = asyncio.get_running_loop().time() - captcha_wait_start
                             if elapsed > captcha_timeout:
-                                self.log("WARN", f"⏰ CAPTCHA wait timeout ({captcha_timeout}s). Checking page state...")
-                                # Check if we can proceed anyway
-                                try:
-                                    final_title = await page.title()
-                                    if "idealista" in final_title.lower():
-                                        self.log("INFO", "Page appears normal despite timeout. Continuing...")
-                                        if self.on_status:
-                                            self.on_status("running")
-                                        break
-                                except: pass
-                                # Still stuck - mark as block and raise
                                 self.log("ERR", "CAPTCHA timeout - triggering auto-restart")
                                 mark_current_profile_blocked()
                                 raise Exception("CAPTCHA_TIMEOUT")
                             
                             play_captcha_alert()
-                            
-                            # interruptible wait (10s)
-                            for _ in range(100):
-                                if self._stop_evt.is_set():
-                                    break
-                                await asyncio.sleep(0.1)
-                            
-                            if self._stop_evt.is_set():
-                                raise StopException("Stop received during CAPTCHA wait")
+                            await asyncio.sleep(2.0)
                             
                             try:
-                                # Check if still blocked first to avoid false 'solved' messages
                                 current_block = await self._check_for_blocks(page)
                                 if current_block == "block":
-                                    self.log("ERR", "🚫 Manual wait failed: Page is still BLOCKED (Uso indebido). Triggering rotation.")
+                                    self.log("ERR", "🚫 Manual wait failed: Page is still BLOCKED. Triggering rotation.")
                                     mark_current_profile_blocked()
                                     raise BlockedException("Acceso bloqueado persistente")
                                 
-                                # Check title again
-                                new_title = await page.title()
-                                nt_lower = new_title.lower()
-                                
-                                # If title is exactly 'idealista.com' it's usually still the block page or a reload
-                                # A solved page should have something like 'Pisos en...' or 'Alquiler en...'
-                                is_generic_title = (nt_lower == "idealista.com" or nt_lower == "idealista")
-                                
-                                # If title looks like normal Idealista page, assume solved
-                                if "idealista" in nt_lower and not is_generic_title and "captcha" not in nt_lower and "attention" not in nt_lower:
+                                new_title = (await page.title()).lower()
+                                if "idealista" in new_title and new_title != "idealista.com" and "captcha" not in new_title:
                                     self.log("OK", "✅ CAPTCHA solved! Resuming...")
-                                    if self.on_status:
-                                        self.on_status("running")
+                                    if self.on_status: self.on_status("running")
                                     break
-                            except BlockedException:
-                                raise
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+                            except BlockedException: raise
+                            except: pass
+                except (BlockedException, StopException):
+                    raise
+                except Exception as e:
+                    self.log("DEBUG", f"Internal nav check ignored error: {e}")
 
 
                 await self._interruptible_sleep(3.0)
@@ -1921,15 +1875,12 @@ class ScraperController:
         # Apply mandatory limits: Alquiler <= 2000, Venta <= 300.000
         original_url = self.seed_url
         if "/alquiler-viviendas/" in self.seed_url.lower() and "con-precio-hasta_" not in self.seed_url.lower():
-            # Apply to normalized base path to avoid corrupting existing page numbers or extensions
-            base_url = normalize_seed_url(self.seed_url)
-            if not base_url.endswith("/"): base_url += "/"
-            self.seed_url = base_url + "con-precio-hasta_2000/"
+            if not self.seed_url.endswith("/"): self.seed_url += "/"
+            self.seed_url += "con-precio-hasta_2000/"
             self.log("INFO", f"🏷️ Applied rental price filter: {self.seed_url}")
         elif "/venta-viviendas/" in self.seed_url.lower() and "con-precio-hasta_" not in self.seed_url.lower():
-            base_url = normalize_seed_url(self.seed_url)
-            if not base_url.endswith("/"): base_url += "/"
-            self.seed_url = base_url + "con-precio-hasta_300000/"
+            if not self.seed_url.endswith("/"): self.seed_url += "/"
+            self.seed_url += "con-precio-hasta_300000/"
             self.log("INFO", f"🏷️ Applied sale price filter: {self.seed_url}")
         
         # Detect room mode based on seed URL
@@ -2574,15 +2525,10 @@ class ScraperController:
                         self.current_page = page_num
                         list_url = build_paginated_url(self.seed_url, page_num)
                         current_url = page.url
-                        
-                        # Robust navigation check: compare page numbers and normalized base paths
-                        target_page = extract_page_from_url(list_url)
-                        curr_page = extract_page_from_url(current_url)
-                        paths_match = normalize_seed_url(list_url) == normalize_seed_url(current_url)
-                        is_already_on_target = (target_page == curr_page) and paths_match
+                        is_already_on_target = list_url in current_url or current_url in list_url
                         
                         try:
-                            if is_already_on_target:
+                            if is_already_on_target and page_num == self.current_page:
                                 self.log("INFO", f"Already on Page {page_num} listing. Skipping redundant navigation.")
                             else:
                                 self.log("INFO", f"Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
@@ -3148,7 +3094,8 @@ class ScraperController:
                                     await self._interruptible_sleep(random.uniform(5, 10))
                                     await self._goto_with_retry(page, m_url)
                                     
-                                    # Wait for content
+                                    # If we reached here, navigation returned (either success or deactivated)
+                                    # Check for content to confirm we are NOT on a block page
                                     try:
                                         await page.wait_for_selector("body", timeout=5000)
                                     except: pass
@@ -3156,6 +3103,12 @@ class ScraperController:
                                     body_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
                                     body_lower = body_text.lower()
                                     
+                                    # CRITICAL: Verify we are NOT looking at a block page even after _goto_with_retry
+                                    if any(kw in body_lower for kw in ["uso indebido", "bloqueado", "acceso bloqueado", "forbidden"]):
+                                        self.log("ERR", f"🚫 INTERNAL BLOCK detected during enrichment for {m_url}")
+                                        mark_current_profile_blocked()
+                                        raise BlockedException("Block detected during enrichment check")
+
                                     is_gone = any(msg in body_lower for msg in [
                                         "no encontramos", "anuncio no disponible", 
                                         "ya no está disponible", "ya no está publicado",
@@ -3169,13 +3122,11 @@ class ScraperController:
                                         from datetime import datetime
                                         row_to_save["Baja anuncio"] = datetime.now().strftime("%d/%m/%Y")
                                         additions.append(row_to_save)
-                                        self._processed.add(m_url) # Mark as handled
+                                        self._processed.add(m_url) 
                                         deactivated_count += 1
                                     else:
                                         # Property is still active, just not in this search result
-                                        # (Maybe it was on page > 60 or filtered out)
                                         self.log("INFO", f"Property still active (not in search): {m_url}")
-                                        # Update last seen anyway
                                         row_to_save = orig_row.copy()
                                         row_to_save["Anuncio activo"] = "Sí"
                                         from datetime import datetime
@@ -3184,8 +3135,8 @@ class ScraperController:
                                     
                                     checked_count += 1
                                     
-                                except BrowserClosedException:
-                                    # CRITICAL: Re-raise to trigger main loop restart logic
+                                except (BlockedException, BrowserClosedException):
+                                    # CRITICAL: Re-raise to trigger main loop restart/rotation logic
                                     raise
                                 except StopException:
                                     self.log("INFO", "Stop requested during missing property checks. Saving progress...")
