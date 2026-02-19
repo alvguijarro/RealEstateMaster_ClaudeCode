@@ -41,7 +41,7 @@ def build_paginated_url(seed_url: str, page_number: int) -> str:
         new_path = f"{base_path}pagina-{page_number}.htm"
         return urlunsplit((parts.scheme, parts.netloc, new_path, "", parts.fragment))
 
-async def _goto_with_retry(page, url: str, humanize: bool = True) -> None:
+async def _goto_with_retry(page, url: str, humanize: bool = True, session: Optional[ScraperSession] = None) -> None:
     """Navigate to URL with retry logic and proper content loading."""
     import time
     delay = RETRY_BASE_DELAY
@@ -109,6 +109,8 @@ async def _goto_with_retry(page, url: str, humanize: bool = True) -> None:
                 )
 
                 if is_captcha:
+                    if session:
+                        session.captchas_found += 1
                     log("WARN", f"CAPTCHA DETECTED on {url} (Title: '{title}')")
                     
                     # 1. Try automatic slider solve
@@ -117,6 +119,8 @@ async def _goto_with_retry(page, url: str, humanize: bool = True) -> None:
                         try:
                             new_title = await page.title()
                             if "idealista" in new_title.lower() and "captcha" not in new_title.lower():
+                                if session:
+                                    session.captchas_solved += 1
                                 log("OK", "✅ CAPTCHA solved automatically!")
                                 return
                         except: pass
@@ -132,6 +136,8 @@ async def _goto_with_retry(page, url: str, humanize: bool = True) -> None:
                         try:
                             nt_lower = (await page.title()).lower()
                             if "idealista" in nt_lower and "captcha" not in nt_lower and "attention" not in nt_lower:
+                                if session:
+                                    session.captchas_solved += 1
                                 log("OK", "CAPTCHA solved! Resuming...")
                                 return
                         except: pass
@@ -180,6 +186,8 @@ class ScraperSession:
     index_map: Dict[str, Tuple[int, int]] = field(default_factory=dict)
     detected_sheet: Optional[str] = None
     is_room_mode: bool = False
+    captchas_found: int = 0
+    captchas_solved: int = 0
 
     async def auto_browse_seed(self, page, stop_evt: asyncio.Event) -> None:
         visited_cards: Set[str] = set()
@@ -246,13 +254,13 @@ class ScraperSession:
                 visited_cards.add(card_url)
                 try:
                     await asyncio.sleep(random.uniform(0.8, 2.0))
-                    await _goto_with_retry(page, card_url)
+                    await _goto_with_retry(page, card_url, session=self)
                     await asyncio.sleep(random.uniform(1.2, 3.0))
                     try:
                         await page.evaluate('window.scrollBy(0, 600)')
                     except Exception:
                         pass
-                    await _goto_with_retry(page, list_url)
+                    await _goto_with_retry(page, list_url, session=self)
                 except Exception as e:
                     log("ERR", f"Error visiting {card_url}: {e}")
                     try:
@@ -531,6 +539,8 @@ class ScraperSession:
                 
                 db.save_listings_from_df(df_add, source_file=source_name)
                 log("OK", f"✅ [DB] Successfully saved {len(self.additions)} new listings to local database.")
+                
+            log("INFO", f"📊 CAPTCHAs solved/found: {self.captchas_solved}/{self.captchas_found}")
                 
         except Exception as e:
             log("WARN", f"❌ [DB] Could not save to database: {e}")

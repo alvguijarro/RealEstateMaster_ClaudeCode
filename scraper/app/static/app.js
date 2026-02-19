@@ -984,11 +984,13 @@ function toggleAutoScroll() {
         if (autoScrollEnabled) {
             btn.textContent = '⏸';
             btn.title = 'Pausar auto-scroll';
+            logsContainer.classList.remove('paused');
             // Jump to bottom when re-enabling
             logsContainer.scrollTop = logsContainer.scrollHeight;
         } else {
             btn.textContent = '▶';
             btn.title = 'Reanudar auto-scroll';
+            logsContainer.classList.add('paused');
         }
     }
 }

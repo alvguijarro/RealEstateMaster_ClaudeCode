@@ -398,6 +398,8 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     # Check resume state
     start_index = 0
     updated_rows = []
+    captchas_found = 0
+    captchas_solved = 0
     
     if resume:
         restored_data = load_journal(excel_file)
@@ -732,10 +734,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 if "uso indebido" in content or "el acceso se ha bloqueado" in content:
                                     raise BlockedException("Hard Block: 'Uso indebido' detected")
 
+                                captchas_found += 1
                                 emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado.')
                                 emit_to_ui('INFO', 'Intentando resolver CAPTCHA automáticamente...')
                                 if await solve_captcha_advanced(page):
                                      if not await detect_captcha(page):
+                                          captchas_solved += 1
                                           emit_to_ui('OK', 'CAPTCHA resuelto automáticamente!')
                                           d = await extract_detail_fields(page, debug_items=False)
                                           if d and d.get('isBlocked'):
@@ -990,6 +994,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
         emit_to_ui('ERR', f"Error saving Excel (FATAL): {e}")
             
     emit_to_ui('OK', 'URL status update complete!')
+    emit_to_ui('INFO', f'📊 CAPTCHAs solved/found: {captchas_solved}/{captchas_found}')
     
     if os.path.exists(JOURNAL_FILE):
         try:

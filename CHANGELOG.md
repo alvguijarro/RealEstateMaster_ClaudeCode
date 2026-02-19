@@ -1,3 +1,12 @@
+## [2026-02-18] - Log Control & CAPTCHA Statistics
+### Fixed
+- **Log Panel (Pause Button)**: Fixed the "Pause" button functionality in the live log panel. It now correctly stops auto-scrolling when paused, allowing users to inspect past events. Added a visual indicator (orange border and background) when the log is in a paused state.
+- **Auto-scroll Logic**: Unified `autoScrollEnabled` state across all log-adding functions to ensure consistent behavior.
+
+### Added
+- **CAPTCHA Statistics**: Implemented session-level tracking for detected vs automatically solved CAPTCHAs.
+- **Session Summary**: Added a final summary log at the end of each scraping session (both standard and URL status update) in the format: `📊 CAPTCHAs solved/found: X/Y`.
+
 ## [2026-02-18] - CAPTCHA Solver Refinement & Dependency Fix
 ### Fixed
 - **CAPTCHA Solver (2Captcha)**:
