@@ -36,6 +36,7 @@ except ImportError:
 # Config
 DELAY_BETWEEN = (10, 30)  # seconds
 MAX_RETRIES = 2
+RETRY_LIMIT_PER_URL = 2 # Define missing constant
 BLOCK_WAIT_TIME = 900  # 15 min if blocked
 
 def log(msg: str, level: str = "INFO"):
