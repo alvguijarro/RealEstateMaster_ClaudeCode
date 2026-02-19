@@ -10,13 +10,14 @@ import time
 import unicodedata
 from functools import lru_cache
 from typing import Optional, Tuple
-from urllib.parse import urlparse
-
 import asyncio
 import os
 import sys
 import tempfile
+import random
+import math
 from pathlib import Path
+from urllib.parse import urlparse
 # Add project root to sys.path to import shared config
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 try:
@@ -724,6 +725,9 @@ async def solve_slider_2captcha(page, logger=None):
         l("INFO", f"📐 Detection Scale (DPI): {pixel_ratio}")
 
         # 1. Detect any slider-like containers with expanded selectors
+        # SPECIAL CASE: DataDome iframe
+        datadome_iframe = await page.query_selector("iframe[src*='captcha-delivery.com']")
+        
         selectors = [
             ".px-captcha-container", 
             "#captcha-container",
@@ -737,16 +741,20 @@ async def solve_slider_2captcha(page, logger=None):
             ".captcha-box"
         ]
         
-        container = None
-        for sel in selectors:
-            try:
-                elem = await page.query_selector(sel)
-                if elem and await elem.is_visible():
-                    container = elem
-                    # Ensure it's in view for a good screenshot
-                    await elem.scroll_into_view_if_needed()
-                    break
-            except: continue
+        container = datadome_iframe
+        if container:
+            l("INFO", "🛡️ Found DataDome iframe. Using it as container.")
+            await container.scroll_into_view_if_needed()
+        else:
+            for sel in selectors:
+                try:
+                    elem = await page.query_selector(sel)
+                    if elem and await elem.is_visible():
+                        container = elem
+                        # Ensure it's in view for a good screenshot
+                        await elem.scroll_into_view_if_needed()
+                        break
+                except: continue
             
         if not container:
             l("INFO", "No explicit captcha container found. Using body fallback.")
@@ -795,6 +803,7 @@ async def solve_slider_2captcha(page, logger=None):
             
             # 4. Find the slider handle with expanded selectors
             handle_selectors = [
+                 "#captcha-slider-handle", # DataDome specific
                  ".px-captcha-slider-button", 
                  ".geetest_slider_button", 
                  ".nc_iconfont.btn_slide", 
@@ -813,13 +822,26 @@ async def solve_slider_2captcha(page, logger=None):
                  "button[aria-label*='Desliza']"
             ]
             handle = None
-            for hs in handle_selectors:
-                try:
-                    h = await page.query_selector(hs)
-                    if h and await h.is_visible():
-                        handle = h
-                        break
-                except: continue
+            
+            # If we're in a DataDome iframe, we need to check INSIDE the iframe for the handle
+            if datadome_iframe:
+                frame = page.frame_locator("iframe[src*='captcha-delivery.com']")
+                for hs in handle_selectors:
+                    try:
+                        h_loc = frame.locator(hs).first
+                        if await h_loc.count() > 0 and await h_loc.is_visible():
+                            handle = h_loc
+                            break
+                    except: continue
+            
+            if not handle:
+                for hs in handle_selectors:
+                    try:
+                        h = await page.query_selector(hs)
+                        if h and await h.is_visible():
+                            handle = h
+                            break
+                    except: continue
                 
             if not handle:
                 # If no handle, try to find the FIRST visible role='button' inside the container
@@ -872,13 +894,20 @@ async def solve_slider_2captcha(page, logger=None):
             await page.mouse.up()
             
             # 5. Verification: Check if captcha container is still present/visible
-            await asyncio.sleep(3)
+            await asyncio.sleep(4)
             still_there = False
             try:
-                # Re-check the container visibility
-                curr_container = await page.query_selector(selectors[0]) # Use first/main selector
-                if curr_container and await curr_container.is_visible():
-                    still_there = True
+                # Re-check identification logic
+                if datadome_iframe:
+                    # If it's datadome, check if iframe is still visible
+                    still_there = await datadome_iframe.is_visible()
+                else:
+                    # Re-check the first selector used
+                    for sel in selectors[:3]:
+                        curr_container = await page.query_selector(sel)
+                        if curr_container and await curr_container.is_visible():
+                            still_there = True
+                            break
             except: pass
             
             if still_there:
@@ -897,19 +926,29 @@ async def solve_captcha_advanced(page, logger=None):
     """Orchestrator for CAPTCHA solving: DataDome -> Slider (Local) -> 2Captcha (Slider/GeeTest)."""
     l = logger or log
     
-    # 0. Check for DataDome specifically (High Priority)
+    # 0. Check for DataDome specifically
     is_datadome = await page.evaluate("() => !!document.querySelector('iframe[src*=\"captcha-delivery.com\"]')")
     if is_datadome:
-        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Iniciando solver de tokens...")
-        if await solve_datadome_2captcha(page, logger=l):
-            l("INFO", "Refrescando página tras inyección de cookie...")
-            await page.reload(wait_until="networkidle")
-            await asyncio.sleep(3)
+        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Intentando resolución por coordenadas (Recomendado sin proxy)...")
+        # Optimization: DataDome token method is prone to failure without proxies. 
+        # We try coordinates first as it's more universal.
+        if await solve_slider_2captcha(page, logger=l):
+            # Brief wait to see if it clears
+            await asyncio.sleep(5)
             title = (await page.title()).lower()
             if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                l("OK", "✅ DataDome resuelto mediante token!")
+                l("OK", "✅ DataDome resuelto mediante coordenadas!")
                 return True
-            l("WARN", "La cookie se inyectó pero el bloqueo persiste. Probando otros métodos...")
+        
+        # Fallback to token (keeping it just in case, but usually fails without proxy)
+        l("INFO", "Intentando fallback a DataDome token...")
+        if await solve_datadome_2captcha(page, logger=l):
+            await page.reload(wait_until="networkidle")
+            await asyncio.sleep(5)
+            title = (await page.title()).lower()
+            if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
+                l("OK", "✅ DataDome resuelto mediante token fallback!")
+                return True
 
     # 1. Try Slider (Fast & Free)
     l("INFO", "🤖 Intentando resolución local (Slider)...")
