@@ -982,15 +982,19 @@ function toggleAutoScroll() {
     const btn = document.getElementById('pauseLogBtn');
     if (btn) {
         if (autoScrollEnabled) {
-            btn.textContent = '⏸';
+            btn.innerHTML = '⏸';
             btn.title = 'Pausar auto-scroll';
-            logsContainer.classList.remove('paused');
-            // Jump to bottom when re-enabling
-            logsContainer.scrollTop = logsContainer.scrollHeight;
+            if (logsContainer) {
+                logsContainer.classList.remove('paused');
+                // Jump to bottom when re-enabling
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+            }
         } else {
-            btn.textContent = '▶';
+            btn.innerHTML = '▶';
             btn.title = 'Reanudar auto-scroll';
-            logsContainer.classList.add('paused');
+            if (logsContainer) {
+                logsContainer.classList.add('paused');
+            }
         }
     }
 }

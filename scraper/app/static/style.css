@@ -431,10 +431,6 @@ select:focus {
     gap: 8px;
 }
 
-.logs-container.paused {
-    border: 1px solid var(--warning);
-    background: rgba(234, 179, 8, 0.05) !important;
-}
 
 .log-entry {
     display: flex;

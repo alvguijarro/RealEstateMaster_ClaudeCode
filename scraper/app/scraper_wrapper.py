@@ -1478,18 +1478,8 @@ class ScraperController:
             # Normalize whitespace for reliable matching
             text_lower = re.sub(r'\s+', ' ', text_lower).strip()
             
-            # 2. Check for DATADOME specifically (High Priority)
-            # DataDome text is inside an iframe, so top-level innerText is often empty.
-            # We must check for the iframe presence or the global 'dd' object.
-            is_datadome = await page.evaluate("""() => {
-                return !!(document.querySelector('iframe[src*="captcha-delivery.com"]') || 
-                          window.dd || 
-                          document.querySelector('script[src*="captcha-delivery.com"]'));
-            }""")
-            if is_datadome:
-                 return "captcha"
-            
-            # 3. Check for HARD BLOCKS
+            # 2. Check for HARD BLOCKS (Highest Priority)
+            # If the page explicitly says blocked, it's a block even if datadome scripts are present.
             hard_block_keywords = [
                 "el acceso se ha bloqueado",
                 "se ha detectado un uso indebido",
@@ -1500,8 +1490,19 @@ class ScraperController:
             ]
             
             if any(kw in text_lower for kw in hard_block_keywords):
-                self.log("WARN", f"🚫 HARD BLOCK detected (Keywords: {[kw for kw in hard_block_keywords if kw in text_lower]})")
+                self.log("WARN", f"🛑 HARD BLOCK detected (Keywords: {[kw for kw in hard_block_keywords if kw in text_lower]})")
                 return "block"
+
+            # 3. Check for DATADOME specifically
+            # DataDome text is inside an iframe, so top-level innerText is often empty.
+            # We must check for the iframe presence or the global 'dd' object.
+            is_datadome = await page.evaluate("""() => {
+                return !!(document.querySelector('iframe[src*="captcha-delivery.com"]') || 
+                          window.dd || 
+                          document.querySelector('script[src*="captcha-delivery.com"]'));
+            }""")
+            if is_datadome:
+                 return "captcha"
                 
             # 4. Check for CAPTCHAs / Interstitials
             captcha_keywords = [
