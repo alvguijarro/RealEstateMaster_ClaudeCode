@@ -700,25 +700,32 @@ async def solve_datadome_2captcha(page, logger=None):
         )
         
         if result and 'code' in result:
-            token = result['code']
             l("OK", f"✅ Token recibido (captchaId: {result.get('captchaId', 'N/A')})")
             l("INFO", "Inyectando cookie 'datadome' y refrescando...")
             
-            # Extract domain for cookie
-            page_domain = urlparse(page.url).netloc
-            cookie_domain = f".{page_domain}" if not page_domain.startswith('.') else page_domain
+            # Robust injection using Playwright context
+            try:
+                await page.context.add_cookies([{
+                    "name": "datadome",
+                    "value": token,
+                    "url": "https://www.idealista.com",
+                    "path": "/",
+                    "sameSite": "Lax"
+                }])
+                l("OK", "Cookie 'datadome' inyectada vía Protocolo.")
+            except Exception as e:
+                l("WARN", f"Protocol injection failed: {e}. Trying JS fallback...")
+                # Fallback: Inject via document.cookie
+                await page.evaluate(f"document.cookie = 'datadome={token}; path=/; domain=.idealista.com; Max-Age=3600; SameSite=Lax'")
+                l("OK", "Cookie 'datadome' inyectada vía JS Fallback.")
             
-            # Add the cookie to the browser context
-            await page.context.add_cookies([{
-                "name": "datadome",
-                "value": token,
-                "domain": cookie_domain,
-                "path": "/",
-                "sameSite": "Lax"
-            }])
-            
-            l("OK", f"Cookie inyectada para {cookie_domain}.")
-            # Give it a bit more time after injection before returning
+            # Verify if cookie is present
+            cookies_now = await page.evaluate("document.cookie")
+            if "datadome=" in cookies_now:
+                l("OK", "Verificación: Cookie detectada en el navegador.")
+            else:
+                l("WARN", "Verificación: La cookie no parece estar presente tras la inyección.")
+
             await asyncio.sleep(2)
             return True
         else:
