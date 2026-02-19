@@ -512,8 +512,9 @@ async def simulate_human_interaction(page):
         pass # Fail silently to not interrupt scraper flow
 
 
-async def solve_slider_captcha(page):
+async def solve_slider_captcha(page, logger=None):
     """Automatically solve 'Slide to the Right' CAPTCHA with human-like dragging."""
+    l = logger or log
     try:
         # 1. Identify the slider handle
         # Common selectors for slider captchas (Idealista uses specific ones, but we check common ones)
@@ -535,19 +536,18 @@ async def solve_slider_captcha(page):
             if not handle or not await handle.is_visible():
                 return False
 
-        # 2. Get bounding boxes
-        box = await handle.bounding_box()
-        if not box:
-            return False
-            
-        start_x = box['x'] + box['width'] / 2
-        start_y = box['y'] + box['height'] / 2
+        # 2. Extract movement details
+        h_box = await handle.bounding_box()
+        if not h_box: return False
         
-        # Track length - usually around 250-300px, or we try to find the container
-        container = await page.query_selector(".geetest_slider, .nc-container, .captcha_track, [class*='track']")
-        if container:
-            cbox = await container.bounding_box()
-            distance = cbox['width'] - box['width'] if cbox else 260
+        start_x = h_box['x'] + h_box['width'] / 2
+        start_y = h_box['y'] + h_box['height'] / 2
+        
+        # Try to find target if possible (for some it might be visible)
+        target = await page.query_selector(".captcha_verify_img_canvas, .geetest_canvas_bg")
+        if target:
+            t_box = await target.bounding_box()
+            distance = t_box['width'] * 0.8 # Rough estimate
         else:
             distance = 260 + random.randint(-10, 10)
 
@@ -584,19 +584,19 @@ async def solve_slider_captcha(page):
         return True
         
     except Exception as e:
-        log("WARN", f"Slider solver attempt failed: {e}")
+        l("WARN", f"Slider solver attempt failed: {e}")
         return False
 
-async def solve_geetest_2captcha(page):
+async def solve_geetest_2captcha(page, logger=None):
     """Solve GeeTest CAPTCHA using 2Captcha service."""
+    l = logger or log
     if not SOLVER:
-        log("WARN", "2Captcha SOLVER not initialized (check API Key).")
+        l("WARN", "2Captcha SOLVER not initialized (check API Key).")
         return False
         
     try:
-        log("INFO", "🌀 Detecting GeeTest parameters...")
-        # Idealista usually puts GeeTest params in a specific script or object
-        # We try to extract gt and challenge
+        l("INFO", "🌀 Detecting GeeTest parameters...")
+        # ...
         params = await page.evaluate("""() => {
             const scripts = Array.from(document.querySelectorAll('script'));
             for (const s of scripts) {
@@ -614,10 +614,10 @@ async def solve_geetest_2captcha(page):
         }""")
         
         if not params:
-            log("WARN", "Could not find GeeTest parameters automatically.")
+            l("WARN", "Could not find GeeTest parameters automatically.")
             return False
             
-        log("INFO", f"📦 GeeTest params found. Sending to 2Captcha... (gt: {params.get('gt', 'detected')})")
+        l("INFO", f"📦 GeeTest params found. Sending to 2Captcha... (gt: {params.get('gt', 'detected')})")
         
         result = await asyncio.to_thread(
             SOLVER.geetest,
@@ -628,15 +628,14 @@ async def solve_geetest_2captcha(page):
         
         if result and 'code' in result:
             code = result['code']
-            log("OK", "✅ 2Captcha returned solution. Injecting into page...")
+            l("OK", "✅ 2Captcha returned solution. Injecting into page...")
             
             # Inject the solution
             await page.evaluate(f"""(code) => {{
-                // Standard GeeTest callback
+                // ...
                 if (window.geetest_callback) {{
                     window.geetest_callback(code);
                 }} else {{
-                    // Try to find the hidden inputs and fill them
                     const validate = document.querySelector('input[name="geetest_validate"]');
                     const challenge = document.querySelector('input[name="geetest_challenge"]');
                     const seccode = document.querySelector('input[name="geetest_seccode"]');
@@ -644,7 +643,6 @@ async def solve_geetest_2captcha(page):
                     if (validate) validate.value = code;
                     if (seccode) seccode.value = code + '|jordan';
                     
-                    // Submit form if present
                     const form = validate ? validate.form : null;
                     if (form) form.submit();
                 }}
@@ -654,8 +652,7 @@ async def solve_geetest_2captcha(page):
             return True
             
     except Exception as e:
-        if logger: logger("ERR", f"2Captcha GeeTest solver failed: {e}")
-        else: log("ERR", f"2Captcha GeeTest solver failed: {e}")
+        l("ERR", f"2Captcha GeeTest solver failed: {e}")
         
     return False
 
@@ -952,9 +949,9 @@ async def solve_captcha_advanced(page, logger=None):
 
     # 1. Try Slider (Fast & Free)
     l("INFO", "🤖 Intentando resolución local (Slider)...")
-    if await solve_slider_captcha(page):
+    if await solve_slider_captcha(page, logger=l):
         # Brief wait to see if it clears
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)
         title = (await page.title()).lower()
         if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
             l("OK", "✅ Local slider solved the CAPTCHA!")
@@ -968,7 +965,7 @@ async def solve_captcha_advanced(page, logger=None):
         
         if is_geetest:
             l("INFO", "🚀 Iniciando solver 2Captcha para GeeTest...")
-            if await solve_geetest_2captcha(page):
+            if await solve_geetest_2captcha(page, logger=l):
                  await asyncio.sleep(3)
                  title = (await page.title()).lower()
                  if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
