@@ -653,16 +653,21 @@ async def solve_geetest_2captcha(page):
             return True
             
     except Exception as e:
-        log("ERR", f"2Captcha GeeTest solver failed: {e}")
+        if logger: logger("ERR", f"2Captcha GeeTest solver failed: {e}")
+        else: log("ERR", f"2Captcha GeeTest solver failed: {e}")
         
     return False
 
-async def solve_slider_2captcha(page):
+async def solve_slider_2captcha(page, logger=None):
     """Solve simple slider captchas using 2Captcha Coordinates method (Refined version)."""
     if not SOLVER:
         return False
         
     try:
+        # Get Device Pixel Ratio for coordinate scaling
+        pixel_ratio = await page.evaluate("window.devicePixelRatio || 1.0")
+        if logger: logger("INFO", f"📐 Detection Scale (DPI): {pixel_ratio}")
+
         # 1. Detect any slider-like containers with expanded selectors
         selectors = [
             ".px-captcha-container", 
@@ -726,8 +731,12 @@ async def solve_slider_2captcha(page):
             if not box: return False
             
             # Map image-relative coords to page-relative
-            dest_x = box['x'] + tx
-            dest_y = box['y'] + ty
+            # IMPORTANT: Screenshot is in physical pixels, but Playwright mouse moves in CSS pixels.
+            # We MUST divide by pixel_ratio for correct alignment.
+            dest_x = box['x'] + (tx / pixel_ratio)
+            dest_y = box['y'] + (ty / pixel_ratio)
+            
+            if logger: logger("INFO", f"🎯 Target mapped: {int(dest_x)},{int(dest_y)} (Original: {tx},{ty} @ {pixel_ratio}x)")
             
             # 4. Find the slider handle with expanded selectors
             handle_selectors = [
@@ -826,20 +835,22 @@ async def solve_slider_2captcha(page):
     except Exception as e:
         log("ERR", f"2Captcha Slider solver error: {e}")
         
+    log("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
     return False
 
-async def solve_captcha_advanced(page):
+async def solve_captcha_advanced(page, logger=None):
     """Orchestrator for CAPTCHA solving: Slider (Local) -> 2Captcha (Slider/GeeTest)."""
+    l = logger or log
     # 1. Try Slider (Fast & Free)
-    log("INFO", "🤖 Intentando resolución local (Slider)...")
+    l("INFO", "🤖 Intentando resolución local (Slider)...")
     if await solve_slider_captcha(page):
         # Brief wait to see if it clears
         await asyncio.sleep(3)
         title = (await page.title()).lower()
         if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-            log("OK", "✅ Local slider solved the CAPTCHA!")
+            l("OK", "✅ Local slider solved the CAPTCHA!")
             return True
-        log("WARN", "Slider local falló o el bloqueo persiste. Probando 2Captcha...")
+        l("WARN", "Slider local falló o el bloqueo persiste. Probando 2Captcha...")
     
     # 2. Try 2Captcha (paid)
     if SOLVER:
@@ -847,24 +858,24 @@ async def solve_captcha_advanced(page):
         is_geetest = await page.evaluate("() => !!(window.initGeetest || document.querySelector('.geetest_holder'))")
         
         if is_geetest:
-            log("INFO", "🚀 Iniciando solver 2Captcha para GeeTest...")
+            l("INFO", "🚀 Iniciando solver 2Captcha para GeeTest...")
             if await solve_geetest_2captcha(page):
                  await asyncio.sleep(3)
                  title = (await page.title()).lower()
                  if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                     log("OK", "✅ 2Captcha GeeTest solved!")
+                     l("OK", "✅ 2Captcha GeeTest solved!")
                      return True
 
         # B. Fallback to Coordinate-based Slider solve
-        log("INFO", "🚀 Iniciando solver 2Captcha por Coordenadas (Screenshot)...")
-        if await solve_slider_2captcha(page):
+        l("INFO", "🚀 Iniciando solver 2Captcha por Coordenadas (Screenshot)...")
+        if await solve_slider_2captcha(page, logger=l):
              await asyncio.sleep(4)
              title = (await page.title()).lower()
              if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                 log("OK", "✅ 2Captcha Coordinates solved!")
+                 l("OK", "✅ 2Captcha Coordinates solved!")
                  return True
     else:
-        log("WARN", "2Captcha no disponible (Sin API Key).")
+        l("WARN", "2Captcha no disponible (Sin API Key).")
         
-    log("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
+    l("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
     return False
