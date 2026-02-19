@@ -691,15 +691,50 @@ async def solve_datadome_2captcha(page, logger=None):
         
         # Call 2Captcha DataDome method - using native ASYNC solver
         # This will wait until the solution is ready (polling internally)
-        l("INFO", "⏳ Esperando solución de 2Captcha (Suele tardar 45-120s)...")
-        result = await ASYNC_SOLVER.datadome(
+        # Create the solver task as a background task to allow for manual solve detection
+        solver_task = asyncio.create_task(ASYNC_SOLVER.datadome(
             captcha_url=captcha_url,
             pageurl=page.url,
             userAgent=user_agent,
             proxy=proxy_config
-        )
+        ))
+        
+        l("INFO", "⏳ Esperando solución de 2Captcha (Suele tardar 45-120s)...")
+        l("INFO", "   (Si resuelves el CAPTCHA manualmente, el scraper lo detectará)")
+        
+        result = None
+        manual_solve = False
+        wait_start = time.time()
+        
+        while time.time() - wait_start < 180:
+            if solver_task.done():
+                try:
+                    result = await solver_task
+                except Exception as e:
+                    l("WARN", f"Error en solver DataDome: {e}")
+                    break
+                break
+            
+            # Check for manual solve
+            try:
+                is_datadome = await page.evaluate("""() => {
+                    const hasIframe = !!document.querySelector('iframe[src*="captcha-delivery.com"]');
+                    const hasGlobal = !!(window.dd || window._dd);
+                    return hasIframe || hasGlobal;
+                }""")
+                if not is_datadome:
+                    l("OK", "✅ ¡Detectada resolución manual! Continuando...")
+                    solver_task.cancel()
+                    manual_solve = True
+                    break
+            except: pass
+            await asyncio.sleep(2.5)
+
+        if manual_solve:
+            return True
         
         if result and 'code' in result:
+            token = result['code']
             l("OK", f"✅ Token recibido (captchaId: {result.get('captchaId', 'N/A')})")
             l("INFO", "Inyectando cookie 'datadome' y refrescando...")
             

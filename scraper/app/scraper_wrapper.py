@@ -2136,7 +2136,6 @@ class ScraperController:
                                         firefox_user_prefs=firefox_prefs,
                                         ignore_default_args=["-foreground"],
                                         executable_path=executable_path,
-                                        args=["--no-remote"],
                                         timeout=120000, # Increased to 120s for Windows Juggler stability
                                     )
                                 elif engine == "webkit": # Webkit (Safari-like)
