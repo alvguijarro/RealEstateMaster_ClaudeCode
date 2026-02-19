@@ -1712,7 +1712,7 @@ class ScraperController:
                         # Automatic/Manual solver logic...
                         self.log("INFO", "🤖 Attempting automatic solver solve...")
                         try:
-                            solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=self.log), timeout=60.0)
+                            solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=self.log), timeout=180.0)
                             if solved:
                                 try:
                                     title_after = await asyncio.wait_for(page.title(), timeout=5.0)
@@ -1721,7 +1721,7 @@ class ScraperController:
                                         return 
                                 except: pass
                         except asyncio.TimeoutError:
-                            self.log("WARN", "❌ Automatic slider solver timed out (60s).")
+                            self.log("WARN", "❌ Automatic solver timed out (180s).")
                         except Exception as e:
                             self.log("WARN", f"❌ Automatic solver error: {e}")
 

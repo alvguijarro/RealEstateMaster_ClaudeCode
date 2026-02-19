@@ -26,10 +26,14 @@ except ImportError:
 
 try:
     from twocaptcha import TwoCaptcha
+    from twocaptcha.async_solver import AsyncTwoCaptcha
     SOLVER = TwoCaptcha(TWOCAPTCHA_API_KEY) if TWOCAPTCHA_API_KEY else None
+    ASYNC_SOLVER = AsyncTwoCaptcha(TWOCAPTCHA_API_KEY) if TWOCAPTCHA_API_KEY else None
 except ImportError:
     TwoCaptcha = None
+    AsyncTwoCaptcha = None
     SOLVER = None
+    ASYNC_SOLVER = None
 
 
 
@@ -659,10 +663,10 @@ async def solve_geetest_2captcha(page):
     return False
 
 async def solve_datadome_2captcha(page, logger=None):
-    """Solve DataDome CAPTCHA using 2Captcha token method with residential proxy."""
+    """Solve DataDome CAPTCHA using 2Captcha token method with residential proxy (Native Async)."""
     l = logger or log
-    if not SOLVER:
-        l("WARN", "2Captcha SOLVER not initialized.")
+    if not ASYNC_SOLVER:
+        l("WARN", "2Captcha ASYNC_SOLVER not initialized.")
         return False
         
     try:
@@ -676,20 +680,19 @@ async def solve_datadome_2captcha(page, logger=None):
         captcha_url = await iframe_element.get_attribute("src")
         user_agent = await page.evaluate("navigator.userAgent")
         
-        l("INFO", f"📤 Enviando tarea DataDome a 2Captcha con proxy residencial...")
+        l("INFO", f"📤 Enviando tarea DataDome a 2Captcha (Proxy Residencial)...")
         l("INFO", f"   Captcha URL: {captcha_url[:80]}...")
-        l("INFO", f"   Page URL: {page.url}")
         
         # 2Captcha residential proxy (REQUIRED for DataDome)
-        # Format per official docs: {'type': 'HTTP', 'uri': 'login:password@IP:PORT'}
         proxy_config = {
             'type': 'HTTP',
             'uri': 'u5b30cedd579a05ca-zone-custom:u5b30cedd579a05ca@eu.proxy.2captcha.com:2334'
         }
         
-        # Call 2Captcha DataDome method - matching official example exactly
-        result = await asyncio.to_thread(
-            SOLVER.datadome,
+        # Call 2Captcha DataDome method - using native ASYNC solver
+        # This will wait until the solution is ready (polling internally)
+        l("INFO", "⏳ Esperando solución de 2Captcha (Suele tardar 45-120s)...")
+        result = await ASYNC_SOLVER.datadome(
             captcha_url=captcha_url,
             pageurl=page.url,
             userAgent=user_agent,
@@ -698,12 +701,11 @@ async def solve_datadome_2captcha(page, logger=None):
         
         if result and 'code' in result:
             token = result['code']
-            l("OK", f"✅ 2Captcha devolvió token de DataDome (captchaId: {result.get('captchaId', 'N/A')})")
-            l("INFO", "Inyectando cookie 'datadome'...")
+            l("OK", f"✅ Token recibido (captchaId: {result.get('captchaId', 'N/A')})")
+            l("INFO", "Inyectando cookie 'datadome' y refrescando...")
             
-            # Extract domain for cookie - use .idealista.com for broad matching
+            # Extract domain for cookie
             page_domain = urlparse(page.url).netloc
-            # Ensure domain starts with dot for subdomain coverage
             cookie_domain = f".{page_domain}" if not page_domain.startswith('.') else page_domain
             
             # Add the cookie to the browser context
@@ -715,10 +717,12 @@ async def solve_datadome_2captcha(page, logger=None):
                 "sameSite": "Lax"
             }])
             
-            l("OK", f"Cookie 'datadome' inyectada para dominio {cookie_domain}")
+            l("OK", f"Cookie inyectada para {cookie_domain}.")
+            # Give it a bit more time after injection before returning
+            await asyncio.sleep(2)
             return True
         else:
-            l("WARN", f"2Captcha devolvió respuesta inesperada: {result}")
+            l("WARN", f"❌ 2Captcha devolvió respuesta inesperada: {result}")
             
     except Exception as e:
         l("ERR", f"Error en solver DataDome: {e}")
