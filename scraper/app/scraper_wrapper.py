@@ -1478,6 +1478,17 @@ class ScraperController:
             # Normalize whitespace for reliable matching
             text_lower = re.sub(r'\s+', ' ', text_lower).strip()
             
+            # 2. Check for DATADOME specifically (High Priority)
+            # DataDome text is inside an iframe, so top-level innerText is often empty.
+            # We must check for the iframe presence or the global 'dd' object.
+            is_datadome = await page.evaluate("""() => {
+                return !!(document.querySelector('iframe[src*="captcha-delivery.com"]') || 
+                          window.dd || 
+                          document.querySelector('script[src*="captcha-delivery.com"]'));
+            }""")
+            if is_datadome:
+                 return "captcha"
+            
             # 3. Check for HARD BLOCKS
             hard_block_keywords = [
                 "el acceso se ha bloqueado",
@@ -1524,12 +1535,15 @@ class ScraperController:
                         return !!document.querySelector('article, .item, [data-element-id], #h1-container');
                     }""")
                     if not has_items:
+                        # Before declaring block, see if we missed a captcha
+                        if is_datadome: return "captcha"
+                        
                         self.log("WARN", "Suspiciously short 'idealista.com' page with NO property elements. Treating as BLOCK.")
                         return "block"
                     else:
                         self.log("INFO", "Short page detected but property elements found. Proceeding...")
                 except:
-                    # If evaluate fails, play it safe and treat as suspicious
+                    if is_datadome: return "captcha"
                     return "block"
             
             return None
@@ -1696,9 +1710,9 @@ class ScraperController:
                         self.log("WARN", f"CAPTCHA DETECTED on {url} (Title: '{curr_title}')")
                         
                         # Automatic/Manual solver logic...
-                        self.log("INFO", "🤖 Attempting automatic slider solve...")
+                        self.log("INFO", "🤖 Attempting automatic solver solve...")
                         try:
-                            solved = await asyncio.wait_for(solve_captcha_advanced(page), timeout=60.0)
+                            solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=self.log), timeout=60.0)
                             if solved:
                                 try:
                                     title_after = await asyncio.wait_for(page.title(), timeout=5.0)
