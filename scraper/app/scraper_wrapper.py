@@ -1377,18 +1377,19 @@ class ScraperController:
         """Kill only left-behind browser processes tied to the scraper's profiles."""
         import subprocess
         if sys.platform == "win32":
-            # Targeted cleanup: Kill browsers matching 'stealth_profile' in CLI OR residing in 'ms-playwright' folder
-            # This is safe because user's personal browsers are in Program Files, not ms-playwright.
+            # Targeted cleanup: Faster Get-Process instead of Get-CimInstance for high-level filtering
             ps_command = (
-                "$procs = Get-CimInstance Win32_Process | "
+                "$procs = Get-Process -Name firefox,chrome,msedge,iron,falkon,opera -ErrorAction SilentlyContinue | "
                 "Where-Object { "
-                "  ($_.Name -match 'firefox|chrome|msedge|iron|falkon|opera') -and "
-                "  ($_.CommandLine -like '*stealth_profile*' -or $_.ExecutablePath -like '*ms-playwright*') "
+                "  try { "
+                "    $line = (Get-CimInstance Win32_Process -Filter \"ProcessId = $($_.Id)\").CommandLine; "
+                "    ($line -like '*stealth_profile*') -or ($_.Path -like '*ms-playwright*') "
+                "  } catch { $false } "
                 "}; "
                 "if ($procs) { "
                 "  $procs | ForEach-Object { "
-                "    Write-Output ('Killing PID ' + $_.ProcessId + ' (' + $_.Name + ')'); "
-                "    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue "
+                "    Write-Output ('Killing PID ' + $_.Id + ' (' + $_.ProcessName + ')'); "
+                "    Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue "
                 "  } "
                 "}"
             )
@@ -2332,8 +2333,10 @@ class ScraperController:
                             raise BlockedException("Early block detection: El acceso se ha bloqueado")
                         
                         if "estamos recibiendo muchas peticiones tuyas" in text_lower:
-                            self.log("WARN", "⚠️ CAPTCHA DETECTED: 'estamos recibiendo muchas peticiones tuyas'")
-                            raise BlockedException("Early block detection: estamos recibiendo muchas peticiones tuyas")
+                            self.log("INFO", "⚠️ CAPTCHA DETECTED: Page indicates high traffic. Allowing solver...")
+                            # DO NOT raise BlockedException here. 
+                            # Let the count extraction (which will return 0) trigger the solve_captcha_advanced logic.
+                            pass
                                 
                     except BlockedException as be:
                         # Re-raise to be caught by the main loop handler which handles rotation

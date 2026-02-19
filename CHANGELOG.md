@@ -4,6 +4,9 @@
 - **CAPTCHA-First Block Logic**: Integrated `solve_captcha_advanced` into the "0 properties found" detection. The scraper now attempts to solve CAPTCHAs before triggering a profile rotation on potential blocks.
 
 ### Fixed
+- **System Lag Removal**: Replaced expensive PowerShell `Get-CimInstance` with a faster `Get-Process` filter in `_cleanup_zombie_browsers`. This resolves the reported mouse/audio stutter during scraper startup.
+- **CAPTCHA Solver Integration**: Fixed a logic bug where the CAPTCHA screen was misidentified as a fatal block ("Uso indebido"), causing premature rotation. The scraper now correctly triggers the 2Captcha solver before deciding to rotate.
+- **Improved Slider Detection**: Expanded handle selectors in `utils.py` to better target Idealista's latest slider challenges (`aria-label` variants).
 - **Firefox Launch Stability**: Increased launch timeout to 120s and added `--no-remote` along with stability environment variables (`MOZ_REMOTE_SETTINGS_DEVTOOLS`, `MOZ_PROXY_ALLOW_BYPASS_FROM_SETTINGS`) to resolve Windows Juggler timeout issues.
 - **Persistent Continuity**: Updated `BlockedException` handling to ensure the scraper continues by rotating identity instead of performing a "Hard Stop".
 

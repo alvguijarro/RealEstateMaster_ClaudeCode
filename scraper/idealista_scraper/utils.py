@@ -742,7 +742,11 @@ async def solve_slider_2captcha(page):
                  "div[class*='captcha-slider-handle']",
                  "span:has-text('→')",
                  "div:has-text('→')",
-                 ".arrow-right"
+                 ".arrow-right",
+                 "div[aria-label*='Slide to right']",
+                 "div[aria-label*='Desliza hacia la derecha']",
+                 "button[aria-label*='Slide']",
+                 "button[aria-label*='Desliza']"
             ]
             handle = None
             for hs in handle_selectors:
@@ -862,4 +866,5 @@ async def solve_captcha_advanced(page):
     else:
         log("WARN", "2Captcha no disponible (Sin API Key).")
         
+    log("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
     return False
