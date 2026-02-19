@@ -10,14 +10,13 @@ import time
 import unicodedata
 from functools import lru_cache
 from typing import Optional, Tuple
+from urllib.parse import urlparse
+
 import asyncio
 import os
 import sys
 import tempfile
-import random
-import math
 from pathlib import Path
-from urllib.parse import urlparse
 # Add project root to sys.path to import shared config
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 try:
@@ -512,9 +511,8 @@ async def simulate_human_interaction(page):
         pass # Fail silently to not interrupt scraper flow
 
 
-async def solve_slider_captcha(page, logger=None):
+async def solve_slider_captcha(page):
     """Automatically solve 'Slide to the Right' CAPTCHA with human-like dragging."""
-    l = logger or log
     try:
         # 1. Identify the slider handle
         # Common selectors for slider captchas (Idealista uses specific ones, but we check common ones)
@@ -536,18 +534,19 @@ async def solve_slider_captcha(page, logger=None):
             if not handle or not await handle.is_visible():
                 return False
 
-        # 2. Extract movement details
-        h_box = await handle.bounding_box()
-        if not h_box: return False
+        # 2. Get bounding boxes
+        box = await handle.bounding_box()
+        if not box:
+            return False
+            
+        start_x = box['x'] + box['width'] / 2
+        start_y = box['y'] + box['height'] / 2
         
-        start_x = h_box['x'] + h_box['width'] / 2
-        start_y = h_box['y'] + h_box['height'] / 2
-        
-        # Try to find target if possible (for some it might be visible)
-        target = await page.query_selector(".captcha_verify_img_canvas, .geetest_canvas_bg")
-        if target:
-            t_box = await target.bounding_box()
-            distance = t_box['width'] * 0.8 # Rough estimate
+        # Track length - usually around 250-300px, or we try to find the container
+        container = await page.query_selector(".geetest_slider, .nc-container, .captcha_track, [class*='track']")
+        if container:
+            cbox = await container.bounding_box()
+            distance = cbox['width'] - box['width'] if cbox else 260
         else:
             distance = 260 + random.randint(-10, 10)
 
@@ -584,19 +583,19 @@ async def solve_slider_captcha(page, logger=None):
         return True
         
     except Exception as e:
-        l("WARN", f"Slider solver attempt failed: {e}")
+        log("WARN", f"Slider solver attempt failed: {e}")
         return False
 
-async def solve_geetest_2captcha(page, logger=None):
+async def solve_geetest_2captcha(page):
     """Solve GeeTest CAPTCHA using 2Captcha service."""
-    l = logger or log
     if not SOLVER:
-        l("WARN", "2Captcha SOLVER not initialized (check API Key).")
+        log("WARN", "2Captcha SOLVER not initialized (check API Key).")
         return False
         
     try:
-        l("INFO", "🌀 Detecting GeeTest parameters...")
-        # ...
+        log("INFO", "🌀 Detecting GeeTest parameters...")
+        # Idealista usually puts GeeTest params in a specific script or object
+        # We try to extract gt and challenge
         params = await page.evaluate("""() => {
             const scripts = Array.from(document.querySelectorAll('script'));
             for (const s of scripts) {
@@ -614,10 +613,10 @@ async def solve_geetest_2captcha(page, logger=None):
         }""")
         
         if not params:
-            l("WARN", "Could not find GeeTest parameters automatically.")
+            log("WARN", "Could not find GeeTest parameters automatically.")
             return False
             
-        l("INFO", f"📦 GeeTest params found. Sending to 2Captcha... (gt: {params.get('gt', 'detected')})")
+        log("INFO", f"📦 GeeTest params found. Sending to 2Captcha... (gt: {params.get('gt', 'detected')})")
         
         result = await asyncio.to_thread(
             SOLVER.geetest,
@@ -628,14 +627,15 @@ async def solve_geetest_2captcha(page, logger=None):
         
         if result and 'code' in result:
             code = result['code']
-            l("OK", "✅ 2Captcha returned solution. Injecting into page...")
+            log("OK", "✅ 2Captcha returned solution. Injecting into page...")
             
             # Inject the solution
             await page.evaluate(f"""(code) => {{
-                // ...
+                // Standard GeeTest callback
                 if (window.geetest_callback) {{
                     window.geetest_callback(code);
                 }} else {{
+                    // Try to find the hidden inputs and fill them
                     const validate = document.querySelector('input[name="geetest_validate"]');
                     const challenge = document.querySelector('input[name="geetest_challenge"]');
                     const seccode = document.querySelector('input[name="geetest_seccode"]');
@@ -643,6 +643,7 @@ async def solve_geetest_2captcha(page, logger=None):
                     if (validate) validate.value = code;
                     if (seccode) seccode.value = code + '|jordan';
                     
+                    // Submit form if present
                     const form = validate ? validate.form : null;
                     if (form) form.submit();
                 }}
@@ -652,12 +653,13 @@ async def solve_geetest_2captcha(page, logger=None):
             return True
             
     except Exception as e:
-        l("ERR", f"2Captcha GeeTest solver failed: {e}")
+        if logger: logger("ERR", f"2Captcha GeeTest solver failed: {e}")
+        else: log("ERR", f"2Captcha GeeTest solver failed: {e}")
         
     return False
 
 async def solve_datadome_2captcha(page, logger=None):
-    """Solve DataDome CAPTCHA using 2Captcha token method."""
+    """Solve DataDome CAPTCHA using 2Captcha token method with residential proxy."""
     l = logger or log
     if not SOLVER:
         l("WARN", "2Captcha SOLVER not initialized.")
@@ -674,36 +676,49 @@ async def solve_datadome_2captcha(page, logger=None):
         captcha_url = await iframe_element.get_attribute("src")
         user_agent = await page.evaluate("navigator.userAgent")
         
-        l("INFO", f"📤 Enviando tarea DataDome a 2Captcha... (URL: {captcha_url[:50]}...)")
+        l("INFO", f"📤 Enviando tarea DataDome a 2Captcha con proxy residencial...")
+        l("INFO", f"   Captcha URL: {captcha_url[:80]}...")
+        l("INFO", f"   Page URL: {page.url}")
         
-        # Call 2Captcha DataDome method
-        # NOTE: proxy is a required positional argument in 2captcha-python for datadome
+        # 2Captcha residential proxy (REQUIRED for DataDome)
+        # Format per official docs: {'type': 'HTTP', 'uri': 'login:password@IP:PORT'}
+        proxy_config = {
+            'type': 'HTTP',
+            'uri': 'u5b30cedd579a05ca-zone-custom:u5b30cedd579a05ca@eu.proxy.2captcha.com:2334'
+        }
+        
+        # Call 2Captcha DataDome method - matching official example exactly
         result = await asyncio.to_thread(
             SOLVER.datadome,
             captcha_url=captcha_url,
             pageurl=page.url,
             userAgent=user_agent,
-            proxy=None # No proxy for now
+            proxy=proxy_config
         )
         
         if result and 'code' in result:
             token = result['code']
-            l("OK", "✅ 2Captcha devolvió token de DataDome. Inyectando cookie...")
+            l("OK", f"✅ 2Captcha devolvió token de DataDome (captchaId: {result.get('captchaId', 'N/A')})")
+            l("INFO", "Inyectando cookie 'datadome'...")
             
-            # Extract domain for cookie
-            domain = urlparse(page.url).netloc
+            # Extract domain for cookie - use .idealista.com for broad matching
+            page_domain = urlparse(page.url).netloc
+            # Ensure domain starts with dot for subdomain coverage
+            cookie_domain = f".{page_domain}" if not page_domain.startswith('.') else page_domain
             
             # Add the cookie to the browser context
             await page.context.add_cookies([{
                 "name": "datadome",
                 "value": token,
-                "domain": domain,
+                "domain": cookie_domain,
                 "path": "/",
                 "sameSite": "Lax"
             }])
             
-            l("OK", "Cookie 'datadome' inyectada con éxito.")
+            l("OK", f"Cookie 'datadome' inyectada para dominio {cookie_domain}")
             return True
+        else:
+            l("WARN", f"2Captcha devolvió respuesta inesperada: {result}")
             
     except Exception as e:
         l("ERR", f"Error en solver DataDome: {e}")
@@ -722,9 +737,6 @@ async def solve_slider_2captcha(page, logger=None):
         l("INFO", f"📐 Detection Scale (DPI): {pixel_ratio}")
 
         # 1. Detect any slider-like containers with expanded selectors
-        # SPECIAL CASE: DataDome iframe
-        datadome_iframe = await page.query_selector("iframe[src*='captcha-delivery.com']")
-        
         selectors = [
             ".px-captcha-container", 
             "#captcha-container",
@@ -738,20 +750,16 @@ async def solve_slider_2captcha(page, logger=None):
             ".captcha-box"
         ]
         
-        container = datadome_iframe
-        if container:
-            l("INFO", "🛡️ Found DataDome iframe. Using it as container.")
-            await container.scroll_into_view_if_needed()
-        else:
-            for sel in selectors:
-                try:
-                    elem = await page.query_selector(sel)
-                    if elem and await elem.is_visible():
-                        container = elem
-                        # Ensure it's in view for a good screenshot
-                        await elem.scroll_into_view_if_needed()
-                        break
-                except: continue
+        container = None
+        for sel in selectors:
+            try:
+                elem = await page.query_selector(sel)
+                if elem and await elem.is_visible():
+                    container = elem
+                    # Ensure it's in view for a good screenshot
+                    await elem.scroll_into_view_if_needed()
+                    break
+            except: continue
             
         if not container:
             l("INFO", "No explicit captcha container found. Using body fallback.")
@@ -800,7 +808,6 @@ async def solve_slider_2captcha(page, logger=None):
             
             # 4. Find the slider handle with expanded selectors
             handle_selectors = [
-                 "#captcha-slider-handle", # DataDome specific
                  ".px-captcha-slider-button", 
                  ".geetest_slider_button", 
                  ".nc_iconfont.btn_slide", 
@@ -819,26 +826,13 @@ async def solve_slider_2captcha(page, logger=None):
                  "button[aria-label*='Desliza']"
             ]
             handle = None
-            
-            # If we're in a DataDome iframe, we need to check INSIDE the iframe for the handle
-            if datadome_iframe:
-                frame = page.frame_locator("iframe[src*='captcha-delivery.com']")
-                for hs in handle_selectors:
-                    try:
-                        h_loc = frame.locator(hs).first
-                        if await h_loc.count() > 0 and await h_loc.is_visible():
-                            handle = h_loc
-                            break
-                    except: continue
-            
-            if not handle:
-                for hs in handle_selectors:
-                    try:
-                        h = await page.query_selector(hs)
-                        if h and await h.is_visible():
-                            handle = h
-                            break
-                    except: continue
+            for hs in handle_selectors:
+                try:
+                    h = await page.query_selector(hs)
+                    if h and await h.is_visible():
+                        handle = h
+                        break
+                except: continue
                 
             if not handle:
                 # If no handle, try to find the FIRST visible role='button' inside the container
@@ -891,20 +885,13 @@ async def solve_slider_2captcha(page, logger=None):
             await page.mouse.up()
             
             # 5. Verification: Check if captcha container is still present/visible
-            await asyncio.sleep(4)
+            await asyncio.sleep(3)
             still_there = False
             try:
-                # Re-check identification logic
-                if datadome_iframe:
-                    # If it's datadome, check if iframe is still visible
-                    still_there = await datadome_iframe.is_visible()
-                else:
-                    # Re-check the first selector used
-                    for sel in selectors[:3]:
-                        curr_container = await page.query_selector(sel)
-                        if curr_container and await curr_container.is_visible():
-                            still_there = True
-                            break
+                # Re-check the container visibility
+                curr_container = await page.query_selector(selectors[0]) # Use first/main selector
+                if curr_container and await curr_container.is_visible():
+                    still_there = True
             except: pass
             
             if still_there:
@@ -923,35 +910,25 @@ async def solve_captcha_advanced(page, logger=None):
     """Orchestrator for CAPTCHA solving: DataDome -> Slider (Local) -> 2Captcha (Slider/GeeTest)."""
     l = logger or log
     
-    # 0. Check for DataDome specifically
+    # 0. Check for DataDome specifically (High Priority)
     is_datadome = await page.evaluate("() => !!document.querySelector('iframe[src*=\"captcha-delivery.com\"]')")
     if is_datadome:
-        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Intentando resolución por coordenadas (Recomendado sin proxy)...")
-        # Optimization: DataDome token method is prone to failure without proxies. 
-        # We try coordinates first as it's more universal.
-        if await solve_slider_2captcha(page, logger=l):
-            # Brief wait to see if it clears
-            await asyncio.sleep(5)
-            title = (await page.title()).lower()
-            if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                l("OK", "✅ DataDome resuelto mediante coordenadas!")
-                return True
-        
-        # Fallback to token (keeping it just in case, but usually fails without proxy)
-        l("INFO", "Intentando fallback a DataDome token...")
+        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Iniciando solver de tokens...")
         if await solve_datadome_2captcha(page, logger=l):
+            l("INFO", "Refrescando página tras inyección de cookie...")
             await page.reload(wait_until="networkidle")
-            await asyncio.sleep(5)
+            await asyncio.sleep(3)
             title = (await page.title()).lower()
             if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                l("OK", "✅ DataDome resuelto mediante token fallback!")
+                l("OK", "✅ DataDome resuelto mediante token!")
                 return True
+            l("WARN", "La cookie se inyectó pero el bloqueo persiste. Probando otros métodos...")
 
     # 1. Try Slider (Fast & Free)
     l("INFO", "🤖 Intentando resolución local (Slider)...")
-    if await solve_slider_captcha(page, logger=l):
+    if await solve_slider_captcha(page):
         # Brief wait to see if it clears
-        await asyncio.sleep(5)
+        await asyncio.sleep(3)
         title = (await page.title()).lower()
         if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
             l("OK", "✅ Local slider solved the CAPTCHA!")
@@ -965,7 +942,7 @@ async def solve_captcha_advanced(page, logger=None):
         
         if is_geetest:
             l("INFO", "🚀 Iniciando solver 2Captcha para GeeTest...")
-            if await solve_geetest_2captcha(page, logger=l):
+            if await solve_geetest_2captcha(page):
                  await asyncio.sleep(3)
                  title = (await page.title()).lower()
                  if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
