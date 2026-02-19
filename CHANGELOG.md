@@ -1,12 +1,13 @@
 ## [2026-02-19] - Browser Robustness & Infinite Rotation
 ### Added
 - **Infinite Identity Rotation**: Overhauled `rotate_identity` logic to ensure the scraper never stops. It now searches the entire pool for available profiles and, if all are blocked, waits for the one with the shortest remaining cooldown before continuing.
-- **CAPTCHA-First Block Logic**: Integrated `solve_captcha_advanced` into the "0 properties found" detection. The scraper now attempts to solve CAPTCHAs before triggering a profile rotation on potential blocks.
+- **DataDome Token Integration**: Implemented a specialized 2Captcha solver for DataDome challenges. It extracts the `captcha-delivery.com` URL, retrieves a valid token via 2Captcha API, and injects the `datadome` cookie directly into the browser context for a reliable bypass.
+- **CAPTCHA-First Block Logic**: Integrated `solve_captcha_advanced` into the "0 properties found" detection. The scraper now attempts to solve CAPTCHAs (prioritizing DataDome tokens) before triggering a profile rotation on potential blocks.
 
 ### Fixed
 - **System Lag Removal**: Replaced expensive PowerShell `Get-CimInstance` with a faster `Get-Process` filter in `_cleanup_zombie_browsers`. This resolves the reported mouse/audio stutter during scraper startup.
 - **CAPTCHA Solver Integration**: Fixed a logic bug where the CAPTCHA screen was misidentified as a fatal block ("Uso indebido"), causing premature rotation. The scraper now correctly triggers the 2Captcha solver before deciding to rotate.
-- **Improved Slider Detection**: Expanded handle selectors in `utils.py` to better target Idealista's latest slider challenges (`aria-label` variants).
+- **Improved Slider Detection**: Expanded handle selectors in `utils.py` and implemented **DPI-aware coordinate scaling** using `devicePixelRatio`. This ensures accurate clicks on high-DPI (4K/Retina) displays.
 - **Firefox Launch Stability**: Increased launch timeout to 120s and added `--no-remote` along with stability environment variables (`MOZ_REMOTE_SETTINGS_DEVTOOLS`, `MOZ_PROXY_ALLOW_BYPASS_FROM_SETTINGS`) to resolve Windows Juggler timeout issues.
 - **Persistent Continuity**: Updated `BlockedException` handling to ensure the scraper continues by rotating identity instead of performing a "Hard Stop".
 

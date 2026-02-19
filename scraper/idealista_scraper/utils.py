@@ -658,6 +658,58 @@ async def solve_geetest_2captcha(page):
         
     return False
 
+async def solve_datadome_2captcha(page, logger=None):
+    """Solve DataDome CAPTCHA using 2Captcha token method."""
+    l = logger or log
+    if not SOLVER:
+        l("WARN", "2Captcha SOLVER not initialized.")
+        return False
+        
+    try:
+        l("INFO", "🔍 Buscando iframe de DataDome...")
+        # Find DataDome iframe
+        iframe_element = await page.query_selector("iframe[src*='captcha-delivery.com']")
+        if not iframe_element:
+            l("WARN", "No se encontró el iframe de DataDome.")
+            return False
+            
+        captcha_url = await iframe_element.get_attribute("src")
+        user_agent = await page.evaluate("navigator.userAgent")
+        
+        l("INFO", f"📤 Enviando tarea DataDome a 2Captcha... (URL: {captcha_url[:50]}...)")
+        
+        # Call 2Captcha DataDome method
+        result = await asyncio.to_thread(
+            SOLVER.datadome,
+            captcha_url=captcha_url,
+            pageurl=page.url,
+            userAgent=user_agent
+        )
+        
+        if result and 'code' in result:
+            token = result['code']
+            l("OK", "✅ 2Captcha devolvió token de DataDome. Inyectando cookie...")
+            
+            # Extract domain for cookie
+            domain = urlparse(page.url).netloc
+            
+            # Add the cookie to the browser context
+            await page.context.add_cookies([{
+                "name": "datadome",
+                "value": token,
+                "domain": domain,
+                "path": "/",
+                "sameSite": "Lax"
+            }])
+            
+            l("OK", "Cookie 'datadome' inyectada con éxito.")
+            return True
+            
+    except Exception as e:
+        l("ERR", f"Error en solver DataDome: {e}")
+        
+    return False
+
 async def solve_slider_2captcha(page, logger=None):
     """Solve simple slider captchas using 2Captcha Coordinates method (Refined version)."""
     if not SOLVER:
@@ -839,8 +891,23 @@ async def solve_slider_2captcha(page, logger=None):
     return False
 
 async def solve_captcha_advanced(page, logger=None):
-    """Orchestrator for CAPTCHA solving: Slider (Local) -> 2Captcha (Slider/GeeTest)."""
+    """Orchestrator for CAPTCHA solving: DataDome -> Slider (Local) -> 2Captcha (Slider/GeeTest)."""
     l = logger or log
+    
+    # 0. Check for DataDome specifically (High Priority)
+    is_datadome = await page.evaluate("() => !!document.querySelector('iframe[src*=\"captcha-delivery.com\"]')")
+    if is_datadome:
+        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Iniciando solver de tokens...")
+        if await solve_datadome_2captcha(page, logger=l):
+            l("INFO", "Refrescando página tras inyección de cookie...")
+            await page.reload(wait_until="networkidle")
+            await asyncio.sleep(3)
+            title = (await page.title()).lower()
+            if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
+                l("OK", "✅ DataDome resuelto mediante token!")
+                return True
+            l("WARN", "La cookie se inyectó pero el bloqueo persiste. Probando otros métodos...")
+
     # 1. Try Slider (Fast & Free)
     l("INFO", "🤖 Intentando resolución local (Slider)...")
     if await solve_slider_captcha(page):
