@@ -62,17 +62,34 @@ async def _goto_with_retry(page, url: str, humanize: bool = True, session: Optio
             if any(msg in error_msg for msg in ["page crashed", "target closed", "browser has been closed", "context has been closed"]):
                 log("ERR", f"🛑 BROWSER CRASH/CLOSE DETECTED on {url}: {e}")
                 raise Exception("BROWSER_CRASHED_OR_CLOSED")
-            # Re-raise heavily if it's a specific block we already handled within the try block?
-            # No, standard retry logic follows.
-            
+
+            # --- WEBKIT ROBUSTNESS FALLBACK ---
+            # "Failed sending data to the peer" is common in WebKit when navigation succeeds but driver sync fails.
+            if any(msg in error_msg for msg in ["failed sending data to the peer", "connection reset"]):
+                 try:
+                    await asyncio.sleep(2.0) # Wait for page to settle
+                    current_url = page.url
+                    if url in current_url:
+                        title = await page.title()
+                        if "idealista" in title.lower():
+                            log("OK", f"Recovered from WebKit peer/reset error on {url}. Page seems loaded.")
+                            # Check for blocks anyway
+                            if any(x in title.lower() for x in ["atención", "attention", "uso indebido", "access denied"]):
+                                pass # Found a block, let the outer loop handle it
+                            else:
+                                return # Page loaded and no obvious block, exit retry loop successfully
+                except:
+                    pass
+
             last_err = e
             err_str = str(e)
             
             # Special handling for Firefox NS_ERROR_ABORT (often transient redirects)
-            if "NS_ERROR_ABORT" in err_str:
+            if "NS_ERROR_ABORT" in err_str or "failed sending data to the peer" in err_str:
                 if attempt < RETRY_MAX_ATTEMPTS:
-                    log("INFO", f"Navigation aborted by Firefox (NS_ERROR_ABORT) for {url}. Retrying immediately...")
-                    continue # Immediate retry, no delay backoff for aborts
+                    log("INFO", f"Minor connection error for {url} ({err_str[:50]}...). Retrying with relaxed wait...")
+                    delay = 1.0 # Short delay for these types of errors
+                    continue 
             
             log("WARN", f"goto attempt {attempt}/{RETRY_MAX_ATTEMPTS} failed for {url}: {e}")
             await asyncio.sleep(delay)
