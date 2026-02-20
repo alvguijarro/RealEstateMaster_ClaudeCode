@@ -984,6 +984,7 @@ function toggleAutoScroll() {
         if (autoScrollEnabled) {
             btn.innerHTML = '⏸';
             btn.title = 'Pausar auto-scroll';
+            btn.classList.remove('is-paused');
             if (logsContainer) {
                 logsContainer.classList.remove('paused');
                 // Jump to bottom when re-enabling
@@ -992,6 +993,7 @@ function toggleAutoScroll() {
         } else {
             btn.innerHTML = '▶';
             btn.title = 'Reanudar auto-scroll';
+            btn.classList.add('is-paused');
             if (logsContainer) {
                 logsContainer.classList.add('paused');
             }

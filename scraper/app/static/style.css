@@ -419,6 +419,19 @@ select:focus {
     transform: scale(1.05);
 }
 
+/* Log Paused State */
+.logs-container.paused {
+    border: 1px solid var(--warning) !important;
+    background: #111 !important;
+    /* Slightly lighter black */
+}
+
+#pauseLogBtn.is-paused {
+    background: rgba(234, 179, 8, 0.2) !important;
+    color: var(--warning) !important;
+    border-color: rgba(234, 179, 8, 0.4) !important;
+}
+
 /* Logs */
 .logs-container {
     flex: 1;
