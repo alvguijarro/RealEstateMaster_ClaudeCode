@@ -361,10 +361,15 @@ async def detect_captcha(page) -> str | None:
         text_lower = re.sub(r'\s+', ' ', text_lower).strip()
 
         # Hard blocks
-        if any(kw in text_lower for kw in ["el acceso se ha bloqueado", "uso indebido", "access denied", "forbidden"]):
+        if any(kw in text_lower for kw in ["el acceso se ha bloqueado", "uso indebido", "access denied", "forbidden", "un uso indebido"]):
             return "block"
         if "id: " in text_lower and re.search(r"id: [0-9a-f]{8,32}-", text_lower):
             return "block"
+        
+        # Detect ID pattern: 3cc1692a-4eb3-73db-8328-e6e677b4cbc3
+        if re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", text_lower):
+            if "se ha detectado" in text_lower or "idealista" in title:
+                return "block"
 
         # Captchas
         is_datadome = await page.evaluate("""() => {
@@ -373,9 +378,12 @@ async def detect_captcha(page) -> str | None:
         if is_datadome or any(kw in text_lower for kw in ["recibiendo muchas peticiones", "confirma que eres humano", "verificación necesaria"]):
             return "captcha"
 
-        if title == "idealista.com" and len(text_lower) < 1200:
-            has_items = await page.evaluate("!!document.querySelector('article, .item, #h1-container')")
-            if not has_items: return "block"
+        if title == "idealista.com" or "idealista" in title:
+            if len(text_lower) < 1200:
+                has_items = await page.evaluate("!!document.querySelector('article, .item, #h1-container, .detail-info, .main-info')")
+                if not has_items: 
+                    # If it's a very short page with "Idealista" title and no items, it's a block/empty page
+                    return "block"
 
         return None
     except:
@@ -702,9 +710,9 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     
                     page = context.pages[0] if context.pages else await context.new_page()
                     
-                    # HUMAN WARM-UP
-                    if start_index == 0 or random.random() < 0.1:
-                        await human_warmup_routine(page, emit_to_ui)
+                    # No longer doing warmup per user request
+                    # if start_index == 0 or random.random() < 0.1:
+                    #     await human_warmup_routine(page, emit_to_ui)
                     
 
                     # --- PROCESSING LOOP ---
@@ -878,7 +886,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                                   d['Baja anuncio'] = 'desconocida'
                                              else:
                                                   # Raise exception to trigger retry or skip without saving bad data.
-                                                  raise Exception("Extraction returned empty data (Title/Price missing)")
+                                                 pass
                                              raise Exception("Extraction returned empty data (Title/Price missing)")
                                     
                                     break
