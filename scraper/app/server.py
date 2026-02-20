@@ -1163,109 +1163,7 @@ def stop_update_process():
 
 
 
-@app.route('/api/import-api', methods=['POST'])
-def start_api_import():
-    """Start API Import process."""
-    from scraper.idealista_scraper.api_client import fetch_data_generator
-    from scraper.idealista_scraper.excel_writer import export_split_by_distrito
-    import pandas as pd
-    
-    data = request.get_json()
-    location_id = data.get('location_id', '').strip()
-    operation = data.get('operation', 'rent')
-    max_pages = int(data.get('max_pages', 50))
-    location_name = data.get('location_name', location_id) # Allow passing name if manual
-    
-    if not location_id:
-        return jsonify({'error': 'Location ID is required'}), 400
-        
-    emit_log('INFO', f'Starting API Import for ID: {location_id} ({operation})')
-    emit_status('running', mode='api_import')
-    
-    def run_import():
-        try:
-            generator = fetch_data_generator(
-                location_id=location_id,
-                operation=operation,
-                max_pages=max_pages,
-                on_log=emit_log,
-                location_name=location_name
-            )
-            
-            all_rows = []
-            
-            for event in generator:
-                if event['type'] == 'progress':
-                    emit_progress({
-                        'current_page': event['page'],
-                        'total_pages': max_pages,
-                        'current_properties': event['total'],
-                        'total_properties': 0 
-                    })
-                elif event['type'] == 'batch':
-                    new_rows = event['rows']
-                    all_rows.extend(new_rows)
-                    if new_rows:
-                        emit_property(new_rows[-1])
-
-            if not all_rows:
-                emit_log('WARN', 'API Import finished but no properties found.')
-                emit_status('completed', message='No data found')
-                return
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-            from scraper.idealista_scraper.utils import sanitize_filename_part
-            loc_clean = sanitize_filename_part(location_name)
-            
-            filename = f"API_IMPORT_{loc_clean}_{operation}_{timestamp}.xlsx"
-            out_path = os.path.join(DEFAULT_OUTPUT_DIR, filename)
-            
-            emit_log('INFO', f"Exporting {len(all_rows)} properties to {filename}...")
-            
-            export_split_by_distrito(
-                existing_df=pd.DataFrame(),
-                additions=all_rows,
-                out_path=out_path,
-                carry_cols=set()
-            )
-            
-            # Global controller output_file might be needed for download button?
-            # We don't have a scraper_controller instance for API mode...
-            # But the UI checks /api/status.
-            # We can mock a controller state or just set the global output file?
-            # Or just rely on history entry.
-            # But "Download" button uses `scraper_controller.output_file`.
-            # I can create a dummy object?
-            
-            class DummyController:
-                def __init__(self, f, p):
-                    self.output_file = f
-                    self.scraped_properties = p
-                    self.status = 'completed'
-                    self.current_page = 0
-                    self.is_running = False
-            
-            global scraper_controller
-            scraper_controller = DummyController(out_path, all_rows)
-            
-            add_history_entry(
-                seed_url=f"API:{location_id}",
-                properties_count=len(all_rows),
-                category=f"{loc_clean}_{operation}",
-                output_file=out_path
-            )
-            
-            emit_log('OK', f"API Import Successful! Saved: {filename}")
-            emit_status('completed', message='Import successful', output_file=out_path)
-            
-        except Exception as e:
-            emit_log('ERR', f"API Import failed: {e}")
-            emit_status('error', message=str(e))
-
-    thread = threading.Thread(target=run_import, daemon=True)
-    thread.start()
-
-    return jsonify({'status': 'started'})
+# /api/import-api removed.
 
 
 @socketio.on('progress')
@@ -1295,31 +1193,9 @@ def run_server(host='127.0.0.1', port=5003):
 # API & DATABASE DASHBOARD ENDPOINTS
 # =============================================================================
 
-# List of supported provinces (INE Codes)
-PROVINCES_LIST = [
-    {"id": "0-EU-ES-01", "name": "Alava"}, {"id": "0-EU-ES-02", "name": "Albacete"}, {"id": "0-EU-ES-03", "name": "Alicante"}, 
-    {"id": "0-EU-ES-04", "name": "Almeria"}, {"id": "0-EU-ES-05", "name": "Avila"}, {"id": "0-EU-ES-06", "name": "Badajoz"},
-    {"id": "0-EU-ES-07", "name": "Baleares"}, {"id": "0-EU-ES-08", "name": "Barcelona"}, {"id": "0-EU-ES-09", "name": "Burgos"},
-    {"id": "0-EU-ES-10", "name": "Caceres"}, {"id": "0-EU-ES-11", "name": "Cadiz"}, {"id": "0-EU-ES-12", "name": "Castellon"},
-    {"id": "0-EU-ES-13", "name": "Ciudad Real"}, {"id": "0-EU-ES-14", "name": "Cordoba"}, {"id": "0-EU-ES-15", "name": "A Coruna"},
-    {"id": "0-EU-ES-16", "name": "Cuenca"}, {"id": "0-EU-ES-17", "name": "Girona"}, {"id": "0-EU-ES-18", "name": "Granada"},
-    {"id": "0-EU-ES-19", "name": "Guadalajara"}, {"id": "0-EU-ES-20", "name": "Guipuzcoa"}, {"id": "0-EU-ES-21", "name": "Huelva"},
-    {"id": "0-EU-ES-22", "name": "Huesca"}, {"id": "0-EU-ES-23", "name": "Jaen"}, {"id": "0-EU-ES-24", "name": "Leon"},
-    {"id": "0-EU-ES-25", "name": "Lleida"}, {"id": "0-EU-ES-26", "name": "La Rioja"}, {"id": "0-EU-ES-27", "name": "Lugo"},
-    {"id": "0-EU-ES-28", "name": "Madrid"}, {"id": "0-EU-ES-29", "name": "Malaga"}, {"id": "0-EU-ES-30", "name": "Murcia"},
-    {"id": "0-EU-ES-31", "name": "Navarra"}, {"id": "0-EU-ES-32", "name": "Ourense"}, {"id": "0-EU-ES-33", "name": "Asturias"},
-    {"id": "0-EU-ES-34", "name": "Palencia"}, {"id": "0-EU-ES-35", "name": "Las Palmas"}, {"id": "0-EU-ES-36", "name": "Pontevedra"},
-    {"id": "0-EU-ES-37", "name": "Salamanca"}, {"id": "0-EU-ES-38", "name": "Santa Cruz de Tenerife"},
-    {"id": "0-EU-ES-39", "name": "Cantabria"}, {"id": "0-EU-ES-40", "name": "Segovia"}, {"id": "0-EU-ES-41", "name": "Sevilla"},
-    {"id": "0-EU-ES-42", "name": "Soria"}, {"id": "0-EU-ES-43", "name": "Tarragona"}, {"id": "0-EU-ES-44", "name": "Teruel"},
-    {"id": "0-EU-ES-45", "name": "Toledo"}, {"id": "0-EU-ES-46", "name": "Valencia"}, {"id": "0-EU-ES-47", "name": "Valladolid"},
-    {"id": "0-EU-ES-48", "name": "Vizcaya"}, {"id": "0-EU-ES-49", "name": "Zamora"}, {"id": "0-EU-ES-50", "name": "Zaragoza"},
-    {"id": "0-EU-ES-51", "name": "Ceuta"}, {"id": "0-EU-ES-52", "name": "Melilla"}
-]
+# PROVINCES_LIST removed.
 
-@app.route('/api/provinces', methods=['GET'])
-def get_provinces():
-    return jsonify({'provinces': PROVINCES_LIST})
+# /api/provinces removed.
 
 @app.route('/api/salidas-files', methods=['GET'])
 def get_salidas_files():
@@ -1356,29 +1232,7 @@ def get_salidas_files():
         print(f"Error in get_salidas_files: {e}")
         return jsonify({'error': str(e), 'files': []}), 500
 
-@app.route('/api/batch-scan', methods=['POST'])
-def run_batch_scan():
-    """Run batch API scan script."""
-    global update_process
-    if update_process and update_process.poll() is None:
-        return jsonify({'status': 'error', 'message': 'A task is already running. Please wait.'}), 409
-        
-    data = request.json or {}
-    operation = data.get('operation', 'rent') # rent or sale
-    provinces = data.get('provinces', []) # List of strings
-    
-    script_path = (Path(__file__).parent.parent.parent / "scripts" / "batch_api_scan.py").resolve()
-    
-    cmd = [sys.executable, str(script_path), "--operation", operation, "--resume"]
-    
-    if provinces:
-        # Pass comma-separated list
-        # Ensure we don't have empty strings
-        clean_provs = [p.strip() for p in provinces if p.strip()]
-        if clean_provs:
-            cmd.extend(["--provinces", ",".join(clean_provs)])
-
-    return start_background_task(cmd, f"Batch Scan ({operation.upper()})")
+# /api/batch-scan removed.
 
 @app.route('/api/enrich', methods=['POST'])
 def run_enrichment():
@@ -1470,24 +1324,44 @@ def start_background_task(cmd, task_name, cwd=None):
 
 @app.route('/api/save-to-bigquery', methods=['POST'])
 def save_to_bigquery():
-    """Manual trigger to save an Excel file's data to BigQuery."""
+    """Manual trigger to save multiple Excel files' data to BigQuery."""
     data = request.json or {}
-    file_path = data.get('file_path')
+    file_paths = data.get('file_paths', [])
     
-    if not file_path:
-        return jsonify({'error': 'No file path provided'}), 400
+    if not file_paths:
+        return jsonify({'error': 'No files provided'}), 400
         
-    try:
-        import pandas as pd
-        df = pd.read_excel(file_path)
-        success = db_manager.save_listings_from_df(df, source_file=os.path.basename(file_path))
-        
-        if success:
-            return jsonify({'status': 'ok', 'message': f'Uploaded {len(df)} rows to BigQuery'})
-        else:
-            return jsonify({'error': 'BigQuery upload failed. Check server logs.'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    import pandas as pd
+    total_rows = 0
+    successful_files = 0
+    
+    for file_path in file_paths:
+        try:
+            emit_log('INFO', f"Uploading {os.path.basename(file_path)} to BigQuery...")
+            df = pd.read_excel(file_path)
+            # Ensure price/old price are numeric for BigQuery
+            for col in ['price', 'old price', 'm2 construidos', 'm2 utiles', 'precio por m2']:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+
+            success = db_manager.save_listings_from_df(df, source_file=os.path.basename(file_path))
+            
+            if success:
+                total_rows += len(df)
+                successful_files += 1
+                emit_log('OK', f"✅ Successfully uploaded {len(df)} rows from {os.path.basename(file_path)}")
+            else:
+                emit_log('ERR', f"❌ BigQuery upload failed for {os.path.basename(file_path)}")
+        except Exception as e:
+            emit_log('ERR', f"❌ Error processing {os.path.basename(file_path)}: {e}")
+    
+    if successful_files > 0:
+        return jsonify({
+            'status': 'ok', 
+            'message': f'Uploaded {total_rows} rows from {successful_files} file(s) to BigQuery'
+        })
+    else:
+        return jsonify({'error': 'No files were successfully uploaded. Check logs.'}), 500
 
 if __name__ == '__main__':
     run_server(port=5003)

@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.7.7] - 2026-02-20
+### Added
+- **Integración con BigQuery**: Rediseñada la pestaña "API & Database" (ahora "BigQuery Upload") para permitir la subida directa de archivos Excel desde la carpeta `scraper/salidas` a Google BigQuery. Soporta selección múltiple y carga secuencial.
+- **Utilidad de Carga Masiva**: Implementado endpoint en el servidor para procesar y subir lotes de archivos con validación de datos numéricos.
+
+### Removed
+- **Legacy Idealista API**: Eliminada toda la funcionalidad de descarga vía API de Idealista (obsoleta). 
+- **Limpieza de Código**: Eliminados scripts antiguos (`batch_api_scan.py`, `api_client.py`, etc.) y rutas de servidor no utilizadas para mejorar la mantenibilidad.
+
 ## [2.7.6] - 2026-02-20
 ### Fixed
 - **Sincronización de Distritos**: Implementada normalización robusta (minúsculas, sin acentos, sin espacios) para garantizar el cruce de datos Venta/Alquiler.

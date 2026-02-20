@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory();
     checkResumeState();  // Check if there's a saved session to resume
     loadExcelFiles();    // Load Excel files for URL update dropdown
-    loadProvincesList(); // Load provinces for multi-select
+    loadBQFiles();       // Load files for BigQuery upload
     setupMultiSelectUI(); // Setup dropdown listeners
 
     // UI Refresh Buttons
@@ -344,46 +344,35 @@ function getSelectedSheets() {
 
 let allProvinces = [];
 
-// Load Provinces
-async function loadProvinces() {
+// Load BigQuery Files
+async function loadBQFiles() {
     try {
-        const response = await fetch('/api/provinces');
+        const response = await fetch('/api/salidas-files?limit=100');
         const data = await response.json();
-        const select = document.getElementById('apiProvinces');
+        const select = document.getElementById('bqFiles');
 
-        if (select && data.provinces) {
-            allProvinces = data.provinces;
-            renderProvinces(allProvinces);
+        if (select && data.files) {
+            select.innerHTML = '';
+            if (data.files.length === 0) {
+                select.innerHTML = '<option value="">Sin archivos en salidas/</option>';
+                return;
+            }
+
+            data.files.forEach(f => {
+                const opt = document.createElement('option');
+                opt.value = f.path;
+                // Add friendly name with date
+                const dateStr = f.mtime ? ` [${formatMtime(f.mtime)}]` : '';
+                opt.textContent = `${f.name}${dateStr}`;
+                select.appendChild(opt);
+            });
         }
     } catch (e) {
-        console.error("Error loading provinces", e);
+        console.error("Error loading BigQuery files", e);
     }
 }
 
-function renderProvinces(list) {
-    const select = document.getElementById('apiProvinces');
-    if (!select) return;
-    const currentSelected = new Set(Array.from(select.selectedOptions).map(o => o.value));
-
-    select.innerHTML = '';
-    list.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = p.name;
-        if (currentSelected.has(p.id)) opt.selected = true;
-        select.appendChild(opt);
-    });
-    updateProvinceCount();
-}
-
-function updateProvinceCount() {
-    const select = document.getElementById('apiProvinces');
-    const countDisplay = document.getElementById('selectedCount');
-    if (select && countDisplay) {
-        const count = Array.from(select.selectedOptions).length;
-        countDisplay.textContent = `${count} seleccionadas. Vacío = TODAS.`;
-    }
-}
+// Province helpers removed as they are no longer needed for BigQuery flow
 
 function selectAllProvinces() {
     const select = document.getElementById('apiProvinces');
@@ -421,26 +410,58 @@ async function loadEnrichFiles() {
 
 // Tab Switching
 document.addEventListener('DOMContentLoaded', () => {
-    loadProvinces();
-    loadEnrichFiles();
-    // Initialize multi-province dropdowns
-    loadProvincesList();
-    setupMultiSelectUI();
-
-    // Province Search Listener
-    const provSearch = document.getElementById('provinceSearch');
-    if (provSearch) {
-        provSearch.addEventListener('input', () => {
-            const term = provSearch.value.toLowerCase();
-            const filtered = allProvinces.filter(p => p.name.toLowerCase().includes(term));
-            renderProvinces(filtered);
+    // BigQuery Refresh Button
+    const btnRefreshBQFiles = document.getElementById('btnRefreshBQFiles');
+    if (btnRefreshBQFiles) {
+        btnRefreshBQFiles.addEventListener('click', async () => {
+            btnRefreshBQFiles.classList.add('loading');
+            await loadBQFiles();
+            setTimeout(() => btnRefreshBQFiles.classList.remove('loading'), 500);
         });
     }
 
-    // Province Selection Listener
-    const provSelect = document.getElementById('apiProvinces');
-    if (provSelect) {
-        provSelect.addEventListener('change', updateProvinceCount);
+    // BigQuery Upload Button
+    const uploadBQBtn = document.getElementById('uploadBQBtn');
+    if (uploadBQBtn) {
+        uploadBQBtn.addEventListener('click', async () => {
+            const select = document.getElementById('bqFiles');
+            const selectedFiles = Array.from(select.selectedOptions).map(opt => opt.value);
+
+            if (selectedFiles.length === 0) {
+                alert("Por favor, selecciona al menos un archivo.");
+                return;
+            }
+
+            if (!confirm(`¿Estás seguro de que quieres subir ${selectedFiles.length} archivo(s) a BigQuery?`)) {
+                return;
+            }
+
+            uploadBQBtn.disabled = true;
+            uploadBQBtn.innerHTML = '🚀 SUBIENDO...';
+            addLog('INFO', `Iniciando subida de ${selectedFiles.length} archivos a BigQuery...`);
+
+            try {
+                const response = await fetch('/api/save-to-bigquery', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_paths: selectedFiles })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    addLog('OK', `✅ Éxito: ${data.message}`);
+                    alert(`Éxito: ${data.message}`);
+                } else {
+                    addLog('ERR', `❌ Error: ${data.error}`);
+                    alert(`Error: ${data.error}`);
+                }
+            } catch (e) {
+                addLog('ERR', `❌ Error de conexión: ${e.message}`);
+            } finally {
+                uploadBQBtn.disabled = false;
+                uploadBQBtn.innerHTML = '🚀 SUBIR A BIGQUERY';
+            }
+        });
     }
 
     const tabBtns = document.querySelectorAll('.tab-btn');

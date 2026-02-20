@@ -200,23 +200,25 @@
                     <section class="panel api-db-panel" style="grid-column: 1 / -1;">
                         <h3
                             style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;">
-                            <span><span style="margin-right:8px;">🚀</span> API & Database Operations</span>
-                            <button class="btn-icon-only" id="btnRefreshProvinces"
-                                title="Refrescar provincias">🔄</button>
+                            <span><span style="margin-right:8px;">🚀</span> BigQuery Upload Operations</span>
+                            <button class="btn-icon-only" id="btnRefreshBQFiles" title="Refrescar ficheros">🔄</button>
                         </h3>
                         <div class="api-db-grid">
-                            <div class="api-group">
-                                <h4>📥 Descarga API (Batch)</h4>
-                                <select id="apiProvinces" multiple
-                                    style="width: 100%; height: 120px; margin-bottom: 10px;">
-                                    <option value="">Cargando...</option>
+                            <div class="api-group" style="width: 100%;">
+                                <h4>📤 Subida a BigQuery</h4>
+                                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">
+                                    Selecciona uno o varios archivos de Excel para subir a BigQuery.
+                                </p>
+                                <select id="bqFiles" multiple
+                                    style="width: 100%; height: 200px; margin-bottom: 15px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: var(--text-main); padding: 10px; border-radius: 6px;">
+                                    <option value="">Cargando archivos...</option>
                                 </select>
                                 <div class="btn-group-vertical"
                                     style="display: flex; flex-direction: column; gap: 8px;">
-                                    <button class="btn btn-primary" onclick="runApiTask('batch-scan', 'sale')">🏠 LANZAR
-                                        VENTA</button>
-                                    <button class="btn btn-info" onclick="runApiTask('batch-scan', 'rent')">🔑 LANZAR
-                                        ALQUILER</button>
+                                    <button class="btn btn-primary" id="uploadBQBtn"
+                                        style="height: 50px; font-weight: 600; font-size: 1rem;">
+                                        🚀 SUBIR A BIGQUERY
+                                    </button>
                                 </div>
                             </div>
                             <!-- Supabase Database section removed -->
