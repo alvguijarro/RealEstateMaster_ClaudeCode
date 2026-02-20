@@ -765,11 +765,15 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                         if was_paused:
                             emit_to_ui('INFO', '[STATUS] resumed')
                             
+                        # --- DEACTIVATED SKIP: Skip properties already marked as inactive ---
+                        is_active = str(orig_row_data.get('Anuncio activo', '')).strip().lower() not in ['no', 'false', '0', 'falso']
+                        if not is_active:
+                            emit_to_ui('INFO', f'({i}/{len(urls)}) [SKIP] Already deactivated: {url}')
+                            updated_rows.append(orig_row_data)
+                            start_index = i
+                            continue
+
                         # --- ENRICHMENT SKIP: Check 'enriched' column and 'Fecha Scraping' ---
-                        # Get original row data from our pre-loaded map
-                        orig_row_data = url_to_row.get(url, {})
-                        
-                        # Check various potential column names for enrichment status
                         is_enriched_in_excel = (
                             str(orig_row_data.get('enriched', '')).upper() in ['VERDADERO', 'TRUE', 'YES', 'SI', '1'] or
                             str(orig_row_data.get('__enriched__', '')).upper() in ['VERDADERO', 'TRUE', 'YES', 'SI', '1']
@@ -779,7 +783,6 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                         from datetime import datetime
                         today_str = datetime.now().strftime("%d/%m/%Y")
                         date_scraped = str(orig_row_data.get('Fecha Scraping', '')).strip()
-                        is_active = str(orig_row_data.get('Anuncio activo', '')).strip().lower() in ['sí', 'si', 'yes', 'true', '1']
                         
                         if is_enriched_in_excel or (is_active and date_scraped == today_str):
                             reason = "Enriched" if is_enriched_in_excel else "Scraped today"

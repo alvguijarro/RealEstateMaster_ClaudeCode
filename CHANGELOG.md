@@ -6,6 +6,10 @@
 - **Lógica de Upsert Inteligente**: Implementada estrategia de actualización o inserción (Delete + Insert) basada en la URL para evitar duplicados y optimizar el almacenamiento. Se añade automáticamente una marca de tiempo (`upload_timestamp`) a cada fila.
 - **Utilidad de Carga Masiva**: Implementado endpoint en el servidor para procesar y subir lotes de archivos con validación de datos numéricos.
 
+### Improved
+- **Omisión de Anuncios Desactivados**: El scraper ahora detecta y salta automáticamente las propiedades ya marcadas como desactivadas ("Anuncio activo" = "No") en todos los modos (Full Scrape, Update URLs, Smart Enrichment). Esto optimiza drásticamente la velocidad de procesamiento al evitar visitas innecesarias a páginas que ya no existen.
+- **Carga de Metadatos**: Optimizada la carga de archivos Excel existentes para capturar tanto fechas de actualización como estado de actividad de forma global.
+
 ### Removed
 - **Legacy Idealista API**: Eliminada toda la funcionalidad de descarga vía API de Idealista (obsoleta). 
 - **Limpieza de Código**: Eliminados scripts antiguos (`batch_api_scan.py`, `api_client.py`, etc.) y rutas de servidor no utilizadas para mejorar la mantenibilidad.

@@ -345,9 +345,17 @@ class ScraperSession:
                 except Exception:
                     page_date = None
                 
-                # Smart deduplication: check if URL exists with same date
+                # Smart deduplication: check if URL exists with same date OR is inactive
                 if key in url_dates:
-                    existing_date = url_dates.get(key, "")
+                    meta = url_dates.get(key, {})
+                    existing_date = meta.get("date", "")
+                    is_active = meta.get("is_active", True)
+                    
+                    if not is_active:
+                        log("INFO", f"[inactive - skipping] {key}")
+                        self.processed.add(key)
+                        return
+                        
                     if page_date and existing_date and page_date.strip() == existing_date.strip():
                         log("INFO", f"[already exists - skipping] {key}")
                         self.processed.add(key)

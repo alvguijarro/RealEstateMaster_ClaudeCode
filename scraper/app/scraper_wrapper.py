@@ -1963,11 +1963,18 @@ class ScraperController:
             
             if target_path and os.path.exists(target_path):
                 self.log("INFO", f"Found previous scrape: {target_file}")
-                url_dates = load_urls_with_dates(target_path)
-                preloaded_urls = set(url_dates.keys())
+                url_meta = load_urls_with_dates(target_path)
+                # Store metadata for later check in loop
+                for u, meta in url_meta.items():
+                    self._all_existing_urls[u] = {
+                        'is_inactive': not meta.get('is_active', True),
+                        'fecha_scraping': meta.get('date', '')
+                    }
+                
+                preloaded_urls = set(url_meta.keys())
                 self.log("OK", f"Pre-loaded {len(preloaded_urls)} existing URLs from previous scrape")
                 
-                # Add to processed set to skip without navigation
+                # Add to processed set to skip without navigation (Standard behavior: skip if in target file)
                 self._processed.update(preloaded_urls)
             else:
                 # File doesn't exist yet - keep the registered filename, it will be created
@@ -2737,19 +2744,18 @@ class ScraperController:
                             key = canonical_listing_url(href)
                             self._seen_in_search.add(key) # Mark as active (seen in search)
                             
+                            # --- GLOBAL DEACTIVATION SKIP: Always skip properties already marked as inactive ---
+                            orig_row = self._all_existing_urls.get(key, {})
+                            if orig_row.get('is_inactive'):
+                                self.log("INFO", f"({property_idx}/{self.total_properties_expected}) [SKIP] Already deactivated: {key}")
+                                self._processed.add(key)
+                                skipped += 1
+                                self.current_property_count = property_idx
+                                self.emit_progress()
+                                continue
+                                
                             # Smart Enrichment Optimization: Skip detail visit if already enriched & active
                             if self.smart_enrichment and key in self._enriched_urls and key not in self._processed:
-                                # Use data from existing URLs map
-                                orig_row = self._all_existing_urls.get(key, {})
-                                
-                                # STRICT SKIP: If marked as inactive, do NOT reactivate it. Skip immediately.
-                                if orig_row.get('is_inactive'):
-                                    self.log("INFO", f"({property_idx}/{self.total_properties_expected}) [SKIP] Inactive property: {key}")
-                                    self._processed.add(key) # Mark as processed so we don't handle it again
-                                    skipped += 1
-                                    self.current_property_count = property_idx
-                                    self.emit_progress()
-                                    continue
 
                                 self.log("INFO", f"({property_idx}/{self.total_properties_expected}) [SMART SKIP] Active & already enriched: {key}")
                                 
@@ -2825,14 +2831,21 @@ class ScraperController:
                                     # Load existing URLs from this file
                                     # import time  <-- REMOVED to fix UnboundLocalError
                                     t_start_load = time.time()
-                                    url_dates = load_urls_with_dates(target_path)
+                                    url_meta = load_urls_with_dates(target_path)
+                                    # Copy metadata to state
+                                    for u, meta in url_meta.items():
+                                        if u not in self._all_existing_urls:
+                                            self._all_existing_urls[u] = {
+                                                'is_inactive': not meta.get('is_active', True),
+                                                'fecha_scraping': meta.get('date', '')
+                                            }
                                     t_end_load = time.time()
-                                    self.log("INFO", f"Loaded {len(url_dates)} existing URLs from file in {t_end_load - t_start_load:.2f}s")
+                                    self.log("INFO", f"Loaded {len(url_meta)} existing URLs from file in {t_end_load - t_start_load:.2f}s")
                             
                                     # CRITICAL FIX: Add existing URLs to processed set immediately
                                     # This prevents re-scraping subsequent properties in this loop that are already in the file
-                                    if url_dates:
-                                        self._processed.update(url_dates.keys())
+                                    if url_meta:
+                                        self._processed.update(url_meta.keys())
                             
                                     # Process first property - check for missing fields (CAPTCHA)
                                     miss = missing_fields(row, is_room_mode=self._is_room_mode)
@@ -3323,8 +3336,8 @@ class ScraperController:
                             target_file = registry_entry.get("output_file")
                             target_path = os.path.join(self.output_dir, target_file) if target_file else None
                             if target_path and os.path.exists(target_path):
-                                url_dates = load_urls_with_dates(target_path)
-                                self._processed.update(url_dates.keys())
+                                url_meta = load_urls_with_dates(target_path)
+                                self._processed.update(url_meta.keys())
                                 self.log("INFO", f"Pre-loaded {len(url_dates)} existing URLs for phase 2")
                     
                         # Re-run the main scraping loop for phase 2

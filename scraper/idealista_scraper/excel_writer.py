@@ -71,20 +71,19 @@ def load_existing_single_sheet(path: str, sheet: str):
 
 
 def load_urls_with_dates(path: str) -> dict:
-    """Load all URLs with their 'actualizado hace' dates from all sheets.
+    """Load all URLs with their metadata (date and active status) from all sheets.
     
-    This enables smart deduplication - only re-scrape properties that have been
-    updated since the last scrape.
+    This enables smart deduplication and skipping of deactivated properties.
     
     Args:
         path: Path to the Excel file
         
     Returns:
-        Dict mapping URL -> last_updated_date (as string)
+        Dict mapping URL -> {'date': str, 'is_active': bool}
     """
-    url_dates = {}
+    url_metadata = {}
     if not os.path.exists(path):
-        return url_dates
+        return url_metadata
     
     try:
         with pd.ExcelFile(path) as xls:
@@ -93,28 +92,38 @@ def load_urls_with_dates(path: str) -> dict:
                 if "URL" not in df.columns:
                     continue
                 
+                # Identify date and active columns
                 date_col = None
-                for col in ["actualizado hace", "actualizado", "last_updated"]:
-                    if col in df.columns:
-                        date_col = col
-                        break
+                active_col = None
                 
-                if date_col:
-                    for _, row in df.iterrows():
-                        url = str(row.get("URL", "")).strip()
-                        date = str(row.get(date_col, "")).strip()
-                        if url and url != "nan":
-                            url_dates[url] = date
-                else:
-                    # No date column, just mark URLs as existing with empty date
-                    for url in df["URL"].dropna().astype(str):
-                        url = url.strip()
-                        if url and url != "nan":
-                            url_dates[url] = ""
+                for col in df.columns:
+                    col_lower = str(col).lower().replace("_", "").replace(" ", "")
+                    if col_lower in ["actualizadohace", "actualizado", "lastupdated"]:
+                        date_col = col
+                    elif "anuncioactivo" in col_lower or "active" in col_lower or "activo" in col_lower:
+                        active_col = col
+                
+                for _, row in df.iterrows():
+                    url = str(row.get("URL", "")).strip()
+                    if not url or url == "nan":
+                        continue
+                        
+                    date = str(row.get(date_col, "")).strip() if date_col else ""
+                    
+                    is_active = True
+                    if active_col:
+                        val = str(row.get(active_col, "")).strip().lower()
+                        if val in ["no", "false", "falso", "0"]:
+                            is_active = False
+                    
+                    url_metadata[url] = {
+                        "date": date,
+                        "is_active": is_active
+                    }
     except Exception as e:
-        log("WARN", f"Error loading URLs with dates: {e}")
+        log("WARN", f"Error loading URLs with metadata: {e}")
     
-    return url_dates
+    return url_metadata
 
 def load_existing_specific_sheet(path: str, sheet: str) -> pd.DataFrame:
     """Load a specific worksheet from an Excel file.

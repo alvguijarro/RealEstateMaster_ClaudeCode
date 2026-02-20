@@ -187,13 +187,12 @@ def load_enriched_urls(excel_path: str) -> Set[str]:
             active_col = None
             
             for col in df.columns:
-                col_lower = col.lower().replace("_", "").replace(" ", "")
-                if col_lower == "enriched" or col == "__enriched__":
+                col_lower = str(col).lower().replace("_", "").replace(" ", "")
+                if col_lower in ["enriched", "__enriched__"]:
                     enriched_col = col
-                elif "fechaenriquecimiento" in col_lower or "fecha enriquecimiento" in col.lower():
+                elif "fechaenriquecimiento" in col_lower:
                     fecha_col = col
-                elif "anuncioactivo" in col_lower or "active" in col.lower() or "activo" in col.lower():
-                    # Prioritize "Anuncio activo" if multiple matches, but simple check is okay
+                elif "anuncioactivo" in col_lower or "active" in col_lower or "activo" in col_lower:
                     active_col = col
             
             # Filter rows
@@ -217,12 +216,10 @@ def load_enriched_urls(excel_path: str) -> Set[str]:
                         has_fecha = True
                 
                 # Check Inactive Status (User Request: Skip inactive properties forever)
-                is_inactive = False
-                if active_col:
-                    val = str(row.get(active_col, "")).strip().lower()
-                    # Mark as inactive if value is 'no', 'false', '0'
-                    if val in ["no", "false", "0", "falso"]:
-                        is_inactive = True
+                    if active_col:
+                        val = str(row.get(active_col, "")).strip().lower()
+                        if val in ["no", "false", "falso", "0"]:
+                            is_inactive = True
                 
                 # Add to skip set if Enriched OR Inactive
                 if (is_enriched and has_fecha) or is_inactive:
@@ -274,15 +271,13 @@ def load_all_urls_from_excel(excel_path: str) -> Dict[str, dict]:
             active_col = None
             
             for col in df.columns:
-                col_lower = col.lower().replace("_", "").replace(" ", "")
-                if col_lower == "enriched" or col == "__enriched__":
+                col_lower = str(col).lower().replace("_", "").replace(" ", "")
+                if col_lower in ["enriched", "__enriched__"]:
                     enriched_col = col
                 elif "fechaenriquecimiento" in col_lower:
                     fecha_col = col
-                elif "anuncioactivo" in col_lower or "active" in col.lower() or "activo" in col.lower():
-                    # Check for exact match or strong likelihood
-                    if "activo" in col.lower(): 
-                         active_col = col
+                elif "anuncioactivo" in col_lower or "active" in col_lower or "activo" in col_lower:
+                    active_col = col
 
             for idx, row in df.iterrows():
                 url = row.get(url_col)
