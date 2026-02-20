@@ -999,7 +999,12 @@ def update_urls():
             # Run script with the Excel file path and sheets as arguments
             sheets_json = json_module.dumps(sheets) if sheets else '[]'
             
-            cmd = ['python', '-u', str(update_script), excel_file, '--sheets', sheets_json]
+            # Use currentMode from frontend (relayed via server state or global)
+            # Since server.py doesn't track currentMode directly, we use the flag to decide initial mode
+            # but we can pass it explicitly if we know it. For now, rely on consistency.
+            mode_arg = 'stealth' if (update_script.parent / "update_stealth.flag").exists() else 'fast'
+
+            cmd = ['python', '-u', str(update_script), excel_file, '--sheets', sheets_json, '--mode', mode_arg]
             if resume:
                 cmd.append('--resume')
 

@@ -644,25 +644,20 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                 # To ensure UI reflects progress immediately (e.g. "34/100" if 34 are already done),
                 # we scan HEAD of the list for contiguous enriched items.
                 HISTORY = load_history()
-                pending_history = {}
-                
-                scan_idx = start_index 
+                # --- PRE-SCAN: Use History to skip already done properties ---
+                scan_idx = start_index
                 pre_processed_rows = []
                 skipped_count = 0
-
-                # Helper to check if row is "enriched enough" (basic check)
-                def is_enriched(r):
-                    # If it has Price and m2 and isn't empty, it's likely enriched. 
-                    # Or we rely on HISTORY presence.
-                    # User request explicitly mentions "scraper skips", which refers to HISTORY logic.
-                    return False 
 
                 for k, url in enumerate(urls[start_index:], start_index):
                     # Check History
                     in_history = url in HISTORY
                     
                     if in_history:
-                        emit_to_ui('INFO', f'({k+1}/{len(urls)}) [SKIP] Enriched in history: {url}')
+                        # Log summary every 50 skips to avoid flooding
+                        if skipped_count > 0 and skipped_count % 50 == 0:
+                            emit_to_ui('INFO', f'Pre-scan: Saltadas {skipped_count} propiedades ya encontradas en historial...')
+                            await asyncio.sleep(0.01) # Small pause to allow socket to breathe
                         
                         # Add to updated_rows logic
                         d_history = HISTORY.get(url, {})
@@ -675,22 +670,16 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                         scan_idx += 1
                         skipped_count += 1
                     else:
-                        # Stop at first non-enriched to maintain sequence 
-                        # (or we could skip non-contiguously, but start_index implies linear start)
-                        # Actually, the scraping loop iterates linearly. 
-                        # If we have [Done, Done, Todo, Done], catching the first 2 is good.
-                        # Catching the 4th is harder with 'start_index' logic unless we complexify.
-                        # Let's stick to contiguous prefix for 'start_index' optimization.
                         break
                 
                 if skipped_count > 0:
-                    emit_to_ui('OK', f'Saltadas {skipped_count} propiedades ya enriquecidas (encontradas en historial).')
+                    emit_to_ui('OK', f'✅ Pre-scan completado: {skipped_count} propiedades recuperadas del historial del día.')
                     emit_progress(scan_idx, len(urls), "Pre-procesado...", os.path.basename(excel_file))
                     start_index = scan_idx
                 # ------------------------------------
+                # ------------------------------------
 
                 # Headless Mode: Faster for URL updates if not in Stealth mode
-                is_stealth = os.path.exists(STEALTH_FLAG_FILE)
                 is_headless = not is_stealth 
                 
                 try:
@@ -744,12 +733,16 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     # Stealth Counters
                     session_property_count = 0
                     
-                    # TUNED FOR URL UPDATES: More aggressive limits
-                    effective_session_limit = 150 
+                    # TUNED FOR URL UPDATES (Less conservative than main scraper)
+                    effective_session_limit = 200 
                     effective_rest_range = (300, 600) # 5-10 mins
                     
-                    next_coffee_break = random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
-                    consecutive_empty_errors = 0  # Counter for implicit block detection
+                    # Frequency adjust: Every 40-70 properties instead of 10-18
+                    UPDATE_COFFEE_BREAK_FREQUENCY = (40, 70)
+                    UPDATE_COFFEE_BREAK_DURATION = (10, 25) # Shorter breaks (10-25s)
+                    
+                    next_coffee_break = random.randint(*UPDATE_COFFEE_BREAK_FREQUENCY)
+                    consecutive_empty_errors = 0  
                     
                     # --- PROCESSING LOOP ---
                     for i, url in enumerate(urls[start_index:], start_index + 1):
@@ -799,43 +792,27 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             
                         # --- SMART SKIP: Check History ---
                         if url in HISTORY:
-                            emit_to_ui('INFO', f'({i}/{len(urls)}) [SKIP] Enriched in history: {url}')
-                            # We still need to add this row to 'updated_rows' so it ends up in the output Excel!
-                            # Since we don't have the full data in HISTORY (just key check?), 
-                            # we must rely on what we have.
-                            # WAIT: If user wants to "Skip", they assume data is present?
-                            # "Enriquecedor mirará en este archivo antes de hacer el scraping para completar los campos"
-                            # This implies HISTORY stores the DATA.
-                            # Our save_history implementation DOES store data (we pass a dict).
-                            # So we retrieve it.
+                            # Log every 20 skips during regular processing
+                            if i % 20 == 0:
+                                emit_to_ui('INFO', f'({i}/{len(urls)}) Skipping known properties (History)...')
+                                await asyncio.sleep(0.01)
+
                             d_history = HISTORY.get(url, {})
-                            
-                            # We merge history data with original row, similar to active/overwrite logic
-                            # But since it's "history", we assume it's the latest good state.
                             orig_row = url_to_row.get(url, {})
                             final_row = orig_row.copy()
                             final_row['URL'] = url
-                            
-                            # Merge history data (it should override original raw data)
-                            # But we also respect the "Overwrite" logic which might have stripped stale fields.
-                            # So really, final_row IS the history data.
-                            # But we need to ensure 'Ciudad', 'exterior', 'Fecha Scraping' are preserved from ORIGINAL if missing in history?
-                            # No, if it's in history, it was already enriched correctly (with preservation logic applied THEN).
-                            # So we just use history data.
-                            # BUT, we might need to backfill 'Ciudad' if history is from a different run?
-                            # Let's assume history is the master record.
                             final_row.update(d_history)
                             
                             updated_rows.append(final_row)
                             emit_progress(i, len(urls), url_to_sheet.get(url, 'Unknown'), os.path.basename(excel_file))
-                            emit_property(final_row) # Real-time table update
-                            # Don't sleep if skipping
+                            emit_property(final_row) 
+                            
                             start_index = i
                             continue
 
                         try:
                             # Mode Selection: Default to FAST mode for speed, check flag for STEALTH
-                            if os.path.exists(STEALTH_FLAG_FILE):
+                            if is_stealth:
                                 card_delay = STEALTH_CARD_DELAY_RANGE
                                 post_delay = STEALTH_POST_CARD_DELAY_RANGE
                                 posts_delay = STEALTH_POST_CARD_DELAY_RANGE
@@ -846,13 +823,13 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 posts_delay = FAST_POST_CARD_DELAY_RANGE
                                 
                             # --- STEALTH: Coffee Break & Session Rest ---
-                            if os.path.exists(STEALTH_FLAG_FILE):
+                            if is_stealth:
                                 # 1. Coffee Break
                                 if session_property_count >= next_coffee_break:
-                                    break_duration = random.uniform(*EXTRA_STEALTH_COFFEE_BREAK_RANGE)
-                                    emit_to_ui('INFO', f'Coffee break: Pausing for {int(break_duration)}s...')
+                                    break_duration = random.uniform(*UPDATE_COFFEE_BREAK_DURATION)
+                                    emit_to_ui('INFO', f'☕ Coffee break: Pausing for {int(break_duration)}s...')
                                     await asyncio.sleep(break_duration)
-                                    next_coffee_break = session_property_count + random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
+                                    next_coffee_break = session_property_count + random.randint(*UPDATE_COFFEE_BREAK_FREQUENCY)
 
                                 # 2. Session Rest (Long Pause)
                                 if session_property_count >= effective_session_limit:
@@ -884,7 +861,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             # Enhanced Stealth Scroll
                             t0 = time.time()
                             if is_stealth:
-                                if os.path.exists(STEALTH_FLAG_FILE):
+                                if is_stealth: # Redundant check, but matches original logic
                                     await variable_scroll(page)
                                 else:
                                     await simulate_human_interaction(page)
@@ -1228,10 +1205,13 @@ if __name__ == "__main__":
     import json
     import argparse
     import sys
+    from pathlib import Path # Import Path for file operations
     parser = argparse.ArgumentParser(description="Update URLs from Excel")
-    parser.add_argument("excel_file", help="Path to Excel file")
-    parser.add_argument("--sheets", help="JSON list of sheets to process", default=None)
-    parser.add_argument("--resume", action="store_true", help="Resume from journal")
+    parser.add_argument('excel_file', type=str, help='Path to Excel file')
+    parser.add_argument('--sheets', type=str, default='[]', help='JSON list of sheet names')
+    parser.add_argument('--resume', action='store_true', help='Resume from checkpoint')
+    parser.add_argument('--stealth', action='store_true', help='Legacy stealth flag')
+    parser.add_argument('--mode', type=str, default='fast', choices=['fast', 'stealth'], help='Scraping mode')
     
     args = parser.parse_args()
     
