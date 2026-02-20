@@ -66,7 +66,7 @@ async def _goto_with_retry(page, url: str, humanize: bool = True, session: Optio
             # --- WEBKIT ROBUSTNESS FALLBACK ---
             # "Failed sending data to the peer" is common in WebKit when navigation succeeds but driver sync fails.
             if any(msg in error_msg for msg in ["failed sending data to the peer", "connection reset"]):
-                 try:
+                try:
                     await asyncio.sleep(2.0) # Wait for page to settle
                     current_url = page.url
                     if url in current_url:
