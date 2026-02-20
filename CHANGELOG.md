@@ -3,7 +3,8 @@
 ## [2.7.8] - 2026-02-21
 ### Fixed
 - **Funcionalidad de Detener/Pausar**: Corregido el fallo en los botones "Detener" y "Pausar" que afectaba tanto al scraper principal como a los procesos de actualización de URLs y procesamiento por lotes.
-- **Selectores de UI**: Reparado el fallo en los selectores de provincias y el selector de archivos Excel para la actualización de URLs. Se corrigieron errores de referencia (`ReferenceError`) y se sincronizaron los endpoints de la API (`/api/provinces-list`, `/api/salidas-files`).
+- **Selectores de UI**: Reparado el fallo en los selectores de provincias y el selector de archivos Excel para la actualización de URLs.
+- **Error "Service Unavailable"**: Solucionado un error crítico que impedía el inicio del servidor del Scraper debido a una duplicidad de funciones en `server.py`.
 - **Robustez de Procesos en Segundo Plano**: Implementado sistema de banderas (flags) en el sistema de archivos para una comunicación entre procesos más fiable.
 - **Graceful Shutdown**: Mejorada la finalización de procesos para permitir el guardado de progreso antes del cierre.
 - **Bug de Referencia (update_urls.py)**: Solucionado error `NameError` en el script de actualización de URLs.

@@ -1221,34 +1221,6 @@ def run_server(host='127.0.0.1', port=5003):
 # API & DATABASE DASHBOARD ENDPOINTS
 # =============================================================================
 
-@app.route('/api/provinces-list', methods=['GET'])
-def get_provinces_list():
-    """Returns the list of provinces and zones from the JSON file."""
-    try:
-        json_path = Path(__file__).parent.parent / "province_zones_complete.json"
-        if not json_path.exists():
-            return jsonify({'error': 'JSON mapping not found', 'provinces': []}), 404
-            
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            
-        # Convert dictionary to list format expected by frontend
-        provinces = []
-        for name, info in data.items():
-            provinces.append({
-                'id': info.get('id'),
-                'name': name,
-                'zones': info.get('zones', []),
-                # URL derivation if needed (though already in zones)
-                'url_venta': info.get('url_venta'),
-                'url_alquiler': info.get('url_alquiler')
-            })
-            
-        return jsonify({'provinces': provinces})
-    except Exception as e:
-        print(f"Error loading provinces list: {e}")
-        return jsonify({'error': str(e), 'provinces': []}), 500
-
 @app.route('/api/salidas-files', methods=['GET'])
 def get_salidas_files():
     """Optimized file listing for scraper/salidas using scandir for maximum performance."""
