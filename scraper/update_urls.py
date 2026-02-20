@@ -682,8 +682,8 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                         break
                 
                 if skipped_count > 0:
-                    emit_to_ui('INFO', f'Skipping {skipped_count} previously enriched properties...')
-                    emit_progress(scan_idx, len(urls), "Pre-processing...", os.path.basename(excel_file))
+                    emit_to_ui('OK', f'Saltadas {skipped_count} propiedades ya enriquecidas (encontradas en historial).')
+                    emit_progress(scan_idx, len(urls), "Pre-procesado...", os.path.basename(excel_file))
                     start_index = scan_idx
                 # ------------------------------------
 
@@ -1047,7 +1047,6 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                     except: pass
 
                             save_to_journal(excel_file, final_row)
-                            updated_rows.append(final_row)
                             
                             total_item_time = time.time() - start_item_time
                             
@@ -1063,7 +1062,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
 
                             emit_progress(i, len(urls), url_to_sheet.get(url, 'Unknown'), os.path.basename(excel_file))
                             
-                            start_index = i + 1
+                            start_index = i
                             
                             # --- PERIODIC SAVE (Every 50) ---
                             if i % 50 == 0:
