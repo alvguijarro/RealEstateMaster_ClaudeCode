@@ -2,13 +2,13 @@
 
 ## [2.7.8] - 2026-02-21
 ### Fixed
-- **Funcionalidad de Detener/Pausar**: Corregido el fallo en los botones "Detener" y "Pausar" que afectaba tanto al scraper principal como a los procesos de actualización de URLs y procesamiento por lotes.
-- **Selectores de UI**: Reparado el fallo en los selectores de provincias y el selector de archivos Excel para la actualización de URLs.
-- **Error "Service Unavailable"**: Solucionado un error crítico que impedía el inicio del servidor del Scraper debido a una duplicidad de funciones en `server.py`.
-- **Robustez de Procesos en Segundo Plano**: Implementado sistema de banderas (flags) en el sistema de archivos para una comunicación entre procesos más fiable.
-- **Graceful Shutdown**: Mejorada la finalización de procesos para permitir el guardado de progreso antes del cierre.
-- **Bug de Referencia (update_urls.py)**: Solucionado error `NameError` en el script de actualización de URLs.
-- **Feedback en Tiempo Real**: Actualizada la interfaz para reflejar cambios de estado de forma instantantea.
+- **Estabilización de UI y JavaScript**: 
+    - Corregido fallo crítico en `app.js` causado por la falta del ID `tableHeader` en `index.html`.
+    - Implementada arquitectura robusta para la manipulación del DOM mediante el helper `getEl`, evitando cierres inesperados al faltar elementos.
+    - Asegurada la inicialización de socket, listeners y carga de datos mediante bloques try-catch y promesas concurrentes.
+    - Eliminada declaración duplicada de `restartServerBtn`.
+- **Error "Service Unavailable"**: Eliminada duplicidad de rutas en `server.py` que causaba un `AssertionError`.
+- **Botones de Control**: Reparada la lógica de habilitación/deshabilitación de botones "Pausar" y "Detener" sincronizada con el estado del servidor.
 
 
 ## [2.7.7] - 2026-02-20
@@ -101,6 +101,13 @@
 
 ## [2026-02-18] - Scraper Port Fix & Analytics Pro UI Polish
 ### Fixed
+- **Scraper Module - UI & JS Robustness Fixes:**
+    - Resolved `AssertionError` at server startup by removing duplicate route in `server.py`.
+    - Added missing `tableHeader` element to `index.html` to prevent JavaScript `TypeError`.
+    - Consolidated global DOM element constants in `app.js` with safety guards (`getEl`).
+    - Wrapped all event listener attachments and UI updates in safety checks to prevent script crashes when elements are missing.
+    - Optimized initialization sequence using `Promise.all` for concurrent data loading (provinces, Excel files, BigQuery).
+    - Fixed duplicate `restartServerBtn` declaration.
 - **Scraper Module (Service Availability)**:
   - Resolved "Service unavailable" error by correctly routing the Scraper server to **port 5003**.
   - Synchronized `server.py` and `shared/config.py` to ensure consistent port allocation.

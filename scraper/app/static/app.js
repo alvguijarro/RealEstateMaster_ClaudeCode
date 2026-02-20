@@ -69,33 +69,6 @@ function updateScraperState(active, modeTitle = null) {
 }
 
 
-// DOM Elements
-const seedUrlInput = document.getElementById('seedUrl');
-const outputDirDisplay = document.getElementById('outputDirDisplay');
-const startBtn = document.getElementById('startBtn');
-const pauseBtn = document.getElementById('pauseBtn');
-const stopBtn = document.getElementById('stopBtn');
-const dualModeBtn = document.getElementById('dualModeBtn');
-const fastBtn = document.getElementById('fastBtn');
-const stealthBtn = document.getElementById('stealthBtn');
-const statusBadge = document.getElementById('statusBadge');
-const logsContainer = document.getElementById('logsContainer');
-const clearLogsBtn = document.getElementById('clearLogsBtn');
-const tableHeader = document.getElementById('tableHeader');
-const tableBody = document.getElementById('tableBody');
-const resultsCount = document.getElementById('resultsCount');
-const downloadBtn = document.getElementById('downloadBtn');
-const emptyState = document.getElementById('emptyState');
-const statCurrentPage = document.getElementById('statCurrentPage');
-const statTotalPages = document.getElementById('statTotalPages');
-const statCurrentProps = document.getElementById('statCurrentProps');
-const statTotalProps = document.getElementById('statTotalProps');
-const statTime = document.getElementById('statTime');
-const statMode = document.getElementById('statMode');
-const historyBody = document.getElementById('historyBody');
-const historyEmptyState = document.getElementById('historyEmptyState');
-const clearHistoryBtn = document.getElementById('clearHistoryBtn');
-const rotateVpnBtn = document.getElementById('rotateVpnBtn');
 
 // State
 let currentMode = 'fast';
@@ -147,6 +120,43 @@ const COLUMNS_HABITACIONES = [
     'Anuncio activo', 'Baja anuncio', 'Comunidad Autonoma'
 ];
 
+// DOM Elements - Consolidated & Safe
+const getEl = (id) => document.getElementById(id);
+
+const seedUrlInput = getEl('seedUrl');
+const outputDirDisplay = getEl('outputDirDisplay');
+const startBtn = getEl('startBtn');
+const pauseBtn = getEl('pauseBtn');
+const stopBtn = getEl('stopBtn');
+const dualModeBtn = getEl('dualModeBtn');
+const fastBtn = getEl('fastBtn');
+const stealthBtn = getEl('stealthBtn');
+const statusBadge = getEl('statusBadge');
+const logsContainer = getEl('logsContainer');
+const clearLogsBtn = getEl('clearLogsBtn');
+const tableHeader = getEl('tableHeader');
+const tableBody = getEl('tableBody');
+const resultsCount = getEl('resultsCount');
+const downloadBtn = getEl('downloadBtn');
+const emptyState = getEl('emptyState');
+const statCurrentPage = getEl('statCurrentPage');
+const statTotalPages = getEl('statTotalPages');
+const statCurrentProps = getEl('statCurrentProps');
+const statTotalProps = getEl('statTotalProps');
+const statTime = getEl('statTime');
+const statMode = getEl('statMode');
+const historyBody = getEl('historyBody');
+const historyEmptyState = getEl('historyEmptyState');
+const clearHistoryBtn = getEl('clearHistoryBtn');
+const rotateVpnBtn = getEl('rotateVpnBtn');
+const resumeBtn = getEl('resumeBtn');
+const stopServerBtn = getEl('stopServerBtn');
+const restartServerBtn = getEl('restartServerBtn');
+const updateExcelSelect = getEl('updateExcelFile');
+const updateUrlsBtn = getEl('updateUrlsBtn');
+const resumeUpdateBtn = getEl('resumeUpdateBtn');
+const worksheetSelectorGroup = getEl('worksheetSelectorGroup');
+
 // Current active columns (will be set based on seed URL)
 let currentColumns = COLUMNS_STANDARD;
 
@@ -161,24 +171,54 @@ let provinceUrls = {};
 let isBatchFileManual = false;
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    initializeSocket();
-    initializeUI();
-    buildTableHeader();
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('[App] Initializing application...');
+
+    // 1. Core Logic Setup
+    try {
+        initializeSocket();
+    } catch (e) {
+        console.error('[App] Error in initializeSocket:', e);
+    }
+
+    // 2. UI Event Listeners (Garded)
+    try {
+        initializeUI();
+    } catch (e) {
+        console.error('[App] Error in initializeUI:', e);
+    }
+
+    // 3. Data Presentation Setup
+    try {
+        buildTableHeader();
+    } catch (e) {
+        console.error('[App] Error in buildTableHeader:', e);
+    }
+
+    // 4. Load Data from API
     loadDefaultConfig();
     loadHistory();
-    checkResumeState();  // Check if there's a saved session to resume
-    loadExcelFiles();    // Load Excel files for URL update dropdown
-    loadBQFiles();       // Load files for BigQuery upload
-    loadProvincesList(); // Load provinces and zones
-    setupMultiSelectUI(); // Setup dropdown listeners
+    checkResumeState();
+
+    // Concurrent data loading
+    Promise.all([
+        loadExcelFiles(),
+        loadBQFiles(),
+        loadProvincesList(),
+        loadBatchDestinationFiles()
+    ]).then(() => {
+        console.log('[App] Data loading completed.');
+        setupMultiSelectUI();
+    }).catch(err => {
+        console.error('[App] Error during concurrent data load:', err);
+    });
 
     // UI Refresh Buttons
     const btnRefreshProvinces = document.getElementById('btnRefreshProvinces');
     if (btnRefreshProvinces) {
         btnRefreshProvinces.addEventListener('click', async () => {
             btnRefreshProvinces.classList.add('loading');
-            await loadBatchDestinationFiles();
+            await loadProvincesList();
             setTimeout(() => btnRefreshProvinces.classList.remove('loading'), 500);
         });
     }
@@ -194,10 +234,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // URL Update Elements
-const updateExcelSelect = document.getElementById('updateExcelFile');
-const updateUrlsBtn = document.getElementById('updateUrlsBtn');
-const resumeUpdateBtn = document.getElementById('resumeUpdateBtn');
-const worksheetSelectorGroup = document.getElementById('worksheetSelectorGroup');
 const worksheetSearch = document.getElementById('worksheetSearch');
 const worksheetList = document.getElementById('worksheetList');
 const worksheetSelectionInfo = document.getElementById('worksheetSelectionInfo');
@@ -771,7 +807,7 @@ function initializeSocket() {
 
     socket.on('history_update', (entry) => {
         addHistoryRow(entry);
-        historyEmptyState.style.display = 'none';
+        if (historyEmptyState) historyEmptyState.style.display = 'none';
     });
 
     socket.on('progress_update', (data) => {
@@ -865,26 +901,26 @@ if (modalStopBtn) {
 
 function initializeUI() {
     // Mode toggle - only Fast and Stealth
-    fastBtn.addEventListener('click', () => selectMode('fast'));
+    if (fastBtn) fastBtn.addEventListener('click', () => selectMode('fast'));
     if (stealthBtn) {
         stealthBtn.addEventListener('click', () => selectMode('stealth'));
     }
 
     // Action buttons
-    startBtn.addEventListener('click', () => startScraping(false));
+    if (startBtn) startBtn.addEventListener('click', () => startScraping(false));
     if (dualModeBtn) {
         dualModeBtn.addEventListener('click', () => startScraping(true));
     }
-    pauseBtn.addEventListener('click', togglePause);
-    stopBtn.addEventListener('click', stopScraping);
-    clearLogsBtn.addEventListener('click', clearLogs);
+    if (pauseBtn) pauseBtn.addEventListener('click', togglePause);
+    if (stopBtn) stopBtn.addEventListener('click', stopScraping);
+    if (clearLogsBtn) clearLogsBtn.addEventListener('click', clearLogs);
 
     // New Batch Scraping Button (Province Panel)
     const startBatchBtnEl = document.getElementById('startBatchBtn');
     if (startBatchBtnEl) {
         startBatchBtnEl.addEventListener('click', startBatchFromProvinces);
     }
-    clearHistoryBtn.addEventListener('click', clearHistory);
+    if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', clearHistory);
 
     // Auto-scroll toggle for logs
     const pauseLogBtn = document.getElementById('pauseLogBtn');
@@ -898,17 +934,19 @@ function initializeUI() {
     }
 
     // URL validation for Dual Mode and Start Button
-    seedUrlInput.addEventListener('input', () => {
-        validateDualMode();
-        validateStartButton();
-    });
+    if (seedUrlInput) {
+        seedUrlInput.addEventListener('input', () => {
+            validateDualMode();
+            validateStartButton();
+        });
 
-    // Enter key to start
-    seedUrlInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !isRunning) {
-            startScraping(false);
-        }
-    });
+        // Enter key to start
+        seedUrlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !isRunning) {
+                startScraping(false);
+            }
+        });
+    }
 
     // Initial validation
     validateStartButton();
@@ -966,12 +1004,14 @@ function selectMode(mode) {
 }
 
 function buildTableHeader() {
+    if (!tableHeader) return;
     tableHeader.innerHTML = currentColumns.map(col =>
         `<th>${escapeHtml(col)}</th>`
     ).join('');
 }
 
 function addLog(level, message) {
+    if (!logsContainer) return;
     const now = new Date();
     const time = now.toLocaleTimeString('es-ES', { hour12: false });
 
@@ -1024,21 +1064,23 @@ function toggleAutoScroll() {
     }
 }
 
-function addProperty(data) {
-    properties.push(data);
+async function addProperty(property) {
+    if (properties.some(p => p.URL === property.URL)) return;
 
-    // Update results count (for table display only)
-    resultsCount.textContent = `${properties.length} propiedades`;
+    properties.push(property);
+    if (resultsCount) resultsCount.textContent = `${properties.length} props`;
+    if (emptyState) emptyState.style.display = 'none';
 
-    // Hide empty state
-    emptyState.style.display = 'none';
-
-    // Add table row
-    const newFields = new Set(data._new_fields || []);
+    // Assuming renderPropertyRow is a new function that handles rendering
+    // the row based on the property and currentColumns.
+    // The original logic for creating the row is moved into this new function.
+    // For now, we'll keep the original row creation logic here,
+    // as renderPropertyRow is not defined in the provided context.
+    const newFields = new Set(property._new_fields || []);
 
     const row = document.createElement('tr');
     row.innerHTML = currentColumns.map(col => {
-        let value = data[col];
+        let value = property[col]; // Changed 'data' to 'property'
         if (value === null || value === undefined) {
             value = '';
         } else if (typeof value === 'number') {
@@ -1379,9 +1421,9 @@ function resetUIState() {
     isPaused = false;
     isUpdateMode = false;
     validateStartButton();
-    startBtn.title = "";
-    pauseBtn.disabled = true;
-    stopBtn.disabled = true;
+    if (startBtn) startBtn.title = "";
+    if (pauseBtn) pauseBtn.disabled = true;
+    if (stopBtn) stopBtn.disabled = true;
 
     if (updateUrlsBtn) {
         updateUrlsBtn.innerHTML = '<span class="btn-icon">🔄</span> Actualizar URLs';
@@ -1544,7 +1586,6 @@ async function clearHistory() {
 
 // Resume state management
 let savedResumeState = null;
-const resumeBtn = document.getElementById('resumeBtn');
 
 async function checkResumeState() {
     try {
@@ -1691,9 +1732,7 @@ function playAlarm() {
 }
 
 // Server Control Buttons
-// startServerBtn removed (useless)
-const stopServerBtn = document.getElementById('stopServerBtn');
-const restartServerBtn = document.getElementById('restartServerBtn');
+// startServerBtn and restartServerBtn are defined globally at the top
 
 function updateServerButtons(isConnected) {
     if (stopServerBtn) stopServerBtn.disabled = !isConnected;
