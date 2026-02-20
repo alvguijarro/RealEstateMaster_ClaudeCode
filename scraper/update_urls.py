@@ -980,19 +980,23 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 emit_to_ui('OK', f'({i}/{len(urls)}) [activo] {url}')
                                 active_count += 1
                                 
-                                # Active: OVERWRITE MODE
-                                # Create new row from fresh data 'd', keeping only URL
-                                # User Request: Preserve 'Ciudad', 'exterior', 'Fecha Scraping'
-                                preserved_cols = ['Ciudad', 'exterior', 'Fecha Scraping']
-                                
-                                final_row = d.copy() # Start fresh with scraped data
+                                # Active: OVERWRITE MODE (Prioritize fresh data)
+                                # Start fresh with scraped data 'd', keeping URL
+                                final_row = d.copy()
                                 final_row['URL'] = url
                                 
-                                for col in preserved_cols:
-                                    val = orig_row.get(col)
-                                    if val is not None and pd.notna(val) and str(val).strip() != "":
-                                         final_row[col] = val
-                                         
+                                # Force current date as the scraping date
+                                final_row['Fecha Scraping'] = pd.Timestamp.now().strftime('%Y-%m-%d')
+                                
+                                # Backfill optional metadata ONLY if it is missing or empty in the new scrape
+                                # (e.g. 'Ciudad', 'exterior' might not always be on the detail page)
+                                for col in ['Ciudad', 'exterior']:
+                                    new_val = final_row.get(col)
+                                    if new_val is None or (isinstance(new_val, str) and not new_val.strip()):
+                                        old_val = orig_row.get(col)
+                                        if old_val is not None and pd.notna(old_val) and str(old_val).strip() != "":
+                                            final_row[col] = old_val
+                                            
                                 # Also ensure we don't have a 'Baja anuncio' date if it is active
                                 if 'Baja anuncio' in final_row:
                                     del final_row['Baja anuncio']
