@@ -741,6 +741,11 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     
                     # Stealth Counters
                     session_property_count = 0
+                    
+                    # TUNED FOR URL UPDATES: More aggressive limits
+                    effective_session_limit = 150 
+                    effective_rest_range = (300, 600) # 5-10 mins
+                    
                     next_coffee_break = random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
                     consecutive_empty_errors = 0  # Counter for implicit block detection
                     
@@ -827,14 +832,16 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             continue
 
                         try:
-                            # Use Extra Stealth if flag is present (User requested "Like Scraper Tool")
+                            # Mode Selection: Default to FAST mode for speed, check flag for STEALTH
                             if os.path.exists(STEALTH_FLAG_FILE):
-                                card_delay = EXTRA_STEALTH_CARD_DELAY_RANGE
-                                post_delay = EXTRA_STEALTH_POST_CARD_DELAY_RANGE
+                                card_delay = STEALTH_CARD_DELAY_RANGE
+                                post_delay = STEALTH_POST_CARD_DELAY_RANGE
+                                posts_delay = STEALTH_POST_CARD_DELAY_RANGE
                             else:
-                                card_delay = (0.01, 0.05)
-                                post_delay = (0.01, 0.05)
-                                posts_delay = (0.01, 0.05)
+                                # FAST MODE (Default for URL updates)
+                                card_delay = FAST_CARD_DELAY_RANGE
+                                post_delay = FAST_POST_CARD_DELAY_RANGE
+                                posts_delay = FAST_POST_CARD_DELAY_RANGE
                                 
                             # --- STEALTH: Coffee Break & Session Rest ---
                             if os.path.exists(STEALTH_FLAG_FILE):
@@ -846,10 +853,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                     next_coffee_break = session_property_count + random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
 
                                 # 2. Session Rest (Long Pause)
-                                if session_property_count >= EXTRA_STEALTH_SESSION_LIMIT:
-                                    rest_duration = random.uniform(*EXTRA_STEALTH_REST_DURATION_RANGE)
+                                if session_property_count >= effective_session_limit:
+                                    rest_duration = random.uniform(*effective_rest_range)
                                     rest_mins = int(rest_duration / 60)
-                                    emit_to_ui('WARN', f'Session limit reached ({EXTRA_STEALTH_SESSION_LIMIT}). Resting for {rest_mins} mins...')
+                                    emit_to_ui('WARN', f'Session limit reached ({effective_session_limit}). Resting for {rest_mins} mins...')
                                     
                                     # Countdown log
                                     remaining = rest_duration
