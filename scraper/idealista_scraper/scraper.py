@@ -85,7 +85,8 @@ async def _goto_with_retry(page, url: str, humanize: bool = True, session: Optio
             err_str = str(e)
             
             # Special handling for Firefox NS_ERROR_ABORT (often transient redirects)
-            if "NS_ERROR_ABORT" in err_str or "failed sending data to the peer" in err_str:
+            # or WebKit 'Failed sending data to the peer'
+            if "ns_error_abort" in err_str.lower() or "failed sending data to the peer" in err_str.lower():
                 if attempt < RETRY_MAX_ATTEMPTS:
                     log("INFO", f"Minor connection error for {url} ({err_str[:50]}...). Retrying with relaxed wait...")
                     delay = 1.0 # Short delay for these types of errors

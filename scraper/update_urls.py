@@ -1079,8 +1079,8 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 if pending_history: save_history(pending_history)
                                 raise BlockedException(f"Block detected via extraction failure: {e}")
                             
-                            if any(x in err_msg for x in ["target closed", "session", "page crashed", "browser_crashed_or_closed"]):
-                                emit_to_ui('WARN', f"Browser crash detected: {e}. Restarting context...")
+                            if any(x in err_msg for x in ["target closed", "session", "page crashed", "browser_crashed_or_closed", "failed sending data to the peer", "connection reset"]):
+                                emit_to_ui('WARN', f"Browser/Channel crash detected: {e}. Restarting context...")
                                 await asyncio.sleep(2)
                                 break 
                             
