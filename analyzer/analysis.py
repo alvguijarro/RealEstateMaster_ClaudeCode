@@ -1425,6 +1425,14 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
         (df_venta['yield_bruta'] > 0)
     ].sort_values('yield_bruta', ascending=False).head(100).copy()
     
+    # Helper for safe column access
+    def safe_col(df, col, default_val, dtype):
+        if col in df.columns:
+            # fillna(default_val) works on Series (even if boolean/object)
+            return df[col].fillna(default_val).astype(dtype)
+        # Verify length matches index
+        return pd.Series(default_val, index=df.index, dtype=dtype)
+
     # --- Helper to format data for UI (JSON/HTML) ---
     def format_dataframe_for_ui(df_input, is_opps=True):
         if df_input.empty:
