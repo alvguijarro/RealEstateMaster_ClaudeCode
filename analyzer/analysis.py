@@ -827,13 +827,23 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
     
     # Filter to common districts
     print("  Filtering to common districts...")
-    common = set(df_venta['Distrito'].dropna().unique()) & set(df_alquiler['Distrito'].dropna().unique())
+    # Ensure districts are common to both sets (case-insensitive and stripped)
+    v_dists = df_venta['Distrito'].astype(str).str.strip().unique()
+    a_dists = df_alquiler['Distrito'].astype(str).str.strip().unique()
+    common = set(v_dists) & set(a_dists)
     
-    n_v = len(df_venta[~df_venta['Distrito'].isin(common)])
-    n_a = len(df_alquiler[~df_alquiler['Distrito'].isin(common)])
+    # Re-apply strip to columns for reliable matching later
+    df_venta['Distrito'] = df_venta['Distrito'].astype(str).str.strip()
+    df_alquiler['Distrito'] = df_alquiler['Distrito'].astype(str).str.strip()
     
+    n_v_pre = len(df_venta)
+    n_a_pre = len(df_alquiler)
+
     df_venta = df_venta[df_venta['Distrito'].isin(common)].copy()
     df_alquiler = df_alquiler[df_alquiler['Distrito'].isin(common)].copy()
+    
+    n_v = n_v_pre - len(df_venta)
+    n_a = n_a_pre - len(df_alquiler)
     
     log_calidad.append({'phase': 'clean', 'dataset': 'VENTA', 'rows': n_v, 'note': 'excluded non-common distrito'})
     log_calidad.append({'phase': 'clean', 'dataset': 'ALQUILER', 'rows': n_a, 'note': 'excluded non-common distrito'})
@@ -1026,6 +1036,8 @@ def find_comparables(venta_row, df_alquiler, strict=True, alquiler_index=None):
     if ciudad: levels.append(('Ciudad', ciudad))
     
     for level_name, level_val in levels:
+        # Level matching
+        level_val = str(venta_row.get(level_name, '')).strip()
         mask = df_alquiler[level_name].astype(str).str.strip() == level_val
         level_candidates = df_alquiler[mask]
         
@@ -1436,18 +1448,19 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
     # --- Helper to format data for UI (JSON/HTML) ---
     def format_dataframe_for_ui(df_input, is_opps=True):
         if df_input.empty:
-            return []
+            return pd.DataFrame()
         
         df = df_input.copy()
         
         # 1. Title Logic
+        # Try to find a 'titulo' or 'title' column
         titulo_col_local = next((c for c in df.columns if c.lower() in ['titulo', 'title', 'nombre']), None)
         if titulo_col_local:
             df['Propiedad_text'] = df[titulo_col_local]
         else:
-            # Fallback title
+            # Fallback title: [Distrito] - [m2]m2
             def make_title(row):
-                dist = row.get('Distrito', 'Propiedad')
+                dist = str(row.get('Distrito', 'Propiedad')).strip()
                 m2_val = row.get('m2 construidos', 0)
                 try:
                     return f"{dist} - {int(m2_val)}m²"
@@ -1458,7 +1471,7 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
         # 2. Main UI DataFrame
         ui_df = pd.DataFrame({
             'Propiedad': df['Propiedad_text'],
-            'Distrito': df['Distrito'],
+            'Distrito': df['Distrito'].fillna('Desconocido').astype(str).str.strip(),
             'm2': df['m2 construidos'].fillna(0).astype(int),
             'Precio': df['price'].fillna(0).astype(int),
             'habs': safe_col(df, 'habs', 0, int),
@@ -1467,11 +1480,11 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
             'terraza': safe_col(df, 'Terraza', False, bool).apply(lambda x: 'Sí' if x else 'No'),
             'Renta_estimada/mes': df['renta_estimada'].fillna(0).round(0).astype(int),
             'Renta_Rango': df.get('renta_rango', df['renta_estimada'].apply(lambda x: f"{int(x)}€" if pd.notnull(x) else "-")),
-            'Rentabilidad_Bruta_%': df['yield_bruta'].fillna(0), 
-            'Rentabilidad_Neta_%': df['yield_neta'].fillna(0),
+            'Rentabilidad_Bruta_%': df['yield_bruta'].fillna(0).astype(float), 
+            'Rentabilidad_Neta_%': df['yield_neta'].fillna(0).astype(float),
             'Precision': df.get('precision', 0).astype(float).round(1),
-            'Descuento_%': df.get('descuento_vs_mercado_pct', 0) / 100,
-            'Puntuación': df.get('score', 0).round(1),
+            'Descuento_%': (df.get('descuento_vs_mercado_pct', 0) / 100).astype(float),
+            'Puntuación': df.get('score', 0).astype(float).round(1),
             'URL': df['URL'],
             'comparables': df.get('comparables', None)
         })

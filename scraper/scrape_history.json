@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-20T04:27:07.061463",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/zaragoza-provincia/con-precio-hasta_2000/",
+    "properties_count": 516,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Zaragoza_alquiler.xlsx",
+    "filename": "idealista_Zaragoza_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-18T19:40:29.499836",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/teruel-provincia/con-precio-hasta_2000/",
     "properties_count": 101,

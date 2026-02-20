@@ -528,9 +528,8 @@ function renderTable(tbodyId, data, sortConfig, isMainTable) {
         const punt = opp.Puntuación || opp.score || 0;
         const formattedPunt = typeof punt === 'number' ? punt.toFixed(0) : punt;
 
-        // Refs link - Now enabled for both tables
-        const tableType = isMainTable ? 'opps' : 'top100';
-        const refsLink = `<a href="#" onclick="loadReferencias(${arrIdx}, '${tableType}'); return false;" style="color:var(--text-muted); font-size:0.9em;">Ver Refs</a>`;
+        // Refs link - Now enabled for both tables using URL as unique ID
+        const refsLink = `<a href="#" onclick="loadReferenciasByUrl('${url}'); return false;" style="color:var(--text-muted); font-size:0.9em;">Ver Refs</a>`;
 
         // Calculate Button
         const calcBtn = `
@@ -685,60 +684,24 @@ let availableDistrictReports = {};
 let batchDistrictsToAnalyze = [];
 
 function setupConsultarLinks() {
+    // This is now legacy since we use loadReferenciasByUrl directly in the onclick
+    // But we still need to calculate sortedOpps for the District Report logic which uses it
     const { col, dir } = currentSort;
     sortedOpps = [...currentResults].sort((a, b) => {
         let valA = a[col];
         let valB = b[col];
         if (col === 'Propiedad') {
-            valA = a['Propiedad'];
-            valB = b['Propiedad'];
+            valA = (a['Propiedad'] || '').toLowerCase();
+            valB = (b['Propiedad'] || '').toLowerCase();
         }
-        if (valA === undefined) valA = '';
-        if (valB === undefined) valB = '';
+        if (valA === undefined || valA === null) valA = '';
+        if (valB === undefined || valB === null) valB = '';
         if (typeof valA === 'string') valA = valA.toLowerCase();
         if (typeof valB === 'string') valB = valB.toLowerCase();
         if (valA < valB) return -1 * dir;
         if (valA > valB) return 1 * dir;
         return 0;
     }).slice(0, 50);
-
-    // Also sort Top 100 for reference lookup
-    const { col: col100, dir: dir100 } = currentSortTop100;
-    sortedTop100 = [...currentTop100].sort((a, b) => {
-        let valA = a[col100];
-        let valB = b[col100];
-        if (col100 === 'Propiedad') {
-            valA = a['Propiedad'];
-            valB = b['Propiedad'];
-        }
-        if (valA === undefined) valA = '';
-        if (valB === undefined) valB = '';
-        if (typeof valA === 'string') valA = valA.toLowerCase();
-        if (typeof valB === 'string') valB = valB.toLowerCase();
-        if (valA < valB) return -1 * dir100;
-        if (valA > valB) return 1 * dir100;
-        return 0;
-    }).slice(0, 100);
-
-    document.querySelectorAll('.consultar-link').forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-
-            // Highlight selected row
-            const allRows = document.querySelectorAll('#opportunitiesBody tr');
-            allRows.forEach(tr => tr.style.backgroundColor = '');
-            const row = link.closest('tr');
-            if (row) row.style.backgroundColor = 'rgba(140, 29, 100, 0.15)';
-
-            const idx = parseInt(link.dataset.idx);
-            loadReferencias(idx);
-
-            // Scroll to references
-            const refSection = document.getElementById('referenciasSection');
-            refSection.style.display = 'block';
-            refSection.scrollIntoView({ behavior: 'smooth' });
-        });
-    });
 }
 
 function setupDistrictReport() {
@@ -968,8 +931,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // setupDeepResearchButton(); // Removed
 });
 
-function loadReferencias(idx, type = 'opps') {
-    const opp = type === 'opps' ? sortedOpps[idx] : sortedTop100[idx];
+function loadReferenciasByUrl(targetUrl) {
+    // Search in both collections
+    let opp = currentResults.find(o => o.URL === targetUrl);
+    if (!opp) opp = currentTop100.find(o => o.URL === targetUrl);
+
     if (!opp || !opp.comparables || opp.comparables.length === 0) {
         alert("No se encontraron comparables para esta vivienda.");
         return;

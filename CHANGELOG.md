@@ -10,9 +10,12 @@
 - **Excel Data Loss Fix**: Resolved a critical bug where selecting specific worksheets (districts) for an update would cause all other worksheets to be deleted from the output file. The script now preserves the entire Excel structure, updating only the selected data.
 - **Journal Restoration**: Fixed data restoration from `journal_update.jsonl` to ensure all properties are correctly accounted for when resuming partial updates.
 - **Table Synchronization (Analytics Pro)**:
-    - Unified data formatting for both "Principales oportunidades" and "Top 100 viviendas" tables.
-    - Standardized property titles, scores, and currency formatting across both tables.
-    - Enabled functional "Ver Refs" (View References) links for the Top 100 table.
+    - Unified data formatting using a centralized `format_dataframe_for_ui` helper in `analysis.py`.
+    - Standardized property titles (full description), scores, and currency formatting across both "Principales oportunidades" and "Top 100 viviendas" tables.
+    - **Functional Reference Links**: Enabled functional "Ver Refs" links for the Top 100 table, using a new URL-based lookup in `script.js` that works correctly even after sorting.
+- **District Matching Hardening**:
+    - Implemented `.strip()` on both Venta and Alquiler district strings during the cleaning phase to prevent invisible whitespace from excluding properties.
+    - Hardened district matching in the comparable search loop for improved rent estimation reliability.
 - **Critical Bugfix (NameError)**: Restored the accidentally removed `safe_col` helper function in `analysis.py`, resolving the fatal error during the export phase.
 - **WebKit Connection Robustness**: Fixed case-sensitivity in error detection and added automatic browser restarts for "Failed sending data to peer" errors.
 
