@@ -1675,6 +1675,9 @@ async function syncStatus() {
             // Centralized Status Sync
             updateScraperState(true, data.status === 'running' ? 'Scraping Activo' : 'Pausado/Bloqueado');
             isPaused = (data.status === 'paused' || data.status === 'captcha' || data.status === 'blocked');
+            if (data.mode === 'update_urls') {
+                isUpdateMode = true;
+            }
 
             if (data.status === 'paused') {
                 pauseBtn.innerHTML = '<span class="btn-icon">▶</span> Reanudar';

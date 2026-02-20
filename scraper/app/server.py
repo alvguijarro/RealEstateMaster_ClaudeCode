@@ -481,6 +481,16 @@ def get_status():
         scraper_dir = Path(__file__).parent.parent
         if (scraper_dir / "BATCH_PAUSE.flag").exists() or (scraper_dir / "PERIODIC_PAUSE.flag").exists():
             status = 'paused'
+
+    # Check for running URL update process
+    global update_process
+    if update_process and update_process.poll() is None:
+        if status in ('idle', 'completed', 'stopped', 'error'):
+            status = 'running'
+        mode = 'update_urls'
+        # Check for URL update specifically being paused
+        if (Path(__file__).parent.parent / "update_paused.flag").exists():
+            status = 'paused'
             
     return jsonify({
         'status': status,
