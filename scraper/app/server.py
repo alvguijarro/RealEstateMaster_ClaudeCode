@@ -419,12 +419,22 @@ def stop_scraping():
     
     stopped = False
     
-    # 1. Stop manual scraper controller
+    # 1. Set stop flags first for scripts to exit gracefully
+    scraper_dir = Path(__file__).parent.parent
+    flags = ["BATCH_STOP.flag", "PERIODIC_STOP.flag", "update_stop.flag", "ENRICH_STOP.flag"]
+    for f_name in flags:
+        try: (scraper_dir / f_name).touch()
+        except: pass
+
+    # 2. Stop manual scraper controller
     if scraper_controller:
         scraper_controller.stop()
         stopped = True
         
-    # 2. Proactively terminate background processes
+    # Give background scripts a moment to see the flag
+    time.sleep(0.5)
+
+    # 3. Proactively terminate background processes
     if periodic_process and periodic_process.poll() is None:
         try:
             periodic_process.terminate()
@@ -435,13 +445,6 @@ def stop_scraping():
         try:
             update_process.terminate()
             stopped = True
-        except: pass
-
-    # 3. Set stop flags for scripts to exit gracefully
-    scraper_dir = Path(__file__).parent.parent
-    flags = ["BATCH_STOP.flag", "PERIODIC_STOP.flag", "update_stop.flag", "ENRICH_STOP.flag"]
-    for f_name in flags:
-        try: (scraper_dir / f_name).touch()
         except: pass
 
     if stopped:
@@ -515,8 +518,10 @@ def periodic_log_monitor(process):
                 socketio.emit('periodic_log', {'message': decoded})
                 
                 # Try to parse structure for table updates (Simple parsing for now)
-                # Example: "[OK] Scrape completed for Madrid."
-                if "[OK] Scrape completed for" in decoded:
+                if "[STATUS]" in decoded:
+                    status = decoded.split("[STATUS]")[1].strip().lower()
+                    emit_status(status)
+                elif "[OK] Scrape completed for" in decoded:
                     prov = decoded.split("for")[-1].strip().replace(".", "")
                     socketio.emit('periodic_table_update', {'province': prov, 'status': 'Completado'})
                 elif "Processing:" in decoded:
@@ -558,6 +563,12 @@ def periodic_log_monitor(process):
         global periodic_process, periodic_thread
         periodic_process = None
         periodic_thread = None
+        
+        # Cleanup flags
+        scraper_dir = Path(__file__).parent.parent
+        for f_name in ["BATCH_STOP.flag", "PERIODIC_STOP.flag", "BATCH_PAUSE.flag", "PERIODIC_PAUSE.flag"]:
+            try: (scraper_dir / f_name).unlink()
+            except: pass
 
 @app.route('/api/periodic-lowcost/start', methods=['POST'])
 def start_periodic_lowcost():
@@ -906,7 +917,16 @@ def stop_batch_scraping():
     """Stop the batch scraping process."""
     scraper_dir = Path(__file__).parent.parent
     flag = scraper_dir / "BATCH_STOP.flag"
-    with open(flag, 'w') as f: f.write("STOP")
+    flag.touch()
+    
+    # Also terminate the process
+    global periodic_process
+    if periodic_process and periodic_process.poll() is None:
+        try:
+            # No sleep here, just terminate as it's a dedicated endpoint
+            periodic_process.terminate()
+        except: pass
+        
     return jsonify({'status': 'stopping'})
 
 
@@ -1046,9 +1066,12 @@ def update_urls():
             was_stopped = (update_process is None)
             update_process = None
             
-            # Clean up flag
+            # Clean up flags
             if flag_file.exists():
                 flag_file.unlink()
+            stop_flag = update_script.parent / "update_stop.flag"
+            if stop_flag.exists():
+                stop_flag.unlink()
             
             if was_stopped:
                  emit_log('INFO', 'Update stopped by user.')
@@ -1143,15 +1166,20 @@ def stop_update_process():
     global update_process
     update_script = Path(__file__).parent.parent / "update_urls.py"
     
+    # Set stop flag
+    stop_flag = update_script.parent / "update_stop.flag"
+    stop_flag.touch()
+    
     try:
         if update_process:
             try:
+                time.sleep(0.5)
                 update_process.terminate()
             except:
                 pass
             update_process = None
             
-        # Clean flag
+        # Clean pause flag
         flag_file = update_script.parent / "update_paused.flag"
         if flag_file.exists():
             flag_file.unlink()

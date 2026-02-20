@@ -1303,6 +1303,25 @@ async function togglePause() {
 
         if (!response.ok) {
             addLog('ERR', data.error || 'Error');
+        } else {
+            // Immediate UI update based on new state
+            isPaused = !isPaused;
+            if (isPaused) {
+                if (pauseBtn) {
+                    pauseBtn.innerHTML = '<span class="btn-icon">▶</span> Reanudar';
+                    pauseBtn.classList.remove('btn-warning');
+                }
+                statusBadge.querySelector('.status-text').textContent = 'Pausado';
+                statusBadge.className = 'status-badge paused';
+                addLog('INFO', 'Scraping pausado.');
+            } else {
+                if (pauseBtn) {
+                    pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
+                }
+                statusBadge.querySelector('.status-text').textContent = 'Ejecutando';
+                statusBadge.className = 'status-badge running';
+                addLog('OK', 'Scraping reanudado.');
+            }
         }
     } catch (error) {
         addLog('ERR', `Error: ${error.message}`);

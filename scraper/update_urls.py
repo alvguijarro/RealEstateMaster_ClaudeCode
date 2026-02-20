@@ -311,6 +311,23 @@ def emit_property(property_data):
         except:
             pass
 
+
+async def check_signals():
+    """Check for pause/stop signals from the filesystem."""
+    if os.path.exists(STOP_FLAG_FILE):
+        return "stop"
+    
+    if os.path.exists(PAUSE_FLAG_FILE):
+        emit_to_ui('INFO', '[STATUS] paused')
+        while os.path.exists(PAUSE_FLAG_FILE):
+            await asyncio.sleep(2)
+            if os.path.exists(STOP_FLAG_FILE):
+                return "stop"
+        emit_to_ui('INFO', '[STATUS] resumed')
+        return "resume"
+    
+    return None
+
 def handle_blocked_profile():
     """Delete the current profile if it has been blocked/poisoned to ensure next run is fresh."""
     import shutil
@@ -748,22 +765,16 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     for i, url in enumerate(urls[start_index:], start_index + 1):
                         current_list_idx = i - 1 
                         
-                        # Handle Pause
-                        was_paused = False
-                        while os.path.exists(PAUSE_FLAG_FILE):
-                             if os.path.exists(STOP_FLAG_FILE):
-                                 break
-                             if not was_paused:
-                                 emit_to_ui('INFO', '[STATUS] paused')
-                                 was_paused = True
-                             await asyncio.sleep(1)
-                        
-                        if os.path.exists(STOP_FLAG_FILE):
+                        # Handle Pause/Stop
+                        sig = await check_signals()
+                        if sig == "stop":
                             emit_to_ui('WARN', 'Stop signal received. Saving partial progress...')
-                            break 
-                            
-                        if was_paused:
-                            emit_to_ui('INFO', '[STATUS] resumed')
+                            # Signal browser to close if possible? 
+                            # The loop will break and enter finally block
+                            break
+
+                        # Get original row data for this URL
+                        orig_row_data = url_to_row.get(url, {})
                             
                         # --- DEACTIVATED SKIP: Skip properties already marked as inactive ---
                         is_active = str(orig_row_data.get('Anuncio activo', '')).strip().lower() not in ['no', 'false', '0', 'falso']

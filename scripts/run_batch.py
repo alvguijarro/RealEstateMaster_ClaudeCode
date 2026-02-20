@@ -47,24 +47,23 @@ def log(msg: str, level: str = "INFO"):
 
 def check_signals():
     if STOP_FLAG.exists():
-        log("[SIGNAL] Stop flag detected. Sending stop signal to server...")
-        try:
-            # Tell the server to stop the active scrape
-            requests.post("http://localhost:5003/api/stop", timeout=30)
-            log("[INFO] Stop command sent to server.")
-            time.sleep(2) # Give it a moment
-        except Exception as e:
-            log(f"[WARN] Failed to send stop command to server: {e}")
-            
-        log("[INFO] Exiting batch runner.")
-        try: os.remove(STOP_FLAG)
-        except: pass
+        log("[SIGNAL] Stop flag detected. Exiting batch runner.")
         sys.exit(0)
     
+    was_paused = False
     while PAUSE_FLAG.exists():
-        log("[SIGNAL] Paused. Waiting for resume...")
+        if not was_paused:
+            log("[STATUS] paused")
+            log("[SIGNAL] Paused. Waiting for resume...")
+            was_paused = True
         time.sleep(5)
-        if STOP_FLAG.exists(): return
+        if STOP_FLAG.exists():
+            log("[SIGNAL] Stop flag detected during pause. Exiting batch runner.")
+            sys.exit(0)
+            
+    if was_paused:
+        log("[STATUS] running")
+        log("[SIGNAL] Resumed.")
 
 def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_enrichment: bool = False, target_file: str = None) -> bool:
     target_prov = "Unknown"

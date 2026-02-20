@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.7.8] - 2026-02-21
+### Fixed
+- **Funcionalidad de Detener/Pausar**: Corregido el fallo en los botones "Detener" y "Pausar" que afectaba tanto al scraper principal como a los procesos de actualización de URLs y procesamiento por lotes.
+- **Robustez de Procesos en Segundo Plano**: Implementado sistema de banderas (flags) en el sistema de archivos para una comunicación entre procesos más fiable. Los scripts ahora detectan señales de parada/pausa de forma casi inmediata.
+- **Graceful Shutdown**: Mejorada la finalización de procesos para permitir que los scripts guarden su progreso (journaling) antes de cerrarse, evitando la pérdida de datos en sesiones interrumpidas.
+- **Bug de Referencia (update_urls.py)**: Solucionado un error `NameError` que impedía el inicio correcto del proceso de actualización de URLs.
+- **Feedback en Tiempo Real**: Actualizada la interfaz de usuario (app.js) para reflejar los cambios de estado (Pausado/Ejecutando) de forma instantánea tras la interacción del usuario.
+
+
 ## [2.7.7] - 2026-02-20
 ### Added
 - **Integración con BigQuery**: Rediseñada la pestaña "API & Database" (ahora "BigQuery Upload") para permitir la subida directa de archivos Excel desde la carpeta `scraper/salidas` a Google BigQuery. Soporta selección múltiple y carga secuencial.
