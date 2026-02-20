@@ -699,20 +699,28 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     launch_options = {
                         "user_data_dir": profile_dir,
                         "headless": is_headless,
-                        "args": browser_args,
-                        "ignore_default_args": ["--enable-automation"],
                         "viewport": {"width": viewport[0], "height": viewport[1]},
                         "user_agent": random.choice(USER_AGENTS)
                     }
                     
-                    # Channel and Executable Path (Mostly for Chromium-based/Portable)
+                    # ENGINE-SPECIFIC CONFIGURATION
                     if engine_name == "chromium":
+                        launch_options["args"] = browser_args
+                        launch_options["ignore_default_args"] = ["--enable-automation"]
                         if profile_config.get("channel"):
                             launch_options["channel"] = profile_config["channel"]
                         if exe_path:
                             launch_options["executable_path"] = exe_path
-                    else:
-                        # Firefox/Webkit might still benefit from custom exe paths if they exist
+                    elif engine_name == "firefox":
+                        # Firefox specific
+                        if exe_path:
+                            launch_options["executable_path"] = exe_path
+                        launch_options["firefox_user_prefs"] = {
+                            "dom.webdriver.enabled": False,
+                            "useAutomationExtension": False,
+                        }
+                    else: # webkit
+                        # Webkit is very sensitive to extra args, keep it minimal
                         if exe_path:
                             launch_options["executable_path"] = exe_path
 
