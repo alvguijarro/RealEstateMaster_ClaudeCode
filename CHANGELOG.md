@@ -1,3 +1,15 @@
+## [2026-02-20] - URL Update Speed & Data Integrity
+### Added
+- **Speed Optimization (URL Updates)**:
+    - **Fast Mode by Default**: The "Actualizar estado de URLs" process now defaults to **FAST mode** (4-6s per property), matching the speed of the province scraper.
+    - **Increased Session Limits**: Raised the property limit before mandatory rests from 50 to **150-200**, reducing total session downtime.
+    - **Reduced Rest Duration**: Shortened mandatory anti-bot rests to **5-10 minutes** (from 15m) to maintain security with less impact on total execution time.
+    - **Stealth Tuning**: Adjusted stealth presets to use "Standard Stealth" instead of "Extra Stealth" for URL updates, tripling the speed while keeping profile rotation safe.
+
+### Fixed
+- **Excel Data Loss Fix**: Resolved a critical bug where selecting specific worksheets (districts) for an update would cause all other worksheets to be deleted from the output file. The script now preserves the entire Excel structure, updating only the selected data.
+- **Journal Restoration**: Fixed data restoration from `journal_update.jsonl` to ensure all properties are correctly accounted for when resuming partial updates.
+
 ## [2026-02-19] - Browser Robustness & Infinite Rotation
 ### Added
 - **Infinite Identity Rotation**: Overhauled `rotate_identity` logic to ensure the scraper never stops. It now searches the entire pool for available profiles and, if all are blocked, waits for the one with the shortest remaining cooldown before continuing.

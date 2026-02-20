@@ -534,14 +534,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     
     # 2. Load data
     try:
+        # Load ALL sheets to preserve them during merge/save
         dfs = pd.read_excel(excel_file, sheet_name=None)
         
-        # Filter sheets if requested
-        if selected_sheets and len(selected_sheets) > 0:
-            dfs = {k: v for k, v in dfs.items() if k in selected_sheets}
-            sheet_info = f"{len(dfs)} sheet(s): {', '.join(dfs.keys())}"
-        else:
-            sheet_info = "all sheets"
+        # Determine which sheets we should EXTRACT URLs from
+        sheets_to_process = selected_sheets if (selected_sheets and len(selected_sheets) > 0) else list(dfs.keys())
+        sheet_info = f"{len(sheets_to_process)} sheet(s) selected" if selected_sheets else "all sheets"
         
         # Create URL to Sheet and URL to Original Row maps
         url_to_sheet = {}
@@ -549,6 +547,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
         all_rows = []
         
         for sheet_name, df_sheet in dfs.items():
+            # Only extract URLs from the selected sheets
+            if sheet_name not in sheets_to_process:
+                continue
+                
             if 'URL' not in df_sheet.columns:
                 continue
             
@@ -573,12 +575,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
         return
     
     if not all_rows:
-        emit_to_ui('ERR', "No rows found in Excel.")
+        emit_to_ui('ERR', f"No URLs found in the selected sheets ({', '.join(sheets_to_process)}).")
         return
     
     # Use the keys from our map as the master list
     urls = list(url_to_row.keys())
-    emit_to_ui('INFO', f'Found {len(urls)} unique URLs to check')
+    emit_to_ui('INFO', f'Found {len(urls)} URLs to check in selected sheets')
     
     # Check resume state
     start_index = 0
