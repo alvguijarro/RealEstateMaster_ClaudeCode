@@ -43,9 +43,187 @@ from idealista_scraper.config import (
     EXTRA_STEALTH_SESSION_LIMIT, EXTRA_STEALTH_REST_DURATION_RANGE,
     EXTRA_STEALTH_COFFEE_BREAK_RANGE, EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY,
     SCROLL_STEPS, EXTRA_STEALTH_SCROLL_PAUSE_RANGE,
-    USER_AGENTS
+    USER_AGENTS, BROWSER_ROTATION_POOL, PROFILE_COOLDOWN_MINUTES,
+    VIEWPORT_SIZES, EXTRA_STEALTH_READING_TIME_PER_100_CHARS
 )
 from playwright.async_api import async_playwright
+
+# Identity Rotation State File
+IDENTITY_STATE_FILE = str(Path(__file__).parent / "app" / "identity_state.json")
+
+# GPU fingerprints pool for randomization
+GPU_FINGERPRINTS = [
+    ("NVIDIA Corporation", "NVIDIA GeForce RTX 3060/PCIe/SSE2"),
+    ("NVIDIA Corporation", "NVIDIA GeForce GTX 1660 Ti/PCIe/SSE2"),
+    ("NVIDIA Corporation", "NVIDIA GeForce RTX 2070 SUPER/PCIe/SSE2"),
+    ("AMD", "AMD Radeon RX 6700 XT"),
+    ("AMD", "AMD Radeon RX 580 Series"),
+    ("Intel", "Intel(R) UHD Graphics 630"),
+    ("Intel", "Intel(R) Iris(R) Xe Graphics"),
+]
+
+def get_random_gpu():
+    return random.choice(GPU_FINGERPRINTS)
+
+_GPU_VENDOR, _GPU_RENDERER = get_random_gpu()
+
+def generate_stealth_script():
+    return f'''
+// ==================== PHASE 1: DEEP FINGERPRINT SPOOFING ====================
+try {{
+    if (window.chrome && window.chrome.runtime) {{
+        delete window.chrome.runtime;
+    }}
+    const originalCall = Function.prototype.call;
+    Function.prototype.call = function(...args) {{
+        if (args[0] && typeof args[0] === 'object') {{
+            const str = String(args[0]);
+            if (str.includes('cdc_') || str.includes('$cdc_')) {{
+                return undefined;
+            }}
+        }}
+        return originalCall.apply(this, args);
+    }};
+}} catch (e) {{}}
+try {{
+    const getParameterProto = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function(param) {{
+        if (param === 37445) return '{_GPU_VENDOR}';
+        if (param === 37446) return '{_GPU_RENDERER}';
+        return getParameterProto.call(this, param);
+    }};
+    if (typeof WebGL2RenderingContext !== 'undefined') {{
+        const getParameter2Proto = WebGL2RenderingContext.prototype.getParameter;
+        WebGL2RenderingContext.prototype.getParameter = function(param) {{
+            if (param === 37445) return '{_GPU_VENDOR}';
+            if (param === 37446) return '{_GPU_RENDERER}';
+            return getParameter2Proto.call(this, param);
+        }};
+    }}
+}} catch (e) {{}}
+try {{
+    Object.defineProperty(navigator, 'plugins', {{
+        get: () => [
+            {{type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format', name: 'Chrome PDF Plugin'}},
+            {{type: 'application/pdf', suffixes: 'pdf', description: '', name: 'Chrome PDF Viewer'}},
+            {{type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable', name: 'Native Client'}}
+        ],
+    }});
+}} catch (e) {{}}
+try {{
+    Object.defineProperty(navigator, 'languages', {{
+        get: () => ['es-ES', 'es', 'en-US', 'en']
+    }});
+}} catch (e) {{}}
+try {{
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+    Object.defineProperty(navigator, 'webdriver', {{
+        get: () => undefined
+    }});
+}} catch (e) {{}}
+console.log('[STEALTH] Advanced anti-detection active - GPU: {_GPU_RENDERER}');
+'''
+
+DEEP_STEALTH_SCRIPT = generate_stealth_script()
+
+def load_identity_state() -> dict:
+    if not os.path.exists(IDENTITY_STATE_FILE):
+        return {"current_index": 0, "cooldowns": {}}
+    try:
+        with open(IDENTITY_STATE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {"current_index": 0, "cooldowns": {}}
+
+def save_identity_state(state: dict) -> None:
+    try:
+        os.makedirs(os.path.dirname(IDENTITY_STATE_FILE), exist_ok=True)
+        with open(IDENTITY_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+    except:
+        pass
+
+def rotate_identity():
+    state = load_identity_state()
+    current_idx = state.get("current_index", 0)
+    pool_size = len(BROWSER_ROTATION_POOL)
+    cooldown_seconds = PROFILE_COOLDOWN_MINUTES * 60
+    now = time.time()
+    for pid in list(state["cooldowns"].keys()):
+        blocked_time = state["cooldowns"][pid]
+        if now - blocked_time >= cooldown_seconds:
+            del state["cooldowns"][pid]
+    available_indices = []
+    for i in range(pool_size):
+        idx = (current_idx + 1 + i) % pool_size
+        config = BROWSER_ROTATION_POOL[idx]
+        pid = str(config["index"])
+        if pid not in state["cooldowns"]:
+            available_indices.append(idx)
+    if available_indices:
+        next_idx = available_indices[0]
+        state["current_index"] = next_idx
+        save_identity_state(state)
+        return BROWSER_ROTATION_POOL[next_idx], 0
+    wait_info = []
+    for i in range(pool_size):
+        config = BROWSER_ROTATION_POOL[i]
+        pid = str(config["index"])
+        blocked_time = state["cooldowns"].get(pid, now)
+        remaining = max(1, cooldown_seconds - (now - blocked_time))
+        wait_info.append((remaining, i))
+    wait_info.sort()
+    min_wait, next_idx = wait_info[0]
+    state["current_index"] = next_idx
+    save_identity_state(state)
+    return BROWSER_ROTATION_POOL[next_idx], min_wait
+
+def mark_current_profile_blocked() -> None:
+    state = load_identity_state()
+    current_idx = state.get("current_index", 0)
+    if current_idx >= len(BROWSER_ROTATION_POOL): current_idx = 0
+    config = BROWSER_ROTATION_POOL[current_idx]
+    pool_id = str(config["index"])
+    state["cooldowns"][pool_id] = time.time()
+    save_identity_state(state)
+
+def get_profile_dir(profile_index: int) -> str:
+    base_dir = Path(__file__).parent.parent
+    return str(base_dir / f"stealth_profile_{profile_index}")
+
+def get_browser_executable_path(channel: str | None) -> str | None:
+    if not channel or sys.platform != "win32": return None
+    project_root = Path(__file__).parent.parent.parent
+    browsers_dir = project_root / "python_portable" / "browsers"
+    if channel == "chrome":
+        paths = [str(browsers_dir / "GoogleChromePortable" / "App" / "Chrome-bin" / "chrome.exe")]
+    elif channel == "vivaldi":
+        paths = [str(browsers_dir / "VivaldiPortable" / "App" / "Vivaldi" / "Application" / "vivaldi.exe")]
+    else: return None
+    for p in paths:
+        if os.path.exists(p): return p
+    return None
+
+async def human_warmup_routine(page, emit_func=None):
+    import random
+    if emit_func: emit_func("STEALTH", "Starting human warm-up routine...")
+    try:
+        await page.goto('https://www.google.es', wait_until='domcontentloaded', timeout=30000)
+        await asyncio.sleep(random.uniform(2, 4))
+        for _ in range(random.randint(2, 5)):
+            await page.mouse.move(random.randint(100, 1000), random.randint(100, 600), steps=10)
+            await asyncio.sleep(0.2)
+        await page.goto('https://www.idealista.com', wait_until='domcontentloaded', timeout=30000)
+        await asyncio.sleep(random.uniform(3, 5))
+        await page.evaluate("""() => {
+            const btn = document.querySelector('#didomi-notice-agree-button, [id*="accept"], .onetrust-accept-btn');
+            if (btn) btn.click();
+        }""")
+        if emit_func: emit_func("OK", "Human warm-up complete")
+    except Exception as e:
+        if emit_func: emit_func("WARN", f"Warm-up partial: {e}")
 
 # Configure logging to suppress noisy libraries
 import logging
@@ -169,37 +347,39 @@ def handle_blocked_profile():
     except:
         pass
 
-async def detect_captcha(page) -> bool:
-    """Check if page shows CAPTCHA/bot protection based on page title and content."""
+async def detect_captcha(page) -> str | None:
+    """Check if page shows CAPTCHA/bot protection. Returns 'block', 'captcha' or None."""
     try:
-        # Check source content for hidden/overlay text
-        content = (await page.content() or "").lower()
-        title = (await page.title() or "").lower()
-        
-        # 1. Hard Block / IP Block
-        if "el acceso se ha bloqueado" in content or "access denied" in title or "uso indebido" in content:
-             return True
-             
-        # 2. Soft Block / "Many Requests" (Requires Restart)
-        if "recibiendo muchas peticiones tuyas" in content or "many requests" in content:
-             return True
-             
-        # 3. Standard CAPTCHA / Slider
-        if "desliza hacia la derecha" in content or "slide to secure" in content:
-             return True
-             
-        # 4. Title keywords
-        is_captcha_title = any(kw in title for kw in [
-            "attention", "moment", "challenge", "robot", "captcha",
-            "security", "peticiones", "verificación", "verification"
-        ])
-        
-        if is_captcha_title:
-             return True
+        page_data = await page.evaluate("""
+            () => ({
+                title: document.title,
+                text: document.documentElement ? document.documentElement.innerText : (document.body ? document.body.innerText : '')
+            })
+        """)
+        title = (page_data.get("title") or "").lower()
+        text_lower = (page_data.get("text") or "").lower()
+        text_lower = re.sub(r'\s+', ' ', text_lower).strip()
 
-        return False
+        # Hard blocks
+        if any(kw in text_lower for kw in ["el acceso se ha bloqueado", "uso indebido", "access denied", "forbidden"]):
+            return "block"
+        if "id: " in text_lower and re.search(r"id: [0-9a-f]{8,32}-", text_lower):
+            return "block"
+
+        # Captchas
+        is_datadome = await page.evaluate("""() => {
+            return !!(document.querySelector('iframe[src*="captcha-delivery.com"]') || window.dd);
+        }""")
+        if is_datadome or any(kw in text_lower for kw in ["recibiendo muchas peticiones", "confirma que eres humano", "verificación necesaria"]):
+            return "captcha"
+
+        if title == "idealista.com" and len(text_lower) < 1200:
+            has_items = await page.evaluate("!!document.querySelector('article, .item, #h1-container')")
+            if not has_items: return "block"
+
+        return None
     except:
-        return False
+        return None
 
 async def variable_scroll(page):
     """Perform variable scroll pattern (Extra Stealth)."""
@@ -428,25 +608,30 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     # ================= RECOVERY LOOP =================
     while start_index < len(urls):
         try:
+            # IDENTITY ROTATION
+            profile_config, wait_time = rotate_identity()
+            if wait_time > 0:
+                emit_to_ui('WARN', f'All profiles in cooldown. Waiting {int(wait_time/60)}m...')
+                await asyncio.sleep(wait_time)
+                continue
+
+            profile_dir = get_profile_dir(profile_config["index"])
+            os.makedirs(profile_dir, exist_ok=True)
+            
             async with async_playwright() as pw:
-                emit_to_ui('INFO', 'Launching persistent browser...')
-                
-                # Use persistent context to match main scraper behavior
-                os.makedirs(STEALTH_PROFILE_DIR, exist_ok=True)
+                emit_to_ui('INFO', f'Launching persistent browser with profile: {profile_config["name"]}...')
                 
                 browser_args = [
                     "--start-maximized",
                     "--disable-dev-shm-usage",
                     "--disable-infobars",
-                    "--disable-extensions",
                     "--no-first-run",
-                    "--no-default-browser-check",
-                    "--disable-popup-blocking",
                 ]
                 
-                # Randomize viewport slightly to avoid identical fingerprint
-                width = random.randint(1200, 1600)
-                height = random.randint(800, 1000)
+                exe_path = get_browser_executable_path(profile_config.get("channel"))
+                
+                # Randomize viewport
+                viewport = random.choice(VIEWPORT_SIZES)
 
                 # --- PRE-SCAN FOR HISTORY/EXISTING --
                 # To ensure UI reflects progress immediately (e.g. "34/100" if 34 are already done),
@@ -503,33 +688,23 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                 
                 try:
                     context = await pw.chromium.launch_persistent_context(
-                        user_data_dir=STEALTH_PROFILE_DIR,
+                        user_data_dir=profile_dir,
                         headless=is_headless,
                         args=browser_args,
-                        ignore_default_args=["--enable-automation", "--no-sandbox"],
-                        
-                        viewport={"width": width, "height": height},
+                        executable_path=exe_path,
+                        ignore_default_args=["--enable-automation"],
+                        viewport={"width": viewport[0], "height": viewport[1]},
                         user_agent=random.choice(USER_AGENTS)
                     )
                     
-                    # Mask webdriver
-                    await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                    # ADVANCED STEALTH
+                    await context.add_init_script(DEEP_STEALTH_SCRIPT)
                     
                     page = context.pages[0] if context.pages else await context.new_page()
                     
-                    # Initial warm-up if needed
-                    if start_index == 0:
-                        try:
-                            await page.goto("https://www.idealista.com", timeout=30000)
-                            if is_stealth:
-                                await asyncio.sleep(2)
-                            # Accept cookies
-                            await page.evaluate(r"""() => {
-                                const acceptBtn = document.querySelector('#didomi-notice-agree-button, [id*="accept"], .onetrust-accept-btn');
-                                if (acceptBtn) acceptBtn.click();
-                            }""")
-                        except:
-                            pass
+                    # HUMAN WARM-UP
+                    if start_index == 0 or random.random() < 0.1:
+                        await human_warmup_routine(page, emit_to_ui)
                     
 
                     # --- PROCESSING LOOP ---
@@ -660,14 +835,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             start_item_time = time.time()
                             
                             # Navigate
-                            t0 = time.time()
                             await _goto_with_retry(page, url, humanize=is_stealth)
-                            nav_time = time.time() - t0
                             
                             # Check Block immediately
-                            page_text = await page.evaluate("() => document.body ? document.body.innerText.toLowerCase() : ''")
-                            if "uso indebido" in page_text or "se ha bloqueado" in page_text:
-                                raise BlockedException("Uso Indebido detected")
+                            block_status = await detect_captcha(page)
+                            if block_status == "block":
+                                raise BlockedException("Hard Block detected")
                                 
                             # Enhanced Stealth Scroll
                             t0 = time.time()
@@ -676,13 +849,10 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                     await variable_scroll(page)
                                 else:
                                     await simulate_human_interaction(page)
-                            scroll_time = time.time() - t0
-                                
                             await asyncio.sleep(random.uniform(*post_delay))
                             
                             # Extract
                             d = None
-                            t0 = time.time()
                             for attempt in range(3):
                                 try:
                                     d = await extract_detail_fields(page, debug_items=False)
@@ -720,39 +890,27 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                         continue
                                     raise e
                             
-                            try:
-                                extraction_time = time.time() - t0
-                            except: pass
-
-                            # Check Block again
-                            if await detect_captcha(page):
-                                content = (await page.content() or "").lower()
+                            # Final block/captcha check
+                            block_status = await detect_captcha(page)
+                            if block_status == "block":
+                                raise BlockedException("Hard Block detected")
                                 
-                                # CRITICAL CHECK: User requested immediate restart for these messages
-                                if "recibiendo muchas peticiones" in content:
-                                    raise BlockedException("Soft Block: 'Recibiendo muchas peticiones' detected")
-                                if "uso indebido" in content or "el acceso se ha bloqueado" in content:
-                                    raise BlockedException("Hard Block: 'Uso indebido' detected")
-
+                            if block_status == "captcha":
                                 captchas_found += 1
                                 emit_to_ui('WARN', f'({i}/{len(urls)}) CAPTCHA detectado.')
                                 emit_to_ui('INFO', 'Intentando resolver CAPTCHA automáticamente...')
                                 if await solve_captcha_advanced(page):
-                                     if not await detect_captcha(page):
+                                     if await detect_captcha(page) is None:
                                           captchas_solved += 1
                                           emit_to_ui('OK', 'CAPTCHA resuelto automáticamente!')
                                           d = await extract_detail_fields(page, debug_items=False)
-                                          if d and d.get('isBlocked'):
-                                              raise BlockedException("Uso Indebido detected (via extractor)")
                                 
-                                if await detect_captcha(page):
+                                if await detect_captcha(page) == "captcha":
                                     emit_to_ui('WARN', 'Resuelve el CAPTCHA manualmente en el navegador.')
-                                    while await detect_captcha(page):
+                                    while await detect_captcha(page) == "captcha":
                                         play_captcha_alert()
                                         await asyncio.sleep(5)
                                     d = await extract_detail_fields(page, debug_items=False)
-                                    if d and d.get('isBlocked'):
-                                        raise BlockedException("Uso Indebido detected (via extractor)")
                             
                             # --- Data Merging & Logging ---
                             d = d or {}
@@ -911,27 +1069,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
 
 
         except BlockedException:
-            emit_to_ui('ERR', 'HARD STOP: Scraper blocked. Entering recovery mode...')
-            handle_blocked_profile() # Backup bad profile
+            emit_to_ui('ERR', 'HARD BLOCK DETECTED. Marking profile as blocked and rotating...')
+            mark_current_profile_blocked()
             
-            # Explicitly nuke the directory to force fresh browser identity
-            import shutil
-            if os.path.exists(STEALTH_PROFILE_DIR):
-                try:
-                    shutil.rmtree(STEALTH_PROFILE_DIR)
-                    emit_to_ui('INFO', 'Identity wiped. Next run will use a fresh fingerprint.')
-                except:
-                    pass
-            
-            # 15 Minute Wait Loop (Recursive Strategy)
-            wait_time = 900 # 15 minutes
-            emit_to_ui('WARN', f'RECOVERY: Pausing for {wait_time/60:.0f} minutes...')
-            emit_to_ui('WARN', 'Process will automatically resume after cooldown.')
-            
-            await asyncio.sleep(wait_time)
-            
-            emit_to_ui('INFO', 'Cooldown complete. Resuming session...')
-            continue # Retry the exact same URL that failed (start_index wasn't incremented)
+            # Wait a bit before rotating
+            await asyncio.sleep(10)
+            continue 
             
 
 
