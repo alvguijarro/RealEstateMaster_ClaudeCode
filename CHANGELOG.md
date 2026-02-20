@@ -3,6 +3,7 @@
 ## [2.7.7] - 2026-02-20
 ### Added
 - **Integración con BigQuery**: Rediseñada la pestaña "API & Database" (ahora "BigQuery Upload") para permitir la subida directa de archivos Excel desde la carpeta `scraper/salidas` a Google BigQuery. Soporta selección múltiple y carga secuencial.
+- **Lógica de Upsert Inteligente**: Implementada estrategia de actualización o inserción (Delete + Insert) basada en la URL para evitar duplicados y optimizar el almacenamiento. Se añade automáticamente una marca de tiempo (`upload_timestamp`) a cada fila.
 - **Utilidad de Carga Masiva**: Implementado endpoint en el servidor para procesar y subir lotes de archivos con validación de datos numéricos.
 
 ### Removed

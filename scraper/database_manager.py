@@ -36,29 +36,57 @@ class DatabaseManager:
             return None
 
     def save_to_bigquery(self, dataset_id, table_id, df):
-        """Upload a pandas DataFrame to BigQuery."""
+        """Upload a pandas DataFrame to BigQuery using an UPSERT (Delete + Insert) strategy."""
         if not self.bq_client:
             logger.error("BigQuery client not initialized.")
             return False
 
+        if df.empty:
+            logger.info("DataFrame is empty, skipping BigQuery upload.")
+            return True
+
         try:
-            # Full table ID: project.dataset.table
+            # Add upload timestamp to track when data was pushed
+            from datetime import datetime
+            df['upload_timestamp'] = datetime.now()
+            
             project_id = self.bq_client.project
             full_table_id = f"{project_id}.{dataset_id}.{table_id}"
+            staging_table_id = f"{full_table_id}_staging"
             
-            job_config = bigquery.LoadJobConfig(
-                write_disposition="WRITE_APPEND", # Append to existing
-            )
-
-            job = self.bq_client.load_table_from_dataframe(
-                df, full_table_id, job_config=job_config
-            )
-            job.result() # Wait for completion
+            # 1. Upload data to a staging table (Overwrite mode for safety)
+            job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
             
-            logger.info(f"Successfully uploaded {len(df)} rows to BigQuery table {full_table_id}")
+            logger.info(f"Uploading {len(df)} rows to staging table: {staging_table_id}")
+            load_job = self.bq_client.load_table_from_dataframe(df, staging_table_id, job_config=job_config)
+            load_job.result()
+            
+            # 2. DELETE existing rows in main table that match URLs in staging
+            # BigQuery MERGE is also an option, but DELETE + INSERT is robust for schema evolution
+            dml_statement = f"""
+            DELETE FROM `{full_table_id}`
+            WHERE URL IN (SELECT URL FROM `{staging_table_id}`)
+            """
+            logger.info(f"Deduplicating main table: {full_table_id}")
+            query_job = self.bq_client.query(dml_statement)
+            query_job.result()
+            
+            # 3. INSERT all rows from staging to main table
+            insert_statement = f"""
+            INSERT INTO `{full_table_id}`
+            SELECT * FROM `{staging_table_id}`
+            """
+            logger.info(f"Inserting new/updated rows into {full_table_id}")
+            insert_job = self.bq_client.query(insert_statement)
+            insert_job.result()
+            
+            # 4. Cleanup: Drop staging table
+            self.bq_client.delete_table(staging_table_id, not_found_ok=True)
+            
+            logger.info(f"Successfully UPSERTED {len(df)} rows to BigQuery table {full_table_id}")
             return True
         except Exception as e:
-            logger.error(f"Error uploading to BigQuery: {e}")
+            logger.error(f"Error during BigQuery UPSERT: {e}")
             return False
 
     def save_listings_from_df(self, df, source_file="unknown"):
