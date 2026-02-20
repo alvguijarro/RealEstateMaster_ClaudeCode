@@ -1425,52 +1425,63 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
         (df_venta['yield_bruta'] > 0)
     ].sort_values('yield_bruta', ascending=False).head(100).copy()
     
-    # Create clean output dataframe with standardized columns
-    # Find Titulo column (may be named differently)
-    titulo_col = next((c for c in opps.columns if c.lower() in ['titulo', 'title', 'nombre']), None)
-    
-    # 1. Opportunities (Sheet: oportunidades)
-    # Create Propiedad as clean text (hyperlinks added later by xlsxwriter)
-    if titulo_col:
-        opps['Propiedad_text'] = opps[titulo_col]
-    else:
-        opps['Propiedad_text'] = opps['Distrito'] + ' - ' + opps['m2 construidos'].astype(int).astype(str) + 'm²'
-    
-    # Helper for safe column access
-    def safe_col(df, col, default_val, dtype):
-        if col in df.columns:
-            # fillna(default_val) works on Series (even if boolean/object)
-            return df[col].fillna(default_val).astype(dtype)
-        # Verify length matches index
-        return pd.Series(default_val, index=df.index, dtype=dtype)
+    # --- Helper to format data for UI (JSON/HTML) ---
+    def format_dataframe_for_ui(df_input, is_opps=True):
+        if df_input.empty:
+            return []
+        
+        df = df_input.copy()
+        
+        # 1. Title Logic
+        titulo_col_local = next((c for c in df.columns if c.lower() in ['titulo', 'title', 'nombre']), None)
+        if titulo_col_local:
+            df['Propiedad_text'] = df[titulo_col_local]
+        else:
+            # Fallback title
+            def make_title(row):
+                dist = row.get('Distrito', 'Propiedad')
+                m2_val = row.get('m2 construidos', 0)
+                try:
+                    return f"{dist} - {int(m2_val)}m²"
+                except:
+                    return dist
+            df['Propiedad_text'] = df.apply(make_title, axis=1)
 
-    # Keep URL for UI and for xlsxwriter hyperlinks
-    opps_output = pd.DataFrame({
-        'Propiedad': opps['Propiedad_text'],
-        'Distrito': opps['Distrito'],
-        'm2': opps['m2 construidos'].astype(int),
-        'Precio': opps['price'].astype(int),
-        'habs': safe_col(opps, 'habs', 0, int),
-        'banos': safe_col(opps, 'banos', 0, int),
-        'garaje': safe_col(opps, 'Garaje', False, bool).apply(lambda x: 'Sí' if x else 'No'),
-        'terraza': safe_col(opps, 'Terraza', False, bool).apply(lambda x: 'Sí' if x else 'No'),
-        'Renta_estimada/mes': opps['renta_estimada'].round(0).astype(int),
-        'Renta_Rango': opps.get('renta_rango', opps['renta_estimada'].apply(lambda x: f"{int(x)}€" if pd.notnull(x) else "-")),
-        'Rentabilidad_Bruta_%': opps['yield_bruta'], # Decimal for % formatting
-        'Rentabilidad_Neta_%': opps['yield_neta'], # Decimal
-        'Precision': opps.get('precision', 0).astype(float).round(1),
-        'Descuento_%': opps['descuento_vs_mercado_pct'] / 100, # Convert 32.7 to 0.327
-        'Puntuación': opps['score'].round(1),
-        'URL': opps['URL'], # Keep URL for UI and hyperlinks
-        'comparables': opps['comparables'] # Keep for UI API
-    })
+        # 2. Main UI DataFrame
+        ui_df = pd.DataFrame({
+            'Propiedad': df['Propiedad_text'],
+            'Distrito': df['Distrito'],
+            'm2': df['m2 construidos'].fillna(0).astype(int),
+            'Precio': df['price'].fillna(0).astype(int),
+            'habs': safe_col(df, 'habs', 0, int),
+            'banos': safe_col(df, 'banos', 0, int),
+            'garaje': safe_col(df, 'Garaje', False, bool).apply(lambda x: 'Sí' if x else 'No'),
+            'terraza': safe_col(df, 'Terraza', False, bool).apply(lambda x: 'Sí' if x else 'No'),
+            'Renta_estimada/mes': df['renta_estimada'].fillna(0).round(0).astype(int),
+            'Renta_Rango': df.get('renta_rango', df['renta_estimada'].apply(lambda x: f"{int(x)}€" if pd.notnull(x) else "-")),
+            'Rentabilidad_Bruta_%': df['yield_bruta'].fillna(0), 
+            'Rentabilidad_Neta_%': df['yield_neta'].fillna(0),
+            'Precision': df.get('precision', 0).astype(float).round(1),
+            'Descuento_%': df.get('descuento_vs_mercado_pct', 0) / 100,
+            'Puntuación': df.get('score', 0).round(1),
+            'URL': df['URL'],
+            'comparables': df.get('comparables', None)
+        })
+        
+        # 3. Add Referencia 1-10 columns
+        for i in range(1, 11):
+            col_name = f'Referencia {i}'
+            ui_df[col_name] = ui_df['comparables'].apply(
+                lambda refs: refs[i-1]['URL'] if isinstance(refs, list) and len(refs) >= i else ''
+            )
+            
+        return ui_df
+
+    # Format Opportunities
+    opps_output = format_dataframe_for_ui(opps, is_opps=True)
     
-    # Add Referencia 1-10 columns (URLs of top 10 comparables)
-    for i in range(1, 11):
-        col_name = f'Referencia {i}'
-        opps_output[col_name] = opps_output['comparables'].apply(
-            lambda refs: refs[i-1]['URL'] if refs and len(refs) >= i else ''
-        )
+    # Format Top 100
+    top100_final = format_dataframe_for_ui(top100_df, is_opps=False)
     
     # =========================================================================
     # SCREEN OUTPUT
@@ -1648,32 +1659,12 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
     json_file = output_file.replace('.xlsx', '.json')
     
     # We need to save records in a format suitable for the UI table
-    # transform dataframe to list of dicts
-    records = opps_output.to_dict(orient='records')
-    
-    # Process Top 100 for JSON output (similar formatting to opps_output)
-    top100_final = top100_df.copy()
-    # Apply same column mapping/renaming as opps_output if needed, 
-    # but for simplicity we rely on the raw columns which match mostly.
-    # We DO need to rename specific cols for UI:
-    top100_final = top100_final.rename(columns={
-        'titulo': 'Propiedad',
-        'renta_estimada': 'Renta_estimada/mes', 
-        'renta_rango': 'Renta_Rango',
-        'yield_bruta': 'Rentabilidad_Bruta_%',
-        'yield_neta': 'Rentabilidad_Neta_%',
-        'precision': 'Precision',
-        'descuento_vs_mercado_pct': 'Descuento_%',
-        'score': 'Puntuación',
-        'price': 'Precio',
-        'm2 construidos': 'm2'
-    })
-    
-    # Ensure URL is present (it is in raw df_venta)
+    # Transform dataframes to list of dicts for JSON
+    opps_records = opps_output.to_dict(orient='records')
     top100_records = top100_final.to_dict(orient='records')
     
     final_json_data = {
-        'opportunities': records,
+        'opportunities': opps_records,
         'top_100': top100_records
     }
     

@@ -493,8 +493,8 @@ function renderTable(tbodyId, data, sortConfig, isMainTable) {
         let valA = a[col];
         let valB = b[col];
         if (col === 'Propiedad') {
-            valA = a['Propiedad'] || a['Distrito'];
-            valB = b['Propiedad'] || b['Distrito'];
+            valA = a['Propiedad'];
+            valB = b['Propiedad'];
         }
         if (valA === undefined) valA = '';
         if (valB === undefined) valB = '';
@@ -528,8 +528,9 @@ function renderTable(tbodyId, data, sortConfig, isMainTable) {
         const punt = opp.Puntuación || opp.score || 0;
         const formattedPunt = typeof punt === 'number' ? punt.toFixed(0) : punt;
 
-        // Refs link
-        const refsLink = `<a href="#" onclick="loadReferencias(${arrIdx}); return false;" style="color:var(--text-muted); font-size:0.9em;">Ver Refs</a>`;
+        // Refs link - Now enabled for both tables
+        const tableType = isMainTable ? 'opps' : 'top100';
+        const refsLink = `<a href="#" onclick="loadReferencias(${arrIdx}, '${tableType}'); return false;" style="color:var(--text-muted); font-size:0.9em;">Ver Refs</a>`;
 
         // Calculate Button
         const calcBtn = `
@@ -557,7 +558,7 @@ function renderTable(tbodyId, data, sortConfig, isMainTable) {
                 </span>
             </td>
             <td><span class="score-badge">${formattedPunt}</span></td>
-            <td>${isMainTable ? refsLink : '-'}</td>
+            <td>${refsLink}</td>
             <td>${calcBtn}</td>
         `;
         tbody.appendChild(tr);
@@ -678,18 +679,19 @@ function updateSortHeaders() {
 }
 
 // Store sorted results for Referencias lookup AND District Report
-let sortedResults = [];
+let sortedOpps = [];
+let sortedTop100 = [];
 let availableDistrictReports = {};
 let batchDistrictsToAnalyze = [];
 
 function setupConsultarLinks() {
     const { col, dir } = currentSort;
-    sortedResults = [...currentResults].sort((a, b) => {
+    sortedOpps = [...currentResults].sort((a, b) => {
         let valA = a[col];
         let valB = b[col];
         if (col === 'Propiedad') {
-            valA = a['Propiedad'] || a['Distrito'];
-            valB = b['Propiedad'] || b['Distrito'];
+            valA = a['Propiedad'];
+            valB = b['Propiedad'];
         }
         if (valA === undefined) valA = '';
         if (valB === undefined) valB = '';
@@ -699,6 +701,24 @@ function setupConsultarLinks() {
         if (valA > valB) return 1 * dir;
         return 0;
     }).slice(0, 50);
+
+    // Also sort Top 100 for reference lookup
+    const { col: col100, dir: dir100 } = currentSortTop100;
+    sortedTop100 = [...currentTop100].sort((a, b) => {
+        let valA = a[col100];
+        let valB = b[col100];
+        if (col100 === 'Propiedad') {
+            valA = a['Propiedad'];
+            valB = b['Propiedad'];
+        }
+        if (valA === undefined) valA = '';
+        if (valB === undefined) valB = '';
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+        if (valA < valB) return -1 * dir100;
+        if (valA > valB) return 1 * dir100;
+        return 0;
+    }).slice(0, 100);
 
     document.querySelectorAll('.consultar-link').forEach(link => {
         link.addEventListener('click', (e) => {
@@ -729,7 +749,7 @@ function setupDistrictReport() {
         btnGen.parentNode.replaceChild(newBtn, btnGen);
 
         newBtn.addEventListener('click', () => {
-            if (!sortedResults || sortedResults.length === 0) {
+            if (!sortedOpps || sortedOpps.length === 0) {
                 alert("No hay resultados para analizar.");
                 return;
             }
@@ -737,7 +757,7 @@ function setupDistrictReport() {
             // Extract Unique Districts maintaining order
             const uniqueDistricts = [];
             const seen = new Set();
-            for (const res of sortedResults) {
+            for (const res of sortedOpps) {
                 if (res.Distrito && !seen.has(res.Distrito)) {
                     seen.add(res.Distrito);
                     uniqueDistricts.push(res.Distrito);
@@ -948,9 +968,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // setupDeepResearchButton(); // Removed
 });
 
-function loadReferencias(idx) {
-    const opp = sortedResults[idx];
+function loadReferencias(idx, type = 'opps') {
+    const opp = type === 'opps' ? sortedOpps[idx] : sortedTop100[idx];
     if (!opp || !opp.comparables || opp.comparables.length === 0) {
+        alert("No se encontraron comparables para esta vivienda.");
         return;
     }
 
