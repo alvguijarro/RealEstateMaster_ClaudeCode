@@ -896,11 +896,11 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                          
                                          # Look for explicit block strings in body
                                          if any(kw in page_text.lower() for kw in ["uso indebido", "bloqueado", "peticiones"]):
-                                              raise BlockedException("Undetected block keywords found in page body")
+                                             raise BlockedException("Undetected block keywords found in page body")
                                               
-                                          # If we reach here, we have no data and it's not a known "Inactive" page.
-                                          # High probability of a block/ghost page.
-                                          raise BlockedException("Extraction empty (Title/Price missing) — potential block detected")
+                                         # If we reach here, we have no data and it's not a known "Inactive" page.
+                                         # High probability of a block/ghost page.
+                                         raise BlockedException("Extraction empty (Title/Price missing) — potential block detected")
                                     
                                     break
                                 except BlockedException:
