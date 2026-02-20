@@ -860,6 +860,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             await asyncio.sleep(random.uniform(*post_delay))
                             
                             # Extract
+                            # Extract
                             d = None
                             for attempt in range(3):
                                 try:
@@ -869,25 +870,27 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                     
                                     # Check data integrity - if empty, we might be blocked or page failed to load
                                     if not d or (not d.get('Titulo') and not d.get('price')):
-                                         # If page loaded but no title/price, it's likely a captcha we missed or a broken page
-                                         # Let's check captcha one more time
-                                         if await detect_captcha(page):
-                                             raise BlockedException("Hidden CAPTCHA detected")
-                                         else:
-                                             # If really no data, maybe it's just a failure? 
-                                             # But we shouldn't save it as "Active" with empty data.
-                                             # If active=No (because extractor detected it, e.g. "anuncio desactivado"), that's fine.
-                                             # But if simply empty, we check for "No encontramos lo que estás buscando"
-                                             page_not_found_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
-                                             if "No encontramos lo que estás buscando" in page_not_found_text or "el anuncio ya no está en nuestra base de datos" in page_not_found_text:
-                                                  # Explicitly not found = Inactive
-                                                  if not d: d = {}
-                                                  d['Anuncio activo'] = 'No'
-                                                  d['Baja anuncio'] = 'desconocida'
-                                             else:
-                                                  # Raise exception to trigger retry or skip without saving bad data.
-                                                 pass
-                                             raise Exception("Extraction returned empty data (Title/Price missing)")
+                                         # Check if inactive or blocked
+                                         emit_to_ui('INFO', f'Empty data for {url}. Checking for block...')
+                                         await asyncio.sleep(2) # Give it a moment to settle
+                                         block_status = await detect_captcha(page)
+                                         if block_status == "block": 
+                                             raise BlockedException("Hard Block detected during extraction")
+                                         if block_status == "captcha": 
+                                             break # Deal with captcha later
+                                         
+                                         page_text = await page.evaluate("document.body.innerText")
+                                         if "No encontramos lo que estás buscando" in page_text or "ya no está en nuestra base de datos" in page_text:
+                                              if not d: d = {}
+                                              d['Anuncio activo'] = 'No'
+                                              d['Baja anuncio'] = 'desconocida'
+                                              break
+                                         
+                                         # Look for explicit block strings in body
+                                         if any(kw in page_text.lower() for kw in ["uso indebido", "bloqueado", "peticiones"]):
+                                              raise BlockedException("Undetected block keywords found in page body")
+                                              
+                                         raise Exception("Extraction empty (Title/Price missing)")
                                     
                                     break
                                 except BlockedException:
