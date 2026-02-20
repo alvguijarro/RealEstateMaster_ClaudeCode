@@ -36,6 +36,7 @@ if sys.platform == 'win32':
 from idealista_scraper.scraper import _goto_with_retry
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.utils import log, play_captcha_alert, simulate_human_interaction, solve_captcha_advanced
+from app.scraper_wrapper import get_browser_executable_path
 from idealista_scraper.config import (
     FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE,
     STEALTH_CARD_DELAY_RANGE, STEALTH_POST_CARD_DELAY_RANGE,
@@ -193,18 +194,7 @@ def get_profile_dir(profile_index: int) -> str:
     base_dir = Path(__file__).parent.parent
     return str(base_dir / f"stealth_profile_{profile_index}")
 
-def get_browser_executable_path(channel: str | None) -> str | None:
-    if not channel or sys.platform != "win32": return None
-    project_root = Path(__file__).parent.parent.parent
-    browsers_dir = project_root / "python_portable" / "browsers"
-    if channel == "chrome":
-        paths = [str(browsers_dir / "GoogleChromePortable" / "App" / "Chrome-bin" / "chrome.exe")]
-    elif channel == "vivaldi":
-        paths = [str(browsers_dir / "VivaldiPortable" / "App" / "Vivaldi" / "Application" / "vivaldi.exe")]
-    else: return None
-    for p in paths:
-        if os.path.exists(p): return p
-    return None
+# Imported from app.scraper_wrapper above
 
 async def human_warmup_routine(page, emit_func=None):
     import random
@@ -702,15 +692,31 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                 is_headless = not is_stealth 
                 
                 try:
-                    context = await pw.chromium.launch_persistent_context(
-                        user_data_dir=profile_dir,
-                        headless=is_headless,
-                        args=browser_args,
-                        executable_path=exe_path,
-                        ignore_default_args=["--enable-automation"],
-                        viewport={"width": viewport[0], "height": viewport[1]},
-                        user_agent=random.choice(USER_AGENTS)
-                    )
+                    # Select the correct engine launcher (chromium, firefox, or webkit)
+                    engine_name = profile_config.get("engine", "chromium")
+                    browser_launcher = getattr(pw, engine_name)
+                    
+                    launch_options = {
+                        "user_data_dir": profile_dir,
+                        "headless": is_headless,
+                        "args": browser_args,
+                        "ignore_default_args": ["--enable-automation"],
+                        "viewport": {"width": viewport[0], "height": viewport[1]},
+                        "user_agent": random.choice(USER_AGENTS)
+                    }
+                    
+                    # Channel and Executable Path (Mostly for Chromium-based/Portable)
+                    if engine_name == "chromium":
+                        if profile_config.get("channel"):
+                            launch_options["channel"] = profile_config["channel"]
+                        if exe_path:
+                            launch_options["executable_path"] = exe_path
+                    else:
+                        # Firefox/Webkit might still benefit from custom exe paths if they exist
+                        if exe_path:
+                            launch_options["executable_path"] = exe_path
+
+                    context = await browser_launcher.launch_persistent_context(**launch_options)
                     
                     # ADVANCED STEALTH
                     await context.add_init_script(DEEP_STEALTH_SCRIPT)
