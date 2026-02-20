@@ -898,7 +898,9 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                          if any(kw in page_text.lower() for kw in ["uso indebido", "bloqueado", "peticiones"]):
                                               raise BlockedException("Undetected block keywords found in page body")
                                               
-                                         raise Exception("Extraction empty (Title/Price missing)")
+                                          # If we reach here, we have no data and it's not a known "Inactive" page.
+                                          # High probability of a block/ghost page.
+                                          raise BlockedException("Extraction empty (Title/Price missing) — potential block detected")
                                     
                                     break
                                 except BlockedException:
@@ -1047,7 +1049,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
 
                             emit_progress(i, len(urls), url_to_sheet.get(url, 'Unknown'), os.path.basename(excel_file))
                             
-                            start_index = i 
+                            start_index = i + 1
                             
                             # --- PERIODIC SAVE (Every 50) ---
                             if i % 50 == 0:
@@ -1064,15 +1066,15 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                         except Exception as e:
                             emit_to_ui('ERR', f'({i}/{len(urls)}) Error processing {url}: {e}')
                             error_count += 1
-                            start_index = i 
+                            # REMOVED: start_index = i  <-- This was causing the skipping of the current URL
                             err_msg = str(e).lower()
                             
                             # Convert block-related exceptions to BlockedException
-                            if any(x in err_msg for x in ["bloqueado", "uso indebido", "captcha_block", "access denied", "block detected"]):
-                                emit_to_ui('ERR', f'Block detected via exception: {e}')
+                            if any(x in err_msg for x in ["bloqueado", "uso indebido", "captcha_block", "access denied", "block detected", "extraction empty"]):
+                                emit_to_ui('ERR', f'Potential block detected via exception: {e}')
                                 await save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs)
                                 if pending_history: save_history(pending_history)
-                                raise BlockedException(f"Block detected via exception: {e}")
+                                raise BlockedException(f"Block detected via extraction failure: {e}")
                             
                             if any(x in err_msg for x in ["target closed", "session", "page crashed", "browser_crashed_or_closed"]):
                                 emit_to_ui('WARN', f"Browser crash detected: {e}. Restarting context...")

@@ -65,7 +65,7 @@ SCROLL_PAUSE_RANGE: Tuple[float, float] = STEALTH_SCROLL_PAUSE_RANGE
 
 # Profile Rotation Settings (Advanced Evasion)
 MAX_PROFILE_POOL_SIZE: int = 5
-PROFILE_COOLDOWN_MINUTES: int = 15
+PROFILE_COOLDOWN_MINUTES: int = 10
 
 # Browser Rotation Sequence (Strict Sequential)
 # 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 1
