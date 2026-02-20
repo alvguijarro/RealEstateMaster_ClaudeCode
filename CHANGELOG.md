@@ -3,10 +3,11 @@
 ## [2.7.8] - 2026-02-21
 ### Fixed
 - **Funcionalidad de Detener/Pausar**: Corregido el fallo en los botones "Detener" y "Pausar" que afectaba tanto al scraper principal como a los procesos de actualización de URLs y procesamiento por lotes.
-- **Robustez de Procesos en Segundo Plano**: Implementado sistema de banderas (flags) en el sistema de archivos para una comunicación entre procesos más fiable. Los scripts ahora detectan señales de parada/pausa de forma casi inmediata.
-- **Graceful Shutdown**: Mejorada la finalización de procesos para permitir que los scripts guarden su progreso (journaling) antes de cerrarse, evitando la pérdida de datos en sesiones interrumpidas.
-- **Bug de Referencia (update_urls.py)**: Solucionado un error `NameError` que impedía el inicio correcto del proceso de actualización de URLs.
-- **Feedback en Tiempo Real**: Actualizada la interfaz de usuario (app.js) para reflejar los cambios de estado (Pausado/Ejecutando) de forma instantánea tras la interacción del usuario.
+- **Selectores de UI**: Reparado el fallo en los selectores de provincias y el selector de archivos Excel para la actualización de URLs. Se corrigieron errores de referencia (`ReferenceError`) y se sincronizaron los endpoints de la API (`/api/provinces-list`, `/api/salidas-files`).
+- **Robustez de Procesos en Segundo Plano**: Implementado sistema de banderas (flags) en el sistema de archivos para una comunicación entre procesos más fiable.
+- **Graceful Shutdown**: Mejorada la finalización de procesos para permitir el guardado de progreso antes del cierre.
+- **Bug de Referencia (update_urls.py)**: Solucionado error `NameError` en el script de actualización de URLs.
+- **Feedback en Tiempo Real**: Actualizada la interfaz para reflejar cambios de estado de forma instantantea.
 
 
 ## [2.7.7] - 2026-02-20

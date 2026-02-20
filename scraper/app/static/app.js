@@ -95,6 +95,7 @@ const statMode = document.getElementById('statMode');
 const historyBody = document.getElementById('historyBody');
 const historyEmptyState = document.getElementById('historyEmptyState');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+const rotateVpnBtn = document.getElementById('rotateVpnBtn');
 
 // State
 let currentMode = 'fast';
@@ -169,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkResumeState();  // Check if there's a saved session to resume
     loadExcelFiles();    // Load Excel files for URL update dropdown
     loadBQFiles();       // Load files for BigQuery upload
+    loadProvincesList(); // Load provinces and zones
     setupMultiSelectUI(); // Setup dropdown listeners
 
     // UI Refresh Buttons
@@ -206,7 +208,7 @@ let selectedWorksheets = new Set();
 
 async function loadExcelFiles() {
     try {
-        const response = await fetch('/api/excel-files');
+        const response = await fetch('/api/salidas-files');
         const data = await response.json();
 
         if (updateExcelSelect) {
@@ -3224,8 +3226,4 @@ function formatMtime(mtime) {
     return `${day}/${month} ${hours}:${mins}`;
 }
 
-// Initial Load
-document.addEventListener('DOMContentLoaded', () => {
-    loadBatchDestinationFiles();
-    loadExcelFiles(); // Added missing initialization call
-});
+// Initial Load replaced by DOMContentLoaded at top
