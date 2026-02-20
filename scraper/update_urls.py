@@ -386,7 +386,14 @@ async def detect_captcha(page) -> str | None:
                     return "block"
 
         return None
-    except:
+    except Exception as ex:
+        # If page.evaluate fails, try a simpler title-based check before giving up
+        try:
+            title = (await page.title() or "").lower()
+            if any(kw in title for kw in ["uso indebido", "bloqueado", "access denied", "forbidden"]):
+                return "block"
+        except:
+            pass
         return None
 
 async def variable_scroll(page):
@@ -721,6 +728,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     # Stealth Counters
                     session_property_count = 0
                     next_coffee_break = random.randint(*EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY)
+                    consecutive_empty_errors = 0  # Counter for implicit block detection
                     
                     # --- PROCESSING LOOP ---
                     for i, url in enumerate(urls[start_index:], start_index + 1):
@@ -1027,6 +1035,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             
                             total_item_time = time.time() - start_item_time
                             
+                            consecutive_empty_errors = 0  # Reset on success
                             session_property_count += 1 # Increment stealth counter
                             
                             # --- HISTORY UPDATE ---
@@ -1057,10 +1066,28 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             error_count += 1
                             start_index = i 
                             err_msg = str(e).lower()
+                            
+                            # Convert block-related exceptions to BlockedException
+                            if any(x in err_msg for x in ["bloqueado", "uso indebido", "captcha_block", "access denied", "block detected"]):
+                                emit_to_ui('ERR', f'Block detected via exception: {e}')
+                                await save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs)
+                                if pending_history: save_history(pending_history)
+                                raise BlockedException(f"Block detected via exception: {e}")
+                            
                             if any(x in err_msg for x in ["target closed", "session", "page crashed", "browser_crashed_or_closed"]):
                                 emit_to_ui('WARN', f"Browser crash detected: {e}. Restarting context...")
                                 await asyncio.sleep(2)
                                 break 
+                            
+                            # Consecutive error counter for implicit block detection
+                            if "extraction empty" in err_msg or "title/price missing" in err_msg:
+                                consecutive_empty_errors += 1
+                                emit_to_ui('WARN', f'Consecutive empty errors: {consecutive_empty_errors}/3')
+                                if consecutive_empty_errors >= 3:
+                                    emit_to_ui('ERR', f'3 consecutive empty extractions — likely a hard block!')
+                                    await save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs)
+                                    if pending_history: save_history(pending_history)
+                                    raise BlockedException("Implicit block: 3 consecutive empty extractions")
                     
                     # End of loop save
                     if pending_history: save_history(pending_history)
