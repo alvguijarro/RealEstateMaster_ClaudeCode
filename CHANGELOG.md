@@ -1,3 +1,13 @@
+# Changelog
+
+## [2.7.6] - 2026-02-20
+### Fixed
+- **Sincronización de Distritos**: Implementada normalización robusta (minúsculas, sin acentos, sin espacios) para garantizar el cruce de datos Venta/Alquiler.
+- **Filtros Booleanos**: Corregido bug que ignoraba filtros de Ascensor/Garaje/Terraza por diferencias de acentuación ('Sí' vs 'Si').
+- **Estabilidad de Exportación**: Solucionado crash fatal por variables no definidas y saneamiento de NaNs en el JSON de salida.
+- **Visualización Top 100**: Corregido error que limitaba la tabla 'Top 100' a 63 elementos; ahora muestra los 100 resultados completos.
+- **Recuperación de Propiedades**: Verificado que las viviendas en el rango de 159.000€ (como las de Baix Segura) ahora se procesan y muestran correctamente.
+
 ## [2026-02-20] - URL Update Speed & Data Integrity
 ### Added
 - **Speed Optimization (URL Updates)**:
@@ -171,6 +181,21 @@
 - **Automatic Executable Discovery**: Implemented a robust Windows-based detection logic to automatically find and use these browsers if installed.
 - **Fail-safe Browser Switching**: The scraper now intelligently skips missing browsers and rotates to the next available identity in the pool (1-8), preventing session crashes.
 - **Firefox Stability Fix**: Resolved 120s timeout hangs by enabling multi-process (e10s) and strengthening recursive lock-file cleanup for Firefox profiles.
+
+## [2.7.5] - 2026-02-20
+### Fixed
+- Corregido error en la sincronización de distritos (Normalización robusta: minúsculas, sin acentos, sin espacios).
+- Solucionado bug en filtros booleanos (Ascensor, Garaje, Terraza) que fallaban por acentos ('Sí' vs 'Si').
+- Corregido crash en la exportación JSON por variables no definidas.
+- Corregido error de visualización en la tabla 'Top 100 viviendas' (ahora muestra los 100 resultados correctamente).
+- Resuelto el problema de propiedades desaparecidas (viviendas de 159.000€ ahora visibles tras corregir filtros y sincronización).
+- Saneamiento de NaNs en la salida JSON para evitar errores de sintaxis en el frontend.
+- Unificación de formateo de datos para tablas de Oportunidades y Top 100.
+- **Hierarchical Geo-Locality**: Rewrote similarity logic to prioritize Barrio > Distrito > Ciudad, ensuring local market dynamics dominate rent estimation.
+- **Weighted Valuation Averaging**: Replaced simple means with quality-weighted averages of adjusted prices for higher statistical reliability.
+- **Unified Portable Package**: Created a zero-install portable version of all tools in the `python_portable` directory.
+- **Smart Launcher**: Updated `START_PORTABLE.bat` with automatic setup detection and configuration.
+- **Enhanced Setup Engine**: `SETUP.bat` now installs all tool dependencies from a central `requirements_master.txt` and includes Firefox for Playwright.
 
 ## [2026-02-13]
 

@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-20T17:11:38.017050",
+    "seed_url": "https://www.idealista.com/alquiler-viviendas/guadalajara-provincia/con-precio-hasta_2000/",
+    "properties_count": 31,
+    "category": "alquiler",
+    "output_file": "C:\\Users\\alvgu\\.gemini\\antigravity\\playground\\RealEstateMaster\\scraper\\salidas\\idealista_Guadalajara_alquiler.xlsx",
+    "filename": "idealista_Guadalajara_alquiler.xlsx"
+  },
+  {
     "timestamp": "2026-02-20T04:27:07.061463",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/zaragoza-provincia/con-precio-hasta_2000/",
     "properties_count": 516,

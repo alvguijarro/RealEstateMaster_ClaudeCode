@@ -25,8 +25,35 @@ import argparse
 import glob
 import re
 import math
+import json
+import pandas as pd
+import numpy as np
 from pathlib import Path
+import time
+from datetime import datetime
+import unicodedata
 
+def clean_nans(val):
+    """Recursive cleaner for JSON serialization."""
+    if isinstance(val, (float, int)) and pd.isnull(val):
+        return None
+    if isinstance(val, dict):
+        return {k: clean_nans(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple)):
+        return [clean_nans(x) for x in val]
+    return val
+
+def normalize_text(text):
+    """Normalize text: strip, lowercase, and remove accents."""
+    if not isinstance(text, str):
+        return str(text) if pd.notnull(text) else ""
+    text = text.strip().lower()
+    # Remove accents
+    text = "".join(
+        c for c in unicodedata.normalize('NFKD', text)
+        if not unicodedata.combining(c)
+    )
+    return text
 
 # Fix Windows console encoding
 if sys.platform == 'win32':
@@ -467,7 +494,6 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
     print("\n" + "=" * 60)
     print("PHASE 2: CLEAN DATA")
     print("=" * 60)
-    
     if use_cache:
         cached = load_checkpoint(config, 'clean')
         if cached:
@@ -540,9 +566,12 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
     
     # Check if filters allow specials
     filters = config.get('filters', {})
-    include_nuda = 'Nuda Propiedad' in filters.get('include_especial', [])
-    include_okupa = 'Okupas/Ilegal' in filters.get('include_especial', [])
-    include_copropiedad = 'Copropiedad' in filters.get('include_especial', [])
+    filters_spec = filters.get('include_especial', [])
+    include_nuda = 'Nuda Propiedad' in filters_spec
+    include_okupa = any(k in filters_spec for k in ['Okupas/Ilegal', 'Okupas / Ilegal'])
+    include_copropiedad = 'Copropiedad' in filters_spec
+    include_inquilino = 'Con Inquilino' in filters_spec
+    include_cesion = 'Cesión Remate' in filters_spec
     
     # NUDA PROPIEDAD exclusion
     if not include_nuda:
@@ -626,7 +655,6 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
         df_venta['_search_text'] += ' ' + df_venta[titulo_col].fillna('').astype(str).str.lower()
     
     # CON INQUILINO exclusion (properties with existing tenants)
-    include_inquilino = 'Con Inquilino' in filters.get('include_especial', [])
     if not include_inquilino:
         # Check string column for "Sí" values
         inquilino_col = pd.Series(False, index=df_venta.index)
@@ -646,7 +674,6 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
         print("    -> [FILTER] Including Con Inquilino")
     
     # CESIÓN REMATE exclusion (assignment of auction)
-    include_cesion = 'Cesión Remate' in filters.get('include_especial', [])
     if not include_cesion:
         # Check 'ces. remate' column for "Sí" values
         cesion_mask = pd.Series(False, index=df_venta.index)
@@ -684,11 +711,14 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
                 if 'nueva' in val or 'nuevo' in val: return 'Obra nueva'
                 return 'Segunda mano/buen estado'
             
+            n_before = len(df_venta)
             mask_estado = df_venta['estado'].apply(classify_estado).isin(allowed_estados)
             df_venta = df_venta[mask_estado]
+            print(f"      [DEBUG] Estado filter drop: {n_before - len(df_venta)}")
         
         # 3. ASCENSOR
-        asc_sel = filters.get('ascensor', [])
+        asc_sel = [s.replace('í', 'i') for s in filters.get('ascensor', [])]
+        n_before = len(df_venta)
         if 'Si' in asc_sel and 'No' not in asc_sel:
             # Require elevator
             if 'ascensor' in df_venta.columns:
@@ -697,24 +727,29 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
             # Require NO elevator
             if 'ascensor' in df_venta.columns:
                 df_venta = df_venta[df_venta['ascensor'] == False]
-        
+        if n_before - len(df_venta) > 0: print(f"      [DEBUG] Ascensor filter drop: {n_before - len(df_venta)}")
+
         # 4. GARAJE
-        gar_sel = filters.get('garaje', [])
+        gar_sel = [s.replace('í', 'i') for s in filters.get('garaje', [])]
+        n_before = len(df_venta)
         if 'Si' in gar_sel and 'No' not in gar_sel:
             if 'Garaje' in df_venta.columns:
                 df_venta = df_venta[df_venta['Garaje'] == True]
         elif 'No' in gar_sel and 'Si' not in gar_sel:
             if 'Garaje' in df_venta.columns:
                 df_venta = df_venta[df_venta['Garaje'] == False]
+        if n_before - len(df_venta) > 0: print(f"      [DEBUG] Garaje filter drop: {n_before - len(df_venta)}")
                 
         # 5. TERRAZA
-        ter_sel = filters.get('terraza', [])
+        ter_sel = [s.replace('í', 'i') for s in filters.get('terraza', [])]
+        n_before = len(df_venta)
         if 'Si' in ter_sel and 'No' not in ter_sel:
             if 'Terraza' in df_venta.columns:
                 df_venta = df_venta[df_venta['Terraza'] == True]
         elif 'No' in ter_sel and 'Si' not in ter_sel:
             if 'Terraza' in df_venta.columns:
                 df_venta = df_venta[df_venta['Terraza'] == False]
+        if n_before - len(df_venta) > 0: print(f"      [DEBUG] Terraza filter drop: {n_before - len(df_venta)}")
         
         # 6. ALTURA
         alt_sel = filters.get('altura', [])
@@ -737,8 +772,10 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
                 # Assuming 'Intermedios' for standard flats not low or attic.
                 return 'Intermedios'
             
+            n_before = len(df_venta)
             mask_altura = df_venta.apply(classify_altura, axis=1).isin(alt_sel)
             df_venta = df_venta[mask_altura]
+            print(f"      [DEBUG] Altura filter drop: {n_before - len(df_venta)}")
 
         # 7. TIPO (Piso vs Casa)
         tipo_sel = filters.get('tipo', [])
@@ -749,10 +786,13 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
                     return 'Casas/Chalets'
                 return 'Pisos' # Default includes piso, atico, duplex, estudio
             
+            n_before = len(df_venta)
             mask_tipo = df_venta['tipo'].apply(classify_tipo).isin(tipo_sel)
             df_venta = df_venta[mask_tipo]
-
+            print(f"      [DEBUG] Tipo filter drop: {n_before - len(df_venta)}")
+        
         filtered_count = initial_rows - len(df_venta)
+
         if filtered_count > 0:
             print(f"    -> Filtered out {filtered_count} rows based on user criteria")
             log_calidad.append({'phase': 'clean', 'dataset': 'VENTA', 'rows': filtered_count, 'note': 'interactive filters (basic)'})
@@ -825,29 +865,48 @@ def phase_clean(config, df_venta, df_alquiler, use_cache=True):
                 df_venta = df_venta[df_venta['banos'].isin(sel_ints)]
 
     
-    # Filter to common districts
-    print("  Filtering to common districts...")
-    # Ensure districts are common to both sets (case-insensitive and stripped)
-    v_dists = df_venta['Distrito'].astype(str).str.strip().unique()
-    a_dists = df_alquiler['Distrito'].astype(str).str.strip().unique()
-    common = set(v_dists) & set(a_dists)
-    
-    # Re-apply strip to columns for reliable matching later
-    df_venta['Distrito'] = df_venta['Distrito'].astype(str).str.strip()
-    df_alquiler['Distrito'] = df_alquiler['Distrito'].astype(str).str.strip()
-    
+    # --- ROBUST DISTRICT NORMALIZATION ---
+    print("  Normalizing districts and finding common ones...")
     n_v_pre = len(df_venta)
     n_a_pre = len(df_alquiler)
-
-    df_venta = df_venta[df_venta['Distrito'].isin(common)].copy()
-    df_alquiler = df_alquiler[df_alquiler['Distrito'].isin(common)].copy()
+    df_venta['Distrito_orig'] = df_venta['Distrito'].fillna('Desconocido').astype(str)
+    df_alquiler['Distrito_orig'] = df_alquiler['Distrito'].fillna('Desconocido').astype(str)
+    
+    # Create normalized keys for matching
+    df_venta['Distrito_norm'] = df_venta['Distrito_orig'].apply(normalize_text)
+    df_alquiler['Distrito_norm'] = df_alquiler['Distrito_orig'].apply(normalize_text)
+    
+    # Identify common districts using normalized keys
+    v_norm_set = set(df_venta['Distrito_norm'].unique())
+    a_norm_set = set(df_alquiler['Distrito_norm'].unique())
+    common_norm = v_norm_set & a_norm_set
+    
+    # For display consistency, pick the most frequent 'proper' name from VENTA for each normalized key
+    dist_map = {}
+    for norm in common_norm:
+        # Get the most common original name for this norm in VENTA
+        orig_names = df_venta[df_venta['Distrito_norm'] == norm]['Distrito_orig'].value_counts()
+        if not orig_names.empty:
+            dist_map[norm] = orig_names.index[0]
+        else:
+            dist_map[norm] = norm.title()
+            
+    # Apply unified names to BOTH datasets
+    df_venta = df_venta[df_venta['Distrito_norm'].isin(common_norm)].copy()
+    df_alquiler = df_alquiler[df_alquiler['Distrito_norm'].isin(common_norm)].copy()
+    
+    df_venta['Distrito'] = df_venta['Distrito_norm'].map(dist_map)
+    df_alquiler['Distrito'] = df_alquiler['Distrito_norm'].map(dist_map)
+    
+    # Drop temp columns but keep Distrito (unified)
+    # We keep Distrito as the main joining key now
     
     n_v = n_v_pre - len(df_venta)
     n_a = n_a_pre - len(df_alquiler)
     
     log_calidad.append({'phase': 'clean', 'dataset': 'VENTA', 'rows': n_v, 'note': 'excluded non-common distrito'})
     log_calidad.append({'phase': 'clean', 'dataset': 'ALQUILER', 'rows': n_a, 'note': 'excluded non-common distrito'})
-    print(f"    -> {len(common)} common districts")
+    print(f"    -> {len(common_norm)} common districts")
     
     # Drop missing critical values
     print("  Dropping rows with missing critical values...")
@@ -1017,6 +1076,10 @@ def find_comparables(venta_row, df_alquiler, strict=True, alquiler_index=None):
     distrito = str(venta_row.get('Distrito', '')).strip()
     ciudad = str(venta_row.get('Ciudad', '')).strip()
     
+    barrio_norm = normalize_text(barrio)
+    distrito_norm = normalize_text(distrito)
+    ciudad_norm = normalize_text(ciudad)
+    
     m2 = venta_row['m2 construidos']
     habs = venta_row.get('habs', 2)
     banos = venta_row.get('banos', 1)
@@ -1031,14 +1094,13 @@ def find_comparables(venta_row, df_alquiler, strict=True, alquiler_index=None):
     
     # Hierarchy levels to try
     levels = []
-    if barrio: levels.append(('Barrio', barrio))
-    if distrito: levels.append(('Distrito', distrito))
-    if ciudad: levels.append(('Ciudad', ciudad))
+    if barrio: levels.append(('Barrio', barrio_norm))
+    if distrito: levels.append(('Distrito', distrito_norm))
+    if ciudad: levels.append(('Ciudad', ciudad_norm))
     
     for level_name, level_val in levels:
-        # Level matching
-        level_val = str(venta_row.get(level_name, '')).strip()
-        mask = df_alquiler[level_name].astype(str).str.strip() == level_val
+        # Level matching (using normalization for comparison)
+        mask = df_alquiler[level_name].apply(normalize_text) == level_val
         level_candidates = df_alquiler[mask]
         
         if not level_candidates.empty:
@@ -1567,16 +1629,7 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
     # Sheet 4: Log calidad
     log_df = pd.DataFrame(log_calidad)
     
-    # --- Save JSON for UI FIRST (with full data including comparables) ---
-    import json
-    json_file = output_file.replace('.xlsx', '.json')
-    try:
-        json_data = opps_output.to_dict(orient='records')
-        with open(json_file, 'w', encoding='utf-8') as f:
-            json.dump(json_data, f, ensure_ascii=False, default=str)
-        print(f"  Saved UI data to: {json_file}")
-    except Exception as e:
-        print(f"  [WARN] Could not save JSON: {e}")
+    # (JSON save moved to the end of function)
     
     # Write Excel with xlsxwriter
     print(f"  Writing Excel to {output_file}...")
@@ -1679,15 +1732,14 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
     # output_file is likely 'resultado_Mad-sur... .xlsx'
     json_file = output_file.replace('.xlsx', '.json')
     
-    # We need to save records in a format suitable for the UI table
-    # Transform dataframes to list of dicts for JSON
-    opps_records = opps_output.to_dict(orient='records')
-    top100_records = top100_final.to_dict(orient='records')
-    
+    # Prepare final JSON structure
     final_json_data = {
-        'opportunities': opps_records,
-        'top_100': top100_records
+        'opportunities': opps_output.to_dict(orient='records'),
+        'top_100': top100_final.to_dict(orient='records')
     }
+    
+    # Sanitize data for JSON
+    final_json_data = clean_nans(final_json_data)
     
     try:
         with open(json_file, 'w', encoding='utf-8') as f:
