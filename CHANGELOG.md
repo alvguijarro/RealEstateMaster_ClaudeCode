@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.8.2] - 2026-02-21
+### Added
+- **Auto-Retry en Tiempo Real**: Implementado bucle de auto-reinicio directamente en `scraper_wrapper.py` para bloqueos de CAPTCHA detectados a mitad de sesión. Ahora el scraper guarda estado, espera 15 minutos (sin spam de logs) y reintenta automáticamente sin intervención del usuario.
+
+### Fixed
+- **Sincronización de UI y Seguridad**: 
+    - Los botones "Pausar" y "Detener" ahora se desactivan instantáneamente si se pierde la conexión con el servidor de sockets.
+    - Añadida función `syncStatus()` al conectarse, que recupera el estado del scraper y restaura la interfaz si hay una sesión activa tras un refresco de página o reconexión.
+    - Corregido error que impedía detectar bloqueos por discrepancia de mayúsculas en el mensaje "CAPTCHA".
+- **Limpieza de Logs**: Eliminado el log minuto a minuto durante las esperas de bloqueo en `scraper_wrapper.py` y `run_batch.py` para mantener la consola limpia.
+- **Refactorización**: Centralizada la lógica de actualización de progreso en `app.js` para asegurar consistencia entre actualizaciones en tiempo real y sincronización inicial.
+
 ## [2.8.1] - 2026-02-21
 ### Fixed
 - **Bug #1 — Parámetro `captchaUrl` incorrecto (causa raíz del fallo)**: La librería `2captcha-python` define el método como `datadome(self, captcha_url, ...)` en snake_case. El código llamaba `captchaUrl=...` (camelCase), que era ignorado como kwarg desconocido, enviando la tarea sin la URL del CAPTCHA y obteniendo `ERROR_BAD_PARAMETERS`. Corregido a `captcha_url=captcha_url` en `utils.py`.
