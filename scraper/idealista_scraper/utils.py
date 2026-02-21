@@ -685,23 +685,25 @@ async def solve_datadome_2captcha(page, logger=None):
             
         captcha_url = await iframe_element.get_attribute("src")
         user_agent = await page.evaluate("navigator.userAgent")
-        
         l("INFO", f"📤 Enviando tarea DataDome a 2Captcha (Proxy Residencial)...")
         l("INFO", f"   Captcha URL: {captcha_url[:80]}...")
         
         # 2Captcha residential proxy (REQUIRED for DataDome)
+        # proxy MUST be passed as a dict — the library ignores separate string kwargs.
         proxy_config = {
             'type': 'HTTP',
             'uri': 'u5b30cedd579a05ca-zone-custom:u5b30cedd579a05ca@eu.proxy.2captcha.com:2334'
         }
         
-        # Create the solver task
+        # Create the solver task.
+        # IMPORTANT: Use 'captcha_url' (snake_case) — the library signature is:
+        #   def datadome(self, captcha_url, pageurl, userAgent, proxy, **kwargs)
+        # Passing 'captchaUrl' (camelCase) causes ERROR_BAD_PARAMETERS silently.
         solver_task = asyncio.create_task(ASYNC_SOLVER.datadome(
-            captcha_url=captcha_url,
+            captcha_url=captcha_url,   # ✅ correcto: snake_case
             pageurl=page.url,
             userAgent=user_agent,
-            proxy=proxy_config['uri'],
-            proxytype=proxy_config['type']
+            proxy=proxy_config         # ✅ correcto: dict completo
         ))
         
         l("INFO", "⏳ Esperando solución de 2Captcha (Suele tardar 45-120s)...")
@@ -751,14 +753,18 @@ async def solve_datadome_2captcha(page, logger=None):
             l("OK", f"✅ Token recibido (captchaId: {captcha_id})")
             l("INFO", "Inyectando cookie 'datadome' y refrescando...")
             
-            # Robust injection using Playwright context
+            # Robust injection using Playwright context.
+            # IMPORTANT: Use 'domain' (not 'url') so the cookie applies to ALL subpages
+            # under .idealista.com, not just the single URL origin.
             try:
                 await page.context.add_cookies([{
                     "name": "datadome",
                     "value": token,
-                    "url": "https://www.idealista.com",
+                    "domain": ".idealista.com",  # ✅ wildcard domain
                     "path": "/",
-                    "sameSite": "Lax"
+                    "sameSite": "Lax",
+                    "httpOnly": False,
+                    "secure": False
                 }])
                 l("OK", "Cookie 'datadome' inyectada vía Protocolo.")
             except Exception as e:

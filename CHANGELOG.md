@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.8.1] - 2026-02-21
+### Fixed
+- **Bug #1 — Parámetro `captchaUrl` incorrecto (causa raíz del fallo)**: La librería `2captcha-python` define el método como `datadome(self, captcha_url, ...)` en snake_case. El código llamaba `captchaUrl=...` (camelCase), que era ignorado como kwarg desconocido, enviando la tarea sin la URL del CAPTCHA y obteniendo `ERROR_BAD_PARAMETERS`. Corregido a `captcha_url=captcha_url` en `utils.py`.
+- **Bug #2 — Proxy en formato incorrecto**: La librería espera `proxy={'type': 'HTTP', 'uri': '...'}` (dict), pero el código pasaba `proxy=string, proxytype=string` (dos kwargs separados), haciendo que el proxy no se adjuntara a la tarea. Corregido para pasar el dict completo.
+- **Bug #3 — Cookie con scope incorrecto**: La cookie `datadome` se inyectaba con `url="https://www.idealista.com"` (host exacto). Cambiado a `domain=".idealista.com"` para que aplique a todas las subpages del dominio, igual que el comportamiento nativo de DataDome.
+
 ## [2.8.0] - 2026-02-21
 ### Performance
 - **Inicio del scraper ~60% más rápido**: Eliminados tres cuellos de botella en `scraper_wrapper.py` que sumaban más de 50 segundos de overhead por cada inicio de provincia.
