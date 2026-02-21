@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.7.9] - 2026-02-21
+### Fixed
+- **Bug #1 — Solver DataDome (TypeError Silencioso)**: La librería `2captcha-python` puede devolver el token como `str` o como `dict`. El código anterior lanzaba `TypeError: string indices must be integers` al comprobar `'code' in result` sobre un string, marcando el CAPTCHA como irresoluble. Ahora se normaliza el tipo de respuesta antes de extraer el token, afectando a `solve_datadome_2captcha` y `solve_geetest_2captcha` en `utils.py`.
+- **Bug #3 — Firefox hang → muerte del proceso**: Cuando `launch_persistent_context` de Firefox agotaba sus reintentos, el bloque `except` llamaba `_stop_evt.set()` + `break`, terminando todo el batch. Ahora en lugar de abortar, el perfil se marca como bloqueado (`mark_current_profile_blocked()`), se rota a la siguiente identidad disponible (`rotate_identity()`), y el bucle de recuperación externo continúa con `continue`.
+- **Bug #4 — Firefox elegido en reintentos**: Añadida blacklist de sesión mediante contador de fallos consecutivos (`_launch_fail_counts`) por perfil de browser. Tras `LAUNCH_FAIL_BLACKLIST_THRESHOLD` (3) fallos, el perfil se bloquea permanentemente para esa sesión, evitando que el mismo engine inestable sea re-seleccionado.
+
+### Improved
+- **Reorden del pool de browsers** (`config.py`): WebKit (Safari) pasa al primer puesto (más estable y efectivo contra CAPTCHAs de Idealista), Firefox al último puesto como último recurso, dado su comportamiento inestable bajo Playwright Windows Juggler.
+- **Batch runner (`run_batch.py`)**: 
+  - `RETRY_LIMIT_PER_URL` aumentado de 2 a 3 para dar más oportunidades tras un fallo de Firefox.
+  - Espera entre reintentos (`RETRY_WAIT_BASE`) aumentada de 10s a 30s para dar tiempo al servidor a resetear el estado del browser.
+  - Añadido cooldown extendido de 90-150s entre provincias cuando la anterior falló todos los reintentos (señal de bloqueo IP a nivel de red).
+  - Mejorada la extracción del nombre de provincia con la función `extract_province_name()` que parsea el slug de la URL de Idealista correctamente para todas las provincias.
+
 ## [2.7.8] - 2026-02-21
 ### Fixed
 - **Estabilización de UI y JavaScript**: 

@@ -629,8 +629,14 @@ async def solve_geetest_2captcha(page):
             url=page.url
         )
         
-        if result and 'code' in result:
+        # Normalize response: 2captcha-python can return str or dict
+        code = None
+        if isinstance(result, str) and result:
+            code = result
+        elif isinstance(result, dict) and result.get('code'):
             code = result['code']
+
+        if code:
             log("OK", "✅ 2Captcha returned solution. Injecting into page...")
             
             # Inject the solution
@@ -732,9 +738,17 @@ async def solve_datadome_2captcha(page, logger=None):
         if manual_solve:
             return True
         
-        if result and 'code' in result:
+        # Normalize response: 2captcha-python async can return str or dict
+        token = None
+        captcha_id = 'N/A'
+        if isinstance(result, str) and result:
+            token = result
+        elif isinstance(result, dict) and result.get('code'):
             token = result['code']
-            l("OK", f"✅ Token recibido (captchaId: {result.get('captchaId', 'N/A')})")
+            captcha_id = result.get('captchaId', 'N/A')
+
+        if token:
+            l("OK", f"✅ Token recibido (captchaId: {captcha_id})")
             l("INFO", "Inyectando cookie 'datadome' y refrescando...")
             
             # Robust injection using Playwright context
@@ -763,7 +777,7 @@ async def solve_datadome_2captcha(page, logger=None):
             await asyncio.sleep(2)
             return True
         else:
-            l("WARN", f"❌ 2Captcha devolvió respuesta inesperada: {result}")
+            l("WARN", f"❌ 2Captcha devolvió respuesta inesperada. result={result!r}")
             
     except Exception as e:
         l("ERR", f"Error en solver DataDome: {e}")

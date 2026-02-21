@@ -34,10 +34,10 @@ except ImportError:
     print("[WARN] Could not import profile management. Multi-browser rotation will be handled by the server.")
 
 # Config
-DELAY_BETWEEN = (10, 30)  # seconds
-MAX_RETRIES = 2
-RETRY_LIMIT_PER_URL = 2 # Define missing constant
-BLOCK_WAIT_TIME = 900  # 15 min if blocked
+DELAY_BETWEEN = (15, 35)  # seconds between successful provinces
+RETRY_LIMIT_PER_URL = 3   # Raised from 2: extra chance after Firefox hang
+BLOCK_WAIT_TIME = 900     # 15 min if blocked
+RETRY_WAIT_BASE = 30      # seconds between retries (increased from 10)
 
 def log(msg: str, level: str = "INFO"):
     timestamp = datetime.now().strftime("%H:%M:%S")
@@ -65,18 +65,26 @@ def check_signals():
         log("[STATUS] running")
         log("[SIGNAL] Resumed.")
 
+def extract_province_name(url: str) -> str:
+    """Extract a human-readable province name from an Idealista URL slug."""
+    try:
+        # Match the segment after /venta-viviendas/ or /alquiler-viviendas/
+        import re
+        m = re.search(r'idealista\.com/(?:venta|alquiler)-viviendas/([^/?]+)', url)
+        if m:
+            slug = m.group(1)
+            return slug.replace('-', ' ').title()
+        # Fallback: last meaningful path segment
+        parts = [p for p in url.rstrip('/').split('/') if p and 'idealista' not in p and 'http' not in p]
+        if parts:
+            return parts[-1].replace('-', ' ').title()
+    except:
+        pass
+    return "Unknown"
+
 def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_enrichment: bool = False, target_file: str = None) -> bool:
-    target_prov = "Unknown"
-    # Basic province extraction for logging
-    if "idealista.com" in url:
-        try:
-            parts = url.split('/')
-            for p in parts:
-                if "provincia" in p or "madrid" in p or "barcelona" in p: # Heuristic
-                    target_prov = p
-                    break
-        except: pass
-    
+    target_prov = extract_province_name(url)
+
     check_signals()
     
     # Check server health with retries
@@ -177,11 +185,7 @@ def main():
             log(f"[{i}/{len(urls)}] Skipping invalid URL (None/Empty)...", "WARN")
             continue
             
-        target_prov = "Unknown"
-        parts = url.split('/')
-        for p in parts:
-            if "provincia" in p or "madrid" in p or "barcelona" in p:
-                target_prov = p
+        target_prov = extract_province_name(url)
         
         log(f"🚀 [{i}/{len(urls)}] Processing: {target_prov} ({url})")
         
@@ -200,8 +204,8 @@ def main():
                     log(f"❌ Giving up on {target_prov} after {RETRY_LIMIT_PER_URL} failed attempts.", "ERR")
                     break
                     
-                log(f"⚠️ Scrape interrupted. Waiting 10 seconds before letting server retry with fresh identity...", "WARN")
-                time.sleep(10)
+                log(f"⚠️ Scrape interrupted. Waiting {RETRY_WAIT_BASE}s before letting server retry with fresh identity...", "WARN")
+                time.sleep(RETRY_WAIT_BASE)
                 check_signals()
         
         if success:
@@ -212,9 +216,16 @@ def main():
         if i < len(urls):
             delay = random.randint(*DELAY_BETWEEN)
             next_url = urls[i]
-            next_prov = "next item"
-            for p in next_url.split('/'):
-                if "provincia" in p: next_prov = p
+            next_prov = extract_province_name(next_url)
+                
+            # If the previous province failed all retries, add an extended cooldown
+            # This helps when the IP is being rate-limited across all browser profiles
+            if not success:
+                extra_wait = random.randint(90, 150)  # 1.5-2.5 min extra cooldown
+                log(f"⏳ Provincia fallida. Cooldown extendido: {extra_wait}s antes de continuar...", "WARN")
+                for _ in range(extra_wait):
+                    if check_signals(): break
+                    time.sleep(1)
                 
             log(f"⏱️ Waiting {delay}s before starting NEXT province: {next_prov}...", "INFO")
             

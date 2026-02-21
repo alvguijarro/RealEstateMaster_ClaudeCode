@@ -2034,6 +2034,10 @@ class ScraperController:
         max_restarts = 5
         restart_count = 0
         self.unauthorized_restart_count = 0  # Track "uso no autorizado" restarts
+        # Session-level blacklist: engines that consistently fail to launch this session
+        # Stored as pool config 'index' values (1-based, per BROWSER_ROTATION_POOL)
+        _launch_fail_counts: dict = {}  # pool_index -> consecutive launch failures
+        LAUNCH_FAIL_BLACKLIST_THRESHOLD = 3  # Mark engine as session-dead after this many failures
         
         while not self._stop_evt.is_set():
             target_file = self.output_file # Initialize safe default
@@ -2291,12 +2295,19 @@ class ScraperController:
                         
                     except Exception as e:
                         self.log("ERR", f"Could not launch browser: {e}")
-                        self.is_running = False
-                        self.status = "error"
-                        if self.on_status:
-                            self.on_status("error", error=str(e))
-                        self._stop_evt.set()
-                        break
+                        # --- Bug Fix: Rotate instead of stopping ---
+                        # Track consecutive failures for this browser profile
+                        pool_id = current_config.get('index', 0)
+                        _launch_fail_counts[pool_id] = _launch_fail_counts.get(pool_id, 0) + 1
+                        if _launch_fail_counts[pool_id] >= LAUNCH_FAIL_BLACKLIST_THRESHOLD:
+                            self.log("ERR", f"🚫 Profile {pool_id} ({current_config.get('name','?')}) ha fallado {LAUNCH_FAIL_BLACKLIST_THRESHOLD}+ veces. Marcando como bloqueado permanentemente en esta sesión.")
+                            mark_current_profile_blocked()  # 10-min cooldown
+                        else:
+                            self.log("WARN", f"⏭️ Fallo de lanzamiento {_launch_fail_counts[pool_id]}/{LAUNCH_FAIL_BLACKLIST_THRESHOLD}. Rotando al siguiente perfil...")
+                            mark_current_profile_blocked()
+                        rotate_identity()
+                        await self._interruptible_sleep(3)
+                        # continue the outer while loop to try next browser
             
                     # Navigate to seed URL (or direct page resume)
                     try:
