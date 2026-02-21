@@ -54,6 +54,21 @@ def init_db():
 # Initialize DB on startup
 init_db()
 
+# Allow embedding in iframes and add CORS headers for polling
+@app.after_request
+def after_request(response):
+    response.headers.pop('X-Frame-Options', None)
+    # Add CORS headers for cross-origin polling from dashboard
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
+
+@app.route('/health', methods=['GET', 'OPTIONS'])
+def health_check():
+    """Simple health check endpoint for service readiness polling."""
+    return jsonify({'status': 'ok'})
+
 @app.route('/')
 def index():
     return render_template('index.html')
