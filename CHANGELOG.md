@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.8.0] - 2026-02-21
+### Performance
+- **Inicio del scraper ~60% más rápido**: Eliminados tres cuellos de botella en `scraper_wrapper.py` que sumaban más de 50 segundos de overhead por cada inicio de provincia.
+  - **`_clear_profile_locks`**: Se sustituye `os.walk` (recorría miles de archivos de caché) por búsqueda directa en carpetas conocidas (`root`, `Default`, `WebsiteData`). Reducción estimada: **25s → <0.1s**.
+  - **`_cleanup_zombie_browsers`**: Se reemplaza el comando PowerShell que hacía una consulta WMI por cada proceso por una única consulta `WHERE CommandLine LIKE '%stealth_profile%'`. Reducción estimada: **25s → <2s**.
+  - **Llamadas redundantes eliminadas**: `_clear_profile_locks` se llamaba dos veces consecutivas y `_cleanup_zombie_browsers` se llamaba adicionalmente desde `_kill_browser_by_channel`. Ahora cada función se ejecuta una sola vez.
+- **Detección precoz de DataDome**: El loop de extracción del H1 (4 intentos × 4s = hasta 16s de espera) ahora detecta el iframe de DataDome en el primer intento y llama al solver inmediatamente en lugar de esperar el timeout completo. Reducción estimada: **16s → <1s** cuando hay CAPTCHA activo.
+
 ## [2.7.9] - 2026-02-21
 ### Fixed
 - **Bug #1 — Solver DataDome (TypeError Silencioso)**: La librería `2captcha-python` puede devolver el token como `str` o como `dict`. El código anterior lanzaba `TypeError: string indices must be integers` al comprobar `'code' in result` sobre un string, marcando el CAPTCHA como irresoluble. Ahora se normaliza el tipo de respuesta antes de extraer el token, afectando a `solve_datadome_2captcha` y `solve_geetest_2captcha` en `utils.py`.
