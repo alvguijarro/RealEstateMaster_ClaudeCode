@@ -3,7 +3,9 @@ import sys
 import sqlite3
 import threading
 import subprocess
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, send_file
+import csv
+import io
 from pathlib import Path
 
 # Setup paths
@@ -154,6 +156,34 @@ def stop_tracker():
         return jsonify({"status": "stopped", "message": "Tracker background process stopped."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/export_csv')
+def export_csv():
+    """Export the inventory trends database to a CSV file."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, operation, total_properties FROM inventory_trends ORDER BY id DESC")
+        rows = cursor.fetchall()
+        conn.close()
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['Fecha', 'Año ISO', 'Semana ISO', 'Provincia', 'Zona', 'Operación', 'Total Propiedades'])
+        writer.writerows(rows)
+        
+        output.seek(0)
+        return send_file(
+            io.BytesIO(output.getvalue().encode('utf-8')),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'market_trends_{datetime.datetime.now().strftime("%Y%m%d")}.csv'
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+import datetime # Ensure datetime is available for filename
+
 
 if __name__ == '__main__':
     print(f"Starting Trends Service on port {TRENDS_PORT}...")
