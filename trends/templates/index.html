@@ -23,14 +23,21 @@
             background-color: var(--bg-dark);
             color: var(--text-main);
             margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background-image: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
             padding: 20px;
             display: flex;
             flex-direction: column;
             gap: 20px;
-            height: 100vh;
             box-sizing: border-box;
-            overflow: hidden;
-            background-image: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
         }
 
         .header {
@@ -146,44 +153,46 @@
 
 <body>
 
-    <div class="header">
-        <div>
-            <h1>📉 Market Trends Tracker</h1>
-            <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px;">
-                Inventario Semanal por Provincias y Zonas Geográficas
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>📉 Market Trends Tracker</h1>
+                <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px;">
+                    Inventario Semanal por Provincias y Zonas Geográficas
+                </div>
+            </div>
+
+            <div class="controls">
+                <span id="trackerStatusBadge">Tracker: Idle</span>
+                <button class="btn" id="startTrackerBtn" onclick="toggleTracker()">Iniciar Escaneo Global</button>
+                <button class="btn"
+                    style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);"
+                    onclick="window.location.href='/api/export_csv'">Exportar CSV</button>
             </div>
         </div>
 
-        <div class="controls">
-            <span id="trackerStatusBadge">Tracker: Idle</span>
-            <button class="btn" id="startTrackerBtn" onclick="toggleTracker()">Iniciar Escaneo Global</button>
-            <button class="btn"
-                style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);"
-                onclick="window.location.href='/api/export_csv'">Exportar CSV</button>
+        <div class="header" style="justify-content: flex-start;">
+            <div class="controls">
+                <select id="provinceSelect" onchange="loadZonesAndDraw()">
+                    <option value="">-- Seleccionar Provincia --</option>
+                </select>
+
+                <select id="zoneSelect" onchange="drawChart()">
+                    <option value="">-- Todas las Zonas --</option>
+                </select>
+
+                <select id="operationSelect" onchange="drawChart()">
+                    <option value="both">Venta y Alquiler</option>
+                    <option value="venta">Solo Venta</option>
+                    <option value="alquiler">Solo Alquiler</option>
+                </select>
+            </div>
         </div>
-    </div>
 
-    <div class="header" style="justify-content: flex-start;">
-        <div class="controls">
-            <select id="provinceSelect" onchange="loadZonesAndDraw()">
-                <option value="">-- Seleccionar Provincia --</option>
-            </select>
-
-            <select id="zoneSelect" onchange="drawChart()">
-                <option value="">-- Todas las Zonas --</option>
-            </select>
-
-            <select id="operationSelect" onchange="drawChart()">
-                <option value="both">Venta y Alquiler</option>
-                <option value="venta">Solo Venta</option>
-                <option value="alquiler">Solo Alquiler</option>
-            </select>
-        </div>
-    </div>
-
-    <div class="main-content">
-        <div class="chart-container">
-            <canvas id="trendsChart"></canvas>
+        <div class="main-content">
+            <div class="chart-container">
+                <canvas id="trendsChart"></canvas>
+            </div>
         </div>
     </div>
 
