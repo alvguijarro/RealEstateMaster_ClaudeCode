@@ -1,0 +1,160 @@
+import os
+import sys
+import sqlite3
+import threading
+import subprocess
+from flask import Flask, render_template, jsonify, request
+from pathlib import Path
+
+# Setup paths
+BASE_DIR = Path(__file__).parent
+DATA_DIR = BASE_DIR / "data"
+DB_PATH = DATA_DIR / "market_trends.db"
+
+# Ensure data directory exists
+os.makedirs(DATA_DIR, exist_ok=True)
+
+# Add project root to sys.path
+PROJECT_ROOT = BASE_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+try:
+    from shared.config import TRENDS_PORT
+except ImportError:
+    TRENDS_PORT = 5005
+
+app = Flask(__name__)
+
+# Global state for tracker
+TRACKER_PROCESS = None
+
+def init_db():
+    """Initialize the SQLite database for Market Trends."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS inventory_trends (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date_record TEXT NOT NULL,
+            iso_year INTEGER NOT NULL,
+            iso_week INTEGER NOT NULL,
+            province TEXT NOT NULL,
+            zone TEXT NOT NULL,
+            operation TEXT NOT NULL,
+            total_properties INTEGER NOT NULL,
+            UNIQUE(date_record, province, zone, operation)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Initialize DB on startup
+init_db()
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/api/trends', methods=['GET'])
+def get_trends():
+    """Retrieve historical trend data. Optionally filter by province, zone, etc."""
+    province = request.args.get('province')
+    operation = request.args.get('operation')
+    
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    query = "SELECT * FROM inventory_trends"
+    params = []
+    conditions = []
+    
+    if province:
+        conditions.append("province = ?")
+        params.append(province)
+    if operation:
+        conditions.append("operation = ?")
+        params.append(operation)
+        
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+        
+    query += " ORDER BY iso_year ASC, iso_week ASC, date_record ASC"
+    
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    
+    data = [dict(row) for row in rows]
+    conn.close()
+    
+    return jsonify(data)
+
+@app.route('/api/provinces', methods=['GET'])
+def get_provinces():
+    """Get unique provinces and zones from DB."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT DISTINCT province FROM inventory_trends ORDER BY province")
+    provinces = [row[0] for row in cursor.fetchall()]
+    
+    conn.close()
+    return jsonify({"provinces": provinces})
+
+@app.route('/api/status', methods=['GET'])
+def get_status():
+    """Return status of the tracker process."""
+    global TRACKER_PROCESS
+    
+    is_running = False
+    if TRACKER_PROCESS is not None:
+        if TRACKER_PROCESS.poll() is None:
+            is_running = True
+        else:
+            TRACKER_PROCESS = None
+            
+    return jsonify({
+        "status": "running" if is_running else "idle"
+    })
+
+@app.route('/api/start_tracker', methods=['POST'])
+def start_tracker():
+    """Launch the background scraper to update trends."""
+    global TRACKER_PROCESS
+    
+    if TRACKER_PROCESS is not None and TRACKER_PROCESS.poll() is None:
+        return jsonify({"error": "Tracker is already running"}), 400
+        
+    script_path = BASE_DIR / "trends_tracker.py"
+    cmd = [sys.executable, str(script_path)]
+    
+    try:
+        TRACKER_PROCESS = subprocess.Popen(
+            cmd, 
+            cwd=str(BASE_DIR),
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        return jsonify({"status": "started", "message": "Tracker background process launched."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/stop_tracker', methods=['POST'])
+def stop_tracker():
+    """Stop the background scraper."""
+    global TRACKER_PROCESS
+    
+    if TRACKER_PROCESS is None or TRACKER_PROCESS.poll() is not None:
+        return jsonify({"error": "Tracker is not running"}), 400
+        
+    try:
+        TRACKER_PROCESS.terminate()
+        os.system(f"taskkill /F /T /PID {TRACKER_PROCESS.pid}")
+        TRACKER_PROCESS = None
+        return jsonify({"status": "stopped", "message": "Tracker background process stopped."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    print(f"Starting Trends Service on port {TRENDS_PORT}...")
+    app.run(port=TRENDS_PORT, debug=False, use_reloader=False)

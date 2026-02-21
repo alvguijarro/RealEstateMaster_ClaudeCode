@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import from shared config
 try:
-    from shared.config import SCRAPER_PORT, ANALYZER_PORT, METRICS_PORT, DASHBOARD_PORT, MERGER_PORT
+    from shared.config import SCRAPER_PORT, ANALYZER_PORT, METRICS_PORT, DASHBOARD_PORT, MERGER_PORT, TRENDS_PORT
 except ImportError:
     # Fallback for standalone execution
     SCRAPER_PORT = 5003
@@ -20,6 +20,7 @@ except ImportError:
     METRICS_PORT = 5004
     DASHBOARD_PORT = 5000
     MERGER_PORT = 5002
+    TRENDS_PORT = 5005
 
 app = Flask(__name__)
 
@@ -28,6 +29,7 @@ SCRAPER_PROCESS = None
 ANALYZER_PROCESS = None
 METRICS_PROCESS = None
 MERGER_PROCESS = None
+TRENDS_PROCESS = None
 
 def is_port_in_use(port):
     import socket
@@ -93,6 +95,20 @@ def start_service(service_name):
         MERGER_PROCESS = subprocess.Popen(cmd, cwd=merger_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
         return True
         
+    elif service_name == 'trends':
+        if is_port_in_use(TRENDS_PORT):
+            return True
+        
+        # Run app.py from trends directory
+        trends_dir = os.path.join(base_dir, 'trends')
+        script = os.path.join(trends_dir, 'app.py')
+        cmd = [sys.executable, script]
+        env = os.environ.copy()
+        env['NO_BROWSER_OPEN'] = '1'
+        global TRENDS_PROCESS
+        TRENDS_PROCESS = subprocess.Popen(cmd, cwd=trends_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
+        return True
+        
     return False
 
 @app.after_request
@@ -108,11 +124,11 @@ def after_request(response):
 
 @app.route('/')
 def index():
-    return render_template('design_sidebar.html', scraper_port=SCRAPER_PORT, analyzer_port=ANALYZER_PORT, metrics_port=METRICS_PORT)
+    return render_template('design_sidebar.html', scraper_port=SCRAPER_PORT, analyzer_port=ANALYZER_PORT, metrics_port=METRICS_PORT, merger_port=MERGER_PORT, trends_port=TRENDS_PORT)
 
 @app.route('/api/start/<service>', methods=['POST'])
 def api_start_service(service):
-    if service not in ['scraper', 'analyzer', 'metrics', 'merger', 'calculator']:
+    if service not in ['scraper', 'analyzer', 'metrics', 'merger', 'calculator', 'trends']:
         return jsonify({'error': 'Invalid service'}), 400
         
     try:
@@ -168,6 +184,14 @@ def stop_all():
             count += 1
         except: pass
         MERGER_PROCESS = None
+        
+    if TRENDS_PROCESS:
+        try:
+            TRENDS_PROCESS.terminate()
+            os.system(f"taskkill /F /T /PID {TRENDS_PROCESS.pid}")
+            count += 1
+        except: pass
+        TRENDS_PROCESS = None
     
     return jsonify({'status': 'stopped', 'count': count})
 

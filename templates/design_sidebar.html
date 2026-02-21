@@ -308,6 +308,10 @@
                 <div class="icon">🔗</div>
                 <span class="label">Merger Tool</span>
             </div>
+            <div class="nav-item" data-view="trends" onclick="switchView('trends')">
+                <div class="icon">📉</div>
+                <span class="label">Market Trends</span>
+            </div>
             <div class="nav-item" data-view="calculator" onclick="switchView('calculator')">
                 <div class="icon">🧮</div>
                 <span class="label">Calculadora</span>
@@ -368,6 +372,14 @@
             <iframe id="frame-merger" src=""></iframe>
         </div>
 
+        <div id="view-trends" class="view-container">
+            <div class="loading-overlay" id="loading-trends">
+                <div class="spinner"></div>
+                <div>Cargando Market Trends...</div>
+            </div>
+            <iframe id="frame-trends" src=""></iframe>
+        </div>
+
         <div id="view-calculator" class="view-container">
             <div class="loading-overlay" id="loading-calculator">
                 <div class="spinner"></div>
@@ -383,7 +395,8 @@
             'analyzer': 5001,
             'metrics': 5004,
             'merger': 5002,
-            'calculator': 5001
+            'calculator': 5001,
+            'trends': 5005
         };
 
         console.log("Service Ports Configured:", PORTS);
@@ -433,7 +446,7 @@
         }
 
         // Track which frames have been loaded to avoid reloading
-        let frameLoaded = { scraper: false, analyzer: false, metrics: false, merger: false, calculator: false };
+        let frameLoaded = { scraper: false, analyzer: false, metrics: false, merger: false, calculator: false, trends: false };
 
         async function initService(service) {
             const loading = document.getElementById(`loading-${service}`);
@@ -492,8 +505,8 @@
             document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
             document.getElementById('view-' + viewName).classList.add('active');
 
-            // For scraper/analyzer/metrics/merger/calculator views, only load iframe if not already loaded
-            if (['scraper', 'analyzer', 'metrics', 'merger', 'calculator'].includes(viewName)) {
+            // For scraper/analyzer/metrics/merger/calculator/trends views, only load iframe if not already loaded
+            if (['scraper', 'analyzer', 'metrics', 'merger', 'calculator', 'trends'].includes(viewName)) {
                 // If frame already loaded, don't reload - just show it
                 if (frameLoaded[viewName]) {
                     return; // Already loaded, just show it (done above)
@@ -549,7 +562,8 @@
                 // But we can let it lazy load on click or init it now.
                 // initService('merger') will call /api/start/merger which main.py handles.
                 initService('merger'),
-                initService('calculator')
+                initService('calculator'),
+                initService('trends')
             ]);
         });
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0] - 2026-02-22
+### Added
+- **Market Trends Tool**: Nueva herramienta independiente en puerto `5005` y ruta `trends/` con interfaz gráfica.
+- **Seguimiento Granular de Inventario**: Escáner ligero en Playwright (`trends_tracker.py`) que lee dinámicamente el documento `province_urls_mapping.md` (~946 zonas) y almacena las propiedades publicadas de `Alquiler` y `Venta < 300k`.
+- **Datos Temporales**: Se almacena fecha (DD-MM-AAAA) y semana ISO en SQLite (`market_trends.db`) para formar gráficos temporales.
+- **Gráficos e UI Integrada**: Se usan selectores de Provincia, Zona geográfica, y Operación para renderizar la evolución de mercado mediante `Chart.js`. Accesible desde el menú lateral único del programa.
+
 ## [2.8.2] - 2026-02-21
 ### Added
 - **Auto-Retry en Tiempo Real**: Implementado bucle de auto-reinicio directamente en `scraper_wrapper.py` para bloqueos de CAPTCHA detectados a mitad de sesión. Ahora el scraper guarda estado, espera 15 minutos (sin spam de logs) y reintenta automáticamente sin intervención del usuario.

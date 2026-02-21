@@ -23,6 +23,7 @@ ANALYZER_PORT = 5001   # Analyzer Pro service
 MERGER_PORT = 5002     # Merger Tool service
 SCRAPER_PORT = 5003    # Idealista Scraper service
 METRICS_PORT = 5004    # Market Metrics Dashboard
+TRENDS_PORT = 5005     # Market Trends Tracker
 
 # =============================================================================
 # API CONFIGURATION

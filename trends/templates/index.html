@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Trends - Real Estate Master</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.5);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.3);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden;
+            background-image: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            background: linear-gradient(to right, #60a5fa, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.95rem;
+            outline: none;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        select:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        select option {
+            background: var(--bg-dark);
+            color: var(--text-main);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+        }
+
+        .btn.btn-danger {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+
+        .chart-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        #trackerStatusBadge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+
+        #trackerStatusBadge.running {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <div>
+            <h1>📉 Market Trends Tracker</h1>
+            <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px;">
+                Inventario Semanal por Provincias y Zonas Geográficas
+            </div>
+        </div>
+
+        <div class="controls">
+            <span id="trackerStatusBadge">Tracker: Idle</span>
+            <button class="btn" id="startTrackerBtn" onclick="toggleTracker()">Iniciar Escaneo Global</button>
+        </div>
+    </div>
+
+    <div class="header" style="justify-content: flex-start;">
+        <div class="controls">
+            <select id="provinceSelect" onchange="loadZonesAndDraw()">
+                <option value="">-- Seleccionar Provincia --</option>
+            </select>
+
+            <select id="zoneSelect" onchange="drawChart()">
+                <option value="">-- Todas las Zonas --</option>
+            </select>
+
+            <select id="operationSelect" onchange="drawChart()">
+                <option value="both">Venta y Alquiler</option>
+                <option value="venta">Solo Venta</option>
+                <option value="alquiler">Solo Alquiler</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="chart-container">
+            <canvas id="trendsChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let rawData = [];
+        let chartInstance = null;
+        let isTrackerRunning = false;
+
+        // Polling para el estado del tracker
+        setInterval(checkTrackerStatus, 5000);
+
+        async function init() {
+            await Promise.all([
+                fetchData(),
+                checkTrackerStatus()
+            ]);
+
+            populateProvinces();
+        }
+
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/trends');
+                rawData = await response.json();
+                console.log("Loaded Trends:", rawData.length, "records");
+            } catch (err) {
+                console.error("Failed to load trends:", err);
+            }
+        }
+
+        async function checkTrackerStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                isTrackerRunning = data.status === 'running';
+
+                const badge = document.getElementById('trackerStatusBadge');
+                const btn = document.getElementById('startTrackerBtn');
+
+                if (isTrackerRunning) {
+                    badge.className = 'running';
+                    badge.innerText = 'Tracker: Escaneando...';
+                    btn.classList.add('btn-danger');
+                    btn.innerText = 'Detener Escaneo';
+                } else {
+                    badge.className = '';
+                    badge.innerText = 'Tracker: Inactivo';
+                    btn.classList.remove('btn-danger');
+                    btn.innerText = 'Iniciar Escaneo Global';
+                }
+            } catch (e) { }
+        }
+
+        async function toggleTracker() {
+            if (isTrackerRunning) {
+                await fetch('/api/stop_tracker', { method: 'POST' });
+            } else {
+                await fetch('/api/start_tracker', { method: 'POST' });
+            }
+            // Pequeña espera para asegurar que el proceso levante o muera en background
+            setTimeout(checkTrackerStatus, 1500);
+            setTimeout(fetchData, 60000); // Reload data after a minute (it might have run some zones)
+        }
+
+        function populateProvinces() {
+            const select = document.getElementById('provinceSelect');
+            // Get unique provinces
+            const provinces = [...new Set(rawData.map(d => d.province))].sort();
+
+            // Default to 'Madrid' if exists, else first
+            let defaultProv = '';
+
+            provinces.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                select.appendChild(opt);
+
+                if (p === 'Madrid') defaultProv = p;
+            });
+
+            if (defaultProv) {
+                select.value = defaultProv;
+            } else if (provinces.length > 0) {
+                select.value = provinces[0];
+            }
+
+            loadZonesAndDraw();
+        }
+
+        function loadZonesAndDraw() {
+            const prov = document.getElementById('provinceSelect').value;
+            const select = document.getElementById('zoneSelect');
+
+            // Clear existing
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+
+            if (prov) {
+                // Get unique zones for this province
+                const zones = [...new Set(rawData.filter(d => d.province === prov).map(d => d.zone))].sort();
+
+                zones.forEach(z => {
+                    const opt = document.createElement('option');
+                    opt.value = z;
+                    opt.textContent = z;
+                    select.appendChild(opt);
+                });
+            }
+
+            drawChart();
+        }
+
+        function drawChart() {
+            const prov = document.getElementById('provinceSelect').value;
+            const zone = document.getElementById('zoneSelect').value;
+            const opFilter = document.getElementById('operationSelect').value;
+
+            if (!prov) return; // Need at least province
+
+            // Filter Dataset
+            let filtered = rawData.filter(d => d.province === prov);
+
+            // If zone = "" string, show ONLY "(Toda la provincia)" if it exists
+            if (zone === "") {
+                filtered = filtered.filter(d => d.zone === "(Toda la provincia)" || d.zone.includes("Toda la provincia"));
+            } else {
+                filtered = filtered.filter(d => d.zone === zone);
+            }
+
+            // Group by X-Axis Label (Year-Week + Date)
+            // e.g. "Semana 10 (05-03-2026)"
+            const labelsMap = new Map();
+
+            filtered.forEach(d => {
+                const label = `Semana ${d.iso_week}, ${d.iso_year} (${d.date_record})`;
+                if (!labelsMap.has(label)) {
+                    labelsMap.set(label, { label: label, sortKey: `${d.iso_year}-${String(d.iso_week).padStart(2, '0')}`, venta: null, alquiler: null });
+                }
+
+                const entry = labelsMap.get(label);
+                if (d.operation === 'venta') entry.venta = d.total_properties;
+                if (d.operation === 'alquiler') entry.alquiler = d.total_properties;
+            });
+
+            const sortedEntries = Array.from(labelsMap.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+            const labels = sortedEntries.map(e => e.label);
+            const dataVenta = sortedEntries.map(e => e.venta);
+            const dataAlquiler = sortedEntries.map(e => e.alquiler);
+
+            const datasets = [];
+
+            if (opFilter === 'both' || opFilter === 'venta') {
+                datasets.push({
+                    label: 'Venta (< 300k)',
+                    data: dataVenta,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 3,
+                    pointBackgroundColor: '#1e293b',
+                    pointBorderColor: '#3b82f6',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    fill: true,
+                    tension: 0.3
+                });
+            }
+
+            if (opFilter === 'both' || opFilter === 'alquiler') {
+                datasets.push({
+                    label: 'Alquiler',
+                    data: dataAlquiler,
+                    borderColor: '#a855f7',
+                    backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                    borderWidth: 3,
+                    pointBackgroundColor: '#1e293b',
+                    pointBorderColor: '#a855f7',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    fill: true,
+                    tension: 0.3
+                });
+            }
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const ctx = document.getElementById('trendsChart').getContext('2d');
+
+            Chart.defaults.color = '#94a3b8';
+            Chart.defaults.font.family = "'Outfit', sans-serif";
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                font: { size: 14 }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#f8fafc',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            padding: 12,
+                            boxPadding: 6,
+                            usePointStyle: true
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)'
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    }
+                }
+            });
+        }
+
+        // Initialize
+        init();
+    </script>
+</body>
+
+</html>
