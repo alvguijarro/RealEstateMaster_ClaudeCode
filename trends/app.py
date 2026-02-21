@@ -6,6 +6,7 @@ import subprocess
 from flask import Flask, render_template, jsonify, request, send_file
 import csv
 import io
+import re
 from pathlib import Path
 
 # Setup paths
@@ -109,15 +110,32 @@ def get_trends():
 
 @app.route('/api/provinces', methods=['GET'])
 def get_provinces():
-    """Get unique provinces and zones from DB."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    """Get unique provinces and zones from the mapping file."""
+    mapping_file = PROJECT_ROOT / "scraper" / "documentation" / "province_urls_mapping.md"
     
-    cursor.execute("SELECT DISTINCT province FROM inventory_trends ORDER BY province")
-    provinces = [row[0] for row in cursor.fetchall()]
+    provinces_dict = {}
+    current_province = None
     
-    conn.close()
-    return jsonify({"provinces": provinces})
+    if mapping_file.exists():
+        with open(mapping_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("|") and not line.startswith("| :---"):
+                    parts = [p.strip() for p in line.split("|")]
+                    if len(parts) >= 4:
+                        prov = parts[1].replace("**", "").strip()
+                        zone = parts[2].strip()
+                        
+                        if prov and prov.lower() != "provincia":
+                            current_province = prov
+                            if current_province not in provinces_dict:
+                                provinces_dict[current_province] = set()
+                            if zone:
+                                provinces_dict[current_province].add(zone)
+                                
+    # Convert sets to lists
+    result = {k: sorted(list(v)) for k, v in provinces_dict.items()}
+    return jsonify({"provinces": result})
 
 @app.route('/api/status', methods=['GET'])
 def get_status():

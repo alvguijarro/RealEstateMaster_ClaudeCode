@@ -16,8 +16,19 @@ MAPPING_FILE = PROJECT_ROOT / "scraper" / "documentation" / "province_urls_mappi
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-# We will use vanilla playwright to avoid dependency issues
+    
+SCRAPER_DIR = PROJECT_ROOT / "scraper"
+if str(SCRAPER_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRAPER_DIR))
+
 from playwright.async_api import async_playwright
+import random
+
+# Import stealth and captcha utilities from main scraper
+from app.scraper_wrapper import get_browser_executable_path
+from idealista_scraper.config import VIEWPORT_SIZES, USER_AGENTS, BROWSER_ROTATION_POOL, DEEP_STEALTH_SCRIPT
+from idealista_scraper.utils import solve_captcha_advanced
+from update_urls import rotate_identity, mark_current_profile_blocked, get_random_gpu, generate_stealth_script, get_profile_dir
 
 # Parse the markdown mapping
 def parse_mapping(file_path):
@@ -87,7 +98,7 @@ async def save_to_db(date_record, iso_year, iso_week, province, zone, operation,
         conn.close()
 
 async def run_tracker():
-    print(f"Starting Market Trends Tracker...")
+    print(f"Starting Robust Market Trends Tracker...")
     os.makedirs(DATA_DIR, exist_ok=True)
     
     urls_data = parse_mapping(MAPPING_FILE)
@@ -102,49 +113,121 @@ async def run_tracker():
     date_formatted = now.strftime("%d-%m-%Y")
     iso_year, iso_week, _ = now.isocalendar()
     
-    import random
+    start_index = 0
+    urls_len = len(urls_data)
     
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        page = await context.new_page()
+    while start_index < urls_len:
+        # IDENTITY ROTATION
+        profile_config, wait_time = rotate_identity()
+        if wait_time > 0:
+            print(f"WARN: All profiles in cooldown. Waiting {int(wait_time/60)}m...")
+            await asyncio.sleep(wait_time)
+            continue
+            
+        profile_dir = get_profile_dir(profile_config["index"])
+        os.makedirs(profile_dir, exist_ok=True)
         
-        try:
-            for index, (province, zone, url, operation) in enumerate(urls_data):
-                print(f"[{index+1}/{len(urls_data)}] Tracking {province} ({zone}) - {operation.upper()}...")
+        async with async_playwright() as pw:
+            print(f"INFO: Launching persistent browser with profile: {profile_config['name']}...")
+            
+            browser_args = [
+                "--start-maximized",
+                "--disable-dev-shm-usage",
+                "--disable-infobars",
+                "--no-first-run",
+            ]
+            
+            exe_path = get_browser_executable_path(profile_config.get("channel"))
+            viewport = random.choice(VIEWPORT_SIZES)
+            
+            engine_name = profile_config.get("engine", "chromium")
+            browser_launcher = getattr(pw, engine_name)
+            
+            launch_options = {
+                "user_data_dir": profile_dir,
+                "headless": False, # Keep visible for now
+                "viewport": {"width": viewport[0], "height": viewport[1]},
+                "user_agent": random.choice(USER_AGENTS)
+            }
+            
+            if engine_name == "chromium":
+                launch_options["args"] = browser_args
+                launch_options["ignore_default_args"] = ["--enable-automation"]
+                if profile_config.get("channel"):
+                    launch_options["channel"] = profile_config["channel"]
+                if exe_path:
+                    launch_options["executable_path"] = exe_path
+            elif engine_name == "firefox":
+                if exe_path:
+                    launch_options["executable_path"] = exe_path
+                launch_options["firefox_user_prefs"] = {
+                    "dom.webdriver.enabled": False,
+                    "useAutomationExtension": False,
+                }
                 
-                try:
-                    await page.goto(url, timeout=30000, wait_until="domcontentloaded")
-                    await asyncio.sleep(random.uniform(2.0, 4.0)) # Delay to mimic human
+            try:
+                context = await browser_launcher.launch_persistent_context(**launch_options)
+                
+                # ADVANCED GPU/DEEP STEALTH
+                _GPU_VENDOR, _GPU_RENDERER = get_random_gpu()
+                stealth_script = generate_stealth_script().replace('{_GPU_VENDOR}', _GPU_VENDOR).replace('{_GPU_RENDERER}', _GPU_RENDERER)
+                await context.add_init_script(stealth_script)
+                await context.add_init_script(DEEP_STEALTH_SCRIPT)
+                
+                page = context.pages[0] if context.pages else await context.new_page()
+                
+                # PROCESS URLs
+                scan_idx = start_index
+                for k, data in enumerate(urls_data[start_index:], start_index):
+                    province, zone, url, operation = data
+                    print(f"[{scan_idx+1}/{urls_len}] Tracking {province} ({zone}) - {operation.upper()}...")
                     
-                    # CAPTCHA check
-                    title = await page.title()
-                    if "Pardon Our Interruption" in title or "Captcha" in title:
-                        print(f"CAPTCHA detected on {url}.")
-                        print("Waiting for manual resolution or 20s timeout...")
-                        # Just wait a bit and hope user solves it or it passes, this is a lightweight script
-                        await asyncio.sleep(20)
+                    try:
+                        await page.goto(url, timeout=45000, wait_until="domcontentloaded")
+                        await asyncio.sleep(random.uniform(2.5, 5.5)) # Delay to mimic human
                         
-                        # Check again
+                        # CAPTCHA check
                         title = await page.title()
                         if "Pardon Our Interruption" in title or "Captcha" in title:
-                            print("Still blocked. Skipping and waiting 5 mins before next...")
-                            await asyncio.sleep(300)
-                            continue
+                            print(f"WARN: CAPTCHA detected on {url}.")
+                            resolved = await solve_captcha_advanced(page)
+                            if not resolved:
+                                print("ERR: Could not resolve Captcha. Burning profile and rotating...")
+                                mark_current_profile_blocked()
+                                await browser.close()
+                                break # Break inner loop, will rotate profile in outer loop
+                            
+                            # If resolved, wait a bit for Cloudflare to redirect
+                            await asyncio.sleep(5)
+                            
+                        # Double check we are on a listing page
+                        title = await page.title()
+                        if "Pardon" in title or "Captcha" in title:
+                            print("ERR: Still blocked after resolution attempt. Burning profile.")
+                            mark_current_profile_blocked()
+                            break
 
-                    total_properties = await extract_h1_number(page)
-                    
-                    print(f"  -> Found {total_properties} properties.")
-                    if total_properties >= 0:
-                        await save_to_db(date_formatted, iso_year, iso_week, province, zone, operation, total_properties)
+                        total_properties = await extract_h1_number(page)
+                        print(f"  -> Found {total_properties} properties.")
                         
-                except Exception as e:
-                    print(f"Error loading {url}: {e}")
+                        if total_properties >= 0:
+                            await save_to_db(date_formatted, iso_year, iso_week, province, zone, operation, total_properties)
+                            
+                        scan_idx += 1
+                        
+                    except Exception as e:
+                        print(f"Error loading {url}: {e}")
+                        scan_idx += 1 # proceed to next even on timeout
+                        continue
+                        
+                start_index = scan_idx # Updates outer loop progress
                 
-        finally:
-            await browser.close()
+            except Exception as e:
+                print(f"CRITICAL: Browser instance failed: {e}")
+                
+            finally:
+                if 'context' in locals():
+                    await context.close()
                 
 
 if __name__ == "__main__":

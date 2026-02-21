@@ -189,6 +189,7 @@
 
     <script>
         let rawData = [];
+        let provinceData = {};
         let chartInstance = null;
         let isTrackerRunning = false;
 
@@ -196,12 +197,25 @@
         setInterval(checkTrackerStatus, 5000);
 
         async function init() {
+            await fetchProvinces();
+            populateProvinces();
+
             await Promise.all([
                 fetchData(),
                 checkTrackerStatus()
             ]);
 
-            populateProvinces();
+            drawChart();
+        }
+
+        async function fetchProvinces() {
+            try {
+                const response = await fetch('/api/provinces');
+                const data = await response.json();
+                provinceData = data.provinces || {};
+            } catch (err) {
+                console.error("Failed to load provinces:", err);
+            }
         }
 
         async function fetchData() {
@@ -250,10 +264,8 @@
 
         function populateProvinces() {
             const select = document.getElementById('provinceSelect');
-            // Get unique provinces
-            const provinces = [...new Set(rawData.map(d => d.province))].sort();
+            const provinces = Object.keys(provinceData).sort();
 
-            // Default to 'Madrid' if exists, else first
             let defaultProv = '';
 
             provinces.forEach(p => {
@@ -278,15 +290,12 @@
             const prov = document.getElementById('provinceSelect').value;
             const select = document.getElementById('zoneSelect');
 
-            // Clear existing
             while (select.options.length > 1) {
                 select.remove(1);
             }
 
-            if (prov) {
-                // Get unique zones for this province
-                const zones = [...new Set(rawData.filter(d => d.province === prov).map(d => d.zone))].sort();
-
+            if (prov && provinceData[prov]) {
+                const zones = provinceData[prov];
                 zones.forEach(z => {
                     const opt = document.createElement('option');
                     opt.value = z;
