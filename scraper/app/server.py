@@ -919,6 +919,11 @@ def stop_batch_scraping():
     flag = scraper_dir / "BATCH_STOP.flag"
     flag.touch()
     
+    # Stop the active scraper controller (critical so the current URL scrape stops instantly)
+    global scraper_controller
+    if scraper_controller:
+        scraper_controller.stop()
+    
     # Also terminate the process
     global periodic_process
     if periodic_process and periodic_process.poll() is None:
