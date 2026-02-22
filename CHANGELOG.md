@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased] - Market Trends Enhancements
+- `scraper_wrapper.py`: Añadida orden `continue` para enganchar correctamente la rotación de perfiles en caso de error crítico aislando la inicialización de Playwright.
 - `trends_tracker.py`: Arreglo de bug crítico en la rotación de perfiles tras un bloqueo CAPTCHA (NameError: browser).
 - `trends/app.py`: Añadido `Flask-SocketIO` y transmisión en tiempo real de logs del subproceso (stdout).
 - `index.html`: Añadido un nuevo bloque de 'Log Terminal' para visibilizar progresos y errores sin tener abierta la consola.

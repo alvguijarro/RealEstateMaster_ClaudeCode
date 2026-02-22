@@ -2339,7 +2339,7 @@ class ScraperController:
                             mark_current_profile_blocked()
                         rotate_identity()
                         await self._interruptible_sleep(3)
-                        # continue the outer while loop to try next browser
+                        continue  # <-- Added: continue the outer while loop to try next browser
             
                     # Navigate to seed URL (or direct page resume)
                     try:
