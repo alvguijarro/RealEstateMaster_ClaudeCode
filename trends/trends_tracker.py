@@ -7,6 +7,7 @@ import sqlite3
 import asyncio
 import json
 import argparse
+import csv
 from pathlib import Path
 
 # Setup paths
@@ -139,6 +140,27 @@ def load_checkpoint():
         except:
             pass
     return 0, None, None
+
+def auto_export_csv():
+    """Generates a CSV export of the entire SQLite DB to disk."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, operation, total_properties FROM inventory_trends ORDER BY id DESC")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        filename = f"market_trends_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        export_path = DATA_DIR / filename
+        
+        with open(export_path, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['Fecha', 'Año ISO', 'Semana ISO', 'Provincia', 'Zona', 'Operación', 'Total Propiedades'])
+            writer.writerows(rows)
+            
+        print(f"✅ Auto-exported all historical data to {export_path.name}")
+    except Exception as e:
+        print(f"Error auto-exporting CSV: {e}")
 
 async def run_tracker(resume=False):
     print(f"Starting Robust Market Trends Tracker (Resume: {resume})...", flush=True)
@@ -320,6 +342,10 @@ async def run_tracker(resume=False):
         print("Market Trends Tracking Completed Full List!")
     else:
         print(f"Tracker Stopped at index {start_index}.")
+        
+    # Auto export to CSV locally at the end of run
+    print("Initiating automatic database backup to CSV...", flush=True)
+    auto_export_csv()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

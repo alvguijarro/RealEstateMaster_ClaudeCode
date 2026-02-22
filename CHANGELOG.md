@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased] - Market Trends Enhancements
+- `trends_tracker.py`: Automatizada la exportación y guardado local del histórico en CSV al finalizar el escaneo (para backup físico sin intervención del usuario).
 - `scraper_wrapper.py`: Añadida orden `continue` para enganchar correctamente la rotación de perfiles en caso de error crítico aislando la inicialización de Playwright.
 - `trends_tracker.py`: Arreglo de bug crítico en la rotación de perfiles tras un bloqueo CAPTCHA (NameError: browser).
 - `trends/app.py`: Añadido `Flask-SocketIO` y transmisión en tiempo real de logs del subproceso (stdout).
