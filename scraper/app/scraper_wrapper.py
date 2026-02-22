@@ -2310,6 +2310,9 @@ class ScraperController:
                             continuous_mouse_jitter(page, self._stop_evt)
                         )
                         
+                    except (StopException, BrowserClosedException):
+                        # Propagate stop signal
+                        raise
                     except Exception as e:
                         self.log("ERR", f"Could not launch browser: {e}")
                         # --- Bug Fix: Rotate instead of stopping ---
@@ -3555,8 +3558,6 @@ class ScraperController:
                 except:
                     pass
                 
-
-                
                 # Wait cooldown
                 try:
                     await self._interruptible_sleep(wait_time)
@@ -3570,8 +3571,8 @@ class ScraperController:
                 self.log("INFO", "🔄 Restarting browser now...")
                 continue # Loop back to start (and reuse persistent profile handling which will be fresh)
 
-            except StopException as se:
-                self.log("INFO", f"🛑 STOPPED: {se}")
+            except (StopException, BrowserClosedException):
+                self.log("INFO", "🛑 Scraper stopped manually via user request or browser closed.")
                 # State already saved in stop() method, but redundant call here ensures it's fresh
                 if target_file:
                     self.save_state(self.current_page or 1, target_file)
