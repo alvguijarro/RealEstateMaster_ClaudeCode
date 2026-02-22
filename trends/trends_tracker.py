@@ -26,7 +26,7 @@ import random
 
 # Import stealth and captcha utilities from main scraper
 from app.scraper_wrapper import get_browser_executable_path
-from idealista_scraper.config import VIEWPORT_SIZES, USER_AGENTS, BROWSER_ROTATION_POOL, DEEP_STEALTH_SCRIPT
+from idealista_scraper.config import VIEWPORT_SIZES, USER_AGENTS, BROWSER_ROTATION_POOL
 from idealista_scraper.utils import solve_captcha_advanced
 from update_urls import rotate_identity, mark_current_profile_blocked, get_random_gpu, generate_stealth_script, get_profile_dir
 
@@ -172,7 +172,6 @@ async def run_tracker():
                 _GPU_VENDOR, _GPU_RENDERER = get_random_gpu()
                 stealth_script = generate_stealth_script().replace('{_GPU_VENDOR}', _GPU_VENDOR).replace('{_GPU_RENDERER}', _GPU_RENDERER)
                 await context.add_init_script(stealth_script)
-                await context.add_init_script(DEEP_STEALTH_SCRIPT)
                 
                 page = context.pages[0] if context.pages else await context.new_page()
                 
