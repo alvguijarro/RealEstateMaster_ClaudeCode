@@ -853,7 +853,93 @@ def start_batch_scraping():
         if len(urls) > original_count:
             print(f"Batch expanded from {original_count} to {len(urls)} URLs")
     else:
-        print("Batch expansion disabled by client.")
+        print("Batch expansion disabled by client. Applying Intelligent Zone Segmentation instead if needed...")
+        
+    # === INTELLIGENT ZONE TARGETING ===
+    # Check if we should expand provinces exceeding 2000 properties into zones
+    try:
+        import sqlite3
+        db_path = Path(__file__).parent.parent.parent / "real_estate.db"
+        zones_file = Path(__file__).parent.parent / "province_zones_complete.json"
+        
+        if db_path.exists() and zones_file.exists():
+            with open(zones_file, 'r', encoding='utf-8') as zf:
+                zones_map = json.load(zf)
+            
+            conn = sqlite3.connect(db_path)
+            c = conn.cursor()
+            
+            def local_extract_province(url):
+                try:
+                    import urllib.parse
+                    import re
+                    path = urllib.parse.urlsplit(url).path
+                    parts = [p for p in path.split('/') if p]
+                    if 'alquiler-viviendas' in parts:
+                        idx = parts.index('alquiler-viviendas')
+                    elif 'venta-viviendas' in parts:
+                        idx = parts.index('venta-viviendas')
+                    else:
+                        return "Desconocida"
+                    if len(parts) > idx + 1:
+                        raw = parts[idx + 1]
+                        return raw.replace('-', ' ').title()
+                except: pass
+                return "Desconocida"
+            
+            expanded_urls = []
+            
+            for url in urls:
+                try:
+                    prov_name = local_extract_province(url)
+                    op_type = 'venta' if '/venta-' in url else 'alquiler'
+                    
+                    if prov_name:
+                        c.execute('''
+                            SELECT total_properties FROM inventory_trends 
+                            WHERE province = ? AND operation = ? AND zone = '(Toda la provincia)'
+                            ORDER BY date_record DESC LIMIT 1
+                        ''', (prov_name, op_type))
+                        row = c.fetchone()
+                        
+                        if row and row[0] > 2000:
+                            print(f"[SMART SEGMENTATION] {prov_name} ({op_type}) has {row[0]} properties (>2000). Segmenting into zones...")
+                            # Find province in zones_map
+                            prov_zones = []
+                            for p_key, p_data in zones_map.items():
+                                if p_key.lower() == prov_name.lower() or p_data.get('name', '').lower() == prov_name.lower():
+                                    prov_zones = p_data.get('zones', [])
+                                    break
+                                    
+                            if prov_zones:
+                                for zone in prov_zones:
+                                    z_href = zone.get('href')
+                                    if z_href:
+                                        if op_type == 'alquiler' and '/venta-viviendas/' in z_href:
+                                            z_href = z_href.replace('/venta-viviendas/', '/alquiler-viviendas/')
+                                        elif op_type == 'venta' and '/alquiler-viviendas/' in z_href:
+                                            z_href = z_href.replace('/alquiler-viviendas/', '/venta-viviendas/')
+                                            
+                                        # Also respect price limit if present in original URL
+                                        if "con-precio-hasta_" in url:
+                                            price_part = [p for p in url.split("/") if "con-precio-" in p]
+                                            if price_part:
+                                                if not z_href.endswith('/'): z_href += '/'
+                                                z_href += price_part[0] + '/'
+                                                
+                                        full_url = f"https://www.idealista.com{z_href}"
+                                        expanded_urls.append(full_url)
+                                continue  # Skip adding the raw province url
+                                
+                    expanded_urls.append(url)
+                except Exception as ex:
+                    print(f"Error checking zone segmentation for {url}: {ex}")
+                    expanded_urls.append(url)
+            
+            urls = expanded_urls
+            conn.close()
+    except Exception as e:
+        print(f"Intelligent Zone Targeting skipped due to inner exception: {e}")
         
     # Write queue to file
     queue_file = Path(__file__).parent.parent / "batch_queue.json"

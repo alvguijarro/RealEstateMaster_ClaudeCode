@@ -96,7 +96,7 @@ def build_paginated_url(seed_url: str, page_number: int) -> str:
         if not base_path.endswith("/"):
             base_path += "/"
         new_path = f"{base_path}pagina-{page_number}.htm"
-        return urlunsplit((parts.scheme, parts.netloc, new_path, "", parts.fragment))
+        return urlunsplit((parts.scheme, parts.netloc, new_path, parts.query, parts.fragment))
 
 
 def extract_page_from_url(url: str) -> int:
@@ -3176,18 +3176,43 @@ class ScraperController:
                             continue
 
                         # Case 3: Exceeded expected pages based on H1 count
-                        if self.total_pages_expected > 0 and page_num >= self.total_pages_expected:
+                        if self.total_pages_expected > 0 and page_num >= self.total_pages_expected and page_num < 60:
                             self.log("INFO", f"Reached expected page limit ({self.total_pages_expected} pages). Finishing scrape.")
                             self.clear_state()
                             scraping_finished = True
                             break
 
-                        # Case 4: Max pages reached (hard limit to avoid infinite loops)
+                        # Case 4: Max pages reached (hard limit / Deep Scrape Transition)
                         if page_num >= 60:
-                            self.log("INFO", f"Reached page {page_num} (maximum listing pages). Finishing scrape.")
-                            self.clear_state()
-                            scraping_finished = True
-                            break
+                            sort_options = [
+                                "ordenado-por=fecha-publicacion-desc",
+                                "ordenado-por=fecha-publicacion-asc",
+                                "ordenado-por=precios-asc",
+                                "ordenado-por=precios-desc"
+                            ]
+                            if not hasattr(self, "_current_sort_idx"):
+                                self._current_sort_idx = -1
+                                
+                            self._current_sort_idx += 1
+                            if self._current_sort_idx < len(sort_options):
+                                next_sort = sort_options[self._current_sort_idx]
+                                self.log("INFO", f"Max pages reached (60). Deep Scrape Mode: Switching to '{next_sort}'...")
+                                
+                                import urllib.parse
+                                parsed = urllib.parse.urlsplit(self.seed_url)
+                                # Replace query to avoid duplicate sort keys
+                                current_base = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", parsed.fragment))
+                                self.seed_url = f"{current_base}?{next_sort}"
+                                
+                                page_num = 1
+                                self._pages_scraped = 0
+                                self.total_pages_expected = 0 # Allow another 60
+                                continue
+                            else:
+                                self.log("INFO", f"All Deep Scrape sorts exhausted at max pages. Finishing scrape.")
+                                self.clear_state()
+                                scraping_finished = True
+                                break
 
                         # Default: Next page
                         page_num += 1

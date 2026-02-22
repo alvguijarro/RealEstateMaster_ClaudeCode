@@ -1,6 +1,9 @@
 # Changelog
 
 ## [Unreleased] - Market Trends Enhancements
+- `scraper_wrapper.py`: **Modo Deep Scrape (NUEVO)**. Automatizada la transición en búsquedas de gran volumen. Al alcanzar el límite impuesto por Idealista (página 60), automáticamente itera inyectando 4 variaciones de ordenación para sobrepasar la barrera de las 1800 viviendas mostradas y llegar hasta las 6000 o 9000 propiedades totales de una ciudad de forma autónoma con un mismo "click".
+- `server.py`: **Segmentación Inteligente de Zonas (NUEVO)**. Integrado un chequeo SQLite previo al lanzamiento de un batch. Si una provincia rebasa las 2000 propiedades registradas de base, el servidor intercepta la URL madre y la expande sobre las rutas específicas de todas sus subzonas activas para raspar con total granularidad y maximizar datos locales, evadiendo la censura volumétrica superficial del portal inmobiliario.
+- `utils.py`: **DataDome Coords Solver**. Refactorizada la función `solve_datadome_2captcha` que usaba Tokens estáticos + Proxie externo (desincronizado con IP local, levantando bandera roja del WAF) a favor de un algoritmo en base a coordenadas físicas. Ahora captura el slider original dentro del iframe, extrae el bounding_box del contenedor embebido y utiliza 2Captcha Coordinates para arrastrar físicamente el elemento evitando saltos IP.
 - `trends_tracker.py`: Automatizada la exportación y guardado local del histórico en CSV al finalizar el escaneo (para backup físico sin intervención del usuario).
 - **Exportación Diferenciada (NUEVO)**: `trends_tracker.py` ahora genera dos archivos CSV separados (`Venta` y `Alquiler`) con formato Largo para facilitar uso directo en software estadístico.
 - **Selector Jerárquico de Zonas (NUEVO)**: `index.html` (Market Trends) actualizado para tener la misma UX premium que el Scraper, permitiendo colapsar sub-zonas, búsquedas eficientes y des/seleccionar "Todas" con un solo click.
