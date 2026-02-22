@@ -7,12 +7,15 @@ from flask import Flask, render_template, jsonify, request, send_file
 import csv
 import io
 import re
+import json
 from pathlib import Path
 
 # Setup paths
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "market_trends.db"
+CHECKPOINT_FILE = DATA_DIR / "checkpoint.json"
+STOP_FLAG_FILE = DATA_DIR / "TRACKER_STOP.flag"
 
 # Ensure data directory exists
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -78,6 +81,7 @@ def index():
 def get_trends():
     """Retrieve historical trend data. Optionally filter by province, zone, etc."""
     province = request.args.get('province')
+    zones = request.args.getlist('zone')
     operation = request.args.get('operation')
     
     conn = sqlite3.connect(DB_PATH)
@@ -91,6 +95,13 @@ def get_trends():
     if province:
         conditions.append("province = ?")
         params.append(province)
+    
+    if zones:
+        # Create placeholders for 'IN' clause
+        placeholders = ','.join(['?'] * len(zones))
+        conditions.append(f"zone IN ({placeholders})")
+        params.extend(zones)
+        
     if operation:
         conditions.append("operation = ?")
         params.append(operation)
@@ -153,6 +164,18 @@ def get_status():
         "status": "running" if is_running else "idle"
     })
 
+@app.route('/api/checkpoint', methods=['GET'])
+def get_checkpoint():
+    """Return current checkpoint status."""
+    if CHECKPOINT_FILE.exists():
+        try:
+            with open(CHECKPOINT_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return jsonify({"available": True, "data": data})
+        except Exception as e:
+            return jsonify({"available": False, "error": str(e)})
+    return jsonify({"available": False})
+
 @app.route('/api/start_tracker', methods=['POST'])
 def start_tracker():
     """Launch the background scraper to update trends."""
@@ -160,6 +183,11 @@ def start_tracker():
     
     if TRACKER_PROCESS is not None and TRACKER_PROCESS.poll() is None:
         return jsonify({"error": "Tracker is already running"}), 400
+        
+    # Clear stop flag
+    if STOP_FLAG_FILE.exists():
+        try: STOP_FLAG_FILE.unlink()
+        except: pass
         
     script_path = BASE_DIR / "trends_tracker.py"
     cmd = [sys.executable, str(script_path)]
@@ -174,17 +202,54 @@ def start_tracker():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/resume_tracker', methods=['POST'])
+def resume_tracker():
+    """Launch the background scraper to update trends, resuming from checkpoint."""
+    global TRACKER_PROCESS
+    
+    if TRACKER_PROCESS is not None and TRACKER_PROCESS.poll() is None:
+        return jsonify({"error": "Tracker is already running"}), 400
+        
+    # Clear stop flag
+    if STOP_FLAG_FILE.exists():
+        try: STOP_FLAG_FILE.unlink()
+        except: pass
+        
+    script_path = BASE_DIR / "trends_tracker.py"
+    cmd = [sys.executable, str(script_path), "--resume"]
+    
+    try:
+        TRACKER_PROCESS = subprocess.Popen(
+            cmd, 
+            cwd=str(BASE_DIR),
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        return jsonify({"status": "started", "message": "Tracker resumed from checkpoint."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/stop_tracker', methods=['POST'])
 def stop_tracker():
     """Stop the background scraper."""
     global TRACKER_PROCESS
     
+    # Touch stop flag for graceful termination
+    with open(STOP_FLAG_FILE, 'w', encoding='utf-8') as f:
+        f.write("STOP")
+    
     if TRACKER_PROCESS is None or TRACKER_PROCESS.poll() is not None:
         return jsonify({"error": "Tracker is not running"}), 400
         
     try:
-        TRACKER_PROCESS.terminate()
-        os.system(f"taskkill /F /T /PID {TRACKER_PROCESS.pid}")
+        # Give it up to 15 seconds to gracefully shut down the browser 
+        # and save the checkpoint.
+        try:
+            TRACKER_PROCESS.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            print("Force killing tracker process due to timeout.")
+            TRACKER_PROCESS.terminate()
+            os.system(f"taskkill /F /T /PID {TRACKER_PROCESS.pid}")
+            
         TRACKER_PROCESS = None
         return jsonify({"status": "stopped", "message": "Tracker background process stopped."})
     except Exception as e:

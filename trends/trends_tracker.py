@@ -5,6 +5,8 @@ import re
 import datetime
 import sqlite3
 import asyncio
+import json
+import argparse
 from pathlib import Path
 
 # Setup paths
@@ -12,6 +14,8 @@ BASE_DIR = Path(__file__).parent
 PROJECT_ROOT = BASE_DIR.parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "market_trends.db"
+CHECKPOINT_FILE = DATA_DIR / "checkpoint.json"
+STOP_FLAG_FILE = DATA_DIR / "TRACKER_STOP.flag"
 MAPPING_FILE = PROJECT_ROOT / "scraper" / "documentation" / "province_urls_mapping.md"
 
 if str(PROJECT_ROOT) not in sys.path:
@@ -97,8 +101,47 @@ async def save_to_db(date_record, iso_year, iso_week, province, zone, operation,
     finally:
         conn.close()
 
-async def run_tracker():
-    print(f"Starting Robust Market Trends Tracker...")
+async def record_exists_for_week(iso_year, iso_week, province, zone, operation):
+    """Checks if a record already exists for this exact combination to avoid double scraping."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT 1 FROM inventory_trends 
+            WHERE iso_year = ? AND iso_week = ? AND province = ? AND zone = ? AND operation = ?
+        ''', (iso_year, iso_week, province, zone, operation))
+        return cursor.fetchone() is not None
+    except Exception as e:
+        print(f"DB Check Error: {e}")
+        return False
+    finally:
+        conn.close()
+
+def save_checkpoint(index, iso_year, iso_week):
+    """Saves the current progress index to resume later."""
+    try:
+        with open(CHECKPOINT_FILE, 'w', encoding='utf-8') as f:
+            json.dump({
+                "last_index": index,
+                "iso_year": iso_year,
+                "iso_week": iso_week
+            }, f)
+    except Exception as e:
+        print(f"Failed to save checkpoint: {e}")
+
+def load_checkpoint():
+    """Loads the checkpoint. Returns (last_index, iso_year, iso_week) or (0, None, None)."""
+    if CHECKPOINT_FILE.exists():
+        try:
+            with open(CHECKPOINT_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get("last_index", 0), data.get("iso_year"), data.get("iso_week")
+        except:
+            pass
+    return 0, None, None
+
+async def run_tracker(resume=False):
+    print(f"Starting Robust Market Trends Tracker (Resume: {resume})...")
     os.makedirs(DATA_DIR, exist_ok=True)
     
     urls_data = parse_mapping(MAPPING_FILE)
@@ -114,9 +157,26 @@ async def run_tracker():
     iso_year, iso_week, _ = now.isocalendar()
     
     start_index = 0
+    if resume:
+        last_idx, cp_year, cp_week = load_checkpoint()
+        if cp_year == iso_year and cp_week == iso_week:
+            start_index = last_idx
+            print(f"Resuming from index {start_index} for Week {iso_week}")
+        else:
+            print("Checkpoint is from a previous week. Starting fresh.")
+    
     urls_len = len(urls_data)
     
+    # Remove old stop flag if exists
+    if STOP_FLAG_FILE.exists():
+        try: STOP_FLAG_FILE.unlink()
+        except: pass
+    
     while start_index < urls_len:
+        if STOP_FLAG_FILE.exists():
+            print("🔴 Stop flag detected. Halting outer loop.")
+            break
+        
         # IDENTITY ROTATION
         profile_config, wait_time = rotate_identity()
         if wait_time > 0:
@@ -184,8 +244,18 @@ async def run_tracker():
                 # PROCESS URLs
                 scan_idx = start_index
                 for k, data in enumerate(urls_data[start_index:], start_index):
+                    if STOP_FLAG_FILE.exists():
+                        print("🔴 Stop flag detected. Halting inner loop.")
+                        break
+                        
                     province, zone, url, operation = data
                     print(f"[{scan_idx+1}/{urls_len}] Tracking {province} ({zone}) - {operation.upper()}...")
+                    
+                    # Deduplication Check
+                    if await record_exists_for_week(iso_year, iso_week, province, zone, operation):
+                        print(f"  -> Skipping. Data already exists for Week {iso_week}.")
+                        scan_idx += 1
+                        continue
                     
                     try:
                         await page.goto(url, timeout=45000, wait_until="domcontentloaded")
@@ -225,8 +295,15 @@ async def run_tracker():
                         scan_idx += 1 # proceed to next even on timeout
                         continue
                         
+                    # Save Checkpoint every 20 urls
+                    if scan_idx > 0 and scan_idx % 20 == 0:
+                        print(f"💾 Saving Checkpoint at index {scan_idx}...")
+                        save_checkpoint(scan_idx, iso_year, iso_week)
+                        
                 start_index = scan_idx # Updates outer loop progress
                 
+                if STOP_FLAG_FILE.exists():
+                    break
             except Exception as e:
                 print(f"CRITICAL: Browser instance failed: {e}")
                 
@@ -235,6 +312,16 @@ async def run_tracker():
                     await context.close()
                 
 
+    # Final checkpoint update
+    save_checkpoint(start_index, iso_year, iso_week)
+    if start_index >= urls_len:
+        print("Market Trends Tracking Completed Full List!")
+    else:
+        print(f"Tracker Stopped at index {start_index}.")
+
 if __name__ == "__main__":
-    asyncio.run(run_tracker())
-    print("Market Trends Tracking Completed!")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--resume", action="store_true", help="Resume from last checkpoint")
+    args = parser.parse_args()
+    
+    asyncio.run(run_tracker(resume=args.resume))
