@@ -7,6 +7,7 @@
     <title>Market Trends - Real Estate Master</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
         :root {
             --bg-dark: #0f172a;
@@ -289,6 +290,60 @@
             accent-color: var(--accent);
         }
 
+        .checklist-item input[type="checkbox"]:checked {
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        /* --- LOG TERMINAL STYLES --- */
+        .terminal-container {
+            background-color: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 20px;
+            height: 250px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #a7f3d0;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .terminal-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal-container::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        .terminal-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .log-entry {
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .log-entry.error {
+            color: #fca5a5;
+        }
+
+        .log-entry.warn {
+            color: #fde047;
+        }
+
+        .log-entry.success {
+            color: #6ee7b7;
+        }
+
         .dropdown-footer {
             display: flex;
             justify-content: space-between;
@@ -356,6 +411,10 @@
             <div class="chart-container">
                 <canvas id="trendsChart"></canvas>
             </div>
+
+            <div class="terminal-container" id="logContainer">
+                <div class="log-entry" style="color: var(--text-muted);">[System] Esperando inicio del tracker...</div>
+            </div>
         </div>
     </div>
 
@@ -376,6 +435,38 @@
 
         // Polling para el estado del tracker
         setInterval(checkTrackerStatus, 5000);
+
+        // SocketIO Setup
+        const socket = io();
+        const logContainer = document.getElementById('logContainer');
+
+        socket.on('log_update', (data) => {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+
+            let msg = data.message;
+            if (msg.includes('ERR:') || msg.includes('Error') || msg.includes('Failed') || msg.includes('CRITICAL')) {
+                entry.classList.add('error');
+            } else if (msg.includes('WARN:') || msg.includes('Skipping')) {
+                entry.classList.add('warn');
+            } else if (msg.includes('Found') || msg.includes('Saving Checkpoint') || msg.includes('Completed')) {
+                entry.classList.add('success');
+            }
+
+            // Optional timestamp prepending (or if the scanner prints it, skip it)
+            // entry.textContent = `[${new Date().toLocaleTimeString('es-ES')}] ${msg}`;
+            entry.textContent = msg;
+
+            logContainer.appendChild(entry);
+
+            // Keep only last 300 to prevent layout lag
+            if (logContainer.children.length > 300) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+
+            // Auto Scroll
+            logContainer.scrollTop = logContainer.scrollHeight;
+        });
 
         // Global dropdown click outside listener
         document.addEventListener('click', (e) => {

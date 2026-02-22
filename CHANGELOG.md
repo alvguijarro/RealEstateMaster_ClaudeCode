@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased] - Market Trends Enhancements
+- `trends_tracker.py`: Arreglo de bug crítico en la rotación de perfiles tras un bloqueo CAPTCHA (NameError: browser).
+- `trends/app.py`: Añadido `Flask-SocketIO` y transmisión en tiempo real de logs del subproceso (stdout).
+- `index.html`: Añadido un nuevo bloque de 'Log Terminal' para visibilizar progresos y errores sin tener abierta la consola.
 ## [2.9.1] - 2026-02-22
 ### Fixed
 - **Disfunción del Botón Detener**: Solucionado un problema estructural en `scraper_wrapper.py` donde la inicialización directa de `asyncio.Event` en el hilo principal de Flask rompía las callbacks del hilo asíncrono en segundo plano (`RuntimeError cross-loop`) al presionar "Detener". Ahora el scraper responde y se detiene invariablemente.

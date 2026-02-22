@@ -4,6 +4,7 @@ import sqlite3
 import threading
 import subprocess
 from flask import Flask, render_template, jsonify, request, send_file
+from flask_socketio import SocketIO
 import csv
 import io
 import re
@@ -31,9 +32,22 @@ except ImportError:
     TRENDS_PORT = 5005
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'trends-scraper-secret'
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Global state for tracker
 TRACKER_PROCESS = None
+
+def process_log_monitor(process, socketio, event_name='log_update'):
+    """Reads stdout from a process and emits lines via SocketIO."""
+    try:
+        for line in iter(process.stdout.readline, b''):
+            decoded = line.decode('utf-8', errors='replace').strip()
+            if decoded:
+                socketio.emit(event_name, {'message': decoded})
+        process.stdout.close()
+    except Exception as e:
+        print(f"Monitor error: {e}")
 
 def init_db():
     """Initialize the SQLite database for Market Trends."""
@@ -190,14 +204,27 @@ def start_tracker():
         except: pass
         
     script_path = BASE_DIR / "trends_tracker.py"
-    cmd = [sys.executable, str(script_path)]
+    # Added -u flag for unbuffered output to stream logs in real-time
+    cmd = [sys.executable, "-u", str(script_path)]
     
     try:
         TRACKER_PROCESS = subprocess.Popen(
             cmd, 
             cwd=str(BASE_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=False, # Keep as bytes to properly handle decode issues
             creationflags=subprocess.CREATE_NO_WINDOW
         )
+        
+        # Start monitor thread
+        monitor_thread = threading.Thread(
+            target=process_log_monitor, 
+            args=(TRACKER_PROCESS, socketio), 
+            daemon=True
+        )
+        monitor_thread.start()
+        
         return jsonify({"status": "started", "message": "Tracker background process launched."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -216,14 +243,26 @@ def resume_tracker():
         except: pass
         
     script_path = BASE_DIR / "trends_tracker.py"
-    cmd = [sys.executable, str(script_path), "--resume"]
+    cmd = [sys.executable, "-u", str(script_path), "--resume"]
     
     try:
         TRACKER_PROCESS = subprocess.Popen(
             cmd, 
             cwd=str(BASE_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=False,
             creationflags=subprocess.CREATE_NO_WINDOW
         )
+        
+        # Start monitor thread
+        monitor_thread = threading.Thread(
+            target=process_log_monitor, 
+            args=(TRACKER_PROCESS, socketio), 
+            daemon=True
+        )
+        monitor_thread.start()
+        
         return jsonify({"status": "started", "message": "Tracker resumed from checkpoint."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -280,9 +319,8 @@ def export_csv():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-import datetime # Ensure datetime is available for filename
-
 
 if __name__ == '__main__':
+    init_db()
     print(f"Starting Trends Service on port {TRENDS_PORT}...")
-    app.run(port=TRENDS_PORT, debug=False, use_reloader=False)
+    socketio.run(app, debug=False, host='127.0.0.1', port=TRENDS_PORT, allow_unsafe_werkzeug=True)

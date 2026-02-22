@@ -141,7 +141,7 @@ def load_checkpoint():
     return 0, None, None
 
 async def run_tracker(resume=False):
-    print(f"Starting Robust Market Trends Tracker (Resume: {resume})...")
+    print(f"Starting Robust Market Trends Tracker (Resume: {resume})...", flush=True)
     os.makedirs(DATA_DIR, exist_ok=True)
     
     urls_data = parse_mapping(MAPPING_FILE)
@@ -269,8 +269,7 @@ async def run_tracker(resume=False):
                             if not resolved:
                                 print("ERR: Could not resolve Captcha. Burning profile and rotating...")
                                 mark_current_profile_blocked()
-                                await browser.close()
-                                break # Break inner loop, will rotate profile in outer loop
+                                raise RuntimeError("CAPTCHA_CRITICAL_BLOCK")
                             
                             # If resolved, wait a bit for Cloudflare to redirect
                             await asyncio.sleep(5)
@@ -280,7 +279,7 @@ async def run_tracker(resume=False):
                         if "Pardon" in title or "Captcha" in title:
                             print("ERR: Still blocked after resolution attempt. Burning profile.")
                             mark_current_profile_blocked()
-                            break
+                            raise RuntimeError("CAPTCHA_CRITICAL_BLOCK")
 
                         total_properties = await extract_h1_number(page)
                         print(f"  -> Found {total_properties} properties.")
@@ -291,6 +290,9 @@ async def run_tracker(resume=False):
                         scan_idx += 1
                         
                     except Exception as e:
+                        if "CAPTCHA_CRITICAL_BLOCK" in str(e):
+                            break # Exits the URL enumeration to restart rotation
+                            
                         print(f"Error loading {url}: {e}")
                         scan_idx += 1 # proceed to next even on timeout
                         continue
