@@ -131,7 +131,7 @@
             flex: 1;
             position: relative;
             width: 100%;
-            height: 100%;
+            min-height: 200px;
         }
 
         #trackerStatusBadge {
@@ -303,6 +303,7 @@
             padding: 15px;
             margin-top: 20px;
             height: 250px;
+            flex-shrink: 0;
             overflow-y: auto;
             font-family: 'Consolas', 'Courier New', monospace;
             font-size: 0.85rem;
@@ -612,6 +613,16 @@
             }
 
             const provinces = Object.keys(provinceData).sort();
+
+            // Fallback: Si no hay nada seleccionado (ej. inicio y no hay Madrid), seleccionar el primero
+            if (selectedZones.size === 0 && provinces.length > 0) {
+                const firstProv = provinces[0];
+                if (provinceData[firstProv] && provinceData[firstProv].length > 0) {
+                    const firstZone = provinceData[firstProv][0];
+                    selectedZones.add(`${firstProv}|${firstZone}`);
+                    expandedProvinces.add(firstProv);
+                }
+            }
 
             provinces.forEach(prov => {
                 const group = document.createElement('div');
