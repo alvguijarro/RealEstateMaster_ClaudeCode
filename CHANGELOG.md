@@ -2,6 +2,7 @@
 
 ## [2.9.1] - 2026-02-22
 ### Fixed
+- **Disfunción del Botón Detener**: Solucionado un problema estructural en `scraper_wrapper.py` donde la inicialización directa de `asyncio.Event` en el hilo principal de Flask rompía las callbacks del hilo asíncrono en segundo plano (`RuntimeError cross-loop`) al presionar "Detener". Ahora el scraper responde y se detiene invariablemente.
 - **Terminación de Scraping en Batch**: Corregido error crítico donde el scraper seguía extrayendo URLs después de pulsar "Detener" en modo Batch. Ahora el endpoint `/api/batch/stop` detiene explícitamente el `scraper_controller` antes de terminar el proceso orquestador, previniendo procesos huérfanos.
 
 ## [2.9.0] - 2026-02-22
