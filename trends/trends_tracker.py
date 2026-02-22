@@ -146,19 +146,37 @@ def auto_export_csv():
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, operation, total_properties FROM inventory_trends ORDER BY id DESC")
-        rows = cursor.fetchall()
+        
+        # VENTA
+        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, operation, total_properties FROM inventory_trends WHERE operation = 'venta' ORDER BY id DESC")
+        rows_venta = cursor.fetchall()
+        
+        # ALQUILER
+        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, operation, total_properties FROM inventory_trends WHERE operation = 'alquiler' ORDER BY id DESC")
+        rows_alquiler = cursor.fetchall()
+
         conn.close()
         
-        filename = f"market_trends_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        export_path = DATA_DIR / filename
+        ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        file_venta = DATA_DIR / f"market_trends_venta_{ts}.csv"
+        file_alquiler = DATA_DIR / f"market_trends_alquiler_{ts}.csv"
         
-        with open(export_path, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(['Fecha', 'Año ISO', 'Semana ISO', 'Provincia', 'Zona', 'Operación', 'Total Propiedades'])
-            writer.writerows(rows)
+        headers = ['Fecha', 'Año ISO', 'Semana ISO', 'Provincia', 'Zona', 'Operación', 'Total Propiedades']
+
+        if rows_venta:
+            with open(file_venta, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(headers)
+                writer.writerows(rows_venta)
+            print(f"✅ Auto-exported {len(rows_venta)} records to {file_venta.name}")
+
+        if rows_alquiler:
+            with open(file_alquiler, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(headers)
+                writer.writerows(rows_alquiler)
+            print(f"✅ Auto-exported {len(rows_alquiler)} records to {file_alquiler.name}")
             
-        print(f"✅ Auto-exported all historical data to {export_path.name}")
     except Exception as e:
         print(f"Error auto-exporting CSV: {e}")
 

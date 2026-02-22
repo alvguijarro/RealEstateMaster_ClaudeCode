@@ -2,12 +2,15 @@
 
 ## [Unreleased] - Market Trends Enhancements
 - `trends_tracker.py`: Automatizada la exportación y guardado local del histórico en CSV al finalizar el escaneo (para backup físico sin intervención del usuario).
+- **Exportación Diferenciada (NUEVO)**: `trends_tracker.py` ahora genera dos archivos CSV separados (`Venta` y `Alquiler`) con formato Largo para facilitar uso directo en software estadístico.
+- **Selector Jerárquico de Zonas (NUEVO)**: `index.html` (Market Trends) actualizado para tener la misma UX premium que el Scraper, permitiendo colapsar sub-zonas, búsquedas eficientes y des/seleccionar "Todas" con un solo click.
 - `scraper_wrapper.py`: Añadida orden `continue` para enganchar correctamente la rotación de perfiles en caso de error crítico aislando la inicialización de Playwright.
 - `trends_tracker.py`: Arreglo de bug crítico en la rotación de perfiles tras un bloqueo CAPTCHA (NameError: browser).
 - `trends/app.py`: Añadido `Flask-SocketIO` y transmisión en tiempo real de logs del subproceso (stdout).
 - `index.html`: Añadido un nuevo bloque de 'Log Terminal' para visibilizar progresos y errores sin tener abierta la consola.
 - `index.html`: Arreglado el renderizado oculto del Log Terminal forzando `flex-shrink: 0` y retirando `height: 100%` colindante que lo colapsaba.
 - `index.html`: Arreglado fallo donde el gráfico desaparecía si no había selecciones almacenadas, ahora auto-selecciona la primera provincia disponible.
+
 ## [2.9.1] - 2026-02-22
 ### Fixed
 - **Disfunción del Botón Detener**: Solucionado un problema estructural en `scraper_wrapper.py` donde la inicialización directa de `asyncio.Event` en el hilo principal de Flask rompía las callbacks del hilo asíncrono en segundo plano (`RuntimeError cross-loop`) al presionar "Detener". Ahora el scraper responde y se detiene invariablemente.
