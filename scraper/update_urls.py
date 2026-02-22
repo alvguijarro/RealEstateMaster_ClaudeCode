@@ -739,6 +739,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                     
                     page = context.pages[0] if context.pages else await context.new_page()
                     
+                    # Close extra tabs potentially restored by portable browsers (like Opera)
+                    for p in context.pages:
+                        if p != page:
+                            try: await p.close()
+                            except: pass
+                    
                     # No longer doing warmup per user request
                     # if start_index == 0 or random.random() < 0.1:
                     #     await human_warmup_routine(page, emit_to_ui)

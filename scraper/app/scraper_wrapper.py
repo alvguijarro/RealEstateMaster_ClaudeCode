@@ -2289,6 +2289,12 @@ class ScraperController:
                         
                         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
                         
+                        # Close extra tabs potentially restored by portable browsers (like Opera)
+                        for p in ctx.pages:
+                            if p != page:
+                                try: await p.close()
+                                except: pass
+                        
                         # Apply playwright-stealth patches (additional layer) - works for both engines
                         if HAS_STEALTH and stealth_async:
                             await stealth_async(page)
@@ -2493,41 +2499,41 @@ class ScraperController:
                             self.log("WARN", "⚠️ HARD BLOCK/CAPTCHA FAIL: 0 properties found. Initiating rotation.")
                             # ROTATION LOGIC (2026): Strict Sequential with Cooldown
                             mark_current_profile_blocked()
-                        
-                        # Save state for resume
-                        self.save_state(self.current_page or 1, target_file)
-                        
-                        # Cancel mouse jitter and close browser
-                        try:
-                            if 'mouse_jitter_task' in locals() and mouse_jitter_task:
-                                mouse_jitter_task.cancel()
-                            if ctx:
-                                await ctx.close()
-                        except:
-                            pass
-                        
-                        # This function handles sequential overflow
-                        next_config, wait_time = rotate_identity()
-                        
-                        self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
-                        if wait_time > 0:
-                            self.log("INFO", f"⏳ Profile is in cooldown ({int(wait_time)}s). Waiting...")
-                        self.log("INFO", f"Restarting in {int(wait_time) + 5} seconds with fresh identity...")
-                        
-                        if self.on_status:
-                            self.on_status("blocked", message=f"Rotando a Perfil {next_config['index']}...")
-                        
-                        # Wait cooldown
-                        try:
-                            await self._interruptible_sleep(wait_time + 5.0)
-                        except StopException:
-                            self.log("INFO", "Rollover wait cancelled by stop event.")
-                            break
-                        
-                        if self._stop_evt.is_set():
-                            break
                             
-                        continue  # Loop back to restart with new browser identity
+                            # Save state for resume
+                            self.save_state(self.current_page or 1, target_file)
+                            
+                            # Cancel mouse jitter and close browser
+                            try:
+                                if 'mouse_jitter_task' in locals() and mouse_jitter_task:
+                                    mouse_jitter_task.cancel()
+                                if ctx:
+                                    await ctx.close()
+                            except:
+                                pass
+                            
+                            # This function handles sequential overflow
+                            next_config, wait_time = rotate_identity()
+                            
+                            self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
+                            if wait_time > 0:
+                                self.log("INFO", f"⏳ Profile is in cooldown ({int(wait_time)}s). Waiting...")
+                            self.log("INFO", f"Restarting in {int(wait_time) + 5} seconds with fresh identity...")
+                            
+                            if self.on_status:
+                                self.on_status("blocked", message=f"Rotando a Perfil {next_config['index']}...")
+                            
+                            # Wait cooldown
+                            try:
+                                await self._interruptible_sleep(wait_time + 5.0)
+                            except StopException:
+                                self.log("INFO", "Rollover wait cancelled by stop event.")
+                                break
+                            
+                            if self._stop_evt.is_set():
+                                break
+                                
+                            continue  # Loop back to restart with new browser identity
 
             
                     # Detect alquiler/venta from h1 text

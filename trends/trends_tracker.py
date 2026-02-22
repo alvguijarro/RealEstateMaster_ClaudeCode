@@ -175,6 +175,12 @@ async def run_tracker():
                 
                 page = context.pages[0] if context.pages else await context.new_page()
                 
+                # Close extra tabs potentially restored by portable browsers (like Opera)
+                for p in context.pages:
+                    if p != page:
+                        try: await p.close()
+                        except: pass
+                
                 # PROCESS URLs
                 scan_idx = start_index
                 for k, data in enumerate(urls_data[start_index:], start_index):
