@@ -1012,9 +1012,8 @@ class ScraperController:
     _province_target_file: Optional[str] = None  # Province-based target file
     
     def __post_init__(self):
-        self._stop_evt = asyncio.Event()
-        self._pause_evt = asyncio.Event()
-        self._pause_evt.set()  # Not paused initially
+        self._stop_evt = None
+        self._pause_evt = None
         self.scraped_properties = []
         self._processed = set()
         self._inflight = set()
@@ -1235,10 +1234,11 @@ class ScraperController:
     
     def pause(self):
         """Pause scraping and save state."""
-        if self._loop:
-            self._loop.call_soon_threadsafe(self._pause_evt.clear)
-        else:
-            self._pause_evt.clear()
+        if self._pause_evt:
+            if self._loop and not self._loop.is_closed():
+                self._loop.call_soon_threadsafe(self._pause_evt.clear)
+            else:
+                self._pause_evt.clear()
         
         self.status = "paused"
         self.log("INFO", "Scraping paused")
@@ -1255,10 +1255,11 @@ class ScraperController:
     
     def resume(self):
         """Resume scraping."""
-        if self._loop:
-            self._loop.call_soon_threadsafe(self._pause_evt.set)
-        else:
-            self._pause_evt.set()
+        if self._pause_evt:
+            if self._loop and not self._loop.is_closed():
+                self._loop.call_soon_threadsafe(self._pause_evt.set)
+            else:
+                self._pause_evt.set()
             
         self.status = "running"
         self.log("INFO", "Scraping resumed")
@@ -1273,17 +1274,17 @@ class ScraperController:
         try:
             # Check if loop exists and is still running
             if self._loop and not self._loop.is_closed():
-                self._loop.call_soon_threadsafe(self._stop_evt.set)
-                self._loop.call_soon_threadsafe(self._pause_evt.set) # Unpause to allow graceful stop
+                if self._stop_evt: self._loop.call_soon_threadsafe(self._stop_evt.set)
+                if self._pause_evt: self._loop.call_soon_threadsafe(self._pause_evt.set) # Unpause to allow graceful stop
             else:
                 # Loop closed or not set - just set events directly (though nobody might be listening)
-                self._stop_evt.set()
-                self._pause_evt.set()
+                if self._stop_evt: self._stop_evt.set()
+                if self._pause_evt: self._pause_evt.set()
         except Exception as e:
             self.log("WARN", f"Could not signal stop/pause events (loop closed?): {e}")
             # Fallback
-            self._stop_evt.set()
-            self._pause_evt.set()
+            if self._stop_evt: self._stop_evt.set()
+            if self._pause_evt: self._pause_evt.set()
             
         self.status = "stopping"
         self.log("INFO", "Stopping scraper...")
@@ -1914,9 +1915,14 @@ class ScraperController:
     async def run(self):
         """Main scraping loop."""
         self._loop = asyncio.get_running_loop()
+        
+        # CRITICAL FIX: Events MUST be created inside the target event loop, otherwise
+        # set() / wait() operations from threadsafe callbacks will crash cross-loop.
+        self._stop_evt = asyncio.Event()
+        self._pause_evt = asyncio.Event()
+        
         self.is_running = True
         self.status = "running"
-        self._stop_evt.clear()
         self._pause_evt.set()
         
         # Start heartbeat monitor
