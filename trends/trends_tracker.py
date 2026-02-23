@@ -82,8 +82,8 @@ async def extract_h1_number(page):
         
         for selector in selectors:
             try:
-                # 10s timeout as requested by user
-                h1_handle = await page.wait_for_selector(selector, timeout=10000)
+                # 15s timeout as requested by user
+                h1_handle = await page.wait_for_selector(selector, timeout=15000)
                 if h1_handle:
                     h1_text = await h1_handle.inner_text()
                     if h1_text:
@@ -159,10 +159,14 @@ async def record_exists_for_week(iso_year, iso_week, province, zone, operation):
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            SELECT 1 FROM inventory_trends 
+            SELECT total_properties FROM inventory_trends 
             WHERE iso_year = ? AND iso_week = ? AND province = ? AND zone = ? AND operation = ?
         ''', (iso_year, iso_week, province, zone, operation))
-        return cursor.fetchone() is not None
+        row = cursor.fetchone()
+        if row:
+            # If total is 0, we count it as non-existent to force a re-scrape (likely error)
+            return row[0] > 0
+        return False
     except Exception as e:
         print(f"DB Check Error: {e}")
         return False
