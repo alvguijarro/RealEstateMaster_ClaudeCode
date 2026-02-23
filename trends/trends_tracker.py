@@ -17,6 +17,7 @@ DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "market_trends.db"
 CHECKPOINT_FILE = DATA_DIR / "checkpoint.json"
 STOP_FLAG_FILE = DATA_DIR / "TRACKER_STOP.flag"
+DEBUG_DIR = DATA_DIR / "debug"
 MAPPING_FILE = PROJECT_ROOT / "scraper" / "documentation" / "province_urls_mapping.md"
 
 if str(PROJECT_ROOT) not in sys.path:
@@ -73,18 +74,68 @@ def parse_mapping(file_path):
     return urls_to_scrape
 
 async def extract_h1_number(page):
-    """Extracts the leading number from the H1 element."""
+    """Extracts the leading number from the H1 element with improved robustness."""
     try:
-        h1_text = await page.inner_text("h1", timeout=5000)
-        # e.g., "1.240 casas y pisos" -> 1240
-        # or "3 casas" -> 3
-        match = re.search(r'^([0-9.,]+)', h1_text)
+        # Try multiple common selectors for the title count
+        selectors = ["h1", ".main-info h1", "#h1-container h1", ".h1-container h1"]
+        h1_text = ""
+        
+        for selector in selectors:
+            try:
+                # 15s timeout to account for high network load
+                h1_handle = await page.wait_for_selector(selector, timeout=15000)
+                if h1_handle:
+                    h1_text = await h1_handle.inner_text()
+                    if h1_text:
+                        break
+            except:
+                continue
+        
+        if not h1_text:
+            return 0
+            
+        # Match numbers with potential dots/commas as thousands separators
+        match = re.search(r'([0-9.,]+)', h1_text)
         if match:
             clean_num = match.group(1).replace(".", "").replace(",", "")
-            return int(clean_num)
-    except:
-        return 0
+            if clean_num.isdigit():
+                return int(clean_num)
+    except Exception as e:
+        pass
     return 0
+
+async def detect_block(page):
+    """Detects if we are hard-blocked or on a specialized captcha page."""
+    try:
+        title = (await page.title() or "").lower()
+        # Simplified block detection to avoid expensive content extraction if possible
+        block_keywords = ["pardon our interruption", "captcha", "access denied", "forbidden", "uso indebido", "bloqueado"]
+        if any(kw in title for kw in block_keywords):
+            return True
+            
+        # Check for the datadome iframe or specific text
+        is_blocked = await page.evaluate("""() => {
+            const text = document.body ? document.body.innerText.toLowerCase() : '';
+            return text.includes('uso indebido') || 
+                   text.includes('pardon our interruption') || 
+                   !!document.querySelector('iframe[src*="captcha-delivery.com"]');
+        }""")
+        return is_blocked
+    except:
+        return False
+
+async def take_debug_screenshot(page, province, zone):
+    """Captures a screenshot when 0 properties are found to diagnose rendering/blocks."""
+    try:
+        DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        safe_zone = re.sub(r'[^a-zA-Z0-9]', '_', zone)
+        timestamp = datetime.datetime.now().strftime("%H%M%S")
+        filename = f"0_props_{province}_{safe_zone}_{timestamp}.png"
+        filepath = DEBUG_DIR / filename
+        await page.screenshot(path=str(filepath))
+        print(f"  📸 Debug screenshot saved: trends/data/debug/{filename}")
+    except Exception as e:
+        print(f"  ⚠️ Could not take debug screenshot: {e}")
     
 async def save_to_db(date_record, iso_year, iso_week, province, zone, operation, total):
     """Saves the extracted total to the SQLite database."""
@@ -301,27 +352,18 @@ async def run_tracker(resume=False, headless=False):
                         await page.goto(url, timeout=45000, wait_until="domcontentloaded")
                         await asyncio.sleep(random.uniform(2.5, 5.5)) # Delay to mimic human
                         
-                        # CAPTCHA check
-                        title = await page.title()
-                        if "Pardon Our Interruption" in title or "Captcha" in title:
-                            print(f"WARN: CAPTCHA detected on {url}.")
-                            resolved = await solve_captcha_advanced(page)
-                            if not resolved:
-                                print("ERR: Could not resolve Captcha. Burning profile and rotating...")
-                                mark_current_profile_blocked()
-                                raise RuntimeError("CAPTCHA_CRITICAL_BLOCK")
-                            
-                            # If resolved, wait a bit for Cloudflare to redirect
-                            await asyncio.sleep(5)
-                            
-                        # Double check we are on a listing page
-                        title = await page.title()
-                        if "Pardon" in title or "Captcha" in title:
-                            print("ERR: Still blocked after resolution attempt. Burning profile.")
+                        # Enhanced block detection
+                        if await detect_block(page):
+                            print(f"WARN: BLOCK detected on {url}. Marking profile blocked.")
                             mark_current_profile_blocked()
                             raise RuntimeError("CAPTCHA_CRITICAL_BLOCK")
 
                         total_properties = await extract_h1_number(page)
+                        
+                        if total_properties == 0:
+                            # Verify if it's really 0 or a load failure
+                            await take_debug_screenshot(page, province, zone)
+                            
                         print(f"  -> Found {total_properties} properties.")
                         
                         if total_properties >= 0:
