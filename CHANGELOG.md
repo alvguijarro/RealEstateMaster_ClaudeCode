@@ -1,6 +1,9 @@
 # Changelog
 
 ## [2.9.3] - 2026-02-23
+### Added
+- **Sincronización de Archivos VENTA/ALQUILER**: Implementada lógica bidireccional en Analytics Pro para emparejar automáticamente los archivos de venta y alquiler que comparten el mismo prefijo geográfico. Incluye avisos en rojo ("Por favor, selecciona el fichero correcto") si no se encuentra una coincidencia automática.
+
 ### Fixed
 - **Localización incorrecta en Deep Research**: Corregido bug crítico donde el informe de Deep Research mostraba la zona y ciudad incorrectas (ej. "Baix, Baix" en lugar de "Pilar de la Horadada, Alicante"). El frontend ahora obtiene la ciudad y provincia directamente de los datos del análisis (`Ciudad`, `Provincia`) en lugar de intentar adivinarlas a partir del nombre del archivo Excel.
 - **Detección de provincia mejorada**: La variable `currentAnalysisProvince` ahora se extrae prioritariamente de los datos del análisis en lugar del nombre del resultado, asegurando consistencia en la integración con la calculadora de rentabilidad.

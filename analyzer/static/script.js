@@ -44,8 +44,8 @@ async function loadFiles() {
         ventaSelect.innerHTML = '<option value="">-- Seleccionar archivo --</option>';
         alquilerSelect.innerHTML = '<option value="">-- Seleccionar archivo --</option>';
 
-        let ventaSelected = false;
-        let alquilerSelected = false;
+        let newestVenta = null;
+        let newestAlquiler = null;
 
         files.forEach(file => {
             const dateStr = `[${file.last_modified}]`;
@@ -56,28 +56,35 @@ async function loadFiles() {
             optV.innerHTML = `${file.filename} &nbsp;&nbsp; ${dateStr}`;
             ventaSelect.appendChild(optV);
 
-            // Auto-select newest 'venta' file
-            if (!ventaSelected && file.type === 'venta') {
-                optV.selected = true;
-                ventaSelected = true;
-            }
+            // Keep track of newest files
+            if (!newestVenta && file.type === 'venta') newestVenta = file.filename;
+            if (!newestAlquiler && file.type === 'alquiler') newestAlquiler = file.filename;
 
             // Alquiler Option
             const optA = document.createElement('option');
             optA.value = file.filename;
             optA.innerHTML = `${file.filename} &nbsp;&nbsp; ${dateStr}`;
             alquilerSelect.appendChild(optA);
-
-            // Auto-select newest 'alquiler' file
-            if (!alquilerSelected && file.type === 'alquiler') {
-                optA.selected = true;
-                alquilerSelected = true;
-            }
         });
 
-        // Add event listeners for validation
-        ventaSelect.addEventListener('change', validateFileSelection);
-        alquilerSelect.addEventListener('change', validateFileSelection);
+        // --- Initial Selection Logic ---
+        if (newestVenta) {
+            ventaSelect.value = newestVenta;
+            // Try to find matching alquiler
+            const prefix = extractFilePrefix(newestVenta);
+            const match = Array.from(alquilerSelect.options).find(opt => opt.value.startsWith(prefix) && opt.value.toLowerCase().includes('alquiler'));
+            if (match) {
+                alquilerSelect.value = match.value;
+            } else if (newestAlquiler) {
+                alquilerSelect.value = newestAlquiler;
+            }
+        } else if (newestAlquiler) {
+            alquilerSelect.value = newestAlquiler;
+        }
+
+        // Add event listeners for validation and SYNC
+        ventaSelect.addEventListener('change', (e) => validateFileSelection('venta'));
+        alquilerSelect.addEventListener('change', (e) => validateFileSelection('alquiler'));
 
         // Initial validation
         validateFileSelection();
@@ -89,25 +96,81 @@ async function loadFiles() {
     }
 }
 
-function validateFileSelection() {
-    const vVal = document.getElementById('ventaFile').value;
-    const aVal = document.getElementById('alquilerFile').value;
+function extractFilePrefix(filename) {
+    if (!filename) return "";
+    // Remove _venta.xlsx or _alquiler.xlsx (case insensitive)
+    return filename.replace(/_(venta|alquiler)\.xlsx$/i, "");
+}
 
-    // Warning if Venta file doesn't contain "venta" (case insensitive)
+function validateFileSelection(changedSource) {
+    const vSelect = document.getElementById('ventaFile');
+    const aSelect = document.getElementById('alquilerFile');
+    const vVal = vSelect.value;
+    const aVal = aSelect.value;
+
+    // --- Sync Logic ---
+    if (changedSource === 'venta' && vVal) {
+        const prefix = extractFilePrefix(vVal);
+        const match = Array.from(aSelect.options).find(opt => opt.value.startsWith(prefix) && opt.value.toLowerCase().includes('alquiler'));
+        if (match) aSelect.value = match.value;
+    } else if (changedSource === 'alquiler' && aVal) {
+        const prefix = extractFilePrefix(aVal);
+        const match = Array.from(vSelect.options).find(opt => opt.value.startsWith(prefix) && opt.value.toLowerCase().includes('venta'));
+        if (match) vSelect.value = match.value;
+    }
+
+    // Refresh values after potential sync
+    const finalV = vSelect.value;
+    const finalA = aSelect.value;
+
+    // 1. Generic VENTA/ALQUILER keyword warnings (yellowish/orange)
     const vWarning = document.getElementById('ventaWarning');
-    if (vVal && !vVal.toLowerCase().includes('venta')) {
+    if (finalV && !finalV.toLowerCase().includes('venta')) {
         vWarning.style.display = 'block';
     } else {
         vWarning.style.display = 'none';
     }
 
-    // Warning if Alquiler file doesn't contain "alquiler" (case insensitive)
     const aWarning = document.getElementById('alquilerWarning');
-    if (aVal && !aVal.toLowerCase().includes('alquiler')) {
+    if (finalA && !finalA.toLowerCase().includes('alquiler')) {
         aWarning.style.display = 'block';
     } else {
         aWarning.style.display = 'none';
     }
+
+    // 2. Sync Errors (Red) - Check if they actually match
+    const vSyncError = document.getElementById('ventaSyncError');
+    const aSyncError = document.getElementById('alquilerSyncError');
+
+    const prefixV = extractFilePrefix(finalV);
+    const prefixA = extractFilePrefix(finalA);
+
+    if (finalV && finalA) {
+        if (prefixV !== prefixA) {
+            // If they don't match, show error on the one that WASN'T just changed? 
+            // Or just on both if they are different. The user said: 
+            // "indindicando 'Por favor, selecciona el fichero correcto' en el desplegable donde no se ha encontrado automáticamente"
+            // This implies if I change V to X, and A doesn't have an X counterpart, A shows error.
+            if (changedSource === 'venta') {
+                aSyncError.style.display = 'flex';
+                vSyncError.style.display = 'none';
+            } else if (changedSource === 'alquiler') {
+                vSyncError.style.display = 'flex';
+                aSyncError.style.display = 'none';
+            } else {
+                // Initial load or unknown
+                vSyncError.style.display = prefixV !== prefixA ? 'flex' : 'none';
+                aSyncError.style.display = prefixV !== prefixA ? 'flex' : 'none';
+            }
+        } else {
+            vSyncError.style.display = 'none';
+            aSyncError.style.display = 'none';
+        }
+    } else {
+        vSyncError.style.display = 'none';
+        aSyncError.style.display = 'none';
+    }
+
     validateAnalyzeButton();
 }
 

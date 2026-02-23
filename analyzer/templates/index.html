@@ -71,11 +71,21 @@
             box-shadow: 0 6px 20px rgba(118, 75, 162, 0.6);
         }
 
-        /* HIGH CONTRAST MODAL SELECT */
         #districtModalSelect {
             background-color: #ffffff !important;
             color: #000000 !important;
             border: 1px solid #ccc;
+        }
+
+        /* Sync Error Styles */
+        .sync-error {
+            color: #ff4d4d;
+            font-size: 0.85em;
+            margin-top: 6px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
     </style>
 </head>
@@ -106,6 +116,9 @@
                             style="display:none; color: #ff6b6b; font-size: 0.85em; margin-top: 4px;">
                             ⚠ No se ha seleccionado un archivo que incluya "VENTA" en el nombre
                         </div>
+                        <div id="ventaSyncError" class="sync-error" style="display: none;">
+                            ⚠ Por favor, selecciona el fichero correcto
+                        </div>
                     </div>
                     <div class="form-group" style="position: relative; z-index: 100;">
                         <label for="alquilerFile">Archivo de viviendas en ALQUILER</label>
@@ -115,6 +128,9 @@
                         <div id="alquilerWarning"
                             style="display:none; color: #ff6b6b; font-size: 0.85em; margin-top: 4px;">
                             ⚠ No se ha seleccionado un archivo que incluya "ALQUILER" en el nombre
+                        </div>
+                        <div id="alquilerSyncError" class="sync-error" style="display: none;">
+                            ⚠ Por favor, selecciona el fichero correcto
                         </div>
                     </div>
                 </div>
