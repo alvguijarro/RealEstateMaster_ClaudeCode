@@ -41,7 +41,12 @@
 
                 <div class="filters-grid">
                     <div class="input-group">
-                        <label for="fileSelect">VENTA Excel File</label>
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <label for="fileSelect" style="margin-bottom: 0;">VENTA Excel File</label>
+                            <button id="refreshBtn" onclick="refreshFiles()" title="Refrescar Lista"
+                                class="refresh-btn">🔄 Refresh</button>
+                        </div>
                         <select id="fileSelect">
                             <option value="">Loading files...</option>
                         </select>

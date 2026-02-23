@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.3] - 2026-02-23
+### Fixed
+- **Localización incorrecta en Deep Research**: Corregido bug crítico donde el informe de Deep Research mostraba la zona y ciudad incorrectas (ej. "Baix, Baix" en lugar de "Pilar de la Horadada, Alicante"). El frontend ahora obtiene la ciudad y provincia directamente de los datos del análisis (`Ciudad`, `Provincia`) en lugar de intentar adivinarlas a partir del nombre del archivo Excel.
+- **Detección de provincia mejorada**: La variable `currentAnalysisProvince` ahora se extrae prioritariamente de los datos del análisis en lugar del nombre del resultado, asegurando consistencia en la integración con la calculadora de rentabilidad.
+
 ## [Unreleased] - Market Trends Enhancements
 - `scraper_wrapper.py`: **Modo Deep Scrape (NUEVO)**. Automatizada la transición en búsquedas de gran volumen. Al alcanzar el límite impuesto por Idealista (página 60), automáticamente itera inyectando 4 variaciones de ordenación para sobrepasar la barrera de las 1800 viviendas mostradas y llegar hasta las 6000 o 9000 propiedades totales de una ciudad de forma autónoma con un mismo "click".
 - `scraper_wrapper.py`: **Auto-Stop por Saltos Consecutivos (NUEVO)**. Integrado un sistema de protección para el Deep Scrape. Si el scraper detecta 300 propiedades consecutivas que ya han sido scrapeadas (aprox. 10 páginas redundantes), detiene automáticamente el proceso para ahorrar ancho de banda y evitar bloqueos innecesarios.

@@ -93,11 +93,21 @@ def get_files():
         search_path = Path(search_dir)
         if search_path.exists():
             for f in search_path.glob('*.xlsx'):
-                # Only include files with VENTA in name
-                if f.is_file():  # Allow all Excel files
+                # Allow all Excel files natively
+                if f.is_file():  
+                    try:
+                        mtime = os.path.getmtime(f)
+                        import datetime
+                        date_str = pd.to_datetime(mtime, unit='s').strftime('%d/%m/%Y %H:%M')
+                    except Exception:
+                        mtime = 0
+                        date_str = "Desconocido"
+                    
                     files.append({
                         'name': f.name,
-                        'path': str(f.resolve())
+                        'path': str(f.resolve()),
+                        'mtime': mtime,
+                        'date': date_str
                     })
     
     # Deduplicate by path
@@ -107,6 +117,9 @@ def get_files():
         if f['path'] not in seen_paths:
             seen_paths.add(f['path'])
             unique_files.append(f)
+            
+    # Sort descending by mtime
+    unique_files.sort(key=lambda x: x['mtime'], reverse=True)
     
     return jsonify({'files': unique_files})
 

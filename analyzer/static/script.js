@@ -346,12 +346,19 @@ async function loadResults() {
             currentTop100 = [];
         }
 
-        // Extract Province/City from filename (Salidas/resultado_Valencia_...)
+        // Extract Province/City from analysis data or filename
         currentAnalysisProvince = null;
-        if (response.file) {
+        // Primary: use Provincia from analysis results
+        if (currentResults.length > 0) {
+            const firstWithProv = currentResults.find(r => r.Provincia && r.Provincia.trim());
+            if (firstWithProv) {
+                currentAnalysisProvince = firstWithProv.Provincia.trim();
+            }
+        }
+        // Fallback: parse from filename
+        if (!currentAnalysisProvince && response.file) {
             const parts = response.file.split('_');
             if (parts.length >= 2) {
-                // parts[1] is typically the city name
                 currentAnalysisProvince = parts[1];
             }
         }
@@ -823,29 +830,36 @@ function setupModalHandlers() {
             // 2. Close the modal
             if (modal) modal.classList.add('hidden');
 
-            // 3. Determine Location Context (City/Province) from filename
-            let city = "Madrid";
-            let province = "Madrid";
-            const ventaFile = document.getElementById('ventaFile') ? document.getElementById('ventaFile').value : '';
+            // 3. Determine Location Context (City/Province) from analysis data
+            let city = "";
+            let province = "";
 
-            if (ventaFile) {
-                if (ventaFile.startsWith('API_BATCH_')) {
-                    const parts = ventaFile.split('_');
-                    if (parts.length >= 3) {
-                        city = parts[2];
-                        province = parts[2];
-                    }
-                } else {
-                    const parts = ventaFile.split('_');
+            // Look up the real Ciudad and Provincia from the analysis results
+            const matchingResult = currentResults.find(r => r.Distrito === selectedDistrict);
+            if (matchingResult) {
+                city = matchingResult.Ciudad || "";
+                province = matchingResult.Provincia || "";
+            }
+
+            // Fallback: try to extract from filename if analysis data is missing
+            if (!city && !province) {
+                const ventaFile = document.getElementById('ventaFile') ? document.getElementById('ventaFile').value : '';
+                if (ventaFile) {
+                    const parts = ventaFile.replace('.xlsx', '').split('_');
                     if (parts.length >= 2) {
-                        city = parts[1];
-                        if (city !== 'Madrid') province = city;
+                        city = parts[1].replace(/-/g, ' ');
+                        province = city;
                     }
                 }
             }
 
             // 4. Construct context-aware district name
-            const fullDistrictName = `${selectedDistrict} (${city}, ${province})`;
+            let fullDistrictName = selectedDistrict;
+            if (city && province && city !== province) {
+                fullDistrictName = `${selectedDistrict}, ${city}, ${province}`;
+            } else if (city) {
+                fullDistrictName = `${selectedDistrict}, ${city}`;
+            }
 
             console.log(`Starting Unified Deep Research for: ${fullDistrictName}`);
 

@@ -70,14 +70,24 @@ async function loadFiles() {
     try {
         const res = await fetch('/api/files');
         const data = await res.json();
+
+        // Preserve current selection if possible
+        const currentVal = fileSelect.value;
+
         fileSelect.innerHTML = '<option value="">Select a VENTA file...</option>';
         if (data.files && data.files.length > 0) {
             data.files.forEach(file => {
                 const option = document.createElement('option');
                 option.value = file.path;
-                option.textContent = file.name;
+                // Add modification date to the text label
+                option.textContent = `${file.name} \u00A0\u00A0 • \u00A0\u00A0 ${file.date || ''}`;
                 fileSelect.appendChild(option);
             });
+
+            // Restore selection
+            if (currentVal && [...fileSelect.options].some(o => o.value === currentVal)) {
+                fileSelect.value = currentVal;
+            }
         } else {
             fileSelect.innerHTML = '<option value="">No VENTA files found</option>';
         }
@@ -86,6 +96,21 @@ async function loadFiles() {
         fileSelect.innerHTML = '<option value="">Error loading files</option>';
     }
 }
+
+async function refreshFiles() {
+    const btn = document.getElementById('refreshBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Refreshing...';
+
+    await loadFiles();
+
+    setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }, 500);
+}
+window.refreshFiles = refreshFiles;
 
 async function onFileChange() {
     selectedFile = fileSelect.value;
