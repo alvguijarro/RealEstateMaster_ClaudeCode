@@ -180,8 +180,8 @@ def auto_export_csv():
     except Exception as e:
         print(f"Error auto-exporting CSV: {e}")
 
-async def run_tracker(resume=False):
-    print(f"Starting Robust Market Trends Tracker (Resume: {resume})...", flush=True)
+async def run_tracker(resume=False, headless=False):
+    print(f"Starting Robust Market Trends Tracker (Resume: {resume}, Headless: {headless})...", flush=True)
     os.makedirs(DATA_DIR, exist_ok=True)
     
     urls_data = parse_mapping(MAPPING_FILE)
@@ -245,7 +245,7 @@ async def run_tracker(resume=False):
             
             launch_options = {
                 "user_data_dir": profile_dir,
-                "headless": False, # Keep visible for now
+                "headless": headless,
                 "viewport": {"width": viewport[0], "height": viewport[1]},
                 "user_agent": random.choice(USER_AGENTS)
             }
@@ -368,6 +368,7 @@ async def run_tracker(resume=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--resume", action="store_true", help="Resume from last checkpoint")
+    parser.add_argument("--headless", action="store_true", help="Run browser in headless mode")
     args = parser.parse_args()
     
-    asyncio.run(run_tracker(resume=args.resume))
+    asyncio.run(run_tracker(resume=args.resume, headless=args.headless))
