@@ -1501,11 +1501,12 @@ class ScraperController:
                 
             # 2. Check for HARD BLOCKS (Highest Priority)
             # Check for WAF/Block IDs (e.g. ID: c031717f...) or explicit block text
-            has_block_id = "id: " in text_lower and re.search(r"id: [0-9a-f]{8,32}-", text_lower)
+            has_block_id = bool(re.search(r"id:\s*[0-9a-f]{8,32}-", text_lower))
             
             hard_block_keywords = [
                 "el acceso se ha bloqueado",
                 "se ha detectado un uso indebido",
+                "un uso indebido",
                 "uso no autorizado",
                 "acceso bloqueado",
                 "forbidden",
@@ -1779,8 +1780,9 @@ class ScraperController:
                 except (BlockedException, StopException):
                     raise
                 except Exception as e:
+                    if str(e) == "CAPTCHA_TIMEOUT":
+                        raise BlockedException("CAPTCHA_TIMEOUT")
                     self.log("DEBUG", f"Internal nav check ignored error: {e}")
-
 
                 await self._interruptible_sleep(3.0)
                 return

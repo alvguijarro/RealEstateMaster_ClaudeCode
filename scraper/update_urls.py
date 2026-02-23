@@ -368,9 +368,20 @@ async def detect_captcha(page) -> str | None:
         text_lower = re.sub(r'\s+', ' ', text_lower).strip()
 
         # Hard blocks
-        if any(kw in text_lower for kw in ["el acceso se ha bloqueado", "uso indebido", "access denied", "forbidden", "un uso indebido"]):
+        hard_block_keywords = [
+            "el acceso se ha bloqueado",
+            "se ha detectado un uso indebido",
+            "un uso indebido",
+            "uso no autorizado",
+            "acceso bloqueado",
+            "forbidden",
+            "access denied",
+            "uso indebido"
+        ]
+        
+        if any(kw in text_lower for kw in hard_block_keywords):
             return "block"
-        if "id: " in text_lower and re.search(r"id: [0-9a-f]{8,32}-", text_lower):
+        if bool(re.search(r"id:\s*[0-9a-f]{8,32}-", text_lower)):
             return "block"
         
         # Detect ID pattern: 3cc1692a-4eb3-73db-8328-e6e677b4cbc3
@@ -1093,7 +1104,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             err_msg = str(e).lower()
                             
                             # Convert block-related exceptions to BlockedException
-                            if any(x in err_msg for x in ["bloqueado", "uso indebido", "captcha_block", "access denied", "block detected", "extraction empty"]):
+                            if any(x in err_msg for x in ["bloqueado", "uso indebido", "captcha_block", "captcha_timeout", "access denied", "block detected", "extraction empty", "captcha timeout"]):
                                 emit_to_ui('ERR', f'Potential block detected via exception: {e}')
                                 await save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs)
                                 if pending_history: save_history(pending_history)
