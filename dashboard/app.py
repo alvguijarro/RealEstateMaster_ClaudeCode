@@ -253,7 +253,23 @@ def get_analytics():
         # Helper: clean currency string
         def clean_currency(series):
             if series.dtype == 'object':
-                return pd.to_numeric(series.astype(str).str.replace('€', '').str.replace('.', '').str.replace(',', '.').str.strip(), errors='coerce')
+                # String column: remove currency symbols, then handle thousand-separators.
+                # IMPORTANT: remove '.' ONLY if it's used as a thousands separator (Spanish format like '1.292.350').
+                # A trailing '.' after removing '\u20ac' and spaces is the decimal dot of a float-as-string - DO NOT remove it.
+                def _parse_cell(s):
+                    s = str(s).replace('\u20ac', '').strip()
+                    try:
+                        return float(s)  # Already a plain number, no transformation needed
+                    except ValueError:
+                        pass
+                    # Spanish format: '1.292.350' or '1.292,35'
+                    s = s.replace('.', '').replace(',', '.')
+                    try:
+                        return float(s)
+                    except ValueError:
+                        return None
+                return pd.to_numeric(series.apply(_parse_cell), errors='coerce')
+            # Numeric column: safe to convert directly without string manipulation
             return pd.to_numeric(series, errors='coerce')
 
         # 4. Price per m2 Statistics (for display)
@@ -396,10 +412,21 @@ def get_analytics():
             # Price (raw, not per m2)
             if precio_col and pd.notna(row.get(precio_col)):
                 try:
-                    val = str(row[precio_col]).replace('€','').replace('.','').replace(',','.').strip()
-                    # Handle "/mes" suffix for rent
-                    val = val.split('/')[0].strip()
-                    prop['precio'] = float(val)
+                    raw_val = row[precio_col]
+                    # Prefer numeric value directly to avoid string manipulation bugs
+                    try:
+                        prop['precio'] = float(raw_val)
+                    except (ValueError, TypeError):
+                        val = str(raw_val).replace('\u20ac', '').strip()
+                        # Handle '/mes' suffix for rent
+                        val = val.split('/')[0].strip()
+                        # Try as-is first (handles '129235.0' correctly)
+                        try:
+                            prop['precio'] = float(val)
+                        except ValueError:
+                            # Spanish format with thousand-separator dots
+                            val = val.replace('.', '').replace(',', '.')
+                            prop['precio'] = float(val)
                 except: pass
             
             # Core fields
@@ -414,15 +441,22 @@ def get_analytics():
             p_m2 = None
             if price_per_m2_col and pd.notna(row.get(price_per_m2_col)):
                 try:
-                    val = str(row[price_per_m2_col]).replace('€','').replace('.','').replace(',','.').strip()
-                    p_m2 = float(val)
+                    raw_ppm2 = row[price_per_m2_col]
+                    try:
+                        p_m2 = float(raw_ppm2)  # Numeric: use directly
+                    except (ValueError, TypeError):
+                        val = str(raw_ppm2).replace('\u20ac', '').strip()
+                        try:
+                            p_m2 = float(val)
+                        except ValueError:
+                            val = val.replace('.', '').replace(',', '.')
+                            p_m2 = float(val)
                 except: pass
             elif precio_col and size_col:
                 try:
-                    p_val = str(row[precio_col]).replace('€','').replace('.','').replace(',','.').strip()
-                    precio = float(p_val)
-                    size = float(str(row[size_col]).replace('m²','').replace('m2','').strip())
-                    if size > 0: p_m2 = round(precio / size, 2)
+                    precio = prop.get('precio')  # Reuse already-parsed price
+                    size = float(str(row[size_col]).replace('m\u00b2','').replace('m2','').strip())
+                    if precio and size > 0: p_m2 = round(precio / size, 2)
                 except: pass
             if p_m2 is not None: prop['price_per_m2'] = p_m2
             
