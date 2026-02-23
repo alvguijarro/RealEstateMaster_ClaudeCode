@@ -3185,10 +3185,14 @@ class ScraperController:
                         # Case 4: Max pages reached (hard limit / Deep Scrape Transition)
                         if page_num >= 60:
                             sort_options = [
+                                "ordenado-por=precios-asc",
                                 "ordenado-por=fecha-publicacion-desc",
                                 "ordenado-por=fecha-publicacion-asc",
-                                "ordenado-por=precios-asc",
-                                "ordenado-por=precios-desc"
+                                "ordenado-por=rebajas-desc",
+                                "ordenado-por=precio-metro-cuadrado-asc",
+                                "ordenado-por=precio-metro-cuadrado-desc",
+                                "ordenado-por=planta-desc",
+                                "ordenado-por=planta-asc"
                             ]
                             if not hasattr(self, "_current_sort_idx"):
                                 self._current_sort_idx = -1
