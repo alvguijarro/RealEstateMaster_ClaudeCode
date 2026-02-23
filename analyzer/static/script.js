@@ -11,6 +11,14 @@ function init() {
     setupAnalyze();
     setupSorting();
     startHeartbeat();
+
+    // Setup download button
+    const dlBtn = document.getElementById('btnDownload');
+    if (dlBtn) {
+        dlBtn.addEventListener('click', () => {
+            window.location.href = '/download-results';
+        });
+    }
 }
 
 if (document.readyState === 'loading') {
@@ -565,6 +573,10 @@ function renderTable(tbodyId, data, sortConfig, isMainTable) {
         if (col === 'Propiedad') {
             valA = a['Propiedad'];
             valB = b['Propiedad'];
+        } else if (col === 'Renta_Rango') {
+            // Support both PascalCase and camelCase keys
+            valA = a.Renta_Rango || a.renta_rango;
+            valB = b.Renta_Rango || b.renta_rango;
         }
         if (valA === undefined) valA = '';
         if (valB === undefined) valB = '';
@@ -687,40 +699,22 @@ window.sortTable = function (table, col) {
             currentSortTop100.dir *= -1;
         } else {
             currentSortTop100.col = col;
-            currentSortTop100.dir = -1; // Default desc
+            // Default to Descending for metrics, Ascending for text (matches main table)
+            if (['Puntuación', 'Rentabilidad_Bruta_%', 'Descuento_%', 'Precio', 'm2', 'Precision'].includes(col)) {
+                currentSortTop100.dir = -1;
+            } else {
+                currentSortTop100.dir = 1;
+            }
         }
-        renderResults(); // Re-render both
-        // update headers for top 100? (Visual feedback not strictly requested but good)
+        renderResults();
+        updateSortHeaders(); // Update visual feedback (orange highlight and arrows)
     }
 };
 
 
 
 function updateSortHeaders() {
-    document.querySelectorAll('.results-table th[data-sort]').forEach(th => {
-        const col = th.dataset.sort;
-        // Clean text by removing existing arrows
-        let text = th.innerText.replace(/[↕↑↓]/g, '').trim();
-
-        if (currentSort.col === col) {
-            th.classList.add('sort-active');
-            th.innerText = `${text} ${currentSort.dir === 1 ? '↑' : '↓'}`;
-        } else {
-            th.classList.remove('sort-active');
-            th.innerText = text; // Just text, no arrow for inactive
-        }
-    });
-
-    const dlBtn = document.getElementById('btnDownload');
-    if (dlBtn) {
-        dlBtn.addEventListener('click', () => {
-            window.location.href = '/download-results';
-        });
-    }
-}
-
-function updateSortHeaders() {
-    // Main Table
+    // 1. Main Table Headers
     document.querySelectorAll('.results-table:not(#top100Table) th[data-sort]').forEach(th => {
         const col = th.dataset.sort;
         let text = th.innerText.replace(/[↕↑↓]/g, '').trim();
@@ -733,7 +727,7 @@ function updateSortHeaders() {
         }
     });
 
-    // Top 100 Table
+    // 2. Top 100 Table Headers
     document.querySelectorAll('#top100Table th[data-sort]').forEach(th => {
         const col = th.dataset.sort;
         let text = th.innerText.replace(/[↕↑↓]/g, '').trim();
