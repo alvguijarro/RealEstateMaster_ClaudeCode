@@ -685,10 +685,24 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
 
     # Enhanced Okupado detection
     okupado = None
+    # 1. Direct tags/labels check (very high confidence)
     if "ocupada ilegalmente" in joined_items or "vivienda ocupada" in joined_items:
         okupado = "Sí"
-    elif re.search(r"\b(okupa|ocupada ilegal|ocupante sin t[ií]tulo|ocupaci[oó]n ilegal|vivienda ocupada)\b", vt_full_fold):
-        okupado = "Sí"
+    
+    # 2. Textual pattern check
+    if not okupado:
+        # Avoid matching global footer links by splitting the text search
+        desc_fold = fold_text(descripcion or "")
+        body_fold = fold_text(full_text or "")
+        
+        # Terms safe to search in body (unlikely to be in global navigation)
+        body_patterns = r"\b(ocupada ilegal|ocupante sin t[ií]tulo|ocupaci[oó]n ilegal|vivienda ocupada|inmueble ocupado|sin posesi[oó]n)\b"
+        
+        # 'okupa' with 'k' is only safe in description (avoids 'Seguro Anti Okupas' footer link)
+        if re.search(r"\bokupa\b", desc_fold) or re.search(body_patterns, body_fold) or re.search(body_patterns, desc_fold):
+            okupado = "Sí"
+        elif re.search(r"\bocupado\b", desc_fold) and re.search(r"\b(tercero|persona|sin justo t[ií]tulo|sin posesi[oó]n)\b", desc_fold):
+             okupado = "Sí"
 
     # Enhanced Con Inquilino detection
     con_inquilino = None

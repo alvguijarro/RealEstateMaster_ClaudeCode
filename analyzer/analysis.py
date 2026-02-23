@@ -1535,6 +1535,7 @@ def phase_export(config, df_venta, zona_stats, log_calidad):
             'Propiedad': df['Propiedad_text'],
             'Distrito': df['Distrito'].fillna('Desconocido').astype(str).str.strip(),
             'Ciudad': df['Ciudad'].fillna('').astype(str).str.strip() if 'Ciudad' in df.columns else '',
+            'Zona': df['Zona'].fillna('').astype(str).str.strip() if 'Zona' in df.columns else '',
             'Provincia': df['Provincia'].fillna('').astype(str).str.strip() if 'Provincia' in df.columns else '',
             'm2': df['m2 construidos'].fillna(0).astype(int),
             'Precio': df['price'].fillna(0).astype(int),

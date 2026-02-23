@@ -3,7 +3,9 @@
 ## [2.9.3] - 2026-02-23
 ### Added
 - **Sincronización de Archivos VENTA/ALQUILER**: Implementada lógica bidireccional en Analytics Pro para emparejar automáticamente los archivos de venta y alquiler que comparten el mismo prefijo geográfico.
-- **Deep Research Hiperlocal**: El motor de investigación ahora utiliza el municipio y la provincia de forma explícita para generar búsquedas y reportes específicos, evitando la contaminación de datos de ciudades vecinas.
+- Deep Research Hiperlocal: Ahora el dropdown de distritos muestra la jerarquía completa (`Distrito, Ciudad, Zona (Provincia)`).
+- Corrección de "Okupados": Se ha refinado la lógica de detección para ignorar enlaces de navegación global (como "Seguro Anti Okupas"), eliminando falsos positivos masivos.
+- Reparación de datos: Se ha generado una versión reparada del dataset de Almería (`idealista_Almería_venta_REPARADO.xlsx`).
 
 ### Fixed
 - **Localización incorrecta en Deep Research**: Corregido bug crítico donde el informe de Deep Research mostraba la zona y ciudad incorrectas (ej. "Baix, Baix" en lugar de "Pilar de la Horadada, Alicante"). El frontend ahora obtiene la ciudad y provincia directamente de los datos del análisis (`Ciudad`, `Provincia`) en lugar de intentar adivinarlas a partir del nombre del archivo Excel.

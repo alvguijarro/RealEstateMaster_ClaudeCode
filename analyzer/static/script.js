@@ -787,17 +787,22 @@ function setupDistrictReport() {
                 return;
             }
 
-            // Extract Unique Districts maintaining order
-            const uniqueDistricts = [];
+            // Extract Unique Districts + Location Meta maintaining order
+            const uniqueDistrictsMeta = [];
             const seen = new Set();
             for (const res of sortedOpps) {
                 if (res.Distrito && !seen.has(res.Distrito)) {
                     seen.add(res.Distrito);
-                    uniqueDistricts.push(res.Distrito);
+                    uniqueDistrictsMeta.push({
+                        distrito: res.Distrito,
+                        ciudad: res.Ciudad || '',
+                        zona: res.Zona || '',
+                        provincia: res.Provincia || ''
+                    });
                 }
             }
 
-            if (uniqueDistricts.length === 0) {
+            if (uniqueDistrictsMeta.length === 0) {
                 alert("No se encontraron distritos válidos.");
                 return;
             }
@@ -809,10 +814,25 @@ function setupDistrictReport() {
             const reportOutput = document.getElementById('reportOutput');
 
             select.innerHTML = '';
-            uniqueDistricts.forEach(dist => {
+            uniqueDistrictsMeta.forEach(meta => {
                 const opt = document.createElement('option');
-                opt.value = dist;
-                opt.textContent = dist;
+                opt.value = meta.distrito;
+
+                // Construct hierarchical label: Distrito, Ciudad, Zona (Provincia)
+                let labelParts = [];
+                if (meta.distrito) labelParts.push(meta.distrito);
+                if (meta.ciudad && meta.ciudad !== meta.distrito) labelParts.push(meta.ciudad);
+                if (meta.zona && meta.zona !== meta.ciudad && meta.zona !== meta.distrito) labelParts.push(meta.zona);
+
+                let label = labelParts.join(', ');
+                if (meta.provincia) label += ` (${meta.provincia})`;
+
+                opt.textContent = label;
+
+                // Store metadata for easier retrieval on generation
+                opt.dataset.ciudad = meta.ciudad;
+                opt.dataset.provincia = meta.provincia;
+
                 select.appendChild(opt);
             });
 
@@ -893,15 +913,21 @@ function setupModalHandlers() {
             // 2. Close the modal
             if (modal) modal.classList.add('hidden');
 
-            // 3. Determine Location Context (City/Province) from analysis data
+            // 3. Determine Location Context (City/Province) from selection metadata
             let city = "";
             let province = "";
 
-            // Look up the real Ciudad and Provincia from the analysis results
-            const matchingResult = currentResults.find(r => r.Distrito === selectedDistrict);
-            if (matchingResult) {
-                city = matchingResult.Ciudad || "";
-                province = matchingResult.Provincia || "";
+            const selectedOption = select.options[select.selectedIndex];
+            if (selectedOption && selectedOption.dataset.ciudad) {
+                city = selectedOption.dataset.ciudad;
+                province = selectedOption.dataset.provincia || "";
+            } else {
+                // Fallback: Look up the real Ciudad and Provincia from the analysis results
+                const matchingResult = currentResults.find(r => r.Distrito === selectedDistrict);
+                if (matchingResult) {
+                    city = matchingResult.Ciudad || "";
+                    province = matchingResult.Provincia || "";
+                }
             }
 
             // Fallback: try to extract from filename if analysis data is missing
