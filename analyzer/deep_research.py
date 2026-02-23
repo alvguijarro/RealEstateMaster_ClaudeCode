@@ -13,45 +13,44 @@ from google.genai import types
 # Load Google API Key
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
-# 21 Fixed Research Topics
+# Fixed Research Topics with dynamic location keys
 RESEARCH_TOPICS = [
-    "precio vivienda €/m² {zona}",
-    "precio alquiler €/m² {zona} idealista",
-    "rentabilidad alquiler bruta {zona} (venta vs alquiler)",
-    "evolución precio vivienda {zona} últimos 4 años",
-    "evolución precio alquiler {zona} últimos 4 años",
-    "demanda alquiler {zona} escasez oferta vivienda",
-    "okupación {zona} tasa / noticias / mapas",
-    "seguridad delincuencia {zona} estadísticas / mapa",
-    "plan urbanístico {zona} transporte metro cercanías bus nuevas estaciones",
-    "zona tensionada vivienda {zona} declaración oficial alquiler",
-    "evolución tasa paro {zona}",
-    "evolución tasa de paro {zona}",
-    "evolución población empadronada {zona}",
-    "renta media hogares {zona} atlas renta INE",
-    "hogares unipersonales tamaño medio hogar {zona} INE",
-    "edad media {zona} pirámide población",
-    "licencias de obra nueva {zona} ayuntamiento",
-    "planeamiento urbanístico {zona} modificación PGOU / PGO",
-    "inversiones públicas {zona} presupuesto municipal obras",
-    "mapa ruido {zona} ayuntamiento",
-    "mapa inundabilidad {zona} SNCZI",
+    "precio vivienda €/m² {ciudad}",
+    "precio alquiler €/m² {ciudad} idealista",
+    "rentabilidad alquiler bruta {ciudad} (venta vs alquiler)",
+    "evolución precio vivienda {ciudad} últimos 4 años",
+    "evolución precio alquiler {ciudad} últimos 4 años",
+    "demanda alquiler {ciudad} escasez oferta vivienda",
+    "okupación {ciudad} {provincia} tasa / noticias / mapas",
+    "seguridad delincuencia {ciudad} estadísticas / mapa",
+    "plan urbanístico {ciudad} transporte metro cercanías bus nuevas estaciones",
+    "zona tensionada vivienda {ciudad} declaración oficial alquiler",
+    "evolución tasa paro {ciudad} {provincia}",
+    "evolución población empadronada {ciudad}",
+    "renta media hogares {ciudad} atlas renta INE",
+    "hogares unipersonales tamaño medio hogar {ciudad} INE",
+    "edad media {ciudad} pirámide población",
+    "licencias de obra nueva {ciudad} ayuntamiento",
+    "planeamiento urbanístico {ciudad} modificación PGOU / PGO",
+    "inversiones públicas {ciudad} presupuesto municipal obras",
+    "mapa ruido {ciudad} ayuntamiento",
+    "mapa inundabilidad {ciudad} SNCZI",
 ]
 
 
-def deep_research_distrito(zona: str, metrics: Optional[Dict] = None, 
+def deep_research_distrito(zona: str, ciudad: str = "", provincia: str = "", 
+                           metrics: Optional[Dict] = None, 
                            progress_callback=None, api_key: Optional[str] = None) -> str:
     """
     Main entry point: Execute full deep research for a district using Gemini Grounding.
     
     Args:
-        zona: District name
+        zona: District/Comarca name from file
+        ciudad: Specific Municipality/City name
+        provincia: Province name
         metrics: Optional metrics dict from analysis
-        progress_callback: Optional callback (compatibility mode, not fully used with single-call)
+        progress_callback: Optional callback
         api_key: Optional API Key override
-        
-    Returns:
-        Complete investment report in markdown format
     """
     # Use passed key, or env var, or global var
     key_to_use = api_key or os.getenv('GOOGLE_API_KEY') or GOOGLE_API_KEY
@@ -59,8 +58,11 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     if not key_to_use:
         return "Error: GOOGLE_API_KEY no configurada en el entorno."
 
+    # Normalized location for search (prefer city if available)
+    loc_search = ciudad if ciudad else zona
     print(f"\n{'='*60}")
     print(f"DEEP RESEARCH (GEMINI GROUNDING): {zona}")
+    print(f"LOCALIDAD OBJETIVO: {ciudad}, {provincia}")
     print(f"{'='*60}")
     
     # Initialize New Client
@@ -80,11 +82,24 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
             metrics_lines.append(f"- Nº oportunidades detectadas en nuestra base: {metrics['n_oportunidades']}")
         metrics_context = "\n".join(metrics_lines)
     
-    # Prepare Prompt
-    topics_list = "\n".join([f"- {t.format(zona=zona)}" for t in RESEARCH_TOPICS])
+    # Prepare Search Topics with structured location
+    topics_list = "\n".join([f"- {t.format(ciudad=ciudad or zona, provincia=provincia or '')}" for t in RESEARCH_TOPICS])
     
+    # Build Geographic Context Block
+    geo_context = f"""
+    CONTEXTO GEOGRÁFICO EXACTO (EXTREMA IMPORTANCIA):
+    - Municipio objetivo: {ciudad if ciudad else 'No especificado'}
+    - Distrito/Zona: {zona}
+    - Provincia: {provincia if provincia else 'No especificada'}
+    
+    INSTRUCCIÓN CRÍTICA: Tu respuesta debe centrarse EXCLUSIVAMENTE en el municipio de "{ciudad if ciudad else zona}". 
+    NUNCA uses datos de municipios vecinos o de la comarca (ej. si el municipio es Pilar de la Horadada, NO uses datos de Torrevieja o Guardamar del Segura) a menos que sea para una comparación explícita y muy breve. La inversión se evalúa para "{ciudad if ciudad else zona}".
+    """
+
     prompt = f"""Eres un analista experto en inversiones inmobiliarias. Tu objetivo es crear informes de ALTO IMPACTO VISUAL para inversores, sobre un DISTRITO específico.
     
+    {geo_context}
+
     ESTILO REQUERIDO: "THE VISUAL ANALYST"
     - Prioridad absoluta: LEGIBILIDAD y SÍNTESIS.
     - Usa EMOJIS como iconos para cada sección y punto clave.
@@ -92,7 +107,7 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     - Usa BLOCKQUOTES (>) para el resumen/perfil.
     - No uses parrafadas largas. Ve al grano.
     
-    Tu tarea es investigar a fondo el distrito "{zona}" utilizando tus herramientas de búsqueda y sintetizar un informe detallado.
+    Tu tarea es investigar a fondo el distrito "{zona}" en el municipio de "{ciudad}" utilizando tus herramientas de búsqueda y sintetizar un informe detallado.
     Debes buscar información específica y actualizada sobre los siguientes temas clave:
     
     {topics_list}
@@ -116,12 +131,12 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     2. **CITA FUENTES SIEMPRE (INLINE)**: Cada dato numérico o afirmación clave DEBE incluir un enlace Markdown justo al lado con el texto exacto "[Link]". Ejemplo: "La población ha crecido un 5%. [Link](https://ejemplo.com)". Es obligatorio para cada punto de información.
     3. **FUNDAMENTA TODO**: Usa la búsqueda de Google para encontrar datos reales recientes (precios, noticias, planes urbanísticos).
     4. **SÉ CRÍTICO**: Si hay datos contradictorios, menciónalo.
-    5. **NO INVENTES**: Si no hay datos, indícalo con "Dato no disponible".
+    5. **NO INVENTES**: Si no hay datos, indícalo con "Dato no disponible para {ciudad}".
     
     ---
     ESTRUCTURA EXACTA DE SALIDA:
     
-    # 🇪🇸 **Informe de Inversión: {zona}**
+    # 🇪🇸 **Informe de Inversión: {zona} ({ciudad})**
     
     ### 📊 **Indicadores Clave**
     | Métrica | Valor (Estimado) | Evaluación (🟢/🟡/🔴) |
@@ -132,7 +147,7 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     | **Tasa de Paro** | [X.X]% [Link](URL) | [Emoji] [Tendencia] |
     
     ### 📝 **Resumen Ejecutivo**
-    [Párrafo de síntesis sobre el estado del distrito con sus respectivos [Link](URL) en los datos clave.]
+    [Párrafo de síntesis sobre el estado del distrito en el municipio de {ciudad} con sus respectivos [Link](URL) en los datos clave.]
     
     ### 💰 **Precios y Mercado**
     *   **Precio vivienda**: [Datos m2] [Link](URL).
@@ -155,7 +170,7 @@ def deep_research_distrito(zona: str, metrics: Optional[Dict] = None,
     *   🔹 **Oportunidades**: [Factores] [Link](URL).
     
     ### ✅ **Conclusión Final**
-    [Síntesis final. SÓLO HECHOS con sus [Link](URL).]
+    [Síntesis final centrada en {ciudad}. SÓLO HECHOS con sus [Link](URL).]
     
     ---
     Al final de todo:

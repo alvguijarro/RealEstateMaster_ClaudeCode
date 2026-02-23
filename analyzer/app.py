@@ -423,6 +423,10 @@ def deep_research():
     if not distrito:
         return jsonify({'error': 'distrito is required'}), 400
     
+    # Location context for hyperlocal research
+    ciudad = data.get('ciudad', '')
+    provincia = data.get('provincia', '')
+    
     # Optional: metrics from the analysis
     metrics = data.get('metrics', {})
     
@@ -432,6 +436,8 @@ def deep_research():
         # Pass the global API KEY explicitly
         report = deep_research_distrito(
             distrito, 
+            ciudad=ciudad,
+            provincia=provincia,
             metrics=metrics, 
             api_key=GOOGLE_API_KEY
         )

@@ -916,18 +916,23 @@ function setupModalHandlers() {
                 }
             }
 
-            // 4. Construct context-aware district name
-            let fullDistrictName = selectedDistrict;
+            // 4. Build display name for UI
+            let displayName = selectedDistrict;
             if (city && province && city !== province) {
-                fullDistrictName = `${selectedDistrict}, ${city}, ${province}`;
+                displayName = `${selectedDistrict}, ${city} (${province})`;
             } else if (city) {
-                fullDistrictName = `${selectedDistrict}, ${city}`;
+                displayName = `${selectedDistrict}, ${city}`;
             }
 
-            console.log(`Starting Unified Deep Research for: ${fullDistrictName}`);
+            console.log(`Starting Unified Deep Research for: ${displayName}`);
 
-            // 5. Execute Deep Research
-            await executeDeepResearch(fullDistrictName);
+            // 5. Execute Deep Research with structured location data
+            await executeDeepResearch({
+                distrito: selectedDistrict,
+                ciudad: city,
+                provincia: province,
+                displayName: displayName
+            });
         };
     }
 }
@@ -960,7 +965,21 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================================================
 // DEEP RESEARCH - Uses Google CSE + Gemini for comprehensive market research
 // ============================================================================
-async function executeDeepResearch(distrito) {
+async function executeDeepResearch(locationData) {
+    // locationData can be a string (legacy) or an object { distrito, ciudad, provincia, displayName }
+    let distrito, ciudad, provincia, displayName;
+    if (typeof locationData === 'string') {
+        distrito = locationData;
+        ciudad = '';
+        provincia = '';
+        displayName = locationData;
+    } else {
+        distrito = locationData.distrito;
+        ciudad = locationData.ciudad || '';
+        provincia = locationData.provincia || '';
+        displayName = locationData.displayName || distrito;
+    }
+
     const section = document.getElementById('districtReportSection');
     const content = document.getElementById('districtReportContent');
 
@@ -968,7 +987,7 @@ async function executeDeepResearch(distrito) {
     content.innerHTML = `
         <div class="deep-research-loading">
             <div class="spinner"></div>
-            <h3>🔬 Ejecutando Deep Research para: ${distrito}</h3>
+            <h3>🔬 Ejecutando Deep Research para: ${displayName}</h3>
             <p>Buscando en Google (21 consultas) + Sintetizando con Gemini...</p>
             <p style="color: #888; font-size: 0.9rem;">Esto puede tardar 30-60 segundos</p>
         </div>
@@ -979,7 +998,7 @@ async function executeDeepResearch(distrito) {
         const res = await fetch('/api/deep-research', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ distrito: distrito })
+            body: JSON.stringify({ distrito, ciudad, provincia })
         });
 
         const data = await res.json();
