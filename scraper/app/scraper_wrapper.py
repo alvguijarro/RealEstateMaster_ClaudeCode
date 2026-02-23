@@ -2063,6 +2063,8 @@ class ScraperController:
         _launch_fail_counts: dict = {}  # pool_index -> consecutive launch failures
         LAUNCH_FAIL_BLACKLIST_THRESHOLD = 3  # Mark engine as session-dead after this many failures
         
+        self.consecutive_skips = 0  # Track consecutive skipped properties to stop dead-end deep scrapes
+        
         while not self._stop_evt.is_set():
             target_file = self.output_file # Initialize safe default
             try:
@@ -2810,6 +2812,12 @@ class ScraperController:
                                 skipped += 1
                                 self.current_property_count = property_idx
                                 self.emit_progress()
+                                
+                                self.consecutive_skips += 1
+                                if self.consecutive_skips >= 300:
+                                    self.log("INFO", "[AUTO-STOP] 300 listados consecutivos saltados. Finalizando scrape actual para proteger proxy/ancho de banda.")
+                                    scraping_finished = True
+                                    break
                                 continue
                                 
                             # Smart Enrichment Optimization: Skip detail visit if already enriched & active
@@ -2838,6 +2846,11 @@ class ScraperController:
                                 if self._stop_evt.is_set():
                                     break
                                     
+                                self.consecutive_skips += 1
+                                if self.consecutive_skips >= 300:
+                                    self.log("INFO", "[AUTO-STOP] 300 listados consecutivos saltados. Finalizando scrape actual para proteger proxy/ancho de banda.")
+                                    scraping_finished = True
+                                    break
                                 continue
                     
                             # Double-check (should not happen after filtering, but safety net)
@@ -2847,6 +2860,12 @@ class ScraperController:
                                 skipped += 1
                                 self.current_property_count = property_idx
                                 self.emit_progress()
+                                
+                                self.consecutive_skips += 1
+                                if self.consecutive_skips >= 300:
+                                    self.log("INFO", "[AUTO-STOP] 300 listados consecutivos saltados. Finalizando scrape actual para proteger proxy/ancho de banda.")
+                                    scraping_finished = True
+                                    break
                                 continue
                     
                             try:
@@ -2969,6 +2988,7 @@ class ScraperController:
                                 
                                     additions.append(row)
                                     self.scraped_properties.append(row)
+                                    self.consecutive_skips = 0
                                     new_scraped += 1
                                     
                                     # Update profile efficacy stats
@@ -3091,6 +3111,7 @@ class ScraperController:
                         
                                 additions.append(row)
                                 self.scraped_properties.append(row)
+                                self.consecutive_skips = 0
                                 self._processed.add(key)
                                 
                                 # Update profile efficacy stats
