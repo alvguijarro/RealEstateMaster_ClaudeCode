@@ -5,3 +5,4 @@ cd /d "%~dp0"
 cd ..
 :: Execute the tracker with headless and resume flags
 python trends\trends_tracker.py --resume --headless
+exit /b %errorlevel%
