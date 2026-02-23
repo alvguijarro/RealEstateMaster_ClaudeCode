@@ -82,8 +82,8 @@ async def extract_h1_number(page):
         
         for selector in selectors:
             try:
-                # 15s timeout to account for high network load
-                h1_handle = await page.wait_for_selector(selector, timeout=15000)
+                # 10s timeout as requested by user
+                h1_handle = await page.wait_for_selector(selector, timeout=10000)
                 if h1_handle:
                     h1_text = await h1_handle.inner_text()
                     if h1_text:
@@ -124,13 +124,13 @@ async def detect_block(page):
     except:
         return False
 
-async def take_debug_screenshot(page, province, zone):
-    """Captures a screenshot when 0 properties are found to diagnose rendering/blocks."""
+async def take_debug_screenshot(page, province, zone, suffix=""):
+    """Captures a screenshot when 0 properties are found or block detected."""
     try:
         DEBUG_DIR.mkdir(parents=True, exist_ok=True)
         safe_zone = re.sub(r'[^a-zA-Z0-9]', '_', zone)
         timestamp = datetime.datetime.now().strftime("%H%M%S")
-        filename = f"0_props_{province}_{safe_zone}_{timestamp}.png"
+        filename = f"{province}_{safe_zone}_{timestamp}{suffix}.png"
         filepath = DEBUG_DIR / filename
         await page.screenshot(path=str(filepath))
         print(f"  📸 Debug screenshot saved: trends/data/debug/{filename}")
@@ -334,12 +334,12 @@ async def run_tracker(resume=False, headless=False):
                 
                 # PROCESS URLs
                 scan_idx = start_index
-                for k, data in enumerate(urls_data[start_index:], start_index):
+                while scan_idx < urls_len:
                     if STOP_FLAG_FILE.exists():
                         print("🔴 Stop flag detected. Halting inner loop.")
                         break
                         
-                    province, zone, url, operation = data
+                    province, zone, url, operation = urls_data[scan_idx]
                     print(f"[{scan_idx+1}/{urls_len}] Tracking {province} ({zone}) - {operation.upper()}...")
                     
                     # Deduplication Check
@@ -348,37 +348,48 @@ async def run_tracker(resume=False, headless=False):
                         scan_idx += 1
                         continue
                     
-                    try:
-                        await page.goto(url, timeout=45000, wait_until="domcontentloaded")
-                        await asyncio.sleep(random.uniform(2.5, 5.5)) # Delay to mimic human
-                        
-                        # Enhanced block detection
-                        if await detect_block(page):
-                            print(f"WARN: BLOCK detected on {url}. Marking profile blocked.")
-                            mark_current_profile_blocked()
-                            raise RuntimeError("CAPTCHA_CRITICAL_BLOCK")
+                    # Retry logic for this specific URL (up to 3 attempts)
+                    success = False
+                    for attempt in range(1, 4):
+                        try:
+                            if attempt > 1:
+                                print(f"  -> Retry attempt {attempt}/3...")
+                                # Force re-launch context/rotate in outer loop by breaking
+                                # For now, try simple reload
+                            
+                            await page.goto(url, timeout=45000, wait_until="domcontentloaded")
+                            await asyncio.sleep(random.uniform(2.5, 4.5)) 
+                            
+                            # Enhanced block detection
+                            if await detect_block(page):
+                                print(f"WARN: BLOCK detected on attempt {attempt}.")
+                                await take_debug_screenshot(page, province, zone, suffix=f"_block_att{attempt}")
+                                mark_current_profile_blocked()
+                                raise RuntimeError("CAPTCHA_CRITICAL_BLOCK")
 
-                        total_properties = await extract_h1_number(page)
-                        
-                        if total_properties == 0:
-                            # Verify if it's really 0 or a load failure
-                            await take_debug_screenshot(page, province, zone)
+                            total_properties = await extract_h1_number(page)
                             
-                        print(f"  -> Found {total_properties} properties.")
-                        
-                        if total_properties >= 0:
-                            await save_to_db(date_formatted, iso_year, iso_week, province, zone, operation, total_properties)
+                            if total_properties == 0:
+                                print(f"WARN: 0 properties found on attempt {attempt}.")
+                                await take_debug_screenshot(page, province, zone, suffix=f"_0props_att{attempt}")
+                                if attempt < 3:
+                                    continue # Try again
                             
-                        scan_idx += 1
-                        
-                    except Exception as e:
-                        if "CAPTCHA_CRITICAL_BLOCK" in str(e):
-                            break # Exits the URL enumeration to restart rotation
-                            
-                        print(f"Error loading {url}: {e}")
-                        scan_idx += 1 # proceed to next even on timeout
-                        continue
-                        
+                            print(f"  -> Found {total_properties} properties.")
+                            if total_properties >= 0:
+                                await save_to_db(date_formatted, iso_year, iso_week, province, zone, operation, total_properties)
+                                success = True
+                                break # Exit retry loop
+                                
+                        except Exception as e:
+                            if "CAPTCHA_CRITICAL_BLOCK" in str(e):
+                                raise e # Propagate to outer loop for rotation
+                            print(f"  ⚠️ Error attempt {attempt}: {e}")
+                            if attempt < 3: await asyncio.sleep(5)
+                    
+                    # Move to next URL even if it failed all retries (to avoid infinite loops)
+                    scan_idx += 1
+                    
                     # Save Checkpoint every 20 urls
                     if scan_idx > 0 and scan_idx % 20 == 0:
                         print(f"💾 Saving Checkpoint at index {scan_idx}...")
