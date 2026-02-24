@@ -205,7 +205,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadExcelFiles(),
         loadBQFiles(),
         loadProvincesList(),
-        loadBatchDestinationFiles()
+        loadBatchDestinationFiles(),
+        loadBatchFiles()
     ]).then(() => {
         console.log('[App] Data loading completed.');
         setupMultiSelectUI();
@@ -519,6 +520,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const targetPane = document.getElementById(targetId);
                 if (targetPane) {
                     targetPane.style.display = 'contents';
+                }
+
+                // If switching to enricher, refresh files
+                if (btn.dataset.tab === 'enricher') {
+                    loadBatchFiles();
                 }
             });
         });

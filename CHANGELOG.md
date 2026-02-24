@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.6] - 2026-02-24
+### Fixed
+- **Listado de archivos en Batch Enricher**: Corregido un bug crítico que impedía mostrar archivos en la herramienta de enriquecimiento. Se ha añadido el elemento `batchCompletedList` ausente en el HTML y se ha forzado la carga de archivos (`loadBatchFiles`) tanto al inicio de la aplicación como al cambiar de pestaña.
+- **Estandarización de ficheros API**: Completada la estandarización del archivo `idealista_Madrid_venta_api.xlsx`, que había quedado pendiente por estar bloqueado.
+
 ## [2.9.5] - 2026-02-24
 ### Fixed
 - **Extracción de nombre del anunciante**: Corregido un bug donde el campo `nombre anunciante` aparecía vacío en los ficheros del scraper. Ahora se prioriza el `<input type="hidden" name="user-name">` como fuente fiable del nombre, con fallback a los selectores CSS previos.
