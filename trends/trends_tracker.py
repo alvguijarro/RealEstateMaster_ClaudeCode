@@ -136,6 +136,25 @@ async def take_debug_screenshot(page, province, zone, suffix=""):
         print(f"  📸 Debug screenshot saved: trends/data/debug/{filename}")
     except Exception as e:
         print(f"  ⚠️ Could not take debug screenshot: {e}")
+
+async def is_legit_zero_results(page):
+    """Checks if the page explicitly mentions that no results were found."""
+    try:
+        content = await page.evaluate("""() => {
+            const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
+            return bodyText;
+        }""")
+        # Common Spanish strings for "no results" on Idealista
+        no_results_keywords = [
+            "no hay anuncios",
+            "no hemos encontrado lo que buscas",
+            "hemos mirado por todas partes",
+            "0 anuncios",
+            "no hay resultados"
+        ]
+        return any(kw in content for kw in no_results_keywords)
+    except:
+        return False
     
 async def save_to_db(date_record, iso_year, iso_week, province, zone, operation, total):
     """Saves the extracted total to the SQLite database."""
@@ -386,10 +405,14 @@ async def run_tracker(resume=False, headless=False):
                             total_properties = await extract_h1_number(page)
                             
                             if total_properties == 0:
-                                print(f"WARN: 0 properties found on attempt {attempt}.")
-                                await take_debug_screenshot(page, province, zone, suffix=f"_0props_att{attempt}")
-                                if attempt < 3:
-                                    continue # Try again
+                                # Distinguish between real 0 and load error/block
+                                if await is_legit_zero_results(page):
+                                    print(f"  -> Legitimate 0 properties found (Confirmed by 'No hay anuncios').")
+                                else:
+                                    print(f"WARN: 0 properties found on attempt {attempt} (No confirmation message).")
+                                    await take_debug_screenshot(page, province, zone, suffix=f"_0props_att{attempt}")
+                                    if attempt < 3:
+                                        continue # Try again
                             
                             print(f"  -> Found {total_properties} properties.")
                             if total_properties >= 0:
