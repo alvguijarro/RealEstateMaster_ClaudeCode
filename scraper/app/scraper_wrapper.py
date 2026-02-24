@@ -16,6 +16,7 @@ import random
 import re
 import sys
 import time
+import threading
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1011,9 +1012,24 @@ class ScraperController:
     _all_existing_urls: Dict[str, dict] = field(default_factory=dict)  # All URLs in file with metadata
     _province_target_file: Optional[str] = None  # Province-based target file
     
+    # Cross-thread stop signal (instantly visible from any thread, unlike asyncio.Event)
+    _thread_stop_evt: Optional[threading.Event] = None
+    
+    @property
+    def _should_stop(self) -> bool:
+        """Check if stop has been requested from ANY thread (Flask or asyncio)."""
+        if self._stopped_by_user:
+            return True
+        if self._thread_stop_evt and self._thread_stop_evt.is_set():
+            return True
+        if self._stop_evt and self._stop_evt.is_set():
+            return True
+        return False
+    
     def __post_init__(self):
         self._stop_evt = None
         self._pause_evt = None
+        self._thread_stop_evt = threading.Event()  # Instant cross-thread signal
         self.scraped_properties = []
         self._processed = set()
         self._inflight = set()
@@ -1069,7 +1085,7 @@ class ScraperController:
             # Interruptible sleep
             remaining = reading_time
             while remaining > 0:
-                if self._stop_evt.is_set():
+                if self._should_stop:
                     break
                 chunk = min(1.0, remaining)
                 await asyncio.sleep(chunk)
@@ -1090,7 +1106,7 @@ class ScraperController:
             num_moves = random.randint(2, 4)
             self.log("INFO", f"🖱️ Anti-bot: Simulando movimiento de ratón ({num_moves} posiciones)")
             for i in range(num_moves):
-                if self._stop_evt.is_set():
+                if self._should_stop:
                     break
                 x = random.randint(100, width - 100)
                 y = random.randint(100, height - 100)
@@ -1157,7 +1173,7 @@ class ScraperController:
             remaining = break_duration
             
             while remaining > 0:
-                if self._stop_evt.is_set():
+                if self._should_stop:
                     self.log("INFO", "☕ Pausa interrumpida.")
                     break
                 
@@ -1199,7 +1215,7 @@ class ScraperController:
             remaining = rest_duration
             
             while remaining > 0:
-                if self._stop_evt.is_set():
+                if self._should_stop:
                     self.log("INFO", "😴 Descanso de sesión interrumpido.")
                     break
                 
@@ -1270,7 +1286,11 @@ class ScraperController:
         """Stop scraping, save state and trigger export."""
         self._stopped_by_user = True
         
-        # Signal stop/pause events safely
+        # INSTANT cross-thread signal (visible immediately from any thread)
+        if self._thread_stop_evt:
+            self._thread_stop_evt.set()
+        
+        # Signal asyncio stop/pause events safely
         try:
             # Check if loop exists and is still running
             if self._loop and not self._loop.is_closed():
@@ -1438,7 +1458,7 @@ class ScraperController:
     async def _heartbeat_monitor(self):
         """Background task to log activity periodically and detect hangs."""
         self.log("INFO", "💓 Heartbeat monitor started (60s check, 300s alarm)")
-        while not self._stop_evt.is_set():
+        while not self._should_stop:
             await asyncio.sleep(60)
             idle_time = time.time() - self._last_log_time
             if idle_time > 300: # 5 minutes of silence
@@ -1493,7 +1513,7 @@ class ScraperController:
             if await self._is_verification_screen(page):
                 self.log("INFO", f"⏳ Idealista device verification detected. Waiting {i*10}s (Attempt {i}/{max_attempts})...")
                 await self._interruptible_sleep(10.0)
-                if self._stop_evt.is_set():
+                if self._should_stop:
                     return False
             else:
                 if i > 1:
@@ -1685,7 +1705,7 @@ class ScraperController:
         self.log("INFO", f"💾 Auto-checkpoint: Saving {len(additions)} properties to {log_file}")
         try:
             # Pass stop check to prevent hangs
-            check_stop = lambda: self._stop_evt.is_set()
+            check_stop = lambda: self._should_stop
             
             if self.smart_enrichment and self._province_target_file:
                 export_split_by_distrito(existing_df, additions, os.path.join(self.output_dir, self._province_target_file), carry_cols, check_stop=check_stop)
@@ -1701,7 +1721,7 @@ class ScraperController:
         delay = RETRY_BASE_DELAY
         last_err: Optional[Exception] = None
         for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
-            if self._stop_evt.is_set():
+            if self._should_stop:
                 raise StopException("Navegación interrumpida por el usuario")
             try:
                 t_nav_start = time.time()
@@ -1783,7 +1803,7 @@ class ScraperController:
                         captcha_timeout = 60
                         
                         while True:
-                            if self._stop_evt.is_set(): raise StopException("Interrumpido por el usuario")
+                            if self._should_stop: raise StopException("Interrumpido por el usuario")
                             elapsed = asyncio.get_running_loop().time() - captcha_wait_start
                             if elapsed > captcha_timeout:
                                 self.log("ERR", "CAPTCHA timeout - triggering auto-restart")
@@ -1819,7 +1839,7 @@ class ScraperController:
             except StopException:
                 raise
             except Exception as e:
-                if self._stop_evt.is_set():
+                if self._should_stop:
                      raise StopException("Stop event detected during navigation error.")
                      
                 error_msg = str(e).lower()
@@ -1832,7 +1852,7 @@ class ScraperController:
                 ]):
                     self.log("ERR", f"🛑 BROWSER CRASH/CLOSE DETECTED on {url}: {e}")
                     # If stop event is set, it means the user initiated the close, so just log and raise
-                    if self._stop_evt.is_set():
+                    if self._should_stop:
                         self.log("INFO", "Browser closed during stop sequence.")
                     else:
                         # Otherwise, it's an unexpected close/crash, so pause and notify
@@ -1852,12 +1872,12 @@ class ScraperController:
     
     async def _wait_for_pause(self):
         """Wait if paused."""
-        if not self._pause_evt.is_set() and not self._stop_evt.is_set():
+        if not self._pause_evt.is_set() and not self._should_stop:
             self.log("WARN", "⏳ Scraper paused. Waiting for resume...")
-            while not self._pause_evt.is_set() and not self._stop_evt.is_set():
+            while not self._pause_evt.is_set() and not self._should_stop:
                 await asyncio.sleep(1.0)
             
-            if self._stop_evt.is_set():
+            if self._should_stop:
                 self.log("INFO", "Stop signal received during pause.")
                 raise StopException("Stop event detected during pause wait.")
                 
@@ -1874,7 +1894,7 @@ class ScraperController:
         remaining = duration
         while remaining > 0:
             await self._wait_for_pause()
-            if self._stop_evt.is_set():
+            if self._should_stop:
                 raise StopException("Stop event detected during sleep.")
             chunk = min(0.5, remaining)  # 0.5s check interval
             await asyncio.sleep(chunk)
@@ -1892,7 +1912,7 @@ class ScraperController:
         self.log("INFO", "Exporting data to Excel...")
         
         # Guard for PermissionError hangs
-        check_stop = lambda: self._stop_evt.is_set()
+        check_stop = lambda: self._should_stop
         
         # Use filename from registry if available, otherwise build it
         if target_file:
@@ -1952,6 +1972,11 @@ class ScraperController:
         # set() / wait() operations from threadsafe callbacks will crash cross-loop.
         self._stop_evt = asyncio.Event()
         self._pause_evt = asyncio.Event()
+        
+        # Reset cross-thread stop signal for this new run
+        if self._thread_stop_evt:
+            self._thread_stop_evt.clear()
+        self._stopped_by_user = False
         
         self.is_running = True
         self.status = "running"
@@ -2097,7 +2122,7 @@ class ScraperController:
         
         self.consecutive_skips = 0  # Track consecutive skipped properties to stop dead-end deep scrapes
         
-        while not self._stop_evt.is_set():
+        while not self._should_stop:
             target_file = self.output_file # Initialize safe default
             try:
                 async with async_playwright() as pw:
@@ -2188,7 +2213,7 @@ class ScraperController:
 
                         for launch_attempt in range(1, max_launch_retries + 1):
                             # CHECK STOP AT START OF EVERY ITERATION
-                            if self._stop_evt.is_set():
+                            if self._should_stop:
                                 self.log("INFO", "🛑 Stop requested. Aborting browser launch.")
                                 raise StopException("Stop requested during browser launch")
                             try:
@@ -2262,7 +2287,7 @@ class ScraperController:
                                         rotate_identity()
                                         break # Break launch loop to restart main loop with new identity
                                         
-                                    if self._stop_evt.is_set():
+                                    if self._should_stop:
                                         break
                                     
 
@@ -2306,7 +2331,7 @@ class ScraperController:
                                     self.log("INFO", f"Retrying in {int(sleep_time)}s...")
                                     # Use interruptible sleep to allow immediate stop
                                     await self._interruptible_sleep(sleep_time)
-                                    if self._stop_evt.is_set():
+                                    if self._should_stop:
                                         break
                                 else:
                                     raise le
@@ -2456,7 +2481,7 @@ class ScraperController:
                     # Wait 4 seconds per attempt to allow slow-loading pages
                     for attempt in range(4):
                         try:
-                            if self._stop_evt.is_set():
+                            if self._should_stop:
                                 break
 
                             # --- EARLY CAPTCHA BAIL-OUT ---
@@ -2466,7 +2491,7 @@ class ScraperController:
                                 # Adaptive wait for Idealista's automatic verification to complete
                                 # before checking for DataDome. This prevents false positives.
                                 await self._wait_for_verification(page)
-                                if self._stop_evt.is_set():
+                                if self._should_stop:
                                     break
                                 try:
                                     is_datadome_early = await page.evaluate(
@@ -2575,7 +2600,7 @@ class ScraperController:
                                 self.log("INFO", "Rollover wait cancelled by stop event.")
                                 break
                             
-                            if self._stop_evt.is_set():
+                            if self._should_stop:
                                 break
                                 
                             continue  # Loop back to restart with new browser identity
@@ -2677,9 +2702,9 @@ class ScraperController:
                     existing_df = pd.DataFrame()  # Will be loaded if target file exists
                     scraping_finished = False  # Track clean completion
             
-                    while not self._stop_evt.is_set() and not scraping_finished:
+                    while not self._should_stop and not scraping_finished:
                         await self._wait_for_pause()
-                        if self._stop_evt.is_set() or scraping_finished:
+                        if self._should_stop or scraping_finished:
                             break
 
                         self.current_page = page_num
@@ -2834,7 +2859,7 @@ class ScraperController:
                             _, card_delay, post_card_delay = self.get_delays()
                     
                             await self._wait_for_pause()
-                            if self._stop_evt.is_set():
+                            if self._should_stop:
                                 break
                     
                             property_idx += 1
@@ -2880,7 +2905,7 @@ class ScraperController:
                                 self.emit_progress()
                                 
                                 # Check for stop even in smart skip
-                                if self._stop_evt.is_set():
+                                if self._should_stop:
                                     break
                                     
                                 self.consecutive_skips += 1
@@ -2910,7 +2935,7 @@ class ScraperController:
                                 await self._goto_with_retry(page, href)
                                 
                                 # CRITICAL: Check for stop immediately after navigation
-                                if self._stop_evt.is_set():
+                                if self._should_stop:
                                     break
                         
                                 # If this is the first property, determine target file
@@ -2974,7 +2999,7 @@ class ScraperController:
                                         
                                         # Wait briefly to see if it clears (e.g. passive solve)
                                         for i in range(3): # 3 * 10s = 30s
-                                            if self._stop_evt.is_set(): break
+                                            if self._should_stop: break
                                             self.log("INFO", f"Starting 10s CAPTCHA check wait (Attempt {i+1}/3).")
                                             await asyncio.sleep(10.0)
                                             # Retry extraction check (With timeout)
@@ -3010,7 +3035,7 @@ class ScraperController:
                                         # CAPTCHA cleared - resume normal operation
                                         if self.on_status: self.on_status("running")
                                     
-                                        if self._stop_evt.is_set():
+                                        if self._should_stop:
                                             self.log("WARN", f"First property CAPTCHA - stopped by user: {key}")
                                             continue
                             
@@ -3102,7 +3127,7 @@ class ScraperController:
                                     
                                     # Wait briefly to see if it clears (e.g. passive solve)
                                     for _ in range(3): # 3 * 10s = 30s
-                                        if self._stop_evt.is_set(): break
+                                        if self._should_stop: break
                                         await asyncio.sleep(10.0)
                                         # Retry extraction check (With timeout)
                                         try:
@@ -3162,22 +3187,22 @@ class ScraperController:
                         
                                 await self.simulate_reading_time(row.get("Descripción"))
                                 
-                                if self._stop_evt.is_set():
+                                if self._should_stop:
                                     break
 
                                 # Extra Stealth: Mouse movement simulation
                                 await self.simulate_mouse_movement(page)
-                                if self._stop_evt.is_set():
+                                if self._should_stop:
                                     break
                         
                                 # Extra Stealth: Increment session counter and check for breaks
                                 if self.mode == "stealth":
                                     self._session_property_count += 1
                                     await self.maybe_coffee_break()
-                                    if self._stop_evt.is_set():
+                                    if self._should_stop:
                                         break
                                     await self.maybe_session_rest()
-                                    if self._stop_evt.is_set():
+                                    if self._should_stop:
                                         break
                         
                                 # Always log successful scrape, even if it's an update
@@ -3201,6 +3226,12 @@ class ScraperController:
                                 # Propagate to top-level handler
                                 raise
                             except Exception as e:
+                                # CRITICAL: Check stop FIRST — if stop was requested, raise immediately
+                                # This prevents the loop from continuing after _force_close_browser()
+                                if self._should_stop:
+                                    self.log("INFO", f"🛑 Stop detected during property processing: {key}")
+                                    self.save_state(page_num, target_file)
+                                    raise StopException("Stop requested during property processing")
                                 if str(e) == "CAPTCHA_BLOCK_DETECTED":
                                     # Save state for resume before failing
                                     self.log("WARN", "Saving resume state due to CAPTCHA block")
@@ -3211,7 +3242,7 @@ class ScraperController:
                 
                 
                         # Check if we should continue to next page
-                        if self._stop_evt.is_set():
+                        if self._should_stop:
                             # Save state for resume before stopping
                             self.save_state(page_num, target_file)
                             break
@@ -3282,7 +3313,7 @@ class ScraperController:
                 
                     # After phase 1 loop completes successfully
                     # === TARGETED DEACTIVATION CHECKS (SMART ENRICHMENT) ===
-                    if self.smart_enrichment and scraping_finished and not self._stop_evt.is_set():
+                    if self.smart_enrichment and scraping_finished and not self._should_stop:
                         # Only check if we successfully finished all pages (otherwise we might have missed active ones)
                         missing_urls = [
                             u for u in self._all_existing_urls.keys() 
@@ -3295,7 +3326,7 @@ class ScraperController:
                             checked_count = 0
                             
                             for m_url in missing_urls:
-                                if self._stop_evt.is_set():
+                                if self._should_stop:
                                     break
                                 
                                 # Skip if we already marked it as inactive in a previous check (avoid re-checking)
@@ -3366,13 +3397,13 @@ class ScraperController:
                     self._export_to_excel(additions, target_file, expired_urls)
 
                     # CRITICAL FIX: If we finished cleanly (last page or max page), STOP the outer recovery loop
-                    if scraping_finished and not self._stop_evt.is_set():
+                    if scraping_finished and not self._should_stop:
                         self.log("INFO", "Scraping completed successfully. Exiting.")
                         break
                 
                     
                     # === DUAL MODE: Run second phase in same browser ===
-                    if self.dual_mode_url and not self._stop_evt.is_set():
+                    if self.dual_mode_url and not self._should_stop:
                         self.log("INFO", "=== DUAL MODE: Starting second phase in same browser ===")
                         self.log("INFO", f"Switching to: {self.dual_mode_url}")
                     
@@ -3381,7 +3412,7 @@ class ScraperController:
                         self.log("INFO", f"Cooldown pause: {cooldown} seconds before continuing...")
                     
                         for _ in range(cooldown):
-                            if self._stop_evt.is_set():
+                            if self._should_stop:
                                 break
                             await asyncio.sleep(1)
                     
@@ -3491,9 +3522,9 @@ class ScraperController:
                         updated = 0
                         skipped = 0
                     
-                        while not self._stop_evt.is_set():
+                        while not self._should_stop:
                             await self._wait_for_pause()
-                            if self._stop_evt.is_set():
+                            if self._should_stop:
                                 break
                         
                             list_url = build_paginated_url(self.seed_url, page_num)
@@ -3547,7 +3578,7 @@ class ScraperController:
                         
                             for href in hrefs:
                                 await self._wait_for_pause()
-                                if self._stop_evt.is_set():
+                                if self._should_stop:
                                     break
                             
                                 key = canonical_listing_url(href)
@@ -3609,7 +3640,7 @@ class ScraperController:
                                     self.log("ERR", f"({self.current_property_count}/{self.total_properties_expected}) {key} -> {e}")
                                     self._processed.add(key)
                         
-                            if self._stop_evt.is_set():
+                            if self._should_stop:
                                 break
                             if original_count < LISTING_LINKS_PER_PAGE_MAX:
                                 self.log("INFO", f"Last page reached.")
@@ -3664,7 +3695,7 @@ class ScraperController:
                     self.log("INFO", "Rollover wait cancelled by stop event.")
                     break
                 
-                if self._stop_evt.is_set():
+                if self._should_stop:
                     break
                     
                 self.log("INFO", "🔄 Restarting browser now...")
@@ -3722,13 +3753,13 @@ class ScraperController:
                         # Wait for calculated duration (short for switch, long for cooldown)
                         cycles = max(1, int(wait_time / 5))
                         for _ in range(cycles): 
-                            if self._stop_evt.is_set(): break
+                            if self._should_stop: break
                             await asyncio.sleep(5)
                     except StopException:
                         self.log("INFO", "Retry wait interrupted.")
                         break
                     
-                    if self._stop_evt.is_set():
+                    if self._should_stop:
                         self.log("INFO", "Retry cancelled by user.")
                         break
                     
@@ -3767,7 +3798,7 @@ class ScraperController:
                 self.log("INFO", f"🔹 {profile} = {count} propiedades ({percentage:.1f}% del total)")
         
         # Clear resume state file ONLY on successful completion (not manual stop)
-        if not self._stop_evt.is_set():
+        if not self._should_stop:
             self.clear_state()
             self.status = "completed"
             self.log("INFO", "Resume state cleared (scraping completed successfully)")
