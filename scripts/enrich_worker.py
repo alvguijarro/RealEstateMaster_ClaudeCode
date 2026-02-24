@@ -29,6 +29,13 @@ from typing import Optional, Set, List, Dict
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# Force UTF-8 encoding for Windows consoles
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
+
 import pandas as pd
 from playwright.async_api import async_playwright
 
@@ -171,8 +178,11 @@ async def enrich_single_property(page, url: str) -> Optional[dict]:
         
         # Only return enrich fields
         enriched = {k: v for k, v in data.items() if k in ENRICH_FIELDS and v is not None}
-        if not enriched or len(enriched) < 3:
+        is_expired = data.get("isExpired", False)
+
+        if (not enriched or len(enriched) < 3) and not is_expired:
              # If too many fields are empty, might be a soft block or rendering issue
+             # We skip this warning if the listing is confirmed as expired/gone
              log("WARN", f"Pocos datos extraídos para {url}. Posible renderizado incompleto.")
              
         enriched["__enriched__"] = True

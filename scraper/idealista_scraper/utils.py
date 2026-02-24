@@ -287,6 +287,41 @@ def normalize_price(v) -> Optional[int]:
     return int(digits) if digits else None
 
 
+def parse_relative_date(text: Optional[str]) -> Optional[str]:
+    """Convert relative date strings like 'hoy', 'ayer', 'anteayer' into DD/MM/YYYY.
+    
+    Args:
+        text: Date string (relative or absolute)
+        
+    Returns:
+        Formatted date string as DD/MM/YYYY, or original text if not relative.
+        
+    Example:
+        >>> parse_relative_date("ayer")  # If today is 26/02/2026
+        '25/02/2026'
+    """
+    if not text:
+        return None
+        
+    from datetime import datetime, timedelta
+    t = text.lower().strip()
+    now = datetime.now()
+    
+    if "hoy" in t:
+        return now.strftime("%d/%m/%Y")
+    elif "ayer" in t:
+        return (now - timedelta(days=1)).strftime("%d/%m/%Y")
+    elif "anteayer" in t:
+        return (now - timedelta(days=2)).strftime("%d/%m/%Y")
+    
+    # If it's already a date like 05/01/2026, we might want to ensure DD/MM/YYYY
+    # But for now, we leave it as is if it matches a date pattern
+    if re.search(r"\d{1,2}/\d{1,2}/\d{4}", t):
+        return text.strip()
+        
+    return text.strip()
+
+
 def digits_only(s: Optional[str]) -> Optional[int]:
     """Extract only digits from a string and convert to integer.
     

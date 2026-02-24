@@ -3,7 +3,7 @@ import re
 from typing import List, Optional
 from .utils import (
     fold_text, sanitize_units, split_location, normalize_price, digits_only,
-    infer_tipo_from_title, get_comunidad
+    infer_tipo_from_title, get_comunidad, parse_relative_date
 )
 from .regex_patterns import (
     RX_M2_CONSTRUIDOS, RX_M2_UTILES, ORIENT_REGEX, YEAR_4D_RE, PARCELA_FALLBACK_RE,
@@ -431,7 +431,7 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
           advertiserType,
           advertiserName,
           isExpired,
-          lowDate
+          lowDate: parse_relative_date(lowDate)
         };
       }
     """)
