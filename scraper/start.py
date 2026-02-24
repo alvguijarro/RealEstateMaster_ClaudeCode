@@ -34,16 +34,19 @@ SERVER_PORT = 5003
 
 # Dependencies
 DEPENDENCIES = [
+    "pip>=23.0",
     "flask>=3.0.0",
     "flask-socketio>=5.3.0",
     "playwright>=1.40.0",
-    "playwright-stealth>=1.0.0",  # Anti-detection for Stealth mode
+    "playwright-stealth>=1.0.0",
     "pandas>=2.0.0",
     "openpyxl>=3.1.0",
     "python-engineio>=4.8.0",
     "python-socketio>=5.10.0",
     "simple-websocket>=1.0.0",
     "2captcha-python>=2.0.0",
+    "google-cloud-bigquery>=3.12.0",
+    "google-auth>=2.22.0",
 ]
 
 
