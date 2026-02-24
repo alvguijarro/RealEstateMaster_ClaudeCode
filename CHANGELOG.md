@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.9.5] - 2026-02-24
+### Fixed
+- **Extracción de nombre del anunciante**: Corregido un bug donde el campo `nombre anunciante` aparecía vacío en los ficheros del scraper. Ahora se prioriza el `<input type="hidden" name="user-name">` como fuente fiable del nombre, con fallback a los selectores CSS previos.
+
+### Added
+- **Columna `exterior` en ORDERED_BASE**: Añadida la columna `exterior` al esquema canónico de columnas (`ORDERED_BASE`) después de `altura`, permitiendo que tanto el scraper como los ficheros API la incluyan de forma estándar.
+- **Script de estandarización de ficheros API** (`scripts/standardize_api_excels.py`): Nuevo script que detecta automáticamente ficheros CSV/Excel descargados por API (por estructura de columnas, no por nombre) y los transforma para que tengan exactamente la misma estructura que los generados por el scraper: reordena columnas según `ORDERED_BASE`, añade columnas de metadatos de enriquecimiento (`__enriched__`, `Fecha Enriquecimiento`) vacías, y crea un backup previo.
+
 ## [2.9.4] - 2026-02-24
 ### Added
 - **Refinamiento de Enriquecimiento Inteligente**:

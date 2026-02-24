@@ -12,7 +12,7 @@ ORDERED_BASE = (
 
     "Terraza", "Garaje", "Armarios", "Trastero", "Calefaccion",
 
-    "tipo", "parcela", "ascensor", "orientacion", "altura",
+    "tipo", "parcela", "ascensor", "orientacion", "altura", "exterior",
     "construido en", "jardin", "piscina", "aire acond",
 
     # Location (moved after a/a as requested)

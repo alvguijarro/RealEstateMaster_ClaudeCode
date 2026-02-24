@@ -355,32 +355,37 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
         let advertiserType = null;
         let advertiserName = null;
 
+        // PRIORITY 1: Hidden input (most reliable — always present in the DOM)
+        const hiddenNameInput = document.querySelector('input[name="user-name"]');
+        if (hiddenNameInput && hiddenNameInput.value) {
+            advertiserName = hiddenNameInput.value.trim();
+        }
+
         const profNameEl = document.querySelector('.professional-name');
         if (profNameEl) {
             const profText = profNameEl.textContent.trim();
             if (/particular/i.test(profText)) {
                 advertiserType = "Particular";
-                // Get name from advertiser-name or similar
-                const nameEl = document.querySelector('.advertiser-name, .name');
-                if (nameEl) advertiserName = nameEl.textContent.trim();
+                // Fallback for name if hidden input wasn't found
+                if (!advertiserName) {
+                    const nameEl = document.querySelector('.advertiser-name, .name');
+                    if (nameEl) advertiserName = nameEl.textContent.trim();
+                }
             } else if (/profesional/i.test(profText)) {
                 advertiserType = "Agencia";
-                // For agency, the name might be in a different element, but usually advertiser-name works too
-                // or sometimes it's the element itself if it's just the badge
-                const nameEl = document.querySelector('.advertiser-name, .name, .professional-name span');
-                 if (nameEl) {
-                    advertiserName = nameEl.textContent.trim();
-                 } else {
-                     // Fallback: sometimes the agency name is in the advertiser-data container
-                     const logoEl = document.querySelector('.logo-branding');
-                     if (logoEl) advertiserName = logoEl.getAttribute('alt') || logoEl.getAttribute('title');
-                 }
-                 
-                 // If we still don't have a name but it's an agency, try to get it from context
-                 if (!advertiserName) {
-                     const container = document.querySelector('.advertiser-data');
-                     if (container) advertiserName = container.textContent.replace('Profesional', '').trim();
-                 }
+                // Fallback for name if hidden input wasn't found
+                if (!advertiserName) {
+                    const nameEl = document.querySelector('.advertiser-name, .name, .professional-name span');
+                    if (nameEl) advertiserName = nameEl.textContent.trim();
+                }
+                if (!advertiserName) {
+                    const logoEl = document.querySelector('.logo-branding');
+                    if (logoEl) advertiserName = logoEl.getAttribute('alt') || logoEl.getAttribute('title');
+                }
+                if (!advertiserName) {
+                    const container = document.querySelector('.advertiser-data');
+                    if (container) advertiserName = container.textContent.replace('Profesional', '').trim();
+                }
             }
         }
         
@@ -389,14 +394,18 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
              const particularEl = document.querySelector('.owner-data .particular, [class*="particular"], .icon-particular');
              if (particularEl) {
                  advertiserType = "Particular";
-                 const nameEl = document.querySelector('.advertiser-name');
-                 if (nameEl) advertiserName = nameEl.textContent.trim();
+                 if (!advertiserName) {
+                     const nameEl = document.querySelector('.advertiser-name');
+                     if (nameEl) advertiserName = nameEl.textContent.trim();
+                 }
              }
              
              const agencyEl = document.querySelector('.logo-branding, .agency-logo');
              if (agencyEl) {
                  advertiserType = "Agencia";
-                 advertiserName = agencyEl.getAttribute('alt') || agencyEl.getAttribute('title');
+                 if (!advertiserName) {
+                     advertiserName = agencyEl.getAttribute('alt') || agencyEl.getAttribute('title');
+                 }
              }
         }
 
