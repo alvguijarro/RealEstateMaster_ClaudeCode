@@ -1419,7 +1419,7 @@ class ScraperController:
             try:
                 result = subprocess.run(
                     ["powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-Command", ps_command],
-                    capture_output=True, check=False, text=True, timeout=10
+                    capture_output=True, check=False, text=True, timeout=30
                 )
                 if result.stdout.strip():
                     self.log("WARN", f"🔪 Zombie cleanup: {result.stdout.strip()}")
@@ -2433,6 +2433,12 @@ class ScraperController:
                             # On the first attempt, check for DataDome before waiting 4s.
                             # If blocked, exit immediately instead of spinning 4 rounds.
                             if attempt == 0:
+                                # Wait 10s for Idealista's automatic verification to complete
+                                # before checking for DataDome. This prevents false positives.
+                                self.log("INFO", "Waiting for initial verification to complete (10s)...")
+                                await self._interruptible_sleep(10.0)
+                                if self._stop_evt.is_set():
+                                    break
                                 try:
                                     is_datadome_early = await page.evaluate(
                                         "() => !!document.querySelector('iframe[src*=\"captcha-delivery.com\"]')"
@@ -2642,9 +2648,9 @@ class ScraperController:
                     existing_df = pd.DataFrame()  # Will be loaded if target file exists
                     scraping_finished = False  # Track clean completion
             
-                    while not self._stop_evt.is_set():
+                    while not self._stop_evt.is_set() and not scraping_finished:
                         await self._wait_for_pause()
-                        if self._stop_evt.is_set():
+                        if self._stop_evt.is_set() or scraping_finished:
                             break
 
                         self.current_page = page_num
