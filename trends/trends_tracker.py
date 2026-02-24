@@ -338,6 +338,9 @@ async def run_tracker(resume=False, headless=False):
                 
                 # PROCESS URLs
                 scan_idx = start_index
+                consecutive_skips = 0
+                made_progress = False
+                
                 while scan_idx < urls_len:
                     if STOP_FLAG_FILE.exists():
                         print("🔴 Stop flag detected. Halting inner loop.")
@@ -350,7 +353,18 @@ async def run_tracker(resume=False, headless=False):
                     if await record_exists_for_week(iso_year, iso_week, province, zone, operation):
                         print(f"  -> Skipping. Data already exists for Week {iso_week}.")
                         scan_idx += 1
+                        consecutive_skips += 1
+                        
+                        # Auto-stop: if we've skipped all remaining URLs without any scrape
+                        remaining = urls_len - start_index
+                        if consecutive_skips >= remaining:
+                            print(f"✅ Auto-stop: All {consecutive_skips} remaining URLs already have data for Week {iso_week}. Finishing.")
+                            scan_idx = urls_len  # Force exit
+                            break
                         continue
+                    
+                    # Reset skip counter when we actually attempt a scrape
+                    consecutive_skips = 0
                     
                     # Retry logic for this specific URL (up to 3 attempts)
                     success = False
@@ -358,8 +372,6 @@ async def run_tracker(resume=False, headless=False):
                         try:
                             if attempt > 1:
                                 print(f"  -> Retry attempt {attempt}/3...")
-                                # Force re-launch context/rotate in outer loop by breaking
-                                # For now, try simple reload
                             
                             await page.goto(url, timeout=45000, wait_until="domcontentloaded")
                             await asyncio.sleep(random.uniform(2.5, 4.5)) 
@@ -383,6 +395,7 @@ async def run_tracker(resume=False, headless=False):
                             if total_properties >= 0:
                                 await save_to_db(date_formatted, iso_year, iso_week, province, zone, operation, total_properties)
                                 success = True
+                                made_progress = True
                                 break # Exit retry loop
                                 
                         except Exception as e:
@@ -401,7 +414,7 @@ async def run_tracker(resume=False, headless=False):
                         
                 start_index = scan_idx # Updates outer loop progress
                 
-                if STOP_FLAG_FILE.exists():
+                if STOP_FLAG_FILE.exists() or scan_idx >= urls_len:
                     break
             except Exception as e:
                 print(f"CRITICAL: Browser instance failed: {e}")
