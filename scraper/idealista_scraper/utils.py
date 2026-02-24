@@ -728,11 +728,15 @@ async def solve_slider_2captcha(page, logger=None):
         # Updated instructions to be more precise
         instructions = "Haz clic en el PUNTO DESTINO (extremo derecho) donde debe llegar el botón deslizante. / Click on the DESTINATION point (far right) where the slider button should end."
         
-        result = await asyncio.to_thread(
-            SOLVER.coordinates,
-            file=img_path,
-            textinstructions=instructions
-        )
+        try:
+            result = await asyncio.to_thread(
+                SOLVER.coordinates,
+                file=img_path,
+                textinstructions=instructions
+            )
+        except Exception as e:
+            l("ERR", f"2Captcha API call failed: {type(e).__name__}: {e}")
+            result = None
         
         # Cleanup image
         if os.path.exists(img_path):
@@ -863,28 +867,16 @@ async def solve_slider_2captcha(page, logger=None):
             return True
             
     except Exception as e:
-        l("ERR", f"2Captcha Slider solver error: {e}")
+        l("ERR", f"2Captcha Slider solver error: {type(e).__name__}: {e}")
         
     l("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
     return False
 
 async def solve_captcha_advanced(page, logger=None):
-    """Orchestrator for CAPTCHA solving: DataDome -> Slider (Local) -> 2Captcha (Slider/GeeTest)."""
+    """Orchestrator for CAPTCHA solving: Slider (Local) -> DataDome -> 2Captcha (Slider/GeeTest)."""
     l = logger or log
     
-    # 0. Check for DataDome specifically (High Priority)
-    is_datadome = await page.evaluate("() => !!document.querySelector('iframe[src*=\"captcha-delivery.com\"]')")
-    if is_datadome:
-        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Iniciando resolución física por Coordenadas...")
-        if await solve_datadome_2captcha(page, logger=l):
-            await asyncio.sleep(4)
-            title = (await page.title()).lower()
-            if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                l("OK", "✅ DataDome resuelto físicamente!")
-                return True
-            l("WARN", "El slider de DataDome se movió pero el bloqueo persiste. Probando rutinas genéricas...")
-
-    # 1. Try Slider (Fast & Free)
+    # 1. Try Slider FIRST (Fast, Free & very effective for DataDome and others)
     l("INFO", "🤖 Intentando resolución local (Slider)...")
     if await solve_slider_captcha(page):
         # Brief wait to see if it clears
@@ -893,9 +885,21 @@ async def solve_captcha_advanced(page, logger=None):
         if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
             l("OK", "✅ Local slider solved the CAPTCHA!")
             return True
-        l("WARN", "Slider local falló o el bloqueo persiste. Probando 2Captcha...")
+        l("WARN", "Slider local falló o el bloqueo persiste.")
+
+    # 2. Specific DataDome Check
+    is_datadome = await page.evaluate("() => !!document.querySelector('iframe[src*=\"captcha-delivery.com\"]')")
+    if is_datadome:
+        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Iniciando resolución física por Coordenadas (2Captcha)...")
+        if await solve_datadome_2captcha(page, logger=l):
+            await asyncio.sleep(4)
+            title = (await page.title()).lower()
+            if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
+                l("OK", "✅ DataDome resuelto físicamente!")
+                return True
+            l("WARN", "El slider de DataDome se movió pero el bloqueo persiste.")
     
-    # 2. Try 2Captcha (paid)
+    # 3. Try 2Captcha (paid) as fallback
     if SOLVER:
         # A. Try solving as GeeTest first (if identifiable)
         is_geetest = await page.evaluate("() => !!(window.initGeetest || document.querySelector('.geetest_holder'))")

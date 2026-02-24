@@ -1716,15 +1716,20 @@ class ScraperController:
                 except asyncio.TimeoutError:
                     self.log("ERR", f"⏰ NAVIGATION HANG: {url} timed out after 120s guard.")
                     raise Exception("NAVIGATION_HANG")
+                except Exception as e:
+                    # Specific handling for "Failed sending data to the peer" (Playwright connection error)
+                    if "failed sending data to the peer" in str(e).lower():
+                        self.log("WARN", f"🔌 Peer connection error detected. Cooling down 5s before retry...")
+                        await asyncio.sleep(5.0)
+                    raise e
                 
                 # Humanize interaction after reaching the page (Wrapped in timeout)
                 try:
                     await asyncio.wait_for(simulate_human_interaction(page), timeout=5.0)
-                except asyncio.TimeoutError:
+                except (asyncio.TimeoutError, Exception) as e:
+                    if not isinstance(e, asyncio.TimeoutError):
+                        self.log("WARN", f"⚠️ Human interaction failed: {e}")
                     pass
-
-                except Exception as e:
-                    self.log("WARN", f"⚠️ Human interaction failed: {e}")
                 
                 # Check for CAPTCHA/Bot protection using unified helper
                 try:
