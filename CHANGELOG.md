@@ -17,6 +17,7 @@
 - **Fix verificación inicial de Idealista**: Implementada espera adaptativa de hasta 30 segundos (3 intentos de 10s) que detecta específicamente la pantalla de "Verificación del dispositivo". Esto evita que el proceso automático de Idealista sea detectado falsamente como un bloqueo en ambos scrapers (Market Trends y Provincias).
 - **Fix auto-stop por 300 skips**: Corregido bug donde el flag `scraping_finished` no se verificaba en el bucle exterior de scraping, impidiendo que el auto-stop funcionara tras 300 propiedades consecutivas saltadas.
 - **Fix cleanup timeout**: Aumentado el timeout del comando PowerShell de limpieza de procesos zombi de 10s a 30s para evitar errores de timeout frecuentes.
+- **Double-Check Phase en Market Trends**: Añadida una fase final de doble comprobación automática para URLs que devuelven 0 propiedades sin confirmación ("No hay anuncios"). Estos casos se re-escanean con esperas más conservadoras antes de cerrar el navegador para descartar falsos positivos y actualizar los datos si es necesario.
 
 ## [Unreleased] - Market Trends Enhancements
 - `scraper_wrapper.py`: **Modo Deep Scrape (NUEVO)**. Automatizada la transición en búsquedas de gran volumen. Al alcanzar el límite impuesto por Idealista (página 60), automáticamente itera inyectando 4 variaciones de ordenación para sobrepasar la barrera de las 1800 viviendas mostradas y llegar hasta las 6000 o 9000 propiedades totales de una ciudad de forma autónoma con un mismo "click".

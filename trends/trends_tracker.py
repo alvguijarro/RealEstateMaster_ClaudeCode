@@ -294,6 +294,7 @@ async def run_tracker(resume=False, headless=False):
     iso_year, iso_week, _ = now.isocalendar()
     
     start_index = 0
+    uncertain_zero_urls = []
     if resume:
         last_idx, cp_year, cp_week = load_checkpoint()
         if cp_year == iso_year and cp_week == iso_week:
@@ -440,6 +441,10 @@ async def run_tracker(resume=False, headless=False):
                                     await take_debug_screenshot(page, province, zone, suffix=f"_0props_att{attempt}")
                                     if attempt < 3:
                                         continue # Try again
+                                    else:
+                                        # Third attempt failed without confirmation. Tag for Double-Check.
+                                        print(f"  -> Tagging {province} ({zone}) for Double-Check Phase.")
+                                        uncertain_zero_urls.append((province, zone, url, operation))
                             
                             print(f"  -> Found {total_properties} properties.")
                             if total_properties >= 0:
@@ -465,6 +470,28 @@ async def run_tracker(resume=False, headless=False):
                 start_index = scan_idx # Updates outer loop progress
                 
                 if STOP_FLAG_FILE.exists() or scan_idx >= urls_len:
+                    # --- DOUBLE-CHECK PHASE ---
+                    if scan_idx >= urls_len and uncertain_zero_urls and not STOP_FLAG_FILE.exists():
+                        print(f"\n🔍 STARTING DOUBLE-CHECK PHASE for {len(uncertain_zero_urls)} uncertain items...")
+                        for prov, zn, u, op in uncertain_zero_urls:
+                            if STOP_FLAG_FILE.exists(): break
+                            print(f"  -> Re-checking {prov} ({zn})...")
+                            try:
+                                await page.goto(u, timeout=45000, wait_until="domcontentloaded")
+                                await asyncio.sleep(random.uniform(5.0, 8.0)) # More conservative wait
+                                await wait_for_verification(page)
+                                
+                                recheck_val = await extract_h1_number(page)
+                                if recheck_val > 0:
+                                    print(f"    ✨ Corrected! Found {recheck_val} properties.")
+                                    await save_to_db(date_formatted, iso_year, iso_week, prov, zn, op, recheck_val)
+                                elif await is_legit_zero_results(page):
+                                    print(f"    ✅ Confirmed 0 properties (No hay anuncios).")
+                                else:
+                                    print(f"    ❌ Still 0 properties (Unconfirmed).")
+                            except Exception as re_e:
+                                print(f"    ⚠️ Error in re-check: {re_e}")
+                        print("✅ Double-Check Phase completed.\n")
                     break
             except Exception as e:
                 print(f"CRITICAL: Browser instance failed: {e}")
