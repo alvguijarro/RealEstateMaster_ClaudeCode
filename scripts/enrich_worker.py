@@ -62,10 +62,9 @@ DEFAULT_MAX_PRICE = API_MAX_PRICE or 300000
 ENRICH_STATE_FILE = PROJECT_ROOT / "scraper" / "salidas" / ".enrich_state.json"
 
 # Rate limiting (Sync with scraper logic)
-DELAY_BETWEEN_PAGES = (5, 12)  # seconds, randomized
-DELAY_BETWEEN_BATCHES = (60, 180)  # minutes between batches
-BATCH_SIZE = 15
-SESSION_LIMIT = 80  
+DELAY_BETWEEN_PAGES = (1, 3)  # Faster timing (1-3 seconds) to match main scraper
+BATCH_SIZE = 999999 # Practically disabled
+SESSION_LIMIT = 999999 # Practically disabled
 # Signal flags
 STOP_FLAG = PROJECT_ROOT / "scraper" / "ENRICH_STOP.flag"
 
@@ -77,8 +76,8 @@ def check_stop():
         return True
     return False
 
-# Session break
-SESSION_BREAK = (300, 900)  # 5-15 minutes
+# Session break (Practically disabled)
+SESSION_BREAK = (1, 2)  
 
 # Fields that the API provides (we skip these during enrichment)
 API_PROVIDED_FIELDS = {
@@ -298,7 +297,8 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                     save_enrich_state(state)
                 
                 # Save to disk periodically (Enrichment updates are crucial)
-                if batch_count >= BATCH_SIZE:
+                # We save every 15 items but WITHOUT pausing
+                if batch_count >= 15:
                     batch_count = 0
                     log("INFO", "Guardando progreso intermedio...")
                     for fp, rows in enriched_data.items():
@@ -309,26 +309,9 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                             except Exception as e:
                                 log("ERR", f"Error guardando {fp.name}: {e}")
                     enriched_data = {} # Reset list after saving
-                    
-                    delay = random.uniform(*DELAY_BETWEEN_BATCHES)
-                    log("INFO", f"Batch completado. Descansando {delay/60:.1f} min...")
-                    for _ in range(int(delay)):
-                        if check_stop(): break
-                        await asyncio.sleep(1)
-                    if check_stop(): break
                 
-                # Extra long rest
-                if session_count >= SESSION_LIMIT:
-                    session_count = 0
-                    delay = random.uniform(*SESSION_BREAK)
-                    log("INFO", f"Límite de sesión alcanzado. Descansa {delay/60:.1f} min...")
-                    for _ in range(int(delay)):
-                        if check_stop(): break
-                        await asyncio.sleep(1)
-                    if check_stop(): break
-                else:
-                    # Generic page delay
-                    await asyncio.sleep(random.uniform(*DELAY_BETWEEN_PAGES))
+                # Generic page delay (Continuous flow)
+                await asyncio.sleep(random.uniform(*DELAY_BETWEEN_PAGES))
 
         finally:
             # Final Save always
