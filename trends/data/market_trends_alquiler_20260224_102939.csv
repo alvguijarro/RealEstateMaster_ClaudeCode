@@ -1,0 +1,919 @@
+Fecha,Año ISO,Semana ISO,Provincia,Zona,Operación,Total Propiedades
+24-02-2026,2026,9,Zaragoza,Área de Zaragoza,alquiler,481
+24-02-2026,2026,9,Zaragoza,Tarazona-El Moncayo,alquiler,9
+24-02-2026,2026,9,Zaragoza,Ribera Baja del Ebro,alquiler,5
+24-02-2026,2026,9,Zaragoza,Ribera Alta del Ebro,alquiler,4
+24-02-2026,2026,9,Zaragoza,Monegros,alquiler,1
+24-02-2026,2026,9,Zaragoza,La Muela-Valdejalón,alquiler,22
+24-02-2026,2026,9,Zaragoza,Hoya de Huesca,alquiler,0
+24-02-2026,2026,9,Zaragoza,Comunidad de Calatayud,alquiler,17
+24-02-2026,2026,9,Zaragoza,Cinco Villas - Jacetania,alquiler,3
+24-02-2026,2026,9,Zaragoza,Caspe,alquiler,1
+24-02-2026,2026,9,Zaragoza,Campo de Daroca,alquiler,2
+24-02-2026,2026,9,Zaragoza,Campo de Cariñena,alquiler,1
+24-02-2026,2026,9,Zaragoza,Campo de Borja,alquiler,9
+24-02-2026,2026,9,Zaragoza,Campo de Belchite,alquiler,1
+24-02-2026,2026,9,Zaragoza,Mequinenza,alquiler,1
+24-02-2026,2026,9,Zaragoza,Aranda,alquiler,5
+24-02-2026,2026,9,Zaragoza,*(Toda la provincia)*,alquiler,562
+24-02-2026,2026,9,Zamora,Área de Zamora,alquiler,34
+24-02-2026,2026,9,Zamora,Área de Sayago,alquiler,2
+24-02-2026,2026,9,Zamora,Tierra del Vino - La Guareña,alquiler,0
+24-02-2026,2026,9,Zamora,Tierra de Campos,alquiler,0
+24-02-2026,2026,9,Zamora,Sanabria,alquiler,15
+24-02-2026,2026,9,Zamora,Benavente,alquiler,10
+24-02-2026,2026,9,Zamora,Aliste,alquiler,2
+24-02-2026,2026,9,Zamora,Alfoz de Toro,alquiler,9
+24-02-2026,2026,9,Zamora,*(Toda la provincia)*,alquiler,72
+24-02-2026,2026,9,Vizcaya,Uribe-Butroe,alquiler,41
+24-02-2026,2026,9,Vizcaya,Lea-Artibai,alquiler,3
+24-02-2026,2026,9,Vizcaya,Gran Bilbao,alquiler,582
+24-02-2026,2026,9,Vizcaya,Encartaciones,alquiler,6
+24-02-2026,2026,9,Vizcaya,Duranguesado,alquiler,2
+24-02-2026,2026,9,Vizcaya,Busturialdea,alquiler,17
+24-02-2026,2026,9,Vizcaya,Arratia-Nervión,alquiler,3
+24-02-2026,2026,9,Vizcaya,*(Toda la provincia)*,alquiler,654
+24-02-2026,2026,9,Valencia,Valencia,alquiler,2829
+24-02-2026,2026,9,Valencia,Safor,alquiler,608
+24-02-2026,2026,9,Valencia,Ribera Baixa,alquiler,246
+24-02-2026,2026,9,Valencia,Ribera Alta,alquiler,88
+24-02-2026,2026,9,Valencia,Los Serranos,alquiler,12
+24-02-2026,2026,9,Valencia,La Vall d'Albaida,alquiler,29
+24-02-2026,2026,9,Valencia,La Plana d'Utiel,alquiler,15
+24-02-2026,2026,9,Valencia,La Costera,alquiler,24
+24-02-2026,2026,9,Valencia,La Canal de Navarrés,alquiler,8
+24-02-2026,2026,9,Valencia,L'Horta Sud,alquiler,262
+24-02-2026,2026,9,Valencia,L'Horta Nord,alquiler,445
+24-02-2026,2026,9,Valencia,Hoya de Buñol,alquiler,54
+24-02-2026,2026,9,Valencia,El Valle de Ayora,alquiler,1
+24-02-2026,2026,9,Valencia,El Rincón de Ademuz,alquiler,2
+24-02-2026,2026,9,Valencia,El Camp de Tùria,alquiler,190
+24-02-2026,2026,9,Valencia,Camp de Morvedre,alquiler,336
+24-02-2026,2026,9,Valencia,*(Toda la provincia)*,alquiler,5150
+24-02-2026,2026,9,Valladolid,Área Metropolitana Valladolid,alquiler,295
+24-02-2026,2026,9,Valladolid,Tordesillas,alquiler,9
+24-02-2026,2026,9,Valladolid,Tierra de Pinares,alquiler,4
+24-02-2026,2026,9,Valladolid,Tierra de Medina,alquiler,7
+24-02-2026,2026,9,Valladolid,Tierra de Campos,alquiler,4
+24-02-2026,2026,9,Valladolid,*(Toda la provincia)*,alquiler,319
+24-02-2026,2026,9,Toledo,Área de Torrijos,alquiler,51
+24-02-2026,2026,9,Toledo,Toledo,alquiler,141
+24-02-2026,2026,9,Toledo,Talavera de la Reina,alquiler,82
+24-02-2026,2026,9,Toledo,Sierra de San Vicente,alquiler,12
+24-02-2026,2026,9,Toledo,Los Montes de Toledo,alquiler,18
+24-02-2026,2026,9,Toledo,La Sagra,alquiler,89
+24-02-2026,2026,9,Toledo,La Mesa de Ocaña,alquiler,24
+24-02-2026,2026,9,Toledo,La Mancha,alquiler,20
+24-02-2026,2026,9,Toledo,La Jara,alquiler,3
+24-02-2026,2026,9,Toledo,La Campana de Oropesa,alquiler,10
+24-02-2026,2026,9,Toledo,*(Toda la provincia)*,alquiler,450
+24-02-2026,2026,9,Teruel,Área de Teruel,alquiler,14
+24-02-2026,2026,9,Teruel,Matarraña,alquiler,5
+24-02-2026,2026,9,Teruel,Maestrazgo,alquiler,0
+24-02-2026,2026,9,Teruel,Jiloca,alquiler,5
+24-02-2026,2026,9,Teruel,Gúdar- Javalambre,alquiler,34
+24-02-2026,2026,9,Teruel,Cuencas Mineras- Andorra-Bajo Martín,alquiler,28
+24-02-2026,2026,9,Teruel,Bajo Aragón,alquiler,14
+24-02-2026,2026,9,Teruel,Albarracín,alquiler,3
+24-02-2026,2026,9,Teruel,*(Toda la provincia)*,alquiler,103
+24-02-2026,2026,9,Tarragona,Terra Alta,alquiler,2
+24-02-2026,2026,9,Tarragona,Tarragonès,alquiler,219
+24-02-2026,2026,9,Tarragona,Ribera d'Ebre,alquiler,1
+24-02-2026,2026,9,Tarragona,Priorat,alquiler,1
+24-02-2026,2026,9,Tarragona,Montsià,alquiler,37
+24-02-2026,2026,9,Tarragona,Conca de Barberà,alquiler,6
+24-02-2026,2026,9,Tarragona,Baix Penedès,alquiler,66
+24-02-2026,2026,9,Tarragona,Baix Ebre,alquiler,56
+24-02-2026,2026,9,Tarragona,Baix Camp,alquiler,137
+24-02-2026,2026,9,Tarragona,Alt Camp,alquiler,6
+24-02-2026,2026,9,Tarragona,*(Toda la provincia)*,alquiler,531
+24-02-2026,2026,9,Soria,Área de Soria,alquiler,44
+24-02-2026,2026,9,Soria,Pinares y Tierras Altas,alquiler,7
+24-02-2026,2026,9,Soria,Burgo de Osma,alquiler,6
+24-02-2026,2026,9,Soria,Almazán,alquiler,13
+24-02-2026,2026,9,Soria,*(Toda la provincia)*,alquiler,70
+24-02-2026,2026,9,Sevilla,Área de Estepa,alquiler,7
+24-02-2026,2026,9,Sevilla,Área Metropolitana,alquiler,194
+24-02-2026,2026,9,Sevilla,Sierra norte,alquiler,41
+24-02-2026,2026,9,Sevilla,Sevilla,alquiler,1362
+24-02-2026,2026,9,Sevilla,La Vega,alquiler,27
+24-02-2026,2026,9,Sevilla,La Marisma,alquiler,4
+24-02-2026,2026,9,Sevilla,La Campiña,alquiler,89
+24-02-2026,2026,9,Sevilla,Aljarafe,alquiler,224
+24-02-2026,2026,9,Sevilla,*(Toda la provincia)*,alquiler,1948
+24-02-2026,2026,9,Segovia,Área de Sepúlveda - Cantalejo,alquiler,18
+24-02-2026,2026,9,Segovia,Área de Segovia,alquiler,338
+24-02-2026,2026,9,Segovia,Área de Santa María Real de Nieva,alquiler,8
+24-02-2026,2026,9,Segovia,Área de Riaza,alquiler,5
+24-02-2026,2026,9,Segovia,Área de Cuéllar,alquiler,3
+24-02-2026,2026,9,Segovia,*(Toda la provincia)*,alquiler,372
+24-02-2026,2026,9,Santa Cruz de Tenerife,Tenerife,alquiler,1407
+24-02-2026,2026,9,Santa Cruz de Tenerife,La Palma,alquiler,25
+24-02-2026,2026,9,Santa Cruz de Tenerife,La Gomera,alquiler,7
+24-02-2026,2026,9,Santa Cruz de Tenerife,El Hierro,alquiler,4
+24-02-2026,2026,9,Santa Cruz de Tenerife,*(Toda la provincia)*,alquiler,1443
+24-02-2026,2026,9,Salamanca,Área Metropolitana,alquiler,1096
+24-02-2026,2026,9,Salamanca,Vitigudino,alquiler,7
+24-02-2026,2026,9,Salamanca,Peñaranda,alquiler,4
+24-02-2026,2026,9,Salamanca,Ciudad Rodrigo,alquiler,24
+24-02-2026,2026,9,Salamanca,Campo Charro,alquiler,3
+24-02-2026,2026,9,Salamanca,Béjar,alquiler,25
+24-02-2026,2026,9,Salamanca,*(Toda la provincia)*,alquiler,1159
+24-02-2026,2026,9,Pontevedra,Área de Vigo,alquiler,502
+24-02-2026,2026,9,Pontevedra,Área de Terra Montes,alquiler,2
+24-02-2026,2026,9,Pontevedra,Área de Pontevedra,alquiler,145
+24-02-2026,2026,9,Pontevedra,Área de Deza,alquiler,16
+24-02-2026,2026,9,Pontevedra,Área de Caldas,alquiler,6
+24-02-2026,2026,9,Pontevedra,Salnés,alquiler,231
+24-02-2026,2026,9,Pontevedra,Morrazo,alquiler,54
+24-02-2026,2026,9,Pontevedra,Condado - Paradanta,alquiler,32
+24-02-2026,2026,9,Pontevedra,Baixo Miño,alquiler,38
+24-02-2026,2026,9,Pontevedra,*(Toda la provincia)*,alquiler,1026
+24-02-2026,2026,9,Palencia,Tierra de Campos - Cerrato,alquiler,60
+24-02-2026,2026,9,Palencia,Montaña Palentina,alquiler,7
+24-02-2026,2026,9,Palencia,Camino de Santiago,alquiler,14
+24-02-2026,2026,9,Palencia,*(Toda la provincia)*,alquiler,81
+24-02-2026,2026,9,Ourense,Área de Ourense,alquiler,205
+24-02-2026,2026,9,Ourense,Viana- Verín,alquiler,6
+24-02-2026,2026,9,Ourense,Valdeorras,alquiler,4
+24-02-2026,2026,9,Ourense,Terra de Celanova,alquiler,4
+24-02-2026,2026,9,Ourense,Terra de Caldelas- Trive,alquiler,2
+24-02-2026,2026,9,Ourense,Ribeiro,alquiler,2
+24-02-2026,2026,9,Ourense,Limia,alquiler,3
+24-02-2026,2026,9,Ourense,Carballiño,alquiler,6
+24-02-2026,2026,9,Ourense,Allariz- Maceda,alquiler,11
+24-02-2026,2026,9,Ourense,*(Toda la provincia)*,alquiler,243
+24-02-2026,2026,9,Navarra,Área de Tudela,alquiler,26
+24-02-2026,2026,9,Navarra,Área de Tafalla,alquiler,5
+24-02-2026,2026,9,Navarra,Área de Sangüesa,alquiler,1
+24-02-2026,2026,9,Navarra,Área de Puente la Reina,alquiler,3
+24-02-2026,2026,9,Navarra,Área de Peralta,alquiler,1
+24-02-2026,2026,9,Navarra,Área de Pamplona,alquiler,204
+24-02-2026,2026,9,Navarra,Área de Esteribar,alquiler,0
+24-02-2026,2026,9,Navarra,Área de Estella y Urbasa,alquiler,6
+24-02-2026,2026,9,Navarra,Olite,alquiler,1
+24-02-2026,2026,9,Navarra,Norte,alquiler,8
+24-02-2026,2026,9,Navarra,*(Toda la provincia)*,alquiler,255
+24-02-2026,2026,9,Murcia,Área de Murcia,alquiler,805
+24-02-2026,2026,9,Murcia,Vega Media,alquiler,59
+24-02-2026,2026,9,Murcia,Vega Alta,alquiler,6
+24-02-2026,2026,9,Murcia,Valle de Ricote,alquiler,16
+24-02-2026,2026,9,Murcia,Río Mula,alquiler,5
+24-02-2026,2026,9,Murcia,Noroeste,alquiler,18
+24-02-2026,2026,9,Murcia,Mar Menor,alquiler,281
+24-02-2026,2026,9,Murcia,La Manga del Mar Menor,alquiler,280
+24-02-2026,2026,9,Murcia,Campo de Cartagena,alquiler,359
+24-02-2026,2026,9,Murcia,Bajo Guadalentín,alquiler,159
+24-02-2026,2026,9,Murcia,Alto Guadalentín,alquiler,138
+24-02-2026,2026,9,Murcia,Altiplano-Oriental,alquiler,16
+24-02-2026,2026,9,Murcia,*(Toda la provincia)*,alquiler,2142
+24-02-2026,2026,9,Melilla,San Lorenzo,alquiler,3
+24-02-2026,2026,9,Melilla,La Victoria,alquiler,1
+24-02-2026,2026,9,Melilla,Isaac Peral,alquiler,1
+24-02-2026,2026,9,Melilla,Hipódromo,alquiler,2
+24-02-2026,2026,9,Melilla,El Real,alquiler,1
+24-02-2026,2026,9,Melilla,El Industrial,alquiler,3
+24-02-2026,2026,9,Melilla,Constitución,alquiler,0
+24-02-2026,2026,9,Melilla,Centro,alquiler,4
+24-02-2026,2026,9,Melilla,Calvo Sotelo,alquiler,2
+24-02-2026,2026,9,Melilla,Barriadas norte,alquiler,0
+24-02-2026,2026,9,Melilla,Alfonso XIII,alquiler,1
+24-02-2026,2026,9,Melilla,*(Toda la provincia)*,alquiler,18
+24-02-2026,2026,9,Málaga,Área de Antequera,alquiler,66
+24-02-2026,2026,9,Málaga,Valle de Guadalhorce,alquiler,262
+24-02-2026,2026,9,Málaga,Serranía de Ronda,alquiler,40
+24-02-2026,2026,9,Málaga,Costa del Sol Oriental - Axarquía,alquiler,977
+24-02-2026,2026,9,Málaga,Costa del Sol Occidental-Área de Marbella,alquiler,2993
+24-02-2026,2026,9,Málaga,Costa del Sol Occidental-Área de Benalmádena-Costa,alquiler,1753
+24-02-2026,2026,9,Málaga,Costa del Sol Occidental - Área de Estepona,alquiler,1075
+24-02-2026,2026,9,Málaga,Málaga,alquiler,1624
+24-02-2026,2026,9,Málaga,*(Toda la provincia)*,alquiler,8790
+24-02-2026,2026,9,Madrid,Zona suroeste,alquiler,70
+24-02-2026,2026,9,Madrid,Zona sureste,alquiler,86
+24-02-2026,2026,9,Madrid,Zona sur,alquiler,319
+24-02-2026,2026,9,Madrid,Zona norte,alquiler,701
+24-02-2026,2026,9,Madrid,Zona noroeste,alquiler,884
+24-02-2026,2026,9,Madrid,Madrid,alquiler,10283
+24-02-2026,2026,9,Madrid,Corredor del Henares,alquiler,209
+24-02-2026,2026,9,Madrid,*(Toda la provincia)*,alquiler,12552
+24-02-2026,2026,9,Lugo,Área de Lugo,alquiler,166
+24-02-2026,2026,9,Lugo,Ulloa,alquiler,3
+24-02-2026,2026,9,Lugo,Terra Chá,alquiler,4
+24-02-2026,2026,9,Lugo,Sarria,alquiler,6
+24-02-2026,2026,9,Lugo,Quiroga,alquiler,1
+24-02-2026,2026,9,Lugo,Meira,alquiler,1
+24-02-2026,2026,9,Lugo,Lemos,alquiler,19
+24-02-2026,2026,9,Lugo,Chantada,alquiler,4
+24-02-2026,2026,9,Lugo,Ancares,alquiler,3
+24-02-2026,2026,9,Lugo,A Mariña,alquiler,171
+24-02-2026,2026,9,Lugo,A Fonsagrada,alquiler,1
+24-02-2026,2026,9,Lugo,*(Toda la provincia)*,alquiler,379
+24-02-2026,2026,9,Lleida,Val d'Aran,alquiler,58
+24-02-2026,2026,9,Lleida,Urgell,alquiler,9
+24-02-2026,2026,9,Lleida,Solsonès,alquiler,7
+24-02-2026,2026,9,Lleida,Segrià,alquiler,69
+24-02-2026,2026,9,Lleida,Segarra,alquiler,2
+24-02-2026,2026,9,Lleida,Pla d'Urgell,alquiler,0
+24-02-2026,2026,9,Lleida,Pallars Sobirà,alquiler,8
+24-02-2026,2026,9,Lleida,Pallars Jussà,alquiler,10
+24-02-2026,2026,9,Lleida,Noguera,alquiler,4
+24-02-2026,2026,9,Lleida,Garrigues,alquiler,0
+24-02-2026,2026,9,Lleida,Cerdanya,alquiler,15
+24-02-2026,2026,9,Lleida,Alta Ribagorça,alquiler,4
+24-02-2026,2026,9,Lleida,Alt Urgell,alquiler,10
+24-02-2026,2026,9,Lleida,*(Toda la provincia)*,alquiler,196
+24-02-2026,2026,9,León,Tierras de León,alquiler,237
+24-02-2026,2026,9,León,Tierra de Campos,alquiler,4
+24-02-2026,2026,9,León,Maragatería- Cabrera,alquiler,19
+24-02-2026,2026,9,León,Las Montañas,alquiler,24
+24-02-2026,2026,9,León,El Páramo,alquiler,17
+24-02-2026,2026,9,León,Bierzo- Ancares,alquiler,102
+24-02-2026,2026,9,León,Babia- Laciana- Omaña,alquiler,9
+24-02-2026,2026,9,León,*(Toda la provincia)*,alquiler,412
+24-02-2026,2026,9,Las Palmas,Lanzarote,alquiler,59
+24-02-2026,2026,9,Las Palmas,Gran Canaria,alquiler,1566
+24-02-2026,2026,9,Las Palmas,Fuerteventura,alquiler,133
+24-02-2026,2026,9,Las Palmas,*(Toda la provincia)*,alquiler,1758
+24-02-2026,2026,9,La Rioja,Área de Logroño,alquiler,134
+24-02-2026,2026,9,La Rioja,Rioja Baja,alquiler,12
+24-02-2026,2026,9,La Rioja,Rioja Alta,alquiler,35
+24-02-2026,2026,9,La Rioja,Los Cameros,alquiler,2
+24-02-2026,2026,9,La Rioja,*(Toda la provincia)*,alquiler,183
+24-02-2026,2026,9,Jaén,Sierra sur,alquiler,23
+24-02-2026,2026,9,Jaén,Sierra de Segura,alquiler,19
+24-02-2026,2026,9,Jaén,Sierra Mágina,alquiler,13
+24-02-2026,2026,9,Jaén,La Loma y las Villas,alquiler,79
+24-02-2026,2026,9,Jaén,La Campiña,alquiler,18
+24-02-2026,2026,9,Jaén,Jaén,alquiler,142
+24-02-2026,2026,9,Jaén,Comarca norte - El Condado,alquiler,64
+24-02-2026,2026,9,Jaén,Alto Guadalquivir,alquiler,22
+24-02-2026,2026,9,Jaén,*(Toda la provincia)*,alquiler,380
+24-02-2026,2026,9,Huesca,Somontano de Barbastro,alquiler,6
+24-02-2026,2026,9,Huesca,Sobrarbe,alquiler,10
+24-02-2026,2026,9,Huesca,Ribagorza,alquiler,21
+24-02-2026,2026,9,Huesca,Los Monegros,alquiler,2
+24-02-2026,2026,9,Huesca,La Litera,alquiler,4
+24-02-2026,2026,9,Huesca,La Jacetania,alquiler,79
+24-02-2026,2026,9,Huesca,Hoya de Huesca,alquiler,14
+24-02-2026,2026,9,Huesca,Cinca,alquiler,4
+24-02-2026,2026,9,Huesca,Alto Gállego,alquiler,33
+24-02-2026,2026,9,Huesca,*(Toda la provincia)*,alquiler,173
+24-02-2026,2026,9,Huelva,Sierra,alquiler,41
+24-02-2026,2026,9,Huelva,La Costa,alquiler,764
+24-02-2026,2026,9,Huelva,El Condado,alquiler,22
+24-02-2026,2026,9,Huelva,El Andévalo,alquiler,11
+24-02-2026,2026,9,Huelva,*(Toda la provincia)*,alquiler,838
+24-02-2026,2026,9,Guipúzcoa,Urola Kosta,alquiler,34
+24-02-2026,2026,9,Guipúzcoa,Tolosaldea,alquiler,2
+24-02-2026,2026,9,Guipúzcoa,Goierri,alquiler,3
+24-02-2026,2026,9,Guipúzcoa,Donostialdea,alquiler,357
+24-02-2026,2026,9,Guipúzcoa,Bajo Deba,alquiler,14
+24-02-2026,2026,9,Guipúzcoa,Bajo Bidasoa,alquiler,17
+24-02-2026,2026,9,Guipúzcoa,Alto Deba,alquiler,8
+24-02-2026,2026,9,Guipúzcoa,*(Toda la provincia)*,alquiler,435
+24-02-2026,2026,9,Guadalajara,Sierra,alquiler,8
+24-02-2026,2026,9,Córdoba,Vega del Guadalquivir,alquiler,30
+24-02-2026,2026,9,Córdoba,Los Pedroches,alquiler,15
+24-02-2026,2026,9,Córdoba,La Subbética,alquiler,40
+24-02-2026,2026,9,Córdoba,Córdoba,alquiler,516
+24-02-2026,2026,9,Córdoba,Campiña sur-Campiña este,alquiler,16
+24-02-2026,2026,9,Córdoba,Alto Guadiato,alquiler,10
+24-02-2026,2026,9,Córdoba,Alto Guadalquivir,alquiler,6
+24-02-2026,2026,9,Córdoba,*(Toda la provincia)*,alquiler,633
+24-02-2026,2026,9,Ciudad Real,Sierra Morena,alquiler,2
+24-02-2026,2026,9,Ciudad Real,Montiel,alquiler,11
+24-02-2026,2026,9,Ciudad Real,Los Montes,alquiler,4
+24-02-2026,2026,9,Ciudad Real,La Mancha,alquiler,63
+24-02-2026,2026,9,Ciudad Real,Calatrava,alquiler,218
+24-02-2026,2026,9,Ciudad Real,Alcudia,alquiler,7
+24-02-2026,2026,9,Ciudad Real,*(Toda la provincia)*,alquiler,305
+24-02-2026,2026,9,Ceuta,Zona Muelle - Extrarradio,alquiler,7
+24-02-2026,2026,9,Ceuta,Zona Centro,alquiler,8
+24-02-2026,2026,9,Ceuta,Hacho - San Amaro,alquiler,1
+24-02-2026,2026,9,Ceuta,*(Toda la provincia)*,alquiler,16
+24-02-2026,2026,9,Castellón,Plana Baixa,alquiler,209
+24-02-2026,2026,9,Castellón,Plana Alta,alquiler,548
+24-02-2026,2026,9,Castellón,L'Alcalaten,alquiler,7
+24-02-2026,2026,9,Castellón,Els Ports,alquiler,1
+24-02-2026,2026,9,Castellón,Baix Maestrat,alquiler,178
+24-02-2026,2026,9,Castellón,Alto Palancia,alquiler,22
+24-02-2026,2026,9,Castellón,Alto Mijares,alquiler,6
+24-02-2026,2026,9,Castellón,Alt Maestrat,alquiler,2
+24-02-2026,2026,9,Castellón,*(Toda la provincia)*,alquiler,973
+24-02-2026,2026,9,Cantabria,Área de Santander,alquiler,588
+24-02-2026,2026,9,Cantabria,Área de San Vicente de la Barquera,alquiler,38
+24-02-2026,2026,9,Cantabria,Valles Pasiegos,alquiler,14
+24-02-2026,2026,9,Cantabria,Trasmiera,alquiler,98
+24-02-2026,2026,9,Cantabria,Saja - Nansa,alquiler,1
+24-02-2026,2026,9,Cantabria,Liébana,alquiler,9
+24-02-2026,2026,9,Cantabria,Costa Oriental,alquiler,139
+24-02-2026,2026,9,Cantabria,Costa Occidental,alquiler,56
+24-02-2026,2026,9,Cantabria,Campoo-Los Valles,alquiler,14
+24-02-2026,2026,9,Cantabria,Besaya,alquiler,69
+24-02-2026,2026,9,Cantabria,Asón-Agüera,alquiler,13
+24-02-2026,2026,9,Cantabria,*(Toda la provincia)*,alquiler,1039
+24-02-2026,2026,9,Cádiz,Sierra de Cádiz,alquiler,35
+24-02-2026,2026,9,Cádiz,La Janda,alquiler,584
+24-02-2026,2026,9,Cádiz,Costa noroeste,alquiler,430
+24-02-2026,2026,9,Cádiz,Campo de Gibraltar,alquiler,382
+24-02-2026,2026,9,Cádiz,Campiña de Jerez,alquiler,92
+24-02-2026,2026,9,Cádiz,Bahía de Cádiz,alquiler,926
+24-02-2026,2026,9,Cádiz,*(Toda la provincia)*,alquiler,2449
+24-02-2026,2026,9,Cáceres,Área de Cáceres,alquiler,261
+24-02-2026,2026,9,Cáceres,Villuercas - Ibores - Jara,alquiler,9
+24-02-2026,2026,9,Cáceres,Valle del Alagón,alquiler,3
+24-02-2026,2026,9,Cáceres,Trujillo,alquiler,9
+24-02-2026,2026,9,Cáceres,Sierra de Gata,alquiler,6
+24-02-2026,2026,9,Cáceres,Las Hurdes-Ambroz,alquiler,17
+24-02-2026,2026,9,Cáceres,La Vera,alquiler,19
+24-02-2026,2026,9,Cáceres,El Jerte,alquiler,40
+24-02-2026,2026,9,Cáceres,Campo Arañuelo,alquiler,18
+24-02-2026,2026,9,Cáceres,Alcántara,alquiler,5
+24-02-2026,2026,9,Cáceres,*(Toda la provincia)*,alquiler,387
+24-02-2026,2026,9,Burgos,Área de Burgos,alquiler,132
+24-02-2026,2026,9,Burgos,Treviño,alquiler,1
+24-02-2026,2026,9,Burgos,Ribera,alquiler,15
+24-02-2026,2026,9,Burgos,Odra-Paramos,alquiler,6
+24-02-2026,2026,9,Burgos,Montes de Oca,alquiler,1
+24-02-2026,2026,9,Burgos,Merindades,alquiler,28
+24-02-2026,2026,9,Burgos,La Bureba,alquiler,4
+24-02-2026,2026,9,Burgos,Ebro,alquiler,17
+24-02-2026,2026,9,Burgos,Demanda,alquiler,1
+24-02-2026,2026,9,Burgos,Arlanza,alquiler,1
+24-02-2026,2026,9,Burgos,*(Toda la provincia)*,alquiler,206
+24-02-2026,2026,9,Barcelona,Barcelona,alquiler,2959
+24-02-2026,2026,9,Barcelona,Vallès Oriental,alquiler,50
+24-02-2026,2026,9,Barcelona,Vallès Occidental,alquiler,231
+24-02-2026,2026,9,Barcelona,Osona,alquiler,25
+24-02-2026,2026,9,Barcelona,Moianès,alquiler,5
+24-02-2026,2026,9,Barcelona,Maresme,alquiler,277
+24-02-2026,2026,9,Barcelona,Garraf,alquiler,347
+24-02-2026,2026,9,Barcelona,Berguedà,alquiler,18
+24-02-2026,2026,9,Barcelona,Barcelonès,alquiler,202
+24-02-2026,2026,9,Barcelona,Baix Llobregat Sud,alquiler,277
+24-02-2026,2026,9,Barcelona,Baix Llobregat Nord,alquiler,32
+24-02-2026,2026,9,Barcelona,Bages,alquiler,40
+24-02-2026,2026,9,Barcelona,Anoia,alquiler,18
+24-02-2026,2026,9,Barcelona,Alt Penedès,alquiler,32
+24-02-2026,2026,9,Barcelona,*(Toda la provincia)*,alquiler,4513
+24-02-2026,2026,9,Baleares (Illes),Menorca,alquiler,111
+24-02-2026,2026,9,Baleares (Illes),Mallorca,alquiler,3238
+24-02-2026,2026,9,Baleares (Illes),Ibiza,alquiler,1023
+24-02-2026,2026,9,Baleares (Illes),Formentera,alquiler,13
+24-02-2026,2026,9,Baleares (Illes),*(Toda la provincia)*,alquiler,4386
+24-02-2026,2026,9,Badajoz,Área de Mérida,alquiler,92
+24-02-2026,2026,9,Badajoz,Tierra de Barros - Tierras de Zafra,alquiler,51
+24-02-2026,2026,9,Badajoz,Tentudía,alquiler,11
+24-02-2026,2026,9,Badajoz,Llanos de Olivenza,alquiler,0
+24-02-2026,2026,9,Badajoz,Jerez de los Caballeros,alquiler,11
+24-02-2026,2026,9,Badajoz,Don Benito-Siberia-Serena,alquiler,36
+24-02-2026,2026,9,Badajoz,Campiña sur,alquiler,4
+24-02-2026,2026,9,Badajoz,Badajoz-Alburquerque,alquiler,199
+24-02-2026,2026,9,Badajoz,*(Toda la provincia)*,alquiler,404
+24-02-2026,2026,9,Ávila,Área de Ávila,alquiler,132
+24-02-2026,2026,9,Ávila,Valle del Tormes,alquiler,9
+24-02-2026,2026,9,Ávila,Valle del Tiétar,alquiler,50
+24-02-2026,2026,9,Ávila,Burgohondo - Cebreros - El Tiemblo,alquiler,26
+24-02-2026,2026,9,Ávila,Arévalo,alquiler,8
+24-02-2026,2026,9,Ávila,*(Toda la provincia)*,alquiler,225
+24-02-2026,2026,9,Asturias,Área de Oviedo,alquiler,704
+24-02-2026,2026,9,Asturias,Área de Gijón,alquiler,388
+24-02-2026,2026,9,Asturias,Área de Avilés,alquiler,135
+24-02-2026,2026,9,Asturias,Oriente,alquiler,125
+24-02-2026,2026,9,Asturias,Narcea,alquiler,18
+24-02-2026,2026,9,Asturias,Nalón,alquiler,29
+24-02-2026,2026,9,Asturias,Eo-Navia,alquiler,47
+24-02-2026,2026,9,Asturias,Caudal,alquiler,44
+24-02-2026,2026,9,Asturias,*(Toda la provincia)*,alquiler,1490
+24-02-2026,2026,9,Almería,Área de Almería,alquiler,435
+24-02-2026,2026,9,Almería,Valle de Almanzora,alquiler,41
+24-02-2026,2026,9,Almería,Poniente,alquiler,348
+24-02-2026,2026,9,Almería,Parque Natural Cabo de Gata - Níjar,alquiler,98
+24-02-2026,2026,9,Almería,Los Vélez,alquiler,8
+24-02-2026,2026,9,Almería,Levante,alquiler,416
+24-02-2026,2026,9,Almería,Filabres,alquiler,8
+24-02-2026,2026,9,Almería,Campo de Tabernas,alquiler,7
+24-02-2026,2026,9,Almería,Bajo Almanzora,alquiler,71
+24-02-2026,2026,9,Almería,Alpujarras,alquiler,13
+24-02-2026,2026,9,Almería,*(Toda la provincia)*,alquiler,1445
+24-02-2026,2026,9,Alicante,Vinalopó Mitjà,alquiler,78
+24-02-2026,2026,9,Alicante,Marina Baixa,alquiler,1126
+24-02-2026,2026,9,Alicante,Marina Alta,alquiler,1336
+24-02-2026,2026,9,Alicante,L'Alcoià,alquiler,69
+24-02-2026,2026,9,Alicante,L'Alacantí,alquiler,1593
+24-02-2026,2026,9,Alicante,Comtat,alquiler,3
+24-02-2026,2026,9,Alicante,Baix Vinalopó,alquiler,599
+24-02-2026,2026,9,Alicante,Baix Segura,alquiler,1464
+24-02-2026,2026,9,Alicante,Alt Vinalopó,alquiler,21
+24-02-2026,2026,9,Alicante,*(Toda la provincia)*,alquiler,6289
+24-02-2026,2026,9,Albacete,Sierra de Alcaraz-Segura,alquiler,2
+24-02-2026,2026,9,Albacete,La Manchuela,alquiler,8
+24-02-2026,2026,9,Albacete,La Mancha,alquiler,14
+24-02-2026,2026,9,Albacete,Corredor de Almansa,alquiler,8
+24-02-2026,2026,9,Albacete,Centro,alquiler,177
+24-02-2026,2026,9,Albacete,Campo de Hellín,alquiler,9
+24-02-2026,2026,9,Albacete,*(Toda la provincia)*,alquiler,218
+24-02-2026,2026,9,Álava,Zuya,alquiler,1
+24-02-2026,2026,9,Álava,Vitoria-Gasteiz,alquiler,74
+24-02-2026,2026,9,Álava,Salvatierra,alquiler,0
+24-02-2026,2026,9,Álava,Laguardia-Rioja Alavesa,alquiler,3
+24-02-2026,2026,9,Álava,Campezo- Montaña Alavesa,alquiler,0
+24-02-2026,2026,9,Álava,Añana,alquiler,0
+24-02-2026,2026,9,Álava,Ayala,alquiler,2
+24-02-2026,2026,9,Álava,*(Toda la provincia)*,alquiler,80
+24-02-2026,2026,9,A Coruña,Área de Ferrol,alquiler,338
+24-02-2026,2026,9,A Coruña,Área de A Coruña,alquiler,487
+24-02-2026,2026,9,A Coruña,Xallas,alquiler,2
+24-02-2026,2026,9,A Coruña,Terra de Soneira,alquiler,4
+24-02-2026,2026,9,A Coruña,Terra de Melide,alquiler,4
+24-02-2026,2026,9,A Coruña,Santiago,alquiler,354
+24-02-2026,2026,9,A Coruña,Ortegal,alquiler,21
+24-02-2026,2026,9,A Coruña,Ordes,alquiler,11
+24-02-2026,2026,9,A Coruña,O Sar,alquiler,1
+24-02-2026,2026,9,A Coruña,Noia,alquiler,24
+24-02-2026,2026,9,A Coruña,Barbanza,alquiler,57
+24-02-2026,2026,9,A Coruña,Arzúa,alquiler,2
+24-02-2026,2026,9,A Coruña,A Barcala,alquiler,0
+24-02-2026,2026,9,A Coruña,*(Toda la provincia)*,alquiler,1455
+23-02-2026,2026,9,A Coruña,Muros,alquiler,6
+23-02-2026,2026,9,A Coruña,Miño - Betanzos,alquiler,28
+23-02-2026,2026,9,A Coruña,Fisterra,alquiler,43
+23-02-2026,2026,9,A Coruña,Eume,alquiler,18
+23-02-2026,2026,9,A Coruña,Bergantiños,alquiler,55
+23-02-2026,2026,9,A Coruña,Barbanza,alquiler,0
+23-02-2026,2026,9,A Coruña,Arzúa,alquiler,0
+23-02-2026,2026,9,A Coruña,A Barcala,alquiler,0
+23-02-2026,2026,9,A Coruña,*(Toda la provincia)*,alquiler,0
+22-02-2026,2026,8,Zamora,Tierra de Campos,alquiler,0
+22-02-2026,2026,8,Navarra,Área de Pamplona,alquiler,0
+22-02-2026,2026,8,Zaragoza,Área de Zaragoza,alquiler,456
+22-02-2026,2026,8,Zaragoza,Tarazona-El Moncayo,alquiler,8
+22-02-2026,2026,8,Zaragoza,Ribera Baja del Ebro,alquiler,5
+22-02-2026,2026,8,Zaragoza,Ribera Alta del Ebro,alquiler,4
+22-02-2026,2026,8,Zaragoza,Monegros,alquiler,1
+22-02-2026,2026,8,Zaragoza,La Muela-Valdejalón,alquiler,21
+22-02-2026,2026,8,Zaragoza,Hoya de Huesca,alquiler,0
+22-02-2026,2026,8,Zaragoza,Comunidad de Calatayud,alquiler,22
+22-02-2026,2026,8,Zaragoza,Cinco Villas - Jacetania,alquiler,4
+22-02-2026,2026,8,Zaragoza,Caspe,alquiler,1
+22-02-2026,2026,8,Zaragoza,Campo de Daroca,alquiler,1
+22-02-2026,2026,8,Zaragoza,Campo de Cariñena,alquiler,1
+22-02-2026,2026,8,Zaragoza,Campo de Borja,alquiler,9
+22-02-2026,2026,8,Zaragoza,Campo de Belchite,alquiler,1
+22-02-2026,2026,8,Zaragoza,Mequinenza,alquiler,1
+22-02-2026,2026,8,Zaragoza,Aranda,alquiler,4
+22-02-2026,2026,8,Zaragoza,*(Toda la provincia)*,alquiler,539
+22-02-2026,2026,8,Zamora,Área de Zamora,alquiler,32
+22-02-2026,2026,8,Zamora,Área de Sayago,alquiler,3
+22-02-2026,2026,8,Zamora,Tierra del Vino - La Guareña,alquiler,0
+22-02-2026,2026,8,Zamora,Sanabria,alquiler,15
+22-02-2026,2026,8,Zamora,Benavente,alquiler,10
+22-02-2026,2026,8,Zamora,Aliste,alquiler,2
+22-02-2026,2026,8,Zamora,Alfoz de Toro,alquiler,10
+22-02-2026,2026,8,Zamora,*(Toda la provincia)*,alquiler,73
+22-02-2026,2026,8,Vizcaya,Uribe-Butroe,alquiler,44
+22-02-2026,2026,8,Vizcaya,Lea-Artibai,alquiler,3
+22-02-2026,2026,8,Vizcaya,Gran Bilbao,alquiler,583
+22-02-2026,2026,8,Vizcaya,Encartaciones,alquiler,4
+22-02-2026,2026,8,Vizcaya,Duranguesado,alquiler,4
+22-02-2026,2026,8,Vizcaya,Busturialdea,alquiler,17
+22-02-2026,2026,8,Vizcaya,Arratia-Nervión,alquiler,3
+22-02-2026,2026,8,Vizcaya,*(Toda la provincia)*,alquiler,658
+22-02-2026,2026,8,Valencia,Valencia,alquiler,2849
+22-02-2026,2026,8,Valencia,Safor,alquiler,606
+22-02-2026,2026,8,Valencia,Ribera Baixa,alquiler,246
+22-02-2026,2026,8,Valencia,Ribera Alta,alquiler,84
+22-02-2026,2026,8,Valencia,Los Serranos,alquiler,12
+22-02-2026,2026,8,Valencia,La Vall d'Albaida,alquiler,30
+22-02-2026,2026,8,Valencia,La Plana d'Utiel,alquiler,15
+22-02-2026,2026,8,Valencia,La Costera,alquiler,21
+22-02-2026,2026,8,Valencia,La Canal de Navarrés,alquiler,8
+22-02-2026,2026,8,Valencia,L'Horta Sud,alquiler,256
+22-02-2026,2026,8,Valencia,L'Horta Nord,alquiler,451
+22-02-2026,2026,8,Valencia,Hoya de Buñol,alquiler,54
+22-02-2026,2026,8,Valencia,El Valle de Ayora,alquiler,2
+22-02-2026,2026,8,Valencia,El Rincón de Ademuz,alquiler,2
+22-02-2026,2026,8,Valencia,El Camp de Tùria,alquiler,188
+22-02-2026,2026,8,Valencia,Camp de Morvedre,alquiler,339
+22-02-2026,2026,8,Valencia,*(Toda la provincia)*,alquiler,5163
+22-02-2026,2026,8,Valladolid,Área Metropolitana Valladolid,alquiler,291
+22-02-2026,2026,8,Valladolid,Tordesillas,alquiler,9
+22-02-2026,2026,8,Valladolid,Tierra de Pinares,alquiler,4
+22-02-2026,2026,8,Valladolid,Tierra de Medina,alquiler,7
+22-02-2026,2026,8,Valladolid,Tierra de Campos,alquiler,4
+22-02-2026,2026,8,Valladolid,*(Toda la provincia)*,alquiler,315
+22-02-2026,2026,8,Toledo,Área de Torrijos,alquiler,48
+22-02-2026,2026,8,Toledo,Toledo,alquiler,139
+22-02-2026,2026,8,Toledo,Talavera de la Reina,alquiler,84
+22-02-2026,2026,8,Toledo,Sierra de San Vicente,alquiler,11
+22-02-2026,2026,8,Toledo,Los Montes de Toledo,alquiler,17
+22-02-2026,2026,8,Toledo,La Sagra,alquiler,89
+22-02-2026,2026,8,Toledo,La Mesa de Ocaña,alquiler,27
+22-02-2026,2026,8,Toledo,La Mancha,alquiler,19
+22-02-2026,2026,8,Toledo,La Jara,alquiler,3
+22-02-2026,2026,8,Toledo,La Campana de Oropesa,alquiler,8
+22-02-2026,2026,8,Toledo,*(Toda la provincia)*,alquiler,445
+22-02-2026,2026,8,Teruel,Área de Teruel,alquiler,13
+22-02-2026,2026,8,Teruel,Matarraña,alquiler,4
+22-02-2026,2026,8,Teruel,Maestrazgo,alquiler,0
+22-02-2026,2026,8,Teruel,Jiloca,alquiler,5
+22-02-2026,2026,8,Teruel,Gúdar- Javalambre,alquiler,34
+22-02-2026,2026,8,Teruel,Cuencas Mineras- Andorra-Bajo Martín,alquiler,29
+22-02-2026,2026,8,Teruel,Bajo Aragón,alquiler,13
+22-02-2026,2026,8,Teruel,Albarracín,alquiler,3
+22-02-2026,2026,8,Teruel,*(Toda la provincia)*,alquiler,101
+22-02-2026,2026,8,Tarragona,Terra Alta,alquiler,4
+22-02-2026,2026,8,Tarragona,Tarragonès,alquiler,236
+22-02-2026,2026,8,Tarragona,Ribera d'Ebre,alquiler,2
+22-02-2026,2026,8,Tarragona,Priorat,alquiler,2
+22-02-2026,2026,8,Tarragona,Montsià,alquiler,35
+22-02-2026,2026,8,Tarragona,Conca de Barberà,alquiler,5
+22-02-2026,2026,8,Tarragona,Baix Penedès,alquiler,68
+22-02-2026,2026,8,Tarragona,Baix Ebre,alquiler,53
+22-02-2026,2026,8,Tarragona,Baix Camp,alquiler,139
+22-02-2026,2026,8,Tarragona,Alt Camp,alquiler,7
+22-02-2026,2026,8,Tarragona,*(Toda la provincia)*,alquiler,551
+22-02-2026,2026,8,Soria,Área de Soria,alquiler,46
+22-02-2026,2026,8,Soria,Pinares y Tierras Altas,alquiler,8
+22-02-2026,2026,8,Soria,Burgo de Osma,alquiler,6
+22-02-2026,2026,8,Soria,Almazán,alquiler,12
+22-02-2026,2026,8,Soria,*(Toda la provincia)*,alquiler,72
+22-02-2026,2026,8,Sevilla,Área de Estepa,alquiler,9
+22-02-2026,2026,8,Sevilla,Área Metropolitana,alquiler,190
+22-02-2026,2026,8,Sevilla,Sierra norte,alquiler,44
+22-02-2026,2026,8,Sevilla,Sevilla,alquiler,1382
+22-02-2026,2026,8,Sevilla,La Vega,alquiler,27
+22-02-2026,2026,8,Sevilla,La Marisma,alquiler,4
+22-02-2026,2026,8,Sevilla,La Campiña,alquiler,89
+22-02-2026,2026,8,Sevilla,Aljarafe,alquiler,221
+22-02-2026,2026,8,Sevilla,*(Toda la provincia)*,alquiler,1966
+22-02-2026,2026,8,Segovia,Área de Sepúlveda - Cantalejo,alquiler,18
+22-02-2026,2026,8,Segovia,Área de Segovia,alquiler,335
+22-02-2026,2026,8,Segovia,Área de Santa María Real de Nieva,alquiler,6
+22-02-2026,2026,8,Segovia,Área de Riaza,alquiler,5
+22-02-2026,2026,8,Segovia,Área de Cuéllar,alquiler,3
+22-02-2026,2026,8,Segovia,*(Toda la provincia)*,alquiler,367
+22-02-2026,2026,8,Santa Cruz de Tenerife,Tenerife,alquiler,1382
+22-02-2026,2026,8,Santa Cruz de Tenerife,La Palma,alquiler,20
+22-02-2026,2026,8,Santa Cruz de Tenerife,La Gomera,alquiler,7
+22-02-2026,2026,8,Santa Cruz de Tenerife,El Hierro,alquiler,5
+22-02-2026,2026,8,Santa Cruz de Tenerife,*(Toda la provincia)*,alquiler,1414
+22-02-2026,2026,8,Salamanca,Área Metropolitana,alquiler,1083
+22-02-2026,2026,8,Salamanca,Vitigudino,alquiler,7
+22-02-2026,2026,8,Salamanca,Peñaranda,alquiler,5
+22-02-2026,2026,8,Salamanca,Ciudad Rodrigo,alquiler,25
+22-02-2026,2026,8,Salamanca,Campo Charro,alquiler,2
+22-02-2026,2026,8,Salamanca,Béjar,alquiler,23
+22-02-2026,2026,8,Salamanca,*(Toda la provincia)*,alquiler,1145
+22-02-2026,2026,8,Pontevedra,Área de Vigo,alquiler,492
+22-02-2026,2026,8,Pontevedra,Área de Terra Montes,alquiler,2
+22-02-2026,2026,8,Pontevedra,Área de Pontevedra,alquiler,144
+22-02-2026,2026,8,Pontevedra,Área de Deza,alquiler,16
+22-02-2026,2026,8,Pontevedra,Área de Caldas,alquiler,6
+22-02-2026,2026,8,Pontevedra,Salnés,alquiler,231
+22-02-2026,2026,8,Pontevedra,Morrazo,alquiler,55
+22-02-2026,2026,8,Pontevedra,Condado - Paradanta,alquiler,31
+22-02-2026,2026,8,Pontevedra,Baixo Miño,alquiler,38
+22-02-2026,2026,8,Pontevedra,*(Toda la provincia)*,alquiler,1015
+22-02-2026,2026,8,Palencia,Tierra de Campos - Cerrato,alquiler,57
+22-02-2026,2026,8,Palencia,Montaña Palentina,alquiler,8
+22-02-2026,2026,8,Palencia,Camino de Santiago,alquiler,13
+22-02-2026,2026,8,Palencia,*(Toda la provincia)*,alquiler,78
+22-02-2026,2026,8,Ourense,Área de Ourense,alquiler,203
+22-02-2026,2026,8,Ourense,Viana- Verín,alquiler,5
+22-02-2026,2026,8,Ourense,Valdeorras,alquiler,4
+22-02-2026,2026,8,Ourense,Terra de Celanova,alquiler,4
+22-02-2026,2026,8,Ourense,Terra de Caldelas- Trive,alquiler,2
+22-02-2026,2026,8,Ourense,Ribeiro,alquiler,2
+22-02-2026,2026,8,Ourense,Limia,alquiler,3
+22-02-2026,2026,8,Ourense,Carballiño,alquiler,5
+22-02-2026,2026,8,Ourense,Allariz- Maceda,alquiler,10
+22-02-2026,2026,8,Ourense,*(Toda la provincia)*,alquiler,238
+22-02-2026,2026,8,Navarra,Área de Tudela,alquiler,31
+22-02-2026,2026,8,Navarra,Área de Tafalla,alquiler,5
+22-02-2026,2026,8,Navarra,Área de Sangüesa,alquiler,2
+22-02-2026,2026,8,Navarra,Área de Puente la Reina,alquiler,3
+22-02-2026,2026,8,Navarra,Área de Peralta,alquiler,1
+22-02-2026,2026,8,Navarra,Área de Esteribar,alquiler,0
+22-02-2026,2026,8,Navarra,Área de Estella y Urbasa,alquiler,6
+22-02-2026,2026,8,Navarra,Olite,alquiler,1
+22-02-2026,2026,8,Navarra,Norte,alquiler,7
+22-02-2026,2026,8,Navarra,*(Toda la provincia)*,alquiler,255
+22-02-2026,2026,8,Murcia,Área de Murcia,alquiler,796
+22-02-2026,2026,8,Murcia,Vega Media,alquiler,60
+22-02-2026,2026,8,Murcia,Vega Alta,alquiler,7
+22-02-2026,2026,8,Murcia,Valle de Ricote,alquiler,17
+22-02-2026,2026,8,Murcia,Río Mula,alquiler,5
+22-02-2026,2026,8,Murcia,Noroeste,alquiler,21
+22-02-2026,2026,8,Murcia,Mar Menor,alquiler,287
+22-02-2026,2026,8,Murcia,La Manga del Mar Menor,alquiler,283
+22-02-2026,2026,8,Murcia,Campo de Cartagena,alquiler,370
+22-02-2026,2026,8,Murcia,Bajo Guadalentín,alquiler,158
+22-02-2026,2026,8,Murcia,Alto Guadalentín,alquiler,138
+22-02-2026,2026,8,Murcia,Altiplano-Oriental,alquiler,16
+22-02-2026,2026,8,Murcia,*(Toda la provincia)*,alquiler,2158
+22-02-2026,2026,8,Melilla,San Lorenzo,alquiler,3
+22-02-2026,2026,8,Melilla,La Victoria,alquiler,0
+22-02-2026,2026,8,Melilla,Isaac Peral,alquiler,1
+22-02-2026,2026,8,Melilla,Hipódromo,alquiler,2
+22-02-2026,2026,8,Melilla,El Real,alquiler,1
+22-02-2026,2026,8,Melilla,El Industrial,alquiler,3
+22-02-2026,2026,8,Melilla,Constitución,alquiler,0
+22-02-2026,2026,8,Melilla,Centro,alquiler,4
+22-02-2026,2026,8,Melilla,Calvo Sotelo,alquiler,2
+22-02-2026,2026,8,Melilla,Barriadas norte,alquiler,0
+22-02-2026,2026,8,Melilla,Alfonso XIII,alquiler,1
+22-02-2026,2026,8,Melilla,*(Toda la provincia)*,alquiler,17
+22-02-2026,2026,8,Málaga,Área de Antequera,alquiler,61
+22-02-2026,2026,8,Málaga,Valle de Guadalhorce,alquiler,259
+22-02-2026,2026,8,Málaga,Serranía de Ronda,alquiler,43
+22-02-2026,2026,8,Málaga,Costa del Sol Oriental - Axarquía,alquiler,979
+22-02-2026,2026,8,Málaga,Costa del Sol Occidental-Área de Marbella,alquiler,3017
+22-02-2026,2026,8,Málaga,Costa del Sol Occidental-Área de Benalmádena-Costa,alquiler,1774
+22-02-2026,2026,8,Málaga,Costa del Sol Occidental - Área de Estepona,alquiler,1080
+22-02-2026,2026,8,Málaga,Málaga,alquiler,1643
+22-02-2026,2026,8,Málaga,*(Toda la provincia)*,alquiler,8856
+22-02-2026,2026,8,Madrid,Zona suroeste,alquiler,69
+22-02-2026,2026,8,Madrid,Zona sureste,alquiler,93
+22-02-2026,2026,8,Madrid,Zona sur,alquiler,319
+22-02-2026,2026,8,Madrid,Zona norte,alquiler,693
+22-02-2026,2026,8,Madrid,Zona noroeste,alquiler,885
+22-02-2026,2026,8,Madrid,Madrid,alquiler,10197
+22-02-2026,2026,8,Madrid,Corredor del Henares,alquiler,210
+22-02-2026,2026,8,Madrid,*(Toda la provincia)*,alquiler,12466
+22-02-2026,2026,8,Lugo,Área de Lugo,alquiler,169
+22-02-2026,2026,8,Lugo,Ulloa,alquiler,4
+22-02-2026,2026,8,Lugo,Terra Chá,alquiler,6
+22-02-2026,2026,8,Lugo,Sarria,alquiler,6
+22-02-2026,2026,8,Lugo,Quiroga,alquiler,1
+22-02-2026,2026,8,Lugo,Meira,alquiler,1
+22-02-2026,2026,8,Lugo,Lemos,alquiler,19
+22-02-2026,2026,8,Lugo,Chantada,alquiler,4
+22-02-2026,2026,8,Lugo,Ancares,alquiler,3
+22-02-2026,2026,8,Lugo,A Mariña,alquiler,172
+22-02-2026,2026,8,Lugo,A Fonsagrada,alquiler,1
+22-02-2026,2026,8,Lugo,*(Toda la provincia)*,alquiler,386
+22-02-2026,2026,8,Lleida,Val d'Aran,alquiler,55
+22-02-2026,2026,8,Lleida,Urgell,alquiler,9
+22-02-2026,2026,8,Lleida,Solsonès,alquiler,8
+22-02-2026,2026,8,Lleida,Segrià,alquiler,67
+22-02-2026,2026,8,Lleida,Segarra,alquiler,2
+22-02-2026,2026,8,Lleida,Pla d'Urgell,alquiler,0
+22-02-2026,2026,8,Lleida,Pallars Sobirà,alquiler,8
+22-02-2026,2026,8,Lleida,Pallars Jussà,alquiler,10
+22-02-2026,2026,8,Lleida,Noguera,alquiler,4
+22-02-2026,2026,8,Lleida,Garrigues,alquiler,1
+22-02-2026,2026,8,Lleida,Cerdanya,alquiler,15
+22-02-2026,2026,8,Lleida,Alta Ribagorça,alquiler,4
+22-02-2026,2026,8,Lleida,Alt Urgell,alquiler,8
+22-02-2026,2026,8,Lleida,*(Toda la provincia)*,alquiler,191
+22-02-2026,2026,8,León,Tierras de León,alquiler,227
+22-02-2026,2026,8,León,Tierra de Campos,alquiler,3
+22-02-2026,2026,8,León,Maragatería- Cabrera,alquiler,20
+22-02-2026,2026,8,León,Las Montañas,alquiler,22
+22-02-2026,2026,8,León,El Páramo,alquiler,17
+22-02-2026,2026,8,León,Bierzo- Ancares,alquiler,98
+22-02-2026,2026,8,León,Babia- Laciana- Omaña,alquiler,10
+22-02-2026,2026,8,León,*(Toda la provincia)*,alquiler,397
+22-02-2026,2026,8,Las Palmas,Lanzarote,alquiler,56
+22-02-2026,2026,8,Las Palmas,Gran Canaria,alquiler,1546
+22-02-2026,2026,8,Las Palmas,Fuerteventura,alquiler,132
+22-02-2026,2026,8,Las Palmas,*(Toda la provincia)*,alquiler,1734
+22-02-2026,2026,8,La Rioja,Área de Logroño,alquiler,134
+22-02-2026,2026,8,La Rioja,Rioja Baja,alquiler,12
+22-02-2026,2026,8,La Rioja,Rioja Alta,alquiler,34
+22-02-2026,2026,8,La Rioja,Los Cameros,alquiler,2
+22-02-2026,2026,8,La Rioja,*(Toda la provincia)*,alquiler,182
+22-02-2026,2026,8,Jaén,Sierra sur,alquiler,21
+22-02-2026,2026,8,Jaén,Sierra de Segura,alquiler,18
+22-02-2026,2026,8,Jaén,Sierra Mágina,alquiler,14
+22-02-2026,2026,8,Jaén,La Loma y las Villas,alquiler,82
+22-02-2026,2026,8,Jaén,La Campiña,alquiler,19
+22-02-2026,2026,8,Jaén,Jaén,alquiler,139
+22-02-2026,2026,8,Jaén,Comarca norte - El Condado,alquiler,61
+22-02-2026,2026,8,Jaén,Alto Guadalquivir,alquiler,23
+22-02-2026,2026,8,Jaén,*(Toda la provincia)*,alquiler,377
+22-02-2026,2026,8,Huesca,Somontano de Barbastro,alquiler,6
+22-02-2026,2026,8,Huesca,Sobrarbe,alquiler,10
+22-02-2026,2026,8,Huesca,Ribagorza,alquiler,22
+22-02-2026,2026,8,Huesca,Los Monegros,alquiler,2
+22-02-2026,2026,8,Huesca,La Litera,alquiler,0
+22-02-2026,2026,8,Huesca,La Jacetania,alquiler,0
+22-02-2026,2026,8,Huesca,Hoya de Huesca,alquiler,0
+22-02-2026,2026,8,Huesca,Cinca,alquiler,0
+22-02-2026,2026,8,Huesca,Alto Gállego,alquiler,0
+22-02-2026,2026,8,Huesca,*(Toda la provincia)*,alquiler,0
+22-02-2026,2026,8,Huelva,Sierra,alquiler,43
+22-02-2026,2026,8,Guipúzcoa,Goierri,alquiler,3
+22-02-2026,2026,8,Huelva,La Costa,alquiler,0
+22-02-2026,2026,8,Huelva,El Condado,alquiler,0
+22-02-2026,2026,8,Huelva,El Andévalo,alquiler,0
+22-02-2026,2026,8,Huelva,*(Toda la provincia)*,alquiler,0
+22-02-2026,2026,8,Guipúzcoa,Urola Kosta,alquiler,0
+22-02-2026,2026,8,Guipúzcoa,Tolosaldea,alquiler,0
+22-02-2026,2026,8,Guipúzcoa,Donostialdea,alquiler,0
+22-02-2026,2026,8,Guipúzcoa,Bajo Deba,alquiler,0
+22-02-2026,2026,8,Guipúzcoa,Bajo Bidasoa,alquiler,0
+22-02-2026,2026,8,Guipúzcoa,Alto Deba,alquiler,8
+22-02-2026,2026,8,Guipúzcoa,*(Toda la provincia)*,alquiler,440
+22-02-2026,2026,8,Guadalajara,Sierra,alquiler,7
+22-02-2026,2026,8,Guadalajara,Molina de Aragón,alquiler,3
+22-02-2026,2026,8,Guadalajara,Campiña,alquiler,85
+22-02-2026,2026,8,Guadalajara,Alcarria Baja,alquiler,11
+22-02-2026,2026,8,Guadalajara,Alcarria Alta,alquiler,9
+22-02-2026,2026,8,Guadalajara,*(Toda la provincia)*,alquiler,115
+22-02-2026,2026,8,Granada,Área de Huéscar,alquiler,10
+22-02-2026,2026,8,Granada,Área de Guadix,alquiler,22
+22-02-2026,2026,8,Granada,Área de Granada,alquiler,1677
+22-02-2026,2026,8,Granada,Área de Baza,alquiler,9
+22-02-2026,2026,8,Granada,Valle de Lecrín,alquiler,14
+22-02-2026,2026,8,Granada,Poniente Granadino,alquiler,21
+22-02-2026,2026,8,Granada,Los Montes,alquiler,2
+22-02-2026,2026,8,Granada,Costa Tropical,alquiler,657
+22-02-2026,2026,8,Granada,Alpujarra Granadina,alquiler,28
+22-02-2026,2026,8,Granada,*(Toda la provincia)*,alquiler,2440
+22-02-2026,2026,8,Girona,Ripollès,alquiler,19
+22-02-2026,2026,8,Girona,Pla de l'Estany,alquiler,5
+22-02-2026,2026,8,Girona,La Selva,alquiler,82
+22-02-2026,2026,8,Girona,La Garrotxa,alquiler,8
+22-02-2026,2026,8,Girona,La Cerdanya,alquiler,69
+22-02-2026,2026,8,Girona,Gironès,alquiler,116
+22-02-2026,2026,8,Girona,Baix Empordà,alquiler,355
+22-02-2026,2026,8,Girona,Alt Empordà,alquiler,109
+22-02-2026,2026,8,Girona,*(Toda la provincia)*,alquiler,763
+22-02-2026,2026,8,Cuenca,Serranía Media,alquiler,61
+22-02-2026,2026,8,Cuenca,Serranía Baja,alquiler,3
+22-02-2026,2026,8,Cuenca,Serranía Alta,alquiler,1
+22-02-2026,2026,8,Cuenca,Manchuela,alquiler,25
+22-02-2026,2026,8,Cuenca,Mancha Baja,alquiler,12
+22-02-2026,2026,8,Cuenca,Mancha Alta,alquiler,24
+22-02-2026,2026,8,Cuenca,La Alcarria,alquiler,2
+22-02-2026,2026,8,Cuenca,*(Toda la provincia)*,alquiler,128
+22-02-2026,2026,8,Córdoba,Vega del Guadalquivir,alquiler,28
+22-02-2026,2026,8,Córdoba,Los Pedroches,alquiler,17
+22-02-2026,2026,8,Córdoba,La Subbética,alquiler,42
+22-02-2026,2026,8,Córdoba,Córdoba,alquiler,520
+22-02-2026,2026,8,Córdoba,Campiña sur-Campiña este,alquiler,17
+22-02-2026,2026,8,Córdoba,Alto Guadiato,alquiler,10
+22-02-2026,2026,8,Córdoba,Alto Guadalquivir,alquiler,5
+22-02-2026,2026,8,Córdoba,*(Toda la provincia)*,alquiler,639
+22-02-2026,2026,8,Ciudad Real,Sierra Morena,alquiler,2
+22-02-2026,2026,8,Ciudad Real,Montiel,alquiler,10
+22-02-2026,2026,8,Ciudad Real,Los Montes,alquiler,4
+22-02-2026,2026,8,Ciudad Real,La Mancha,alquiler,60
+22-02-2026,2026,8,Ciudad Real,Calatrava,alquiler,222
+22-02-2026,2026,8,Ciudad Real,Alcudia,alquiler,7
+22-02-2026,2026,8,Ciudad Real,*(Toda la provincia)*,alquiler,305
+22-02-2026,2026,8,Ceuta,Zona Muelle - Extrarradio,alquiler,7
+22-02-2026,2026,8,Ceuta,Zona Centro,alquiler,9
+22-02-2026,2026,8,Ceuta,Hacho - San Amaro,alquiler,1
+22-02-2026,2026,8,Ceuta,*(Toda la provincia)*,alquiler,17
+22-02-2026,2026,8,Castellón,Plana Baixa,alquiler,207
+22-02-2026,2026,8,Castellón,Plana Alta,alquiler,553
+22-02-2026,2026,8,Castellón,L'Alcalaten,alquiler,5
+22-02-2026,2026,8,Castellón,Els Ports,alquiler,1
+22-02-2026,2026,8,Castellón,Baix Maestrat,alquiler,178
+22-02-2026,2026,8,Castellón,Alto Palancia,alquiler,21
+22-02-2026,2026,8,Castellón,Alto Mijares,alquiler,6
+22-02-2026,2026,8,Castellón,Alt Maestrat,alquiler,4
+22-02-2026,2026,8,Castellón,*(Toda la provincia)*,alquiler,975
+22-02-2026,2026,8,Cantabria,Área de Santander,alquiler,583
+22-02-2026,2026,8,Cantabria,Área de San Vicente de la Barquera,alquiler,39
+22-02-2026,2026,8,Cantabria,Valles Pasiegos,alquiler,12
+22-02-2026,2026,8,Cantabria,Trasmiera,alquiler,98
+22-02-2026,2026,8,Cantabria,Saja - Nansa,alquiler,1
+22-02-2026,2026,8,Cantabria,Liébana,alquiler,9
+22-02-2026,2026,8,Cantabria,Costa Oriental,alquiler,137
+22-02-2026,2026,8,Cantabria,Costa Occidental,alquiler,53
+22-02-2026,2026,8,Cantabria,Campoo-Los Valles,alquiler,14
+22-02-2026,2026,8,Cantabria,Besaya,alquiler,67
+22-02-2026,2026,8,Cantabria,Asón-Agüera,alquiler,13
+22-02-2026,2026,8,Cantabria,*(Toda la provincia)*,alquiler,1026
+22-02-2026,2026,8,Cádiz,Sierra de Cádiz,alquiler,35
+22-02-2026,2026,8,Cádiz,La Janda,alquiler,589
+22-02-2026,2026,8,Cádiz,Costa noroeste,alquiler,442
+22-02-2026,2026,8,Cádiz,Campo de Gibraltar,alquiler,385
+22-02-2026,2026,8,Cádiz,Campiña de Jerez,alquiler,99
+22-02-2026,2026,8,Cádiz,Bahía de Cádiz,alquiler,924
+22-02-2026,2026,8,Cádiz,*(Toda la provincia)*,alquiler,2474
+22-02-2026,2026,8,Cáceres,Área de Cáceres,alquiler,251
+22-02-2026,2026,8,Cáceres,Villuercas - Ibores - Jara,alquiler,9
+22-02-2026,2026,8,Cáceres,Valle del Alagón,alquiler,3
+22-02-2026,2026,8,Cáceres,Trujillo,alquiler,9
+22-02-2026,2026,8,Cáceres,Sierra de Gata,alquiler,7
+22-02-2026,2026,8,Cáceres,Las Hurdes-Ambroz,alquiler,17
+22-02-2026,2026,8,Cáceres,La Vera,alquiler,20
+22-02-2026,2026,8,Cáceres,El Jerte,alquiler,37
+22-02-2026,2026,8,Cáceres,Campo Arañuelo,alquiler,17
+22-02-2026,2026,8,Cáceres,Alcántara,alquiler,6
+22-02-2026,2026,8,Cáceres,*(Toda la provincia)*,alquiler,376
+22-02-2026,2026,8,Burgos,Área de Burgos,alquiler,131
+22-02-2026,2026,8,Burgos,Treviño,alquiler,1
+22-02-2026,2026,8,Burgos,Ribera,alquiler,17
+22-02-2026,2026,8,Burgos,Odra-Paramos,alquiler,6
+22-02-2026,2026,8,Burgos,Montes de Oca,alquiler,1
+22-02-2026,2026,8,Burgos,Merindades,alquiler,26
+22-02-2026,2026,8,Burgos,La Bureba,alquiler,3
+22-02-2026,2026,8,Burgos,Ebro,alquiler,16
+22-02-2026,2026,8,Burgos,Demanda,alquiler,2
+22-02-2026,2026,8,Burgos,Arlanza,alquiler,1
+22-02-2026,2026,8,Burgos,*(Toda la provincia)*,alquiler,204
+22-02-2026,2026,8,Barcelona,Barcelona,alquiler,2955
+22-02-2026,2026,8,Barcelona,Vallès Oriental,alquiler,51
+22-02-2026,2026,8,Barcelona,Vallès Occidental,alquiler,226
+22-02-2026,2026,8,Barcelona,Osona,alquiler,22
+22-02-2026,2026,8,Barcelona,Moianès,alquiler,4
+22-02-2026,2026,8,Barcelona,Maresme,alquiler,286
+22-02-2026,2026,8,Barcelona,Garraf,alquiler,352
+22-02-2026,2026,8,Barcelona,Berguedà,alquiler,18
+22-02-2026,2026,8,Barcelona,Barcelonès,alquiler,204
+22-02-2026,2026,8,Barcelona,Baix Llobregat Sud,alquiler,286
+22-02-2026,2026,8,Barcelona,Baix Llobregat Nord,alquiler,31
+22-02-2026,2026,8,Barcelona,Bages,alquiler,41
+22-02-2026,2026,8,Barcelona,Anoia,alquiler,19
+22-02-2026,2026,8,Barcelona,Alt Penedès,alquiler,32
+22-02-2026,2026,8,Barcelona,*(Toda la provincia)*,alquiler,4527
+22-02-2026,2026,8,Baleares (Illes),Menorca,alquiler,120
+22-02-2026,2026,8,Baleares (Illes),Mallorca,alquiler,3250
+22-02-2026,2026,8,Baleares (Illes),Ibiza,alquiler,1025
+22-02-2026,2026,8,Baleares (Illes),Formentera,alquiler,14
+22-02-2026,2026,8,Baleares (Illes),*(Toda la provincia)*,alquiler,4409
+22-02-2026,2026,8,Badajoz,Área de Mérida,alquiler,93
+22-02-2026,2026,8,Badajoz,Tierra de Barros - Tierras de Zafra,alquiler,52
+22-02-2026,2026,8,Badajoz,Tentudía,alquiler,11
+22-02-2026,2026,8,Badajoz,Llanos de Olivenza,alquiler,0
+22-02-2026,2026,8,Badajoz,Jerez de los Caballeros,alquiler,11
+22-02-2026,2026,8,Badajoz,Don Benito-Siberia-Serena,alquiler,35
+22-02-2026,2026,8,Badajoz,Campiña sur,alquiler,4
+22-02-2026,2026,8,Badajoz,Badajoz-Alburquerque,alquiler,190
+22-02-2026,2026,8,Badajoz,*(Toda la provincia)*,alquiler,396
+22-02-2026,2026,8,Ávila,Área de Ávila,alquiler,140
+22-02-2026,2026,8,Ávila,Valle del Tormes,alquiler,9
+22-02-2026,2026,8,Ávila,Valle del Tiétar,alquiler,53
+22-02-2026,2026,8,Ávila,Burgohondo - Cebreros - El Tiemblo,alquiler,26
+22-02-2026,2026,8,Ávila,Arévalo,alquiler,7
+22-02-2026,2026,8,Ávila,*(Toda la provincia)*,alquiler,235
+22-02-2026,2026,8,Asturias,Área de Oviedo,alquiler,695
+22-02-2026,2026,8,Asturias,Área de Gijón,alquiler,385
+22-02-2026,2026,8,Asturias,Área de Avilés,alquiler,137
+22-02-2026,2026,8,Asturias,Oriente,alquiler,126
+22-02-2026,2026,8,Asturias,Narcea,alquiler,18
+22-02-2026,2026,8,Asturias,Nalón,alquiler,31
+22-02-2026,2026,8,Asturias,Eo-Navia,alquiler,49
+22-02-2026,2026,8,Asturias,Caudal,alquiler,42
+22-02-2026,2026,8,Asturias,*(Toda la provincia)*,alquiler,1483
+22-02-2026,2026,8,Almería,Área de Almería,alquiler,444
+22-02-2026,2026,8,Almería,Valle de Almanzora,alquiler,41
+22-02-2026,2026,8,Almería,Poniente,alquiler,352
+22-02-2026,2026,8,Almería,Parque Natural Cabo de Gata - Níjar,alquiler,99
+22-02-2026,2026,8,Almería,Los Vélez,alquiler,7
+22-02-2026,2026,8,Almería,Levante,alquiler,417
+22-02-2026,2026,8,Almería,Filabres,alquiler,8
+22-02-2026,2026,8,Almería,Campo de Tabernas,alquiler,8
+22-02-2026,2026,8,Almería,Bajo Almanzora,alquiler,69
+22-02-2026,2026,8,Almería,Alpujarras,alquiler,12
+22-02-2026,2026,8,Almería,*(Toda la provincia)*,alquiler,1457
+22-02-2026,2026,8,Alicante,Vinalopó Mitjà,alquiler,76
+22-02-2026,2026,8,Alicante,Marina Baixa,alquiler,1140
+22-02-2026,2026,8,Alicante,Marina Alta,alquiler,1337
+22-02-2026,2026,8,Alicante,L'Alcoià,alquiler,66
+22-02-2026,2026,8,Alicante,L'Alacantí,alquiler,1598
+22-02-2026,2026,8,Alicante,Comtat,alquiler,3
+22-02-2026,2026,8,Alicante,Baix Vinalopó,alquiler,598
+22-02-2026,2026,8,Alicante,Baix Segura,alquiler,1488
+22-02-2026,2026,8,Alicante,Alt Vinalopó,alquiler,18
+22-02-2026,2026,8,Alicante,*(Toda la provincia)*,alquiler,6324
+22-02-2026,2026,8,Albacete,Sierra de Alcaraz-Segura,alquiler,3
+22-02-2026,2026,8,Albacete,La Manchuela,alquiler,7
+22-02-2026,2026,8,Albacete,La Mancha,alquiler,13
+22-02-2026,2026,8,Albacete,Corredor de Almansa,alquiler,8
+22-02-2026,2026,8,Albacete,Centro,alquiler,175
+22-02-2026,2026,8,Albacete,Campo de Hellín,alquiler,8
+22-02-2026,2026,8,Albacete,*(Toda la provincia)*,alquiler,214
+22-02-2026,2026,8,Álava,Zuya,alquiler,1
+22-02-2026,2026,8,Álava,Vitoria-Gasteiz,alquiler,79
+22-02-2026,2026,8,Álava,Salvatierra,alquiler,0
+22-02-2026,2026,8,Álava,Laguardia-Rioja Alavesa,alquiler,4
+22-02-2026,2026,8,Álava,Campezo- Montaña Alavesa,alquiler,0
+22-02-2026,2026,8,Álava,Añana,alquiler,0
+22-02-2026,2026,8,Álava,Ayala,alquiler,2
+22-02-2026,2026,8,Álava,*(Toda la provincia)*,alquiler,86
+22-02-2026,2026,8,A Coruña,Área de Ferrol,alquiler,328
+22-02-2026,2026,8,A Coruña,Área de A Coruña,alquiler,492
+22-02-2026,2026,8,A Coruña,Xallas,alquiler,2
+22-02-2026,2026,8,A Coruña,Terra de Soneira,alquiler,4
+22-02-2026,2026,8,A Coruña,Terra de Melide,alquiler,4
+22-02-2026,2026,8,A Coruña,Santiago,alquiler,345
+22-02-2026,2026,8,A Coruña,Ortegal,alquiler,20
+22-02-2026,2026,8,A Coruña,Ordes,alquiler,12
+22-02-2026,2026,8,A Coruña,O Sar,alquiler,1
+22-02-2026,2026,8,A Coruña,Noia,alquiler,27
+22-02-2026,2026,8,A Coruña,Muros,alquiler,6
+22-02-2026,2026,8,A Coruña,Miño - Betanzos,alquiler,31
+22-02-2026,2026,8,A Coruña,Fisterra,alquiler,41
+22-02-2026,2026,8,A Coruña,Eume,alquiler,18
+22-02-2026,2026,8,A Coruña,Bergantiños,alquiler,56
+22-02-2026,2026,8,A Coruña,Barbanza,alquiler,54
+22-02-2026,2026,8,A Coruña,Arzúa,alquiler,2
+22-02-2026,2026,8,A Coruña,A Barcala,alquiler,0
+22-02-2026,2026,8,A Coruña,*(Toda la provincia)*,alquiler,1443

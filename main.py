@@ -44,16 +44,29 @@ def start_service(service_name):
     
     if service_name == 'scraper':
         if is_port_in_use(SCRAPER_PORT):
-            return True # Already running
+            print(f"   [OK] Scraper already running on port {SCRAPER_PORT}")
+            return True
         
-        # Run app.server module directly (not start.py which spawns more subprocesses)
         scraper_dir = os.path.join(base_dir, 'scraper')
-        cmd = [sys.executable, '-m', 'app.server']
+        
+        # Determine the Python interpreter: favor embedded python in scraper/python/
+        embedded_python = os.path.join(scraper_dir, 'python', 'python.exe')
+        python_exe = embedded_python if os.path.exists(embedded_python) else sys.executable
+        
+        print(f"   [START] Launching Scraper using: {python_exe}")
+        
+        cmd = [python_exe, '-m', 'app.server']
         env = os.environ.copy()
         env['PYTHONPATH'] = scraper_dir
-        env['NO_BROWSER_OPEN'] = '1'  # Don't open browser from subprocess
-        SCRAPER_PROCESS = subprocess.Popen(cmd, cwd=scraper_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
-        return True
+        env['NO_BROWSER_OPEN'] = '1'
+        
+        try:
+            SCRAPER_PROCESS = subprocess.Popen(cmd, cwd=scraper_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
+            print(f"   [OK] Scraper process started (PID: {SCRAPER_PROCESS.pid})")
+            return True
+        except Exception as e:
+            print(f"   [ERR] Failed to start scraper: {e}")
+            return False
         
     elif service_name == 'analyzer':
         if is_port_in_use(ANALYZER_PORT):

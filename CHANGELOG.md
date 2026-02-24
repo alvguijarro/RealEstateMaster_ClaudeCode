@@ -18,6 +18,7 @@
 - **Fix auto-stop por 300 skips**: Corregido bug donde el flag `scraping_finished` no se verificaba en el bucle exterior de scraping, impidiendo que el auto-stop funcionara tras 300 propiedades consecutivas saltadas.
 - **Fix cleanup timeout**: Aumentado el timeout del comando PowerShell de limpieza de procesos zombi de 10s a 30s para evitar errores de timeout frecuentes.
 - **Double-Check Phase en Market Trends**: Añadida una fase final de doble comprobación automática para URLs que devuelven 0 propiedades sin confirmación ("No hay anuncios"). Estos casos se re-escanean con esperas más conservadoras antes de cerrar el navegador para descartar falsos positivos y actualizar los datos si es necesario.
+- **Fix "Service unavailable" en Scraper Module**: Corregido error de conexión al arrancar el Scraper desde el Dashboard unificado. El sistema ahora prioriza el uso del intérprete Python embebido en la carpeta `scraper/python` para asegurar la disponibilidad de las dependencias necesarias y se ha aumentado el tiempo de espera de conexión (timeout) de 10s a 30s.
 
 ## [Unreleased] - Market Trends Enhancements
 - `scraper_wrapper.py`: **Modo Deep Scrape (NUEVO)**. Automatizada la transición en búsquedas de gran volumen. Al alcanzar el límite impuesto por Idealista (página 60), automáticamente itera inyectando 4 variaciones de ordenación para sobrepasar la barrera de las 1800 viviendas mostradas y llegar hasta las 6000 o 9000 propiedades totales de una ciudad de forma autónoma con un mismo "click".

@@ -456,8 +456,8 @@
                 // 1. Request backend to start the service
                 await fetch(`/api/start/${service}`, { method: 'POST' });
 
-                // 2. Wait until the service is actually ready (poll up to 15 seconds)
-                const isReady = await waitForService(PORTS[service], 30, 500);
+                // 2. Wait until the service is actually ready (poll up to 30 seconds)
+                const isReady = await waitForService(PORTS[service], 60, 500);
 
                 if (!isReady) {
                     if (loading) loading.innerHTML = `<div style="color:#ef4444">Service timeout - please refresh</div>`;
@@ -525,8 +525,8 @@
                     `;
                 }
 
-                // Wait for service to be ready (poll up to 10 seconds)
-                const isReady = await waitForService(PORTS[viewName], 20, 500);
+                // Wait for service to be ready (poll up to 30 seconds)
+                const isReady = await waitForService(PORTS[viewName], 60, 500);
 
                 if (!isReady) {
                     if (loading) loading.innerHTML = `<div style="color:#ef4444">Service unavailable - please restart</div>`;
