@@ -1427,6 +1427,17 @@ def start_background_task(cmd, task_name, cwd=None):
     """Helper to start a background process and stream output to frontend."""
     global update_process
     
+    # Clear ALL stop flags before launching to prevent stale flags from killing new processes
+    scraper_dir = Path(__file__).parent.parent
+    for f_name in ["BATCH_STOP.flag", "PERIODIC_STOP.flag", "update_stop.flag", "ENRICH_STOP.flag"]:
+        flag_path = scraper_dir / f_name
+        if flag_path.exists():
+            try:
+                flag_path.unlink()
+                print(f"[server] Cleared stale flag: {f_name}")
+            except Exception:
+                pass
+    
     def run_and_stream():
         global update_process
         emit_log("INFO", f"Starting task: {task_name}")
@@ -1458,7 +1469,7 @@ def start_background_task(cmd, task_name, cwd=None):
             rc = update_process.returncode
             
             scraper_dir = Path(__file__).parent.parent
-            stop_flag_exists = (scraper_dir / "BATCH_STOP.flag").exists() or (scraper_dir / "PERIODIC_STOP.flag").exists() or (scraper_dir / "update_stop.flag").exists()
+            stop_flag_exists = any((scraper_dir / f).exists() for f in ["BATCH_STOP.flag", "PERIODIC_STOP.flag", "update_stop.flag", "ENRICH_STOP.flag"])
 
             if rc == 0:
                 emit_log("OK", f"Task '{task_name}' completed successfully.")
@@ -1467,7 +1478,7 @@ def start_background_task(cmd, task_name, cwd=None):
                 emit_log("INFO", f"Task '{task_name}' was stopped by user.")
                 emit_status("stopped")
                 # Cleanup flag
-                for f_name in ["BATCH_STOP.flag", "PERIODIC_STOP.flag", "update_stop.flag"]:
+                for f_name in ["BATCH_STOP.flag", "PERIODIC_STOP.flag", "update_stop.flag", "ENRICH_STOP.flag"]:
                     try: (scraper_dir / f_name).unlink()
                     except: pass
             else:

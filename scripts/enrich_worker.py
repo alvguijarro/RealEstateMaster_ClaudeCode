@@ -34,11 +34,13 @@ from playwright.async_api import async_playwright
 
 # Import scraper components
 from scraper.idealista_scraper.extractors import extract_detail_fields
-from scraper.idealista_scraper.utils import log, simulate_human_interaction, play_captcha_alert
+from scraper.idealista_scraper.utils import log, simulate_human_interaction, play_captcha_alert, solve_captcha_advanced
 from scraper.idealista_scraper.excel_writer import export_split_by_distrito
+from scraper.idealista_scraper.config import USER_AGENTS, VIEWPORT_SIZES
+from scraper.idealista_scraper.scraper import _goto_with_retry # Import the robust navigator
 from shared.config import API_MAX_PRICE
 
-# Try to import stealth
+# Try to import stealth from scraper utils or use local
 try:
     from playwright_stealth import stealth_async
     HAS_STEALTH = True
@@ -52,11 +54,11 @@ except ImportError:
 DEFAULT_MAX_PRICE = API_MAX_PRICE or 300000
 ENRICH_STATE_FILE = PROJECT_ROOT / "scraper" / "salidas" / ".enrich_state.json"
 
-# Rate limiting (conservative to avoid detection)
-DELAY_BETWEEN_PAGES = (8, 20)  # seconds, randomized
-DELAY_BETWEEN_BATCHES = (120, 300)  # 2-5 minutes between batches of 20
-BATCH_SIZE = 20
-SESSION_LIMIT = 100  # Properties per session before long break
+# Rate limiting (Sync with scraper logic)
+DELAY_BETWEEN_PAGES = (5, 12)  # seconds, randomized
+DELAY_BETWEEN_BATCHES = (60, 180)  # minutes between batches
+BATCH_SIZE = 15
+SESSION_LIMIT = 80  
 # Signal flags
 STOP_FLAG = PROJECT_ROOT / "scraper" / "ENRICH_STOP.flag"
 
@@ -64,13 +66,12 @@ def check_stop():
     """Check if the user has requested to stop the process."""
     if STOP_FLAG.exists():
         log("WARN", "🛑 Stop signal detected. Exiting gracefully...")
-        try: STOP_FLAG.unlink()
-        except: pass
+        # Note: server.py will clean this up, but we double ensure
         return True
     return False
 
 # Session break
-SESSION_BREAK = (600, 1200)  # 10-20 minutes
+SESSION_BREAK = (300, 900)  # 5-15 minutes
 
 # Fields that the API provides (we skip these during enrichment)
 API_PROVIDED_FIELDS = {
@@ -123,19 +124,20 @@ def load_properties_to_enrich(file_path: Path, max_price: int, enriched_urls: Se
     log("INFO", f"Loading {file_path.name}...")
     
     # Read all sheets and combine
-    sheets = pd.read_excel(file_path, sheet_name=None)
-    if not sheets:
+    try:
+        sheets = pd.read_excel(file_path, sheet_name=None)
+        if not sheets:
+            return pd.DataFrame()
+        
+        df = pd.concat(sheets.values(), ignore_index=True)
+    except Exception as e:
+        log("ERR", f"Error reading {file_path.name}: {e}")
         return pd.DataFrame()
-    
-    df = pd.concat(sheets.values(), ignore_index=True)
-    original_count = len(df)
     
     # Filter by price
     if "price" in df.columns:
         df["price"] = pd.to_numeric(df["price"], errors="coerce")
         df = df[df["price"] <= max_price]
-    
-    final_count = len(df)
     
     # Filter out already enriched
     if "URL" in df.columns:
@@ -148,54 +150,40 @@ def load_properties_to_enrich(file_path: Path, max_price: int, enriched_urls: Se
 
 
 async def enrich_single_property(page, url: str) -> Optional[dict]:
-    """Visit a URL and extract missing fields."""
+    """Visit a URL and extract missing fields using robust navigation."""
     try:
-        # Use domcontentloaded for faster, more reliable navigation
-        await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        # Use robust navigation from scraper.py
+        # It handles: retries, backoff, basic blocks, and automatic slider solving
+        await _goto_with_retry(page, url)
         
-        # 1. IMMEDIATE BLOCK CHECK (Title)
-        title = await page.title()
-        t_lower = title.lower()
-        if "uso indebido" in t_lower or "access denied" in t_lower:
-            log("ERR", f"⛔ BLOQUEO DETECTADO (Título): {title}")
+        # After navigation, check for specific blocks that _goto might have missed 
+        # but are critical for enrichment
+        title = (await page.title()).lower()
+        if "uso indebido" in title or "access denied" in title:
+            log("ERR", "⛔ BLOQUEO DETECTADO post-navegación.")
             return {"__blocked__": True}
 
+        # Extra interaction just in case
         await simulate_human_interaction(page)
-        
-        # Check for CAPTCHA
-        if any(kw in t_lower for kw in ["captcha", "robot", "verification", "challenge"]):
-            log("WARN", f"CAPTCHA detected on {url}")
-            play_captcha_alert()
-            # Wait for manual resolution
-            for _ in range(60):  # Wait up to 60 seconds
-                await asyncio.sleep(1)
-                new_title = await page.title()
-                if "idealista" in new_title.lower() and "captcha" not in new_title.lower():
-                    log("OK", "CAPTCHA resolved!")
-                    break
-            else:
-                log("ERR", "CAPTCHA not resolved, skipping...")
-                return None
-        
-        # 2. CONTENT BLOCK CHECK
-        # Sometimes title is normal but body says "uso indebido"
-        page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
-        pt_lower = page_text.lower()
-        if "uso indebido" in pt_lower or "access denied" in pt_lower or "se ha bloqueado" in pt_lower:
-            log("ERR", "⛔ BLOQUEO DETECTADO (Contenido). Deteniendo.")
-            return {"__blocked__": True}
         
         # Extract fields
         data = await extract_detail_fields(page)
         
         # Only return enrich fields
         enriched = {k: v for k, v in data.items() if k in ENRICH_FIELDS and v is not None}
+        if not enriched or len(enriched) < 3:
+             # If too many fields are empty, might be a soft block or rendering issue
+             log("WARN", f"Pocos datos extraídos para {url}. Posible renderizado incompleto.")
+             
         enriched["__enriched__"] = True
         enriched["Fecha Enriquecimiento"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         return enriched
         
     except Exception as e:
+        err_msg = str(e)
+        if "Acceso bloqueado" in err_msg or "uso indebido" in err_msg.lower():
+            return {"__blocked__": True}
         log("WARN", f"Error enriching {url}: {e}")
         return None
 
@@ -213,11 +201,13 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
         df = load_properties_to_enrich(file_path, max_price, enriched_urls)
         if not df.empty:
             for _, row in df.iterrows():
-                all_properties.append({
-                    "file": file_path,
-                    "url": row.get("URL"),
-                    "row_data": row.to_dict()
-                })
+                url = row.get("URL")
+                if url and isinstance(url, str):
+                    all_properties.append({
+                        "file": file_path,
+                        "url": url,
+                        "row_data": row.to_dict()
+                    })
     
     if not all_properties:
         log("OK", "No hay inmuebles nuevos para enriquecer.")
@@ -225,134 +215,126 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
     
     log("INFO", f"Total a procesar: {len(all_properties)} inmuebles")
     
-    # Randomize order to avoid sequential access patterns
+    # Shuffle to hide patterns
     random.shuffle(all_properties)
     
     if dry_run:
-        log("INFO", "DRY RUN - would process these URLs:")
-        for prop in all_properties[:10]:
-            log("INFO", f"  {prop['url']}")
-        log("INFO", f"  ... and {len(all_properties) - 10} more")
+        log("INFO", f"DRY RUN - Procesaría {len(all_properties)} inmuebles.")
         return
     
-    # Start browser with robust stealth settings
+    # Start browser with EXACT same config as scraper.py
     async with async_playwright() as p:
-        # Match main scraper's stealth configuration
         browser = await p.chromium.launch(
             headless=False,
-            args=["--start-maximized"],
+            args=[
+                "--start-maximized",
+                "--disable-blink-features=AutomationControlled"
+            ],
             ignore_default_args=["--enable-automation", "--no-sandbox"]
         )
         
-        # Use random user agent if available, else standard
-        ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        # Pick random identity
+        ua = random.choice(USER_AGENTS)
+        v_size = random.choice(VIEWPORT_SIZES)
         
         context = await browser.new_context(
-            viewport={"width": 1920, "height": 1080},
+            viewport={"width": v_size[0], "height": v_size[1]},
             user_agent=ua
         )
         
-        # Critical: Strip webdriver property
+        # Stealth init
         await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
         page = await context.new_page()
-        
-        if HAS_STEALTH:
-            await stealth_async(page)
         
         session_count = 0
         batch_count = 0
         enriched_data = {}  # file -> list of enriched rows
         
-        for i, prop in enumerate(all_properties):
-            if check_stop():
-                break
-                
-            url = prop["url"]
-            file_path = prop["file"]
-            
-            if not url or pd.isna(url):
-                continue
-            
-            log("INFO", f"[{i+1}/{len(all_properties)}] Enriching: {url[:60]}...")
-            
-            # Enrich
-            enriched = await enrich_single_property(page, url)
-            
-            if enriched and enriched.get("__blocked__"):
-                log("ERR", "⛔ Uso Indebido detectado (Bloqueo IP/UserAgent). Deteniendo enriquecimiento para proteger perfil.")
-                break
-            
-            if enriched:
-                # Merge with original row data
-                merged = {**prop["row_data"], **enriched}
-                
-                if file_path not in enriched_data:
-                    enriched_data[file_path] = []
-                enriched_data[file_path].append(merged)
-                
-                enriched_urls.add(url)
-                log("OK", f"  Enriched with {len(enriched)} new fields")
-            
-            session_count += 1
-            batch_count += 1
-            
-            # Save state periodically
-            if session_count % 10 == 0:
-                state["enriched_urls"] = list(enriched_urls)
-                save_enrich_state(state)
-            
-            # Batch break
-            if batch_count >= BATCH_SIZE:
-                batch_count = 0
-                delay = random.uniform(*DELAY_BETWEEN_BATCHES)
-                log("INFO", f"Batch complete. Resting {delay/60:.1f} minutes...")
-                # Interruptible wait
-                for _ in range(int(delay)):
-                    if check_stop(): break
-                    await asyncio.sleep(1)
+        try:
+            for i, prop in enumerate(all_properties):
                 if check_stop(): break
-            
-            # Session break
-            if session_count >= SESSION_LIMIT:
-                session_count = 0
-                delay = random.uniform(*SESSION_BREAK)
-                log("INFO", f"Session limit. Long rest: {delay/60:.1f} minutes...")
+                    
+                url = prop["url"]
+                file_path = prop["file"]
                 
-                # Save enriched data to files
-                for fp, rows in enriched_data.items():
-                    if rows:
-                        log("INFO", f"Saving {len(rows)} enriched rows to {fp.name}")
+                log("INFO", f"[{i+1}/{len(all_properties)}] Enriching: {url[:60]}...")
+                
+                # Try enrichment with robust logic
+                enriched = await enrich_single_property(page, url)
+                
+                if enriched and enriched.get("__blocked__"):
+                    log("ERR", "⛔ Bloqueo detectado. Abortando lote para evitar baneo permanente.")
+                    break
+                
+                if enriched:
+                    # Update row
+                    merged = {**prop["row_data"], **enriched}
+                    if file_path not in enriched_data:
+                        enriched_data[file_path] = []
+                    enriched_data[file_path].append(merged)
+                    
+                    enriched_urls.add(url)
+                    log("OK", f"  Éxito: {len(enriched)} campos nuevos.")
+                else:
+                    log("WARN", "  No se pudieron obtener datos.")
+                
+                session_count += 1
+                batch_count += 1
+                
+                # Periodic save
+                if session_count % 5 == 0:
+                    state["enriched_urls"] = list(enriched_urls)
+                    save_enrich_state(state)
+                
+                # Save to disk periodically (Enrichment updates are crucial)
+                if batch_count >= BATCH_SIZE:
+                    batch_count = 0
+                    log("INFO", "Guardando progreso intermedio...")
+                    for fp, rows in enriched_data.items():
+                        if rows:
+                            try:
+                                existing_df = pd.concat(pd.read_excel(fp, sheet_name=None).values(), ignore_index=True)
+                                export_split_by_distrito(existing_df, rows, str(fp), set())
+                            except Exception as e:
+                                log("ERR", f"Error guardando {fp.name}: {e}")
+                    enriched_data = {} # Reset list after saving
+                    
+                    delay = random.uniform(*DELAY_BETWEEN_BATCHES)
+                    log("INFO", f"Batch completado. Descansando {delay/60:.1f} min...")
+                    for _ in range(int(delay)):
+                        if check_stop(): break
+                        await asyncio.sleep(1)
+                    if check_stop(): break
+                
+                # Extra long rest
+                if session_count >= SESSION_LIMIT:
+                    session_count = 0
+                    delay = random.uniform(*SESSION_BREAK)
+                    log("INFO", f"Límite de sesión alcanzado. Descansa {delay/60:.1f} min...")
+                    for _ in range(int(delay)):
+                        if check_stop(): break
+                        await asyncio.sleep(1)
+                    if check_stop(): break
+                else:
+                    # Generic page delay
+                    await asyncio.sleep(random.uniform(*DELAY_BETWEEN_PAGES))
+
+        finally:
+            # Final Save always
+            for fp, rows in enriched_data.items():
+                if rows:
+                    log("INFO", f"Guardado final: {fp.name}")
+                    try:
                         existing_df = pd.concat(pd.read_excel(fp, sheet_name=None).values(), ignore_index=True)
                         export_split_by_distrito(existing_df, rows, str(fp), set())
-                enriched_data = {}
-                
-                # Interruptible wait
-                for _ in range(int(delay)):
-                    if check_stop(): break
-                    await asyncio.sleep(1)
-                if check_stop(): break
-            else:
-                # Normal delay between pages
-                delay = random.uniform(*DELAY_BETWEEN_PAGES)
-                for _ in range(int(delay)):
-                    if check_stop(): break
-                    await asyncio.sleep(1)
-                if check_stop(): break
-        
-        # Final save
-        for fp, rows in enriched_data.items():
-            if rows:
-                log("INFO", f"Final save: {len(rows)} enriched rows to {fp.name}")
-                existing_df = pd.concat(pd.read_excel(fp, sheet_name=None).values(), ignore_index=True)
-                export_split_by_distrito(existing_df, rows, str(fp), set())
-        
-        state["enriched_urls"] = list(enriched_urls)
-        save_enrich_state(state)
-        
-        await browser.close()
+                    except: pass
+            
+            state["enriched_urls"] = list(enriched_urls)
+            save_enrich_state(state)
+            await browser.close()
     
-    log("OK", f"Enrichment complete! Total enriched: {len(enriched_urls)}")
+    log("OK", f"Enriquecimiento finalizado. Total enriquecidos: {len(enriched_urls)}")
 
 
 def main():

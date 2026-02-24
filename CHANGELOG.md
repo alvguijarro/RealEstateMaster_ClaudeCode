@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.9.7] - 2026-02-24
+### Fixed
+- **NameError en Enriquecedor**: Restauradas las funciones auxiliares (`find_api_files`, `load_enrich_state`, etc.) y constantes (`ENRICH_FIELDS`) que se eliminaron accidentalmente durante el refactor de robustez.
+- **Estabilización Total del Enriquecedor**: Sincronizada la lógica de navegación con el scraper principal usando `_goto_with_retry`. Esto añade reintentos automáticos, backoff exponencial y mayor tolerancia a fallos de red.
+- **Resolución de Captchas**: Integrada la función `solve_captcha_advanced` en el enriquecedor, permitiendo resolver sliders y captchas de DataDome de forma automática.
+- **Limpieza de Flags**: El servidor ahora limpia automáticamente todos los archivos `.flag` (incluyendo `ENRICH_STOP.flag`) al iniciar cualquier tarea, evitando que señales de parada de sesiones anteriores maten el nuevo proceso instantáneamente.
+- **Identidad Rotativa**: El enriquecedor ahora usa la rotación de User-Agents y Viewports de `config.py` para dificultar la detección.
+
 ## [2.9.6] - 2026-02-24
 ### Fixed
 - **Listado de archivos en Batch Enricher**: Corregido un bug crítico que impedía mostrar archivos en la herramienta de enriquecimiento. Se ha añadido el elemento `batchCompletedList` ausente en el HTML y se ha forzado la carga de archivos (`loadBatchFiles`) tanto al inicio de la aplicación como al cambiar de pestaña.
