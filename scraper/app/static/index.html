@@ -241,9 +241,35 @@
                             <div id="batchCompletedList"
                                 style="height: 100px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; background: rgba(0,0,0,0.1); margin-bottom: 15px;">
                             </div>
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <span id="batchSelectedCount"
+                                    style="font-size: 0.85rem; color: var(--text-secondary);">0 archivos
+                                    seleccionados</span>
+                                <div style="display: flex; gap: 5px;">
+                                    <button class="btn-icon-only" onclick="toggleBatchFiles(true)"
+                                        title="Seleccionar todos">☑️</button>
+                                    <button class="btn-icon-only" onclick="toggleBatchFiles(false)"
+                                        title="Deseleccionar todos">⬜</button>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                <span style="font-size: 0.85rem; color: var(--text-secondary);">Estado:</span>
+                                <span id="batchProgressText"
+                                    style="font-size: 0.85rem; font-weight: 600;">Inactivo</span>
+                                <span style="font-size: 0.85rem; color: var(--text-muted);">|</span>
+                                <span style="font-size: 0.85rem; color: var(--text-secondary);">Archivo:</span>
+                                <span id="batchCurrentFile"
+                                    style="font-size: 0.85rem; color: var(--text-muted);">-</span>
+                            </div>
                             <div class="action-buttons" style="display: flex; gap: 10px;">
                                 <button class="btn btn-primary" id="batchStartBtn">▶ Iniciar Lote</button>
+                                <button class="btn btn-warning" id="batchPauseBtn" disabled>⏸ Pausar</button>
+                                <button class="btn btn-primary" id="batchResumeBtn" style="display: none;">▶
+                                    Reanudar</button>
                                 <button class="btn btn-danger" id="batchStopBtn" disabled>⏹ Detener</button>
+                                <button class="btn-icon-only" id="clearBatchLogsBtn" title="Limpiar logs"
+                                    style="margin-left: auto;">🗑️</button>
                             </div>
                         </div>
                     </section>

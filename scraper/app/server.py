@@ -1349,6 +1349,54 @@ def get_salidas_files():
 
 # /api/batch-scan removed.
 
+
+@app.route('/api/batch/start', methods=['POST'])
+def start_batch_enrichment():
+    """Start batch enrichment for one or more Excel files."""
+    global update_process
+    if update_process and update_process.poll() is None:
+        return jsonify({'status': 'error', 'error': 'A task is already running. Please wait.'}), 409
+
+    data = request.json or {}
+    file_paths = data.get('files', [])
+
+    if not file_paths:
+        return jsonify({'error': 'No files provided'}), 400
+
+    # Validate all files exist
+    for fp in file_paths:
+        if not os.path.exists(fp):
+            return jsonify({'error': f'File not found: {fp}'}), 404
+
+    # Build command: run enrich_worker.py for each file sequentially
+    # The script accepts --input as a glob, so we pass each file individually
+    # We use a wrapper approach: call the script once per file
+    script_path = (Path(__file__).parent.parent.parent / "scripts" / "enrich_worker.py").resolve()
+
+    if not script_path.exists():
+        return jsonify({'error': 'enrich_worker.py script not found'}), 500
+
+    # For batch: pass all files as separate --input args via a small inline script
+    # OR: we can call enrich_worker.py once per file sequentially
+    # Simplest approach: create a temporary batch command that processes all files
+    if len(file_paths) == 1:
+        cmd = [sys.executable, str(script_path), "--input", file_paths[0]]
+    else:
+        # For multiple files, we create a small inline Python wrapper
+        # that calls enrich_worker.py for each file
+        inline_script = "; ".join([
+            "import subprocess, sys",
+            f"files = {file_paths!r}",
+            f"script = r'{script_path}'",
+            "for f in files:",
+            "    print(f'\\n=== Processing: {f} ===', flush=True)",
+            "    rc = subprocess.call([sys.executable, script, '--input', f])",
+            "    if rc != 0: print(f'WARNING: {f} exited with code {rc}', flush=True)"
+        ])
+        cmd = [sys.executable, "-c", inline_script]
+
+    return start_background_task(cmd, f"Batch Enrichment ({len(file_paths)} files)")
+
 @app.route('/api/enrich', methods=['POST'])
 def run_enrichment():
     """Run enrichment worker script."""
