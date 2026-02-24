@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.9.4] - 2026-02-24
+### Added
+- **Refinamiento de Enriquecimiento Inteligente**:
+    - Las propiedades ahora se saltan únicamente si la columna `__enriched__` es "Verdadero" o si el anuncio está inactivo. Las celdas vacías o con "Falso" se procesan.
+    - Implementada la combinación de campos a nivel de fila para preservar datos manuales (ej. Notas, Comunidad Autónoma) al re-enriquecer una propiedad.
+    - El campo `__enriched__` ahora se marca explícitamente con el texto "Verdadero" y se actualiza la "Fecha Enriquecimiento" tras un éxito.
+### Fixed
+- **Scraper Module Stability**: Corregido el error de "Service timeout" persistente mediante la inclusión de dependencias de BigQuery (`google-cloud-bigquery`, `google-auth`) en el entorno embebido.
+
 ## [2.9.3] - 2026-02-23
 ### Added
 - **Sincronización de Archivos VENTA/ALQUILER**: Implementada lógica bidireccional en Analytics Pro para emparejar automáticamente los archivos de venta y alquiler que comparten el mismo prefijo geográfico.

@@ -3044,6 +3044,15 @@ class ScraperController:
                                     from datetime import datetime
                                     row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
                                     
+                                    # Merge with existing data if available (Smart Enrichment)
+                                    if key in self._all_existing_urls:
+                                        existing_data = self._all_existing_urls[key].get('full_row', {})
+                                        if existing_data:
+                                            # Merge: new scraped data (row) takes precedence, 
+                                            # but we keep all columns that were already in Excel
+                                            merged = {**existing_data, **row}
+                                            row = merged
+
                                     # Smart Enrichment: Mark as enriched with current date
                                     if self.smart_enrichment:
                                         row = mark_as_enriched(row)
@@ -3167,6 +3176,15 @@ class ScraperController:
                                 from datetime import datetime
                                 row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
                                 
+                                # Merge with existing data if available (Smart Enrichment)
+                                if key in self._all_existing_urls:
+                                    existing_data = self._all_existing_urls[key].get('full_row', {})
+                                    if existing_data:
+                                        # Merge logic: new scraped data (row) takes precedence,
+                                        # preserving existing manual columns not present in scraping result
+                                        merged = {**existing_data, **row}
+                                        row = merged
+
                                 # Smart Enrichment: Mark as enriched with current date
                                 if self.smart_enrichment:
                                     row = mark_as_enriched(row)

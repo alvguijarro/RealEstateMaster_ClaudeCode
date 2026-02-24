@@ -201,28 +201,24 @@ def load_enriched_urls(excel_path: str) -> Set[str]:
                 if not url or pd.isna(url):
                     continue
                 
-                # Check Enrichment
                 is_enriched = False
-                has_fecha = False
+                is_inactive = False
                 
                 if enriched_col:
                     val = row.get(enriched_col)
                     if pd.notna(val):
-                        is_enriched = str(val).upper() in ['TRUE', '1', 'VERDADERO', 'SÍ', 'SI', 'YES']
+                        val_str = str(val).strip().upper()
+                        # SKIP ONLY IF EXPLICITLY "VERDADERO" (or TRUE/YES/SI)
+                        is_enriched = val_str in ['TRUE', '1', 'VERDADERO', 'SÍ', 'SI', 'YES']
                 
-                if fecha_col:
-                    val = row.get(fecha_col)
-                    if pd.notna(val) and str(val).strip():
-                        has_fecha = True
+                # Check Inactive Status
+                if active_col:
+                    val = str(row.get(active_col, "")).strip().lower()
+                    if val in ["no", "false", "0", "falso"]:
+                        is_inactive = True
                 
-                # Check Inactive Status (User Request: Skip inactive properties forever)
-                    if active_col:
-                        val = str(row.get(active_col, "")).strip().lower()
-                        if val in ["no", "false", "falso", "0"]:
-                            is_inactive = True
-                
-                # Add to skip set if Enriched OR Inactive
-                if (is_enriched and has_fecha) or is_inactive:
+                # SKIP if Enriched OR Inactive
+                if is_enriched or is_inactive:
                     skip_urls.add(str(url).strip())
         
     except Exception as e:
@@ -293,7 +289,8 @@ def load_all_urls_from_excel(excel_path: str) -> Dict[str, dict]:
                 if enriched_col:
                     val = row.get(enriched_col)
                     if pd.notna(val):
-                        is_enriched = str(val).upper() in ['TRUE', '1', 'VERDADERO', 'SÍ', 'SI', 'YES']
+                        val_str = str(val).strip().upper()
+                        is_enriched = val_str in ['TRUE', '1', 'VERDADERO', 'SÍ', 'SI', 'YES']
                 
                 if fecha_col:
                     val = row.get(fecha_col)
@@ -310,7 +307,8 @@ def load_all_urls_from_excel(excel_path: str) -> Dict[str, dict]:
                     'fecha': fecha,
                     'sheet': sheet_name,
                     'row_index': idx,
-                    'is_inactive': is_inactive
+                    'is_inactive': is_inactive,
+                    'full_row': row.to_dict() if hasattr(row, 'to_dict') else dict(row)
                 }
         
     except Exception as e:
@@ -327,9 +325,9 @@ def mark_as_enriched(row: dict) -> dict:
         row: The property data dictionary
         
     Returns:
-        Updated row with __enriched__ = True and Fecha Enriquecimiento
+        Updated row with __enriched__ = 'Verdadero' and Fecha Enriquecimiento
     """
-    row["__enriched__"] = True
+    row["__enriched__"] = "Verdadero"
     row["Fecha Enriquecimiento"] = datetime.now().strftime("%d/%m/%Y")
     return row
 
