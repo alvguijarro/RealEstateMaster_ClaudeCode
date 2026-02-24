@@ -1476,6 +1476,31 @@ class ScraperController:
         self.mode = mode
         self.log("INFO", f"Switched mode: {old_mode} -> {mode}")
     
+    async def _is_verification_screen(self, page) -> bool:
+        """Checks if the page is showing Idealista's 'Device Verification' screen."""
+        try:
+            content = await page.evaluate("""() => {
+                const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
+                return bodyText;
+            }""")
+            return "verificación del dispositivo" in content or "verificando su dispositivo" in content
+        except:
+            return False
+
+    async def _wait_for_verification(self, page, max_attempts=3) -> bool:
+        """Adaptive wait for Idealista's verification screen to disappear."""
+        for i in range(1, max_attempts + 1):
+            if await self._is_verification_screen(page):
+                self.log("INFO", f"⏳ Idealista device verification detected. Waiting {i*10}s (Attempt {i}/{max_attempts})...")
+                await self._interruptible_sleep(10.0)
+                if self._stop_evt.is_set():
+                    return False
+            else:
+                if i > 1:
+                    self.log("OK", "✅ Verification completed.")
+                return True
+        return False
+
     async def _check_for_blocks(self, page) -> Optional[str]:
         """
         Thoroughly check if the page is a CAPTCHA or a block.
@@ -2433,10 +2458,9 @@ class ScraperController:
                             # On the first attempt, check for DataDome before waiting 4s.
                             # If blocked, exit immediately instead of spinning 4 rounds.
                             if attempt == 0:
-                                # Wait 10s for Idealista's automatic verification to complete
+                                # Adaptive wait for Idealista's automatic verification to complete
                                 # before checking for DataDome. This prevents false positives.
-                                self.log("INFO", "Waiting for initial verification to complete (10s)...")
-                                await self._interruptible_sleep(10.0)
+                                await self._wait_for_verification(page)
                                 if self._stop_evt.is_set():
                                     break
                                 try:

@@ -155,6 +155,29 @@ async def is_legit_zero_results(page):
         return any(kw in content for kw in no_results_keywords)
     except:
         return False
+
+async def is_verification_screen(page):
+    """Checks if the page is showing Idealista's 'Device Verification' screen."""
+    try:
+        content = await page.evaluate("""() => {
+            const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
+            return bodyText;
+        }""")
+        return "verificación del dispositivo" in content or "verificando su dispositivo" in content
+    except:
+        return False
+
+async def wait_for_verification(page, max_attempts=3):
+    """Adaptive wait for Idealista's verification screen to disappear."""
+    for i in range(1, max_attempts + 1):
+        if await is_verification_screen(page):
+            print(f"  ⏳ Idealista device verification detected. Waiting {i*10}s (Attempt {i}/{max_attempts})...")
+            await asyncio.sleep(10)
+        else:
+            if i > 1:
+                print("  ✅ Verification completed.")
+            return True
+    return False
     
 async def save_to_db(date_record, iso_year, iso_week, province, zone, operation, total):
     """Saves the extracted total to the SQLite database."""
@@ -394,6 +417,10 @@ async def run_tracker(resume=False, headless=False):
                             
                             await page.goto(url, timeout=45000, wait_until="domcontentloaded")
                             await asyncio.sleep(random.uniform(2.5, 4.5)) 
+                            
+                            # Adaptive wait for "Device Verification" screen
+                            # Wait up to 30s (3x10s) before considering it a block
+                            await wait_for_verification(page)
                             
                             # Enhanced block detection
                             if await detect_block(page):
