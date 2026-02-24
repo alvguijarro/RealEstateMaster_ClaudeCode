@@ -13,3 +13,4 @@ requests
 python-socketio
 eventlet  # Recommended for Flask-SocketIO threading
 2captcha-python
+joblib>=1.2.0

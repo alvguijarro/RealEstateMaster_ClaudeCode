@@ -32,6 +32,12 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5002 ^| findstr LISTENING') 
     taskkill /F /PID %%a 2>nul
 )
 
+REM Kill processes on port 5005 (trends)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5005 ^| findstr LISTENING') do (
+    echo Killing process %%a on port 5005...
+    taskkill /F /PID %%a 2>nul
+)
+
 echo.
 echo All services stopped.
 timeout /t 1 >nul

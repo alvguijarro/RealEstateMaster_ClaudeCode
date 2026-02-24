@@ -21,6 +21,7 @@ if exist "%~dp0browsers" (
     REM 2. Check in project root (standard)
     set PLAYWRIGHT_BROWSERS_PATH=%~dp0..\browsers
 )
+set "PLAYWRIGHT_BROWSERS_PATH=%PLAYWRIGHT_BROWSERS_PATH%"
 echo [+] Playwright Browsers Path: %PLAYWRIGHT_BROWSERS_PATH%
 
 REM Change directory to the project root (one level up)
