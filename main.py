@@ -53,7 +53,9 @@ def start_service(service_name):
         
         print(f"   [START] Launching Scraper using: {python_exe}")
         
-        cmd = [python_exe, '-m', 'app.server']
+        scraper_dir = os.path.join(base_dir, 'scraper')
+        script = os.path.join(scraper_dir, 'app', 'server.py')
+        cmd = [python_exe, script]
         env = os.environ.copy()
         
         # Propagate Playwright Browsers Path for Portable version
@@ -68,6 +70,7 @@ def start_service(service_name):
         env['NO_BROWSER_OPEN'] = '1'
         
         try:
+            # We use subprocess.CREATE_NO_WINDOW to avoid popping up many consoles
             SCRAPER_PROCESS = subprocess.Popen(cmd, cwd=scraper_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
             print(f"   [OK] Scraper process started (PID: {SCRAPER_PROCESS.pid})")
             return True

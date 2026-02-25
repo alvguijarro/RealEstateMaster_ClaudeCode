@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.9.13] - 2026-02-25
+### Fixed
+- **Arranque de Scraper**: Corregido un error en `main.py` que impedía el inicio del módulo Scraper debido a una variable no definida y problemas en la resolución del paquete como módulo. Se ha estandarizado el arranque de todos los servicios para usar rutas directas a los scripts.
+
 ## [2.9.12] - 2026-02-25
 ### Fixed
 - **Error en Guardado de Excel**: Corregido un error de tipo `NoneType` que impedía el guardado periódico de los archivos Excel durante el proceso de enriquecimiento. El error se debía a una implementación incompleta de carga diferida (lazy loading) en el módulo `excel_writer.py`.
