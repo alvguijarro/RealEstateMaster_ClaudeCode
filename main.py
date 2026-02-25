@@ -57,6 +57,15 @@ def start_service(service_name):
         
         cmd = [python_exe, '-m', 'app.server']
         env = os.environ.copy()
+        
+        # Propagate Playwright Browsers Path for Portable version
+        if 'PLAYWRIGHT_BROWSERS_PATH' not in env:
+            # Check if we are in portable mode
+            portable_browsers = os.path.join(base_dir, 'python_portable', 'browsers')
+            if os.path.exists(portable_browsers):
+                env['PLAYWRIGHT_BROWSERS_PATH'] = portable_browsers
+                print(f"   [INFO] Setting PLAYWRIGHT_BROWSERS_PATH to: {portable_browsers}")
+        
         env['PYTHONPATH'] = scraper_dir
         env['NO_BROWSER_OPEN'] = '1'
         

@@ -98,6 +98,24 @@ def play_captcha_alert():
         # Fallback for non-Windows or if winsound fails
         print("\a")  # ASCII Bell
 
+def cleanup_stealth_profiles():
+    """Remove all stealth_profile* directories to free up space (cached data)."""
+    import shutil
+    base_dir = Path(__file__).parent.parent.parent
+    
+    # Check root and scraper directory
+    dirs_to_check = [base_dir, base_dir / 'scraper']
+    
+    for d in dirs_to_check:
+        if not d.exists(): continue
+        for item in d.iterdir():
+            if item.is_dir() and item.name.startswith('stealth_profile'):
+                try:
+                    log("INFO", f"Limpiando perfil residual: {item.name}")
+                    shutil.rmtree(item, ignore_errors=True)
+                except Exception as e:
+                    log("WARN", f"No se pudo borrar {item.name}: {e}")
+
 
 def play_blocked_alert():
     """Play an alarming descending tone to indicate scraper has been blocked."""

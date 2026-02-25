@@ -41,7 +41,7 @@ from playwright.async_api import async_playwright
 
 # Import scraper components
 from scraper.idealista_scraper.extractors import extract_detail_fields
-from scraper.idealista_scraper.utils import log, simulate_human_interaction, play_captcha_alert, solve_captcha_advanced
+from scraper.idealista_scraper.utils import log, simulate_human_interaction, play_captcha_alert, solve_captcha_advanced, cleanup_stealth_profiles
 from scraper.idealista_scraper.excel_writer import export_split_by_distrito
 from scraper.idealista_scraper.config import USER_AGENTS, VIEWPORT_SIZES
 from scraper.idealista_scraper.scraper import _goto_with_retry # Import the robust navigator
@@ -354,6 +354,12 @@ def main():
     log("INFO", f"Found {len(files)} files to process")
     
     asyncio.run(run_enrichment(files, args.max_price, args.dry_run))
+    
+    # Cleanup profiles to free up space
+    try:
+        cleanup_stealth_profiles()
+    except:
+        pass
 
 
 if __name__ == "__main__":

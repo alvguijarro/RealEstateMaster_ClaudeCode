@@ -14,3 +14,5 @@ python-socketio
 eventlet  # Recommended for Flask-SocketIO threading
 2captcha-python
 joblib>=1.2.0
+google-cloud-bigquery
+pyarrow

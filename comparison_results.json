@@ -1,0 +1,60 @@
+[
+  {
+    "url": "Piso en venta en Avenida del dos de Mayo",
+    "basic_count": "34",
+    "enriched_count": "35",
+    "diffs": {
+      "price": "284900 -> 255000",
+      "actualizado hace": "un d\u00eda -> 19 d\u00edas",
+      "m2 construidos": "76.0 -> 70.0",
+      "precio por m2": "3749.0 -> 3643.0",
+      "banos": "2.0 -> 1.0",
+      "Armarios": "S\u00ed",
+      "orientacion": "orientaci\u00f3n sur",
+      "altura": "1\u00aa -> 3\u00aa",
+      "Zona": "Zona sur -> sur, Madrid",
+      "Consumo 2": "90 kWh/m2 -> 190 kWh/m2",
+      "Emisiones 2": "190 kg CO2/m2 -> 90 kg CO2/m2",
+      "Descripcion": "\u00a1Descubre tu nuevo hogar en el coraz\u00f3n de M\u00f3stoles! Exclusivo piso completamente reformado y domotizado, con una reforma de ensue\u00f1o, donde cada detalle ha sido cuidadosamente dise\u00f1ado para ofrecer el m\u00e1ximo confort, dise\u00f1o y eficiencia. La vivienda se distribuye en 3 amplias habitaciones y 2 ba\u00f1os completos, uno de ellos en suite, proporcionando comodidad, privacidad y una distribuci\u00f3n funcional ideal tanto para familias como para quienes buscan espacio y calidad. Cuenta con tarima flotante AC6 de alta resistencia, perfecta para un uso intensivo sin renunciar a la elegancia. La carpinter\u00eda interior lacada en blanco Cortizo aporta un estilo moderno y atemporal, potenciando la luminosidad de todas las estancias. Dispone de ventanas de PVC oscilobatiente de altas prestaciones, que garantizan un excelente aislamiento t\u00e9rmico y ac\u00fastico, mejorando notablemente el confort y la eficiencia energ\u00e9tica del hogar. Incorpora un avanzado sistema de dom\u00f3tica con tecnolog\u00eda Zigbee, que permite el control inteligente de: Iluminaci\u00f3n LED Persianas motorizadas Calefacci\u00f3n el\u00e9ctrica Aire acondicionado Todo el sistema es gestionable de forma sencilla desde tablet o tel\u00e9fono m\u00f3vil, permitiendo crear ambientes personalizados y optimizar el consumo energ\u00e9tico. Una vivienda premium, moderna y eficiente, lista para entrar a vivir, pensada para quienes buscan un hogar exclusivo, tecnol\u00f3gico y con acabados de alta gama. No dejes pasar la oportunidad de vivir en este encantador inmueble, donde la tranquilidad y la calidad se unen para ofrecerte el hogar que siempre has deseado. \u00a1Cont\u00e1ctanos r\u00e1pidamente o visitanos en nuestra oficina situada en la Av. Dos de Mayo 59 para m\u00e1s informaci\u00f3n y no pierdas la oportunidad de visitar este piso en buen estado que podr\u00eda convertirse en tu nuevo hogar! POSIBILIDAD DE FINANCIACI\u00d3N AL 100% GRACIAS A NUESTRO DEPARTAMENTO FINANCIERO FINANHOGAR! *Este anuncio no es vinculante, puede contener errores y esta sujeto a posibles modificaciones. -> \u00a1Descubre tu nuevo hogar en M\u00f3stoles! Este REFORMADO piso de 70 m\u00b2 te ofrece todo lo que necesitas para vivir c\u00f3modamente. Ubicado en una TERCERA planta con ascensor, disfrutar\u00e1s de un sal\u00f3n comedor luminoso. Con tres dormitorios amplios y un ba\u00f1o completo con plato de ducha y ventana. Este piso es perfecto para familias o para quienes buscan su primera vivienda. La ubicaci\u00f3n es inmejorable: a solo 5 MINUTOS del Metro Pradillo y a 7 minutos del metro Hospital de M\u00f3stoles, tendr\u00e1s excelente conexi\u00f3n con el resto de la ciudad. Adem\u00e1s, estar\u00e1s cerca de centros de salud, zonas comerciales, paradas de autob\u00fas y una variada oferta de ocio y hosteler\u00eda. \u00a1Cont\u00e1ctanos r\u00e1pidamente o vis\u00edtanos en OFICINA M\u00d3STOLES 2 MAYO para m\u00e1s informaci\u00f3n y no pierdas la oportunidad de visitar este piso en buen estado que podr\u00eda convertirse en tu nuevo hogar! *Este anuncio no es vinculante, puede contener errores y esta sujeto a posibles modificaciones. *.",
+      "Fecha Scraping": "2026-02-05 21:00:04 -> 2026-02-05 20:58:04",
+      "URL": "https://www.idealista.com/inmueble/110334774/ -> https://www.idealista.com/inmueble/110510371/"
+    }
+  },
+  {
+    "url": "Piso en calle Velilla, 10",
+    "basic_count": "28",
+    "enriched_count": "31",
+    "diffs": {
+      "Baja anuncio": "19/02/2026",
+      "Fecha Enriquecimiento": "2026-02-24 18:40:12",
+      "__enriched__": 1.0
+    }
+  },
+  {
+    "url": "Piso en venta en Calle Nuestra Se\u00f1ora del Pilar, 6",
+    "basic_count": "34",
+    "enriched_count": "35",
+    "diffs": {
+      "Baja anuncio": "09/02/2026",
+      "Fecha Enriquecimiento": "24/02/2026 -> 2026-02-24 20:09:13"
+    }
+  },
+  {
+    "url": "Piso en venta en CL San Lesmes",
+    "basic_count": "32",
+    "enriched_count": "34",
+    "diffs": {
+      "Fecha Enriquecimiento": "2026-02-24 20:44:03",
+      "__enriched__": 1.0
+    }
+  },
+  {
+    "url": "Piso en venta en Calle del Panizo",
+    "basic_count": "35",
+    "enriched_count": "37",
+    "diffs": {
+      "Fecha Enriquecimiento": "2026-02-24 20:18:09",
+      "__enriched__": 1.0
+    }
+  }
+]

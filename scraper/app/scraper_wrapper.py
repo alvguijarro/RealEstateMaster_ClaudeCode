@@ -50,7 +50,7 @@ from idealista_scraper.config import (
     EXTRA_STEALTH_READING_TIME_PER_100_CHARS, USER_AGENTS, VIEWPORT_SIZES,
     BROWSER_ROTATION_POOL, MAX_PROFILE_POOL_SIZE, PROFILE_COOLDOWN_MINUTES
 )
-from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_captcha_advanced
+from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_captcha_advanced, cleanup_stealth_profiles
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
@@ -3830,6 +3830,12 @@ class ScraperController:
                 self.status = "error"
         
         self.is_running = False
+        
+        # Free up space by removing cached browser profiles
+        try:
+            cleanup_stealth_profiles()
+        except:
+            pass
         
         if self.on_status:
             self.on_status(self.status, file=self.output_file, count=len(self.scraped_properties))
