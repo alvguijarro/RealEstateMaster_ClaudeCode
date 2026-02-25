@@ -123,7 +123,9 @@ async def _goto_with_retry(page, url: str, humanize: bool = True, session: Optio
                     "security" in t_lower or
                     "peticiones" in t_lower or
                     "verificación" in t_lower or
-                    "verification" in t_lower
+                    "verification" in t_lower or
+                    "vaya!" in t_lower or
+                    "muchas peticiones" in t_lower
                 )
 
                 if is_captcha:

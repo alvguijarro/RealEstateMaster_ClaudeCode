@@ -173,10 +173,16 @@ async def enrich_single_property(page, url: str) -> Optional[dict]:
         # It handles: retries, backoff, basic blocks, and automatic slider solving
         await _goto_with_retry(page, url)
         
-        # After navigation, check for specific blocks that _goto might have missed 
-        # but are critical for enrichment
+        # After navigation, check for common block strings in the text
+        body_text = (await page.inner_text("body")).lower()
         title = (await page.title()).lower()
-        if "uso indebido" in title or "access denied" in title:
+        
+        block_strings = [
+            "uso indebido", "access denied", "muchas peticiones tuyas", 
+            "verificar tu dispositivo", "acceso se ha bloqueado"
+        ]
+        
+        if any(bs in body_text for bs in block_strings) or any(bs in title for bs in block_strings):
             log("ERR", "⛔ BLOQUEO DETECTADO post-navegación.")
             return {"__blocked__": True}
 
@@ -186,13 +192,19 @@ async def enrich_single_property(page, url: str) -> Optional[dict]:
         # Extract fields
         data = await extract_detail_fields(page)
         
+        # Check if the extractor itself detected a block
+        if data.get("isBlocked") or data.get("__blocked__"):
+             log("ERR", "⛔ BLOQUEO DETECTADO por el extractor.")
+             return {"__blocked__": True}
+             
         # Only return enrich fields
         enriched = {k: v for k, v in data.items() if k in ENRICH_FIELDS and v is not None}
         is_expired = data.get("isExpired", False)
 
-        if (not enriched or len(enriched) < 3) and not is_expired:
+        if is_expired:
+            log("INFO", f"  Anuncio de baja: {data.get('lowDate') or 'No disponible'}")
+        elif not enriched or len(enriched) < 3:
              # If too many fields are empty, might be a soft block or rendering issue
-             # We skip this warning if the listing is confirmed as expired/gone
              log("WARN", f"Pocos datos extraídos para {url}. Posible renderizado incompleto.")
              
         enriched["__enriched__"] = True
@@ -201,10 +213,11 @@ async def enrich_single_property(page, url: str) -> Optional[dict]:
         return enriched
         
     except Exception as e:
-        err_msg = str(e)
-        if "Acceso bloqueado" in err_msg or "uso indebido" in err_msg.lower():
+        err_msg = str(e).lower()
+        block_strings = ["acceso bloqueado", "uso indebido", "peticiones tuyas", "verificar tu dispositivo"]
+        if any(bs in err_msg for bs in block_strings):
             return {"__blocked__": True}
-        log("WARN", f"Error enriching {url}: {e}")
+        log("WARN", f"Error enriqueciendo {url}: {e}")
         return None
 
 
@@ -295,7 +308,11 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                     enriched_data[file_path].append(merged)
                     
                     enriched_urls.add(url)
-                    log("OK", f"  Éxito: {len(enriched)} campos nuevos.")
+                    real_fields = [k for k in enriched.keys() if k not in ["__enriched__", "Fecha Enriquecimiento"]]
+                    if real_fields:
+                        log("OK", f"  Éxito: {len(real_fields)} campos nuevos ({', '.join(real_fields[:3])}...)")
+                    else:
+                        log("OK", "  Éxito: Solo metadatos (Anuncio marcado como enriquecido)")
                 else:
                     log("WARN", "  No se pudieron obtener datos.")
                 

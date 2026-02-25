@@ -196,6 +196,8 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
                 bodyText.includes("el acceso se ha bloqueado") || 
                 bodyText.includes("uso no autorizado") ||
                 bodyText.includes("access denied") ||
+                bodyText.includes("muchas peticiones tuyas en poco tiempo") ||
+                bodyText.includes("verificar tu dispositivo") ||
                 titleText === "idealista.com" && bodyText.length < 500) {
                 return { isBlocked: true };
             }
