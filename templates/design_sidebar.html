@@ -457,7 +457,7 @@
                 await fetch(`/api/start/${service}`, { method: 'POST' });
 
                 // 2. Wait until the service is actually ready (poll up to 30 seconds)
-                const isReady = await waitForService(PORTS[service], 60, 500);
+                const isReady = await waitForService(PORTS[service], 240, 500);
 
                 if (!isReady) {
                     if (loading) loading.innerHTML = `<div style="color:#ef4444">Service timeout - please refresh</div>`;

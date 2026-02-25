@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import pandas as pd
+# import pandas as pd # MOVED TO _import_libs
 import random
 import re
 import sys
@@ -23,16 +23,38 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlsplit, urlunsplit
 
-from playwright.async_api import async_playwright
+# from playwright.async_api import async_playwright # MOVED TO _import_libs
 
 # Optional playwright-stealth for enhanced anti-detection (Stealth mode only)
-try:
-    from playwright_stealth import stealth_async
-    HAS_STEALTH = True
-except ImportError:
-    HAS_STEALTH = False
-    stealth_async = None
+# try:
+#     from playwright_stealth import stealth_async
+#     HAS_STEALTH = True
+# except ImportError:
+#     HAS_STEALTH = False
+#     stealth_async = None
 
+# Placeholders for lazy-loaded libraries
+pd = None
+async_playwright = None
+stealth_async = None
+HAS_STEALTH = False
+ 
+def _lazy_import():
+    global pd, async_playwright, stealth_async, HAS_STEALTH
+    if pd is None:
+        import pandas as _pd
+        pd = _pd
+    if async_playwright is None:
+        from playwright.async_api import async_playwright as _ap
+        async_playwright = _ap
+    if stealth_async is None:
+        try:
+            from playwright_stealth import stealth_async as _sa
+            stealth_async = _sa
+            HAS_STEALTH = True
+        except ImportError:
+            HAS_STEALTH = False
+ 
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -1027,6 +1049,7 @@ class ScraperController:
         return False
     
     def __post_init__(self):
+        _lazy_import()
         self._stop_evt = None
         self._pause_evt = None
         self._thread_stop_evt = threading.Event()  # Instant cross-thread signal

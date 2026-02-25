@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import glob
 import json
 import threading
-import pandas as pd
+# import pandas as pd # Lazy loaded below
 from flask import Flask, render_template, jsonify, request, send_from_directory, render_template_string
 from io import StringIO
 import analysis  # Import the analysis module
@@ -26,7 +26,7 @@ try:
 except ImportError:
     GOOGLE_API_KEY = None
 
-import google.generativeai as genai
+# import google.generativeai as genai # Lazy loaded inside routes
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 

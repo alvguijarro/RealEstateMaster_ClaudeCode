@@ -1,8 +1,8 @@
 import os
 import json
 import logging
-from google.cloud import bigquery
-from google.oauth2 import service_account
+# from google.cloud import bigquery # Lazy loaded
+# from google.oauth2 import service_account # Lazy loaded
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +21,9 @@ class DatabaseManager:
     def init_bigquery_client(self):
         """Initialize Google BigQuery client using service account."""
         try:
+            from google.cloud import bigquery
+            from google.oauth2 import service_account
+            
             # Look for service account in scraper directory
             current_dir = os.path.dirname(os.path.abspath(__file__))
             sa_path = os.path.join(current_dir, 'service-account.json')
@@ -46,6 +49,7 @@ class DatabaseManager:
             return True
 
         try:
+            from google.cloud import bigquery
             # Add upload timestamp to track when data was pushed
             from datetime import datetime
             df['upload_timestamp'] = datetime.now()

@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.9] - 2026-02-25
+### Fixed
+- **Optimización de Arranque para USB/PC Nuevos**: Implementado "Lazy Loading" (carga perezosa) en el Scraper y en el gestor de BigQuery. Librerías pesadas como `pandas`, `playwright` y `google-cloud-bigquery` ahora solo se cargan cuando se necesitan, permitiendo que el servidor arranque y responda casi al instante.
+- **Solución de "Service Timeout"**: Aumentado el tiempo de espera inicial en el Dashboard de 30 segundos a 120 segundos para dar margen a PC lentos o escaneos de antivirus en el primer arranque desde USB.
+
 ## [2.9.8] - 2026-02-25
 ### Fixed
 - **Botón de Parada de Enriquecimiento**: Corregido un fallo donde el botón "Detener" en el Enriquecedor no funcionaba. El servidor ahora mata correctamente el subproceso `update_process` y toca todos los flags de parada necesarios (`ENRICH_STOP.flag`, `BATCH_STOP.flag`).

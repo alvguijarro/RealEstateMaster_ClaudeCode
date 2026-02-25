@@ -13,7 +13,13 @@ from __future__ import annotations
 import os
 from typing import List, Set
 
-import pandas as pd
+# import pandas as pd # Lazy loaded below
+pd = None
+def _import_pd():
+    global pd
+    if pd is None:
+        import pandas as _pd
+        pd = _pd
 from openpyxl.utils import get_column_letter
 
 from . import ORDERED_BASE, ORDERED_HABITACIONES
@@ -43,6 +49,7 @@ def load_existing_single_sheet(path: str, sheet: str):
     Note:
         Returns empty DataFrame with ORDERED_BASE columns if file doesn't exist.
     """
+    _import_pd()
     seen: Set[str] = set()
     cols: Set[str] = set()
     if not os.path.exists(path):
@@ -81,6 +88,7 @@ def load_urls_with_dates(path: str) -> dict:
     Returns:
         Dict mapping URL -> {'date': str, 'is_active': bool}
     """
+    _import_pd()
     url_metadata = {}
     if not os.path.exists(path):
         return url_metadata
