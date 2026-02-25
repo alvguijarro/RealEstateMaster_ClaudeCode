@@ -47,11 +47,9 @@ def start_service(service_name):
             print(f"   [OK] Scraper already running on port {SCRAPER_PORT}")
             return True
         
-        scraper_dir = os.path.join(base_dir, 'scraper')
-        
-        # Determine the Python interpreter: favor embedded python in scraper/python/
-        embedded_python = os.path.join(scraper_dir, 'python', 'python.exe')
-        python_exe = embedded_python if os.path.exists(embedded_python) else sys.executable
+        # Determine the Python interpreter: use consolidated python_portable
+        portable_python = os.path.join(base_dir, 'python_portable', 'python.exe')
+        python_exe = portable_python if os.path.exists(portable_python) else sys.executable
         
         print(f"   [START] Launching Scraper using: {python_exe}")
         

@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.9.12] - 2026-02-25
+### Fixed
+- **Error en Guardado de Excel**: Corregido un error de tipo `NoneType` que impedía el guardado periódico de los archivos Excel durante el proceso de enriquecimiento. El error se debía a una implementación incompleta de carga diferida (lazy loading) en el módulo `excel_writer.py`.
+
 ## [2.9.11] - 2026-02-25
 ### Changed
 - **Robustez de STOP_ALL.bat**: Se ha mejorado el script de parada para que no solo detenga los servicios en los puertos, sino que también detecte y elimine procesos de Python "huérfanos" (como el enriquecedor) y navegadores residuales de Playwright que pudieran quedarse abiertos tras cerrar las consolas.

@@ -151,6 +151,7 @@ def load_existing_specific_sheet(path: str, sheet: str) -> pd.DataFrame:
     Note:
         Column names are normalized for backward compatibility (e.g., 'plantas' → 'Num plantas').
     """
+    _import_pd()
     if not os.path.exists(path):
         return pd.DataFrame(columns=ORDERED_BASE)
     try:
@@ -183,6 +184,7 @@ def write_excel_with_retry(df: pd.DataFrame, out_path: str, sheet: str, max_retr
         max_retries: Maximum number of PermissionError retries
         check_stop: Optional callable that returns True if we should abort
     """
+    _import_pd()
     attempt = 0
     while attempt < max_retries:
         if check_stop and check_stop():
@@ -268,6 +270,7 @@ def export_single_sheet(existing_df: pd.DataFrame,
     Side Effects:
         Writes to the Excel file at out_path and logs the result.
     """
+    _import_pd()
     extra_cols = set(carry_cols)
     for r in additions:
         extra_cols.update(r.keys())
@@ -337,6 +340,7 @@ def export_split_by_distrito(existing_df: pd.DataFrame,
     Side Effects:
         Writes to the Excel file at out_path with multiple sheets.
     """
+    _import_pd()
     extra_cols = set(carry_cols)
     for r in additions:
         extra_cols.update(r.keys())
