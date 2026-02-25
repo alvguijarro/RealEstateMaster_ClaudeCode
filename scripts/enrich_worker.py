@@ -285,11 +285,12 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
             
             try:
                 browser_type = getattr(p, engine_name)
-                launch_args = ["--disable-blink-features=AutomationControlled"]
+                launch_args = []
                 
-                # Performance optimizations for Edge and Chromium
+                # Chromium-specific optimizations
                 if engine_name == "chromium":
-                    launch_args.extend([
+                    launch_args = [
+                        "--disable-blink-features=AutomationControlled",
                         "--no-first-run",
                         "--no-default-browser-check",
                         "--disable-sync",
@@ -297,13 +298,16 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                         "--disable-extensions",
                         "--disable-component-update",
                         "--disable-domain-reliability"
-                    ])
+                    ]
                     if channel in ["chrome", "msedge"]:
                         launch_args.append("--start-maximized")
                 
+                # For Firefox and Webkit, we keep launch_args empty to avoid misinterpretation
+                # as URLs or unrecognized flags
+                
                 browser = await browser_type.launch(
                     headless=False,
-                    channel=channel,
+                    channel=channel if engine_name == "chromium" else None,
                     args=launch_args,
                     ignore_default_args=["--enable-automation", "--no-sandbox"]
                 )

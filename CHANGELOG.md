@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.18] - 2026-02-25
+### Fixed
+- **Error de Lanzamiento en Firefox**: Solucionado el problema donde Firefox intentaba cargar una URL inválida (`automationcontrolled`) al recibir flags de Chromium.
+- **Error de Canal Opera**: Eliminado Opera del pool de rotación por falta de soporte nativo en el canal de Playwright, evitando el cierre inesperado del script.
+- **Aislamiento de Flags**: Ahora cada motor de navegación (Chromium, Firefox, Webkit) recibe únicamente los argumentos de lanzamiento compatibles con su arquitectura.
+
 ## [2.9.17] - 2026-02-25
 ### Optimized
 - **Arranque Ultra-Rápido de Navegadores**: Añadidos flags de optimización para Edge y Chrome (`--no-first-run`, `--disable-sync`, etc.) para eliminar retrasos en el inicio de sesión.

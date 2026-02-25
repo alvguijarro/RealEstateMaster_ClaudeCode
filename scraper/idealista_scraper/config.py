@@ -74,6 +74,5 @@ BROWSER_ROTATION_POOL: List[dict] = [
     {"index": 2, "engine": "chromium", "channel": None,     "name": "Chromium (Default)"},
     {"index": 3, "engine": "chromium", "channel": "chrome", "name": "Google Chrome"},
     {"index": 4, "engine": "chromium", "channel": "msedge", "name": "Microsoft Edge"},
-    {"index": 5, "engine": "chromium", "channel": "opera",  "name": "Opera Browser"},
-    {"index": 6, "engine": "firefox",  "channel": None,     "name": "Firefox"},           # Last resort - unstable on Windows Juggler
+    {"index": 5, "engine": "firefox",  "channel": None,     "name": "Firefox"},           # Last resort - unstable on Windows Juggler
 ]
