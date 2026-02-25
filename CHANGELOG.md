@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.11] - 2026-02-25
+### Changed
+- **Robustez de STOP_ALL.bat**: Se ha mejorado el script de parada para que no solo detenga los servicios en los puertos, sino que también detecte y elimine procesos de Python "huérfanos" (como el enriquecedor) y navegadores residuales de Playwright que pudieran quedarse abiertos tras cerrar las consolas.
+- **Limpieza de Flags**: Ahora se eliminan automáticamente los archivos de señalización (`.flag`) al detener todo, asegurando un inicio limpio en la siguiente sesión.
+
 ## [2.9.10] - 2026-02-25
 ### Fixed
 - **Corrección de Bloqueo en Enriquecimiento**: Corregido un `ReferenceError` crítico en el extractor de datos donde se intentaba llamar a una función de Python (`parse_relative_date`) dentro de un bloque de JavaScript del navegador. Esto causaba que el proceso de enriquecimiento se detuviera en el primer elemento.
