@@ -147,7 +147,18 @@ def load_properties_to_enrich(file_path: Path, max_price: int, enriched_urls: Se
     
     # Filter out already enriched
     if "URL" in df.columns:
-        df = df[~df["URL"].isin(enriched_urls)]
+        # 1. Skip if URL is in global history
+        mask = df["URL"].isin(enriched_urls)
+        
+        # 2. Skip if row is already marked as enriched in the file
+        if "__enriched__" in df.columns:
+            # Handle both boolean and string "True"
+            mask = mask | (df["__enriched__"].astype(str).str.lower() == "true")
+            
+        if "Fecha Enriquecimiento" in df.columns:
+            mask = mask | df["Fecha Enriquecimiento"].notna()
+            
+        df = df[~mask]
     
     to_process = len(df)
     log("INFO", f"Procesando {to_process} anuncios (Filtrados por precio <= {max_price}E y no enriquecidos)")
