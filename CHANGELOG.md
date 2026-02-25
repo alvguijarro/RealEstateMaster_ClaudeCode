@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.9.26] - 2026-02-25
+### Optimized
+- **Enriquecedor Ultra-Robusto**: Se ha portado toda la lógica avanzada de evasión y detección del scraper de provincias al enriquecedor de propiedades.
+    - **Rotación de Identidad con Cooldown**: Ahora el enriquecedor respeta los tiempos de espera si un perfil es bloqueado.
+    - **Evasión Avanzada**: Implementada inyección de fingerprints profundos (GPU, Audio, etc.), movimiento de ratón orgánico (Jitter) en segundo plano y simulación de tiempos de lectura.
+    - **Detección Granular**: Nuevos checks para IDs de WAF, iFrames de DataDome y validación de integridad de página antes de marcar como exitoso.
+    - **Navegación Robusta**: Implementada guarda de 120s para evitar cuelgues del navegador y esperas adaptativas para resolución de captchas.
+
 ## [2.9.25] - 2026-02-25
 ### Fixed
 - **Detección de "No Encontrado" como Baja**: Se ha añadido soporte para el mensaje "No encontramos lo que estás buscando" en Idealista. Ahora estas URLs se marcan automáticamente como inactivas (sin fecha de baja específica) y el enriquecedor pasa a la siguiente propiedad sin rotar perfiles.

@@ -55,6 +55,13 @@ except ImportError:
     HAS_STEALTH = False
     stealth_async = None
 
+# Advanced Features from Scraper Wrapper
+from scraper.app.scraper_wrapper import (
+    rotate_identity, mark_current_profile_blocked, get_profile_dir, 
+    get_browser_executable_path, DEEP_STEALTH_SCRIPT, continuous_mouse_jitter,
+    BlockedException
+)
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -98,6 +105,69 @@ ENRICH_FIELDS = {
     "okupado", "Copropiedad", "con inquilino", "nuda propiedad", "ces. remate",
     "tipo anunciante", "Baja anuncio", "Comunidad Autonoma", "Zona", "Anuncio activo"
 }
+
+# =============================================================================
+# ADVANCED HELPERS (Ported from ScraperController)
+# =============================================================================
+
+async def check_for_blocks(page, log_func=None) -> Optional[str]:
+    """Granular block detection (WAF IDs, DataDome, Cloudflare, short pages)."""
+    try:
+        page_data = await page.evaluate("""
+            () => ({
+                title: document.title,
+                text: document.documentElement ? document.documentElement.innerText : (document.body ? document.body.innerText : '')
+            })
+        """)
+        title = (page_data.get("title") or "").lower()
+        text_lower = (page_data.get("text") or "").lower()
+        text_lower = re.sub(r'\s+', ' ', text_lower).strip()
+
+        # 1. HARD BLOCKS
+        has_block_id = bool(re.search(r"id:\s*[0-9a-f]{8,32}-", text_lower))
+        hard_block_keywords = [
+            "el acceso se ha bloqueado", "se ha detectado un uso indebido",
+            "un uso indebido", "uso no autorizado", "acceso bloqueado",
+            "forbidden", "access denied"
+        ]
+        if any(kw in text_lower for kw in hard_block_keywords) or has_block_id:
+            if log_func: log_func("ERR", f"🛑 HARD BLOCK detected (Title: {title[:30]})")
+            return "block"
+
+        # 2. CAPTCHAS / DATADOME
+        is_datadome = await page.evaluate("""() => {
+            return !!(document.querySelector('iframe[src*="captcha-delivery.com"]') || 
+                      window.dd || 
+                      document.querySelector('script[src*="captcha-delivery.com"]'));
+        }""")
+        captcha_keywords = [
+            "muchas peticiones tuyas", "confirma que eres humano",
+            "verificación necesaria", "un momento, por favor",
+            "cloudflare", "checking your browser"
+        ]
+        if is_datadome or any(kw in text_lower for kw in captcha_keywords) or any(kw in title for kw in captcha_keywords):
+            return "captcha"
+
+        # 3. Short 'idealista.com' page with NO elements
+        if title == "idealista.com" and len(text_lower) < 1200:
+            has_items = await page.evaluate("""() => {
+                return !!document.querySelector('article, .item, [data-element-id], #h1-container');
+            }""")
+            if not has_items:
+                return "block"
+        
+        return None
+    except:
+        return None
+
+async def simulate_reading_time(text: str, log_func=None):
+    """Wait proportional to description length (Extra Stealth behavior)."""
+    if not text: return
+    # Base: 0.5s per 100 chars, max 5s for enrichment
+    wait_time = min(5.0, len(text) / 200.0)
+    if wait_time > 1.0:
+        if log_func: log_func("INFO", f"⌛ Simulando tiempo de lectura ({wait_time:.1f}s)...")
+        await asyncio.sleep(wait_time)
 
 
 def load_enrich_state() -> dict:
@@ -167,50 +237,78 @@ def load_properties_to_enrich(file_path: Path, max_price: int, enriched_urls: Se
 
 
 async def enrich_single_property(page, url: str, session: Optional[ScraperSession] = None) -> Optional[dict]:
-    """Visit a URL and extract missing fields using robust navigation."""
+    """Visit a URL and extract missing fields with advanced evasion and detection."""
+    # 1. Advanced Evasion Setup
+    await page.add_init_script(DEEP_STEALTH_SCRIPT)
+    stop_jitter = asyncio.Event()
+    jitter_task = asyncio.create_task(continuous_mouse_jitter(page, stop_jitter))
+    
     try:
-        # Use robust navigation from scraper.py
-        # It handles: retries, backoff, basic blocks, and automatic slider solving
-        # It also handles the 30s manual wait if a session is provided
-        await _goto_with_retry(page, url, session=session)
-        
-        # After navigation, check for common block strings in the text
-        # We check both the full text and the title
-        body_text = (await page.inner_text("body")).lower()
-        title = (await page.title()).lower()
-        
-        block_strings = [
-            "uso indebido", "access denied", "muchas peticiones tuyas", 
-            "verificar tu dispositivo", "acceso se ha bloqueado",
-            "un uso indebido", "acceso restringido"
-        ]
-        
-        if any(bs in body_text for bs in block_strings) or any(bs in title for bs in block_strings):
-            log("ERR", f"⛔ BLOQUEO DETECTADO en {url[:40]}... (Rotando perfil inmediatamente)")
-            return {"__blocked__": True}
+        # 2. Robust Navigation
+        try:
+            # Use 120s guard as in main scraper
+            await asyncio.wait_for(
+                _goto_with_retry(page, url, session=session),
+                timeout=120.0
+            )
+        except asyncio.TimeoutError:
+            log("ERR", f"⏰ NAVIGATION HANG en {url[:40]}...")
+            return None
+        except Exception as e:
+            if "ns_error_abort" in str(e).lower():
+                pass # Usually a minor redirect issue handled by retry
+            else:
+                log("WARN", f"Navegación fallida: {e}")
+                return None
 
-        # Extra interaction just in case
+        # 3. Granular Block Detection
+        block_type = await check_for_blocks(page, log_func=log)
+        
+        if block_type == "block":
+            log("ERR", f"🚫 BLOQUEO (Uso indebido) detectado en {url[:40]}...")
+            mark_current_profile_blocked()
+            return {"__blocked__": True}
+            
+        if block_type == "captcha":
+            log("WARN", f"⚠️ CAPTCHA detectado. Intentando resolución...")
+            # If automatic solve is in _goto_with_retry, it already tried. 
+            # If still captcha, we might need manual solve as in main scraper.
+            if session:
+                log("INFO", ">>> ESPERANDO RESOLUCIÓN MANUAL (30s max) <<<")
+                play_captcha_alert()
+                # Simple poll for 30s
+                for _ in range(15):
+                    await asyncio.sleep(2)
+                    if not await check_for_blocks(page):
+                        log("OK", "✅ CAPTCHA resuelto manualmente!")
+                        break
+                else:
+                    log("ERR", "❌ CAPTCHA no resuelto. Rotando...")
+                    return {"__blocked__": True}
+
+        # 4. Humanization (Reading time simulation)
         await simulate_human_interaction(page)
         
-        # Extract fields
+        # 5. Extraction
         data = await extract_detail_fields(page)
         
-        # Check if the extractor itself detected a block
         if data.get("isBlocked") or data.get("__blocked__"):
-             log("ERR", f"⛔ BLOQUEO DETECTADO por el extractor en {url[:40]}...")
+             log("ERR", f"⛔ BLOQUEO DETECTADO por el extractor...")
+             mark_current_profile_blocked()
              return {"__blocked__": True}
+
+        # 6. Reading Time Simulation based on description
+        desc = data.get("Descripcion", "")
+        await simulate_reading_time(desc, log_func=log)
              
-        # Only return enrich fields
+        # Filter fields
         enriched = {k: v for k, v in data.items() if k in ENRICH_FIELDS and v is not None}
-        # Detection of expired/de-listed ads
         is_expired = data.get("Anuncio activo") == "No" or data.get("Baja anuncio") is not None
         
         if is_expired:
             log("INFO", f"  ✅ Anuncio de baja: {data.get('Baja anuncio') or 'No disponible'}")
         elif not enriched or len(enriched) < 3:
-             # If too many fields are empty, might be a soft block or rendering issue
-             log("WARN", f"Pocos datos extraídos para {url[:60]}. Posible renderizado incompleto.")
-             # Mark as incomplete to allow re-trying after rotation if it's a soft-block
+             log("WARN", f"Pocos datos extraídos para {url[:40]}. Posible renderizado incompleto.")
              return {"__incomplete__": True, "__enriched__": False}
              
         enriched["__enriched__"] = True
@@ -218,13 +316,13 @@ async def enrich_single_property(page, url: str, session: Optional[ScraperSessio
         
         return enriched
         
-    except Exception as e:
-        err_msg = str(e).lower()
-        block_strings = ["acceso bloqueado", "uso indebido", "peticiones tuyas", "verificar tu dispositivo", "denied"]
-        if any(bs in err_msg for bs in block_strings):
-            return {"__blocked__": True}
-        log("WARN", f"Error enriqueciendo {url[:60]}: {e}")
-        return None
+    finally:
+        # Cleanup humanization tasks
+        stop_jitter.set()
+        try:
+            await asyncio.wait_for(jitter_task, timeout=2.0)
+        except:
+            pass
 
 
 async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = False):
@@ -261,96 +359,77 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
         log("INFO", f"DRY RUN - Procesaría {len(all_properties)} inmuebles.")
         return
 
-    # Enrichment loop with rotation logic
-    async with async_playwright() as p:
-        i = 0
-        consecutive_failures = 0
-        enriched_data = {}  # file -> list of enriched rows
-        total_session_count = 0
-        batch_count = 0
-        pool_idx = 0
-
-        while i < len(all_properties):
-            if check_stop(): break
+    i = 0
+    enriched_data = {}  # file -> list of enriched rows
+    total_session_count = 0
+    batch_count = 0
+    consecutive_failures = 0
+    
+    while i < len(all_properties):
+        if check_stop(): break
             
-            # Start/Restart browser session using the rotation pool
-            browser_conf = BROWSER_ROTATION_POOL[pool_idx % len(BROWSER_ROTATION_POOL)]
-            engine_name = browser_conf["engine"]
-            channel = browser_conf.get("channel")
-            friendly_name = browser_conf.get("name", engine_name)
+        # 1. Advanced Identity Rotation (with Cooldown)
+        profile_config, wait_time = rotate_identity()
+        if wait_time > 0:
+            log("WARN", f"⏳ Todos los perfiles en cooldown. Esperando {wait_time:.0f}s...")
+            await asyncio.sleep(min(30, wait_time)) # Wait and retry
+            continue
             
-            ua = random.choice(USER_AGENTS)
-            v_size = random.choice(VIEWPORT_SIZES)
-            
-            log("INFO", f"🚀 {friendly_name.upper()}: Iniciando sesión (UA: {ua[:40]}...)")
-            
+        profile_dir = get_profile_dir(profile_config["index"])
+        executable = get_browser_executable_path(profile_config.get("channel"))
+        
+        log("INFO", f"🔄 Nueva sesión: Perfil {profile_config['index']} ({profile_config['name']})")
+        
+        error_in_session = False
+        async with async_playwright() as p:
+            # Launch persistent context to reuse profiles and cookies
             try:
-                browser_type = getattr(p, engine_name)
-                launch_args = []
+                # Use engine from config (chromium, firefox, webkit)
+                browser_type = getattr(p, profile_config["engine"])
                 
-                # Chromium-specific optimizations
-                if engine_name == "chromium":
-                    launch_args = [
+                browser = await browser_type.launch_persistent_context(
+                    user_data_dir=profile_dir,
+                    headless=profile_config.get("headless", True),
+                    executable_path=executable,
+                    user_agent=random.choice(USER_AGENTS),
+                    viewport={"width": random.choice(VIEWPORT_SIZES)[0], "height": random.choice(VIEWPORT_SIZES)[1]},
+                    args=[
                         "--disable-blink-features=AutomationControlled",
-                        "--no-first-run",
-                        "--no-default-browser-check",
-                        "--disable-sync",
-                        "--metrics-recording-only",
-                        "--disable-extensions",
-                        "--disable-component-update",
-                        "--disable-domain-reliability"
-                    ]
-                    if channel in ["chrome", "msedge"]:
-                        launch_args.append("--start-maximized")
-                
-                # For Firefox and Webkit, we keep launch_args empty to avoid misinterpretation
-                # as URLs or unrecognized flags
-                
-                browser = await browser_type.launch(
-                    headless=False,
-                    channel=channel if engine_name == "chromium" else None,
-                    args=launch_args,
-                    ignore_default_args=["--enable-automation", "--no-sandbox"]
+                        "--no-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-web-security"
+                    ] if profile_config["engine"] == "chromium" else [],
+                    ignore_https_errors=True
                 )
-            except Exception as e:
-                log("ERR", f"No se pudo iniciar motor {friendly_name}: {e}. Saltando al siguiente.")
-                pool_idx += 1
-                continue
-
-            context = await browser.new_context(viewport={"width": v_size[0], "height": v_size[1]}, user_agent=ua)
-            await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            page = await context.new_page()
-            
-            # Create a session object to track captchas (mirroring scraper.py)
-            session = ScraperSession(cdp_endpoint="", out_xlsx="", sheet_name="")
-            
-            error_in_session = False
-            try:
-                while i < len(all_properties):
+                
+                # Setup session for captcha monitoring
+                page = browser.pages[0] if browser.pages else await browser.new_page()
+                session = ScraperSession(cdp_endpoint="", out_xlsx="", sheet_name="")
+                
+                # 2. Main Processing Loop inside Session
+                while i < len(all_properties) and not error_in_session:
                     if check_stop(): break
                     
                     prop = all_properties[i]
                     url = prop["url"]
                     file_path = prop["file"]
                     
-                    log("INFO", f"[{i+1}/{len(all_properties)}] Enriching: {url[:60]}...")
+                    log("INFO", f"[{i+1}/{len(all_properties)}] {url[:50]}...")
                     
-                    # Try enrichment
                     try:
                         enriched = await enrich_single_property(page, url, session=session)
                     except Exception as e:
-                        if "CAPTCHA_BLOCK_DETECTED" in str(e):
-                            log("ERR", "⛔ CAPTCHA RESISTENTE. Rotando pool...")
-                        else:
-                            log("ERR", f"Error crítico enriqueciendo: {e}")
+                        log("ERR", f"Error crítico enriqueciendo: {e}")
                         error_in_session = True
                         break
 
-                    # 1. HARD BLOCK DETECTED (via return flag)
+                    # --- SUCCESS/FAILURE EVALUATION ---
+                    
+                    # 1. HARD BLOCK (Identity Rotation)
                     if enriched and enriched.get("__blocked__"):
                         log("ERR", "⛔ BLOQUEO CONFIRMADO. Rotando identidad...")
                         error_in_session = True
-                        break # Break inner loop to rotate
+                        break 
                     
                     # 2. INCOMPLETE DATA (Soft block suspicion)
                     if enriched and enriched.get("__incomplete__"):
@@ -359,9 +438,9 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                             log("WARN", "⚠️ 3 fallos consecutivos (datos vacíos). Sospecha de soft-block. Rotando...")
                             consecutive_failures = 0
                             error_in_session = True
-                            break # Break inner loop to rotate
+                            break 
                     else:
-                        consecutive_failures = 0 # Reset if we get a good result or a hard fail
+                        consecutive_failures = 0 
 
                     if enriched and not enriched.get("__incomplete__"):
                         # Update row
@@ -373,14 +452,13 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                         enriched_urls.add(url)
                         real_fields = [k for k in enriched.keys() if k not in ["__enriched__", "Fecha Enriquecimiento"]]
                         if real_fields:
-                            log("OK", f"  Éxito: {len(real_fields)} campos nuevos ({', '.join(real_fields[:3])}...)")
+                            log("OK", f"  Éxito: {len(real_fields)} campos nuevos")
                         else:
                             log("OK", "  Éxito: Solo metadatos (Anuncio marcado como enriquecido)")
                         
-                        i += 1 # Advance to next property only on success or expired
+                        i += 1 
                     elif not enriched:
-                        # General error (not block), maybe skip or retry once? 
-                        # For now, skip to avoid infinite loops but don't count as success
+                        # General error (not block), skip
                         log("WARN", "  No se pudieron obtener datos. Saltando...")
                         i += 1
                     
@@ -401,35 +479,35 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                                 try:
                                     existing_df = pd.concat(pd.read_excel(fp, sheet_name=None).values(), ignore_index=True)
                                     export_split_by_distrito(existing_df, rows, str(fp), set())
-                                except Exception as e:
-                                    log("ERR", f"Error guardando {fp.name}: {e}")
+                                except: pass
                         enriched_data = {}
 
                     # Wait between pages
                     await asyncio.sleep(random.uniform(*DELAY_BETWEEN_PAGES))
                     
+            except Exception as e:
+                log("ERR", f"Error en sesión: {e}")
+                error_in_session = True
             finally:
                 if session.captchas_found > 0:
                     log("INFO", f"📊 Resumen sesión: {session.captchas_found} captchas encontrados, {session.captchas_solved} resueltos.")
                 
-                await browser.close()
-                pool_idx += 1 # Advance browser engine in pool
-                
-                if error_in_session:
-                    log("INFO", "� Rotando identidad inmediatamente...")
-                    # Removing the security pause as requested by user
-
-        # Final cleanup and save
-        log("INFO", "Finalizando sesión y guardando datos finales...")
-        for fp, rows in enriched_data.items():
-            if rows:
-                try:
-                    existing_df = pd.concat(pd.read_excel(fp, sheet_name=None).values(), ignore_index=True)
-                    export_split_by_distrito(existing_df, rows, str(fp), set())
+                try: await browser.close()
                 except: pass
-        
-        state["enriched_urls"] = list(enriched_urls)
-        save_enrich_state(state)
+
+        if check_stop(): break
+
+    # Final cleanup and save
+    log("INFO", "Finalizando sesión y guardando datos finales...")
+    for fp, rows in enriched_data.items():
+        if rows:
+            try:
+                existing_df = pd.concat(pd.read_excel(fp, sheet_name=None).values(), ignore_index=True)
+                export_split_by_distrito(existing_df, rows, str(fp), set())
+            except: pass
+    
+    state["enriched_urls"] = list(enriched_urls)
+    save_enrich_state(state)
     
     log("OK", f"Enriquecimiento finalizado. Total enriquecidos: {len(enriched_urls)}")
 
