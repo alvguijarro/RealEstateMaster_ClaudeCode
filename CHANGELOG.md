@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.19] - 2026-02-25
+### Fixed
+- **Cierre de Procesos Robusto**: Añadido el flag `/T` (Tree Kill) a `STOP_ALL.bat` para asegurar que se cierren todos los procesos hijo (servidores y navegadores) de forma contundente.
+- **Limpieza Acelerada**: Reemplazado el comando lento `wmic` por PowerShell para el filtrado y cierre de procesos Python, eliminando el bloqueo visual al detener los servicios.
+
 ## [2.9.18] - 2026-02-25
 ### Fixed
 - **Error de Lanzamiento en Firefox**: Solucionado el problema donde Firefox intentaba cargar una URL inválida (`automationcontrolled`) al recibir flags de Chromium.
