@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.9.24] - 2026-02-25
+### Optimized
+- **Restauración de Velocidad STOP_ALL.bat**: Eliminados los filtros de `taskkill` que escaneaban todos los módulos del sistema (muy lentos). Se ha vuelto a un sistema de cierre de puertos por PID directo y limpieza de procesos Python por nombre, Priorizando la rapidez de ejecución.
+
 ## [2.9.23] - 2026-02-25
 ### Fixed
 - **Detección de Anuncios Caducados**: Se ha corregido un error en el que el enriquecedor confundía los anuncios dados de baja con bloqueos de sesión. Ahora identifica correctamente el estado "ya no está publicado", guarda la fecha de baja y marca la propiedad como "no activa" en el Excel, evitando reintentos y rotaciones innecesarias del navegador.
