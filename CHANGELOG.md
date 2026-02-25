@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.27] - 2026-02-25
+### Optimized
+- **Ultra-Fast STOP_ALL.bat**: Rediseñado el script de parada para eliminar bloqueos.
+    - Sustituido el bucle de puertos por un filtrado masivo de `netstat`.
+    - Implementada terminación de procesos mediante **CIM/WMI** para Python, lo que permite detectar instantáneamente los procesos incluso en entornos portátiles.
+    - Eliminado el flag `/T` (recursivo) en cierres de navegadores, lo que evita que Windows escanee árboles de procesos masivos, haciendo el cierre instantáneo.
+
 ## [2.9.26] - 2026-02-25
 ### Optimized
 - **Enriquecedor Ultra-Robusto**: Se ha portado toda la lógica avanzada de evasión y detección del scraper de provincias al enriquecedor de propiedades.
