@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.20] - 2026-02-25
+### Fixed
+- **Optimización Final de STOP_ALL.bat**: Corregido un error de sintaxis ("l" no reconocido) y refactorizada la limpieza de procesos para ser más rápida mediante un bucle unificado y comandos PowerShell eficientes.
+- **Limpieza de Firefox**: Añadido el cierre forzado de Firefox a la limpieza de huérfanos.
+
 ## [2.9.19] - 2026-02-25
 ### Fixed
 - **Cierre de Procesos Robusto**: Añadido el flag `/T` (Tree Kill) a `STOP_ALL.bat` para asegurar que se cierren todos los procesos hijo (servidores y navegadores) de forma contundente.
