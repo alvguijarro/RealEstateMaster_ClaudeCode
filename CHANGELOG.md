@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.15] - 2026-02-25
+### Added
+- **Rotación Multi-Motor en Enriquecimiento**: El enriquecedor ahora rota entre diferentes motores de búsqueda (**Webkit, Firefox, Chromium**) y canales (**Chrome, Edge, Opera**) para maximizar la evasión de bloqueos.
+- **Gestión de CAPTCHAs Unificada**: El enriquecedor ahora permite una **ventana de 30 segundos** para la resolución manual de captchas, igualando el comportamiento del scraper de provincias.
+- **Estadísticas de Sesión**: Añadido resumen de captchas encontrados y resueltos al finalizar cada sesión de navegación.
+
 ## [2.9.14] - 2026-02-25
 ### Added
 - **Rotación de Sesión en Enriquecimiento**: Implementada la rotación automática de navegador (User-Agent e identidad) tras detectar un bloqueo.

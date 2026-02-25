@@ -43,8 +43,8 @@ from playwright.async_api import async_playwright
 from scraper.idealista_scraper.extractors import extract_detail_fields
 from scraper.idealista_scraper.utils import log, simulate_human_interaction, play_captcha_alert, solve_captcha_advanced, cleanup_stealth_profiles
 from scraper.idealista_scraper.excel_writer import export_split_by_distrito
-from scraper.idealista_scraper.config import USER_AGENTS, VIEWPORT_SIZES
-from scraper.idealista_scraper.scraper import _goto_with_retry # Import the robust navigator
+from scraper.idealista_scraper.config import USER_AGENTS, VIEWPORT_SIZES, BROWSER_ROTATION_POOL
+from scraper.idealista_scraper.scraper import _goto_with_retry, ScraperSession # Import the robust navigator and session
 from shared.config import API_MAX_PRICE
 
 # Try to import stealth from scraper utils or use local
@@ -166,12 +166,13 @@ def load_properties_to_enrich(file_path: Path, max_price: int, enriched_urls: Se
     return df
 
 
-async def enrich_single_property(page, url: str) -> Optional[dict]:
+async def enrich_single_property(page, url: str, session: Optional[ScraperSession] = None) -> Optional[dict]:
     """Visit a URL and extract missing fields using robust navigation."""
     try:
         # Use robust navigation from scraper.py
         # It handles: retries, backoff, basic blocks, and automatic slider solving
-        await _goto_with_retry(page, url)
+        # It also handles the 30s manual wait if a session is provided
+        await _goto_with_retry(page, url, session=session)
         
         # After navigation, check for common block strings in the text
         # We check both the full text and the title
@@ -264,25 +265,47 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
         i = 0
         consecutive_failures = 0
         enriched_data = {}  # file -> list of enriched rows
-        session_count = 0
+        total_session_count = 0
         batch_count = 0
+        pool_idx = 0
 
         while i < len(all_properties):
             if check_stop(): break
             
-            # Start/Restart browser session
+            # Start/Restart browser session using the rotation pool
+            browser_conf = BROWSER_ROTATION_POOL[pool_idx % len(BROWSER_ROTATION_POOL)]
+            engine_name = browser_conf["engine"]
+            channel = browser_conf.get("channel")
+            friendly_name = browser_conf.get("name", engine_name)
+            
             ua = random.choice(USER_AGENTS)
             v_size = random.choice(VIEWPORT_SIZES)
-            log("INFO", f"🚀 Iniciando nueva sesión de navegación (UA: {ua[:40]}...)")
             
-            browser = await p.chromium.launch(
-                headless=False,
-                args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
-                ignore_default_args=["--enable-automation", "--no-sandbox"]
-            )
+            log("INFO", f"🚀 {friendly_name.upper()}: Iniciando sesión (UA: {ua[:40]}...)")
+            
+            try:
+                browser_type = getattr(p, engine_name)
+                launch_args = ["--disable-blink-features=AutomationControlled"]
+                if engine_name == "chromium":
+                    launch_args.append("--start-maximized")
+                
+                browser = await browser_type.launch(
+                    headless=False,
+                    channel=channel,
+                    args=launch_args,
+                    ignore_default_args=["--enable-automation", "--no-sandbox"]
+                )
+            except Exception as e:
+                log("ERR", f"No se pudo iniciar motor {friendly_name}: {e}. Saltando al siguiente.")
+                pool_idx += 1
+                continue
+
             context = await browser.new_context(viewport={"width": v_size[0], "height": v_size[1]}, user_agent=ua)
             await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             page = await context.new_page()
+            
+            # Create a session object to track captchas (mirroring scraper.py)
+            session = ScraperSession(cdp_endpoint="", out_xlsx="", sheet_name="")
             
             error_in_session = False
             try:
@@ -296,9 +319,17 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                     log("INFO", f"[{i+1}/{len(all_properties)}] Enriching: {url[:60]}...")
                     
                     # Try enrichment
-                    enriched = await enrich_single_property(page, url)
-                    
-                    # 1. HARD BLOCK DETECTED
+                    try:
+                        enriched = await enrich_single_property(page, url, session=session)
+                    except Exception as e:
+                        if "CAPTCHA_BLOCK_DETECTED" in str(e):
+                            log("ERR", "⛔ CAPTCHA RESISTENTE. Rotando pool...")
+                        else:
+                            log("ERR", f"Error crítico enriqueciendo: {e}")
+                        error_in_session = True
+                        break
+
+                    # 1. HARD BLOCK DETECTED (via return flag)
                     if enriched and enriched.get("__blocked__"):
                         log("ERR", "⛔ BLOQUEO CONFIRMADO. Rotando identidad...")
                         error_in_session = True
@@ -336,11 +367,11 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                         log("WARN", "  No se pudieron obtener datos. Saltando...")
                         i += 1
                     
-                    session_count += 1
+                    total_session_count += 1
                     batch_count += 1
                     
                     # Periodic state save
-                    if session_count % 5 == 0:
+                    if total_session_count % 5 == 0:
                         state["enriched_urls"] = list(enriched_urls)
                         save_enrich_state(state)
                     
@@ -361,7 +392,12 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                     await asyncio.sleep(random.uniform(*DELAY_BETWEEN_PAGES))
                     
             finally:
+                if session.captchas_found > 0:
+                    log("INFO", f"📊 Resumen sesión: {session.captchas_found} captchas encontrados, {session.captchas_solved} resueltos.")
+                
                 await browser.close()
+                pool_idx += 1 # Advance browser engine in pool
+                
                 if error_in_session:
                     pause = random.randint(60, 120)
                     log("INFO", f"💤 Pausa de seguridad de {pause}s antes de reintentar con nueva identidad...")
