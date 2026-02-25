@@ -49,6 +49,7 @@ def health_check():
 # Global scraper controller instance
 scraper_controller: ScraperController | None = None
 update_process = None
+last_task_mode = None  # To track if update_process is 'update_urls' or 'enrichment'
 
 # Scrape history storage
 HISTORY_FILE = Path(__file__).parent.parent / "scrape_history.json"
@@ -500,7 +501,23 @@ def get_status():
         'internal_status': scraper_controller.status if scraper_controller else 'idle',
         'properties_count': properties_count,
         'output_file': output_file,
-        'mode': mode
+        'mode': mode,
+        'task_mode': last_task_mode
+    })
+
+
+@app.route('/api/batch/status', methods=['GET'])
+def get_batch_status():
+    """Detailed status for the batch enrichment process."""
+    global update_process, last_task_mode
+    
+    is_running = update_process and update_process.poll() is None and last_task_mode == 'enrichment'
+    
+    # We can't easily get current_idx and total without reading logs or a shared state,
+    # but for now reporting is_running is enough to unlock the UI.
+    return jsonify({
+        'is_running': is_running,
+        'task': 'enrichment' if last_task_mode == 'enrichment' else 'none'
     })
 
 
@@ -1000,24 +1017,33 @@ def start_batch_scraping():
 
 @app.route('/api/batch/stop', methods=['POST'])
 def stop_batch_scraping():
-    """Stop the batch scraping process."""
+    """Stop the batch scraping process (Periodic or Enrichment)."""
     scraper_dir = Path(__file__).parent.parent
-    flag = scraper_dir / "BATCH_STOP.flag"
-    flag.touch()
     
-    # Stop the active scraper controller (critical so the current URL scrape stops instantly)
+    # Touch ALL relevant stop flags
+    (scraper_dir / "BATCH_STOP.flag").touch()
+    (scraper_dir / "ENRICH_STOP.flag").touch()
+    (scraper_dir / "update_stop.flag").touch()
+    
+    # Stop the active scraper controller
     global scraper_controller
     if scraper_controller:
         scraper_controller.stop()
     
-    # Also terminate the process
+    # Terminate periodic process (if running)
     global periodic_process
     if periodic_process and periodic_process.poll() is None:
         try:
-            # No sleep here, just terminate as it's a dedicated endpoint
             periodic_process.terminate()
         except: pass
-        
+
+    # Terminate update/enrichment process (if running)
+    global update_process
+    if update_process and update_process.poll() is None:
+        try:
+            update_process.terminate()
+            print("[server] Terminated update/enrichment process via batch/stop")
+        except: pass
     return jsonify({'status': 'stopping'})
 
 
@@ -1395,7 +1421,7 @@ def start_batch_enrichment():
         ])
         cmd = [sys.executable, "-c", inline_script]
 
-    return start_background_task(cmd, f"Batch Enrichment ({len(file_paths)} files)")
+    return start_background_task(cmd, f"Batch Enrichment ({len(file_paths)} files)", task_mode='enrichment')
 
 @app.route('/api/enrich', methods=['POST'])
 def run_enrichment():
@@ -1418,14 +1444,15 @@ def run_enrichment():
         input_pattern = f"scraper/salidas/*_{operation}_*.xlsx"
     
     cmd = [sys.executable, str(script_path), "--input", input_pattern, "--max-price", "300000"]
-    return start_background_task(cmd, f"Enrichment ({operation.upper()})")
+    return start_background_task(cmd, f"Enrichment ({operation.upper()})", task_mode='enrichment')
 
 # Supabase endpoints removed
 
 
-def start_background_task(cmd, task_name, cwd=None):
+def start_background_task(cmd, task_name, cwd=None, task_mode='update_urls'):
     """Helper to start a background process and stream output to frontend."""
-    global update_process
+    global update_process, last_task_mode
+    last_task_mode = task_mode
     
     # Clear ALL stop flags before launching to prevent stale flags from killing new processes
     scraper_dir = Path(__file__).parent.parent

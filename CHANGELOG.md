@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.8] - 2026-02-25
+### Fixed
+- **Botón de Parada de Enriquecimiento**: Corregido un fallo donde el botón "Detener" en el Enriquecedor no funcionaba. El servidor ahora mata correctamente el subproceso `update_process` y toca todos los flags de parada necesarios (`ENRICH_STOP.flag`, `BATCH_STOP.flag`).
+- **Sincronización de UI y Estado**: Eliminada la lógica de sincronización duplicada en el frontend. El estado del enriquecimiento ahora se detecta correctamente tras refrescar la página, reactivando los controles de la pestaña "Enricher Tool" si hay una tarea en curso.
+- **Backend Robustez**: Implementado el endpoint `/api/batch/status` para reportar el estado de tareas en segundo plano (enriquecimiento) y diferenciarlas de las actualizaciones de URLs.
+
 ## [2.9.7] - 2026-02-24
 ### Fixed
 - **NameError en Enriquecedor**: Restauradas las funciones auxiliares (`find_api_files`, `load_enrich_state`, etc.) y constantes (`ENRICH_FIELDS`) que se eliminaron accidentalmente durante el refactor de robustez.

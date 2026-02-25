@@ -1138,12 +1138,20 @@ function handleStatusChange(data) {
     if (status === 'running') {
         isRunning = true;
         isPaused = false;
-        startBtn.disabled = true;
+
+        // Mode Specific UI
+        if (data.task_mode === 'enrichment' || data.mode === 'batch') {
+            setBatchUIState('running');
+        } else {
+            updateScraperState(true, data.mode === 'update_urls' ? 'Actualizando URLs' : 'Scraping Activo');
+        }
+
+        if (startBtn) startBtn.disabled = true;
         if (dualModeBtn) dualModeBtn.disabled = true;
-        pauseBtn.disabled = false;
-        stopBtn.disabled = false;
-        pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
-        seedUrlInput.disabled = true;
+        if (pauseBtn) pauseBtn.disabled = false;
+        if (stopBtn) stopBtn.disabled = false;
+        if (pauseBtn) pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
+        if (seedUrlInput) seedUrlInput.disabled = true;
         if (startApiImportBtn) startApiImportBtn.disabled = true;
 
         // Mode switching is now allowed during execution (hot-swap)
@@ -1178,10 +1186,17 @@ function handleStatusChange(data) {
     } else if (status === 'completed' || status === 'stopped' || status === 'idle') {
         isRunning = false;
         isPaused = false;
-        startBtn.disabled = false;
+
+        // Reset enrichment UI if it was active
+        if (isUpdateMode || isBatchMode) {
+            setBatchUIState('idle');
+        }
+
+        updateScraperState(false);
+        if (startBtn) startBtn.disabled = false;
         if (dualModeBtn) dualModeBtn.disabled = false;
-        pauseBtn.disabled = true;
-        stopBtn.disabled = true;
+        if (pauseBtn) pauseBtn.disabled = true;
+        if (stopBtn) stopBtn.disabled = true;
         seedUrlInput.disabled = false;
         if (startApiImportBtn) startApiImportBtn.disabled = false;
 
@@ -1753,39 +1768,9 @@ function updateServerButtons(isConnected) {
 
 async function syncStatus() {
     try {
-        const response = await fetch('/api/status');
+        const response = await fetch("/api/status");
         const data = await response.json();
-
-        // If server says idle but UI thinks it's running, the session was lost
-        if (data.status === 'idle' && isRunning) {
-            addLog('WARN', 'Sesión de scraping perdida (el servidor parece haberse reiniciado).');
-            resetUIState();
-        } else if (data.status === 'running' || data.status === 'paused' || data.status === 'captcha' || data.status === 'blocked') {
-            // Centralized Status Sync
-            updateScraperState(true, data.status === 'running' ? 'Scraping Activo' : 'Pausado/Bloqueado');
-            isPaused = (data.status === 'paused' || data.status === 'captcha' || data.status === 'blocked');
-            if (data.mode === 'update_urls') {
-                isUpdateMode = true;
-            }
-
-            if (data.status === 'paused') {
-                pauseBtn.innerHTML = '<span class="btn-icon">▶</span> Reanudar';
-            } else if (data.status === 'captcha' || data.status === 'blocked') {
-                pauseBtn.disabled = false;
-                pauseBtn.innerHTML = '<span class="btn-icon">⏱️</span> Esperando...';
-            } else {
-                pauseBtn.innerHTML = '<span class="btn-icon">⏸</span> Pausar';
-            }
-
-            // Re-sync progress
-            if (data.progress) {
-                handleProgressUpdate(data.progress);
-            }
-        } else {
-            // Idle state
-            updateScraperState(false);
-            if (updateUrlsBtn) updateUrlsBtn.innerHTML = '<span class="btn-icon">🔄</span> Actualizar URLs';
-        }
+        handleStatusChange(data);
     } catch (e) {
         console.error("Error syncing status:", e);
     }
@@ -3020,16 +3005,6 @@ window.toggleDropdown = function (type) {
 };
 
 
-/* SYNC SCRAPER STATUS */
-async function syncStatus() {
-    try {
-        const response = await fetch('/api/status');
-        const data = await response.json();
-        handleStatusChange(data);
-    } catch (e) {
-        console.error('Error syncing status', e);
-    }
-}
 
 /* BATCH DESTINATION FILE SELECTOR */
 /* BATCH DESTINATION FILE SELECTOR */
