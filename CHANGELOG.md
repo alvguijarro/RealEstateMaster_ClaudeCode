@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.17] - 2026-02-25
+### Optimized
+- **Arranque Ultra-Rápido de Navegadores**: Añadidos flags de optimización para Edge y Chrome (`--no-first-run`, `--disable-sync`, etc.) para eliminar retrasos en el inicio de sesión.
+- **Rotación Inmediata**: Eliminadas las pausas de seguridad de 90s entre rotaciones de perfil en el enriquecedor para agilizar el proceso tras bloqueos.
+
 ## [2.9.16] - 2026-02-25
 ### Fixed
 - **Portabilidad Total**: Eliminadas dependencias del sistema y rutas absolutas en los archivos `.bat`. Ahora el proyecto usa siempre el Python portátil relativo a su propia carpeta (`%~dp0`), permitiendo su ejecución desde cualquier unidad o PC sin configuración previa.

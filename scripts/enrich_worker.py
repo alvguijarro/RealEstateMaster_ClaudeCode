@@ -286,8 +286,20 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
             try:
                 browser_type = getattr(p, engine_name)
                 launch_args = ["--disable-blink-features=AutomationControlled"]
+                
+                # Performance optimizations for Edge and Chromium
                 if engine_name == "chromium":
-                    launch_args.append("--start-maximized")
+                    launch_args.extend([
+                        "--no-first-run",
+                        "--no-default-browser-check",
+                        "--disable-sync",
+                        "--metrics-recording-only",
+                        "--disable-extensions",
+                        "--disable-component-update",
+                        "--disable-domain-reliability"
+                    ])
+                    if channel in ["chrome", "msedge"]:
+                        launch_args.append("--start-maximized")
                 
                 browser = await browser_type.launch(
                     headless=False,
@@ -399,9 +411,8 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                 pool_idx += 1 # Advance browser engine in pool
                 
                 if error_in_session:
-                    pause = random.randint(60, 120)
-                    log("INFO", f"💤 Pausa de seguridad de {pause}s antes de reintentar con nueva identidad...")
-                    await asyncio.sleep(pause)
+                    log("INFO", "� Rotando identidad inmediatamente...")
+                    # Removing the security pause as requested by user
 
         # Final cleanup and save
         log("INFO", "Finalizando sesión y guardando datos finales...")
