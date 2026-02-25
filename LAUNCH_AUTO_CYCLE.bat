@@ -2,5 +2,5 @@
 TITLE RealEstateMaster - Automated Scraper Cycle
 cd /d "%~dp0"
 echo Starting Automated Scraper Cycle...
-python scripts\automated_cycle.py
+"%~dp0python_portable\python.exe" scripts\automated_cycle.py
 pause

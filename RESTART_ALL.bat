@@ -11,7 +11,7 @@ call STOP_ALL.bat
 echo.
 echo Starting Main Menu...
 REM Start the Main Menu (Unified Dashboard)
-start "RealEstateMaster Main Menu" cmd /c "python main.py"
+start "RealEstateMaster Main Menu" cmd /c ""%~dp0python_portable\python.exe" main.py"
 
 echo.
 echo Services restarted!

@@ -29,5 +29,5 @@ cd /d "%~dp0.."
 
 REM Launch main.py using the portable python
 echo [+] Starting Unified Dashboard...
-"python_portable\python.exe" "main.py"
+"%~dp0python.exe" "main.py"
 pause

@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.9.16] - 2026-02-25
+### Fixed
+- **Portabilidad Total**: Eliminadas dependencias del sistema y rutas absolutas en los archivos `.bat`. Ahora el proyecto usa siempre el Python portátil relativo a su propia carpeta (`%~dp0`), permitiendo su ejecución desde cualquier unidad o PC sin configuración previa.
+
 ## [2.9.15] - 2026-02-25
 ### Added
 - **Rotación Multi-Motor en Enriquecimiento**: El enriquecedor ahora rota entre diferentes motores de búsqueda (**Webkit, Firefox, Chromium**) y canales (**Chrome, Edge, Opera**) para maximizar la evasión de bloqueos.
