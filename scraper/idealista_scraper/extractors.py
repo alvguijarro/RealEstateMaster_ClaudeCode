@@ -412,7 +412,7 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
         }
 
         // Detect expired/removed listings
-        const isExpired = /este anuncio ya no est[aá] publicado|anuncio no disponible|property not available/i.test(fullText);
+        const isExpired = /este anuncio ya no est[aá] publicado|anuncio no disponible|property not available|no encontramos lo que estás buscando/i.test(fullText);
 
         // Detect specific "Baja" date
         // Detect specific "Baja" date

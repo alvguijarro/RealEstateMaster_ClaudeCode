@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.9.25] - 2026-02-25
+### Fixed
+- **Detección de "No Encontrado" como Baja**: Se ha añadido soporte para el mensaje "No encontramos lo que estás buscando" en Idealista. Ahora estas URLs se marcan automáticamente como inactivas (sin fecha de baja específica) y el enriquecedor pasa a la siguiente propiedad sin rotar perfiles.
+
 ## [2.9.24] - 2026-02-25
 ### Optimized
 - **Restauración de Velocidad STOP_ALL.bat**: Eliminados los filtros de `taskkill` que escaneaban todos los módulos del sistema (muy lentos). Se ha vuelto a un sistema de cierre de puertos por PID directo y limpieza de procesos Python por nombre, Priorizando la rapidez de ejecución.
