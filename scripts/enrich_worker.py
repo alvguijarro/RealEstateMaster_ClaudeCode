@@ -186,7 +186,7 @@ async def enrich_single_property(page, url: str, session: Optional[ScraperSessio
         ]
         
         if any(bs in body_text for bs in block_strings) or any(bs in title for bs in block_strings):
-            log("ERR", f"⛔ BLOQUEO DETECTADO en {url[:40]}...")
+            log("ERR", f"⛔ BLOQUEO DETECTADO en {url[:40]}... (Rotando perfil inmediatamente)")
             return {"__blocked__": True}
 
         # Extra interaction just in case

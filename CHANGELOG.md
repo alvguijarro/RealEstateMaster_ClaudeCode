@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.9.22] - 2026-02-25
+### Optimized
+- **Rotación Instantánea ante Bloqueo**: Se ha asegurado que al detectar el mensaje "El acceso se ha bloqueado", el enriquecedor detenga inmediatamente la sesión actual y rote al siguiente perfil de navegador sin reintentos innecesarios sobre la misma identidad.
+
 ## [2.9.21] - 2026-02-25
 ### Fixed
 - **Parada Blindada (STOP_ALL.bat)**: Refactorizado el sistema de parada para usar una única llamada a PowerShell. Esto elimina los errores de "comando no encontrado" por glitches en el procesado de CMD y acelera drásticamente el cierre de puertos y procesos en segundo plano.
