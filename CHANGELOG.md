@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.10] - 2026-02-25
+### Fixed
+- **Corrección de Bloqueo en Enriquecimiento**: Corregido un `ReferenceError` crítico en el extractor de datos donde se intentaba llamar a una función de Python (`parse_relative_date`) dentro de un bloque de JavaScript del navegador. Esto causaba que el proceso de enriquecimiento se detuviera en el primer elemento.
+- **Estabilidad del Enriquecedor**: El proceso ahora maneja correctamente las fechas relativas ("hoy", "ayer") en anuncios dados de baja sin colgar el navegador.
+
 ## [2.9.9] - 2026-02-25
 ### Fixed
 - **Optimización de Arranque para USB/PC Nuevos**: Implementado "Lazy Loading" (carga perezosa) en el Scraper y en el gestor de BigQuery. Librerías pesadas como `pandas`, `playwright` y `google-cloud-bigquery` ahora solo se cargan cuando se necesitan, permitiendo que el servidor arranque y responda casi al instante.

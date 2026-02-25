@@ -433,7 +433,7 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
           advertiserType,
           advertiserName,
           isExpired,
-          lowDate: parse_relative_date(lowDate)
+          lowDate: lowDate
         };
       }
     """)
@@ -441,6 +441,7 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
     ubic, provincia = split_location(data.get("ubicFull"))
     title = data.get("title")
     price = normalize_price(data.get("price"))
+    lowDate = parse_relative_date(data.get("lowDate"))
     
     # Prepend infoFeatures to items so they are processed FIRST.
     # This ensures "Bajo exterior" from the header is found before any confused "segunda mano" text.
@@ -864,8 +865,8 @@ async def extract_detail_fields(page, debug_items: bool = False, is_room_mode: b
         "okupado": okupado, "Copropiedad": copropiedad, "con inquilino": con_inquilino, "nuda propiedad": nuda_propiedad, "ces. remate": ces_remate,
         "tipo anunciante": data.get("advertiserType"),
         "nombre anunciante": data.get("advertiserName"),
-        "Anuncio activo": "No" if (data.get("lowDate") or data.get("isExpired")) else "Sí",
-        "Baja anuncio": data.get("lowDate"),
+        "Anuncio activo": "No" if (lowDate or data.get("isExpired")) else "Sí",
+        "Baja anuncio": lowDate,
     }
 
 def missing_fields(row: dict, is_room_mode: bool = False):
