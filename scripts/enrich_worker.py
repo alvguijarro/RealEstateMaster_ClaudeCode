@@ -96,7 +96,7 @@ ENRICH_FIELDS = {
     "Consumo 1", "Consumo 2", "Emisiones 1", "Emisiones 2",
     "gastos comunidad", "Armarios", "Calefaccion", "parcela",
     "okupado", "Copropiedad", "con inquilino", "nuda propiedad", "ces. remate",
-    "tipo anunciante", "Baja anuncio", "Comunidad Autonoma", "Zona"
+    "tipo anunciante", "Baja anuncio", "Comunidad Autonoma", "Zona", "Anuncio activo"
 }
 
 
@@ -202,10 +202,11 @@ async def enrich_single_property(page, url: str, session: Optional[ScraperSessio
              
         # Only return enrich fields
         enriched = {k: v for k, v in data.items() if k in ENRICH_FIELDS and v is not None}
-        is_expired = data.get("isExpired", False)
-
+        # Detection of expired/de-listed ads
+        is_expired = data.get("Anuncio activo") == "No" or data.get("Baja anuncio") is not None
+        
         if is_expired:
-            log("INFO", f"  Anuncio de baja: {data.get('lowDate') or 'No disponible'}")
+            log("INFO", f"  ✅ Anuncio de baja: {data.get('Baja anuncio') or 'No disponible'}")
         elif not enriched or len(enriched) < 3:
              # If too many fields are empty, might be a soft block or rendering issue
              log("WARN", f"Pocos datos extraídos para {url[:60]}. Posible renderizado incompleto.")

@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.9.23] - 2026-02-25
+### Fixed
+- **Detección de Anuncios Caducados**: Se ha corregido un error en el que el enriquecedor confundía los anuncios dados de baja con bloqueos de sesión. Ahora identifica correctamente el estado "ya no está publicado", guarda la fecha de baja y marca la propiedad como "no activa" en el Excel, evitando reintentos y rotaciones innecesarias del navegador.
+
 ## [2.9.22] - 2026-02-25
 ### Optimized
 - **Rotación Instantánea ante Bloqueo**: Se ha asegurado que al detectar el mensaje "El acceso se ha bloqueado", el enriquecedor detenga inmediatamente la sesión actual y rote al siguiente perfil de navegador sin reintentos innecesarios sobre la misma identidad.
