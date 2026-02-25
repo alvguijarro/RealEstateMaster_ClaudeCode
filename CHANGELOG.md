@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.9.21] - 2026-02-25
+### Fixed
+- **Parada Blindada (STOP_ALL.bat)**: Refactorizado el sistema de parada para usar una única llamada a PowerShell. Esto elimina los errores de "comando no encontrado" por glitches en el procesado de CMD y acelera drásticamente el cierre de puertos y procesos en segundo plano.
+
 ## [2.9.20] - 2026-02-25
 ### Fixed
 - **Optimización Final de STOP_ALL.bat**: Corregido un error de sintaxis ("l" no reconocido) y refactorizada la limpieza de procesos para ser más rápida mediante un bucle unificado y comandos PowerShell eficientes.
