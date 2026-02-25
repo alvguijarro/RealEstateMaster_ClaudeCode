@@ -174,16 +174,18 @@ async def enrich_single_property(page, url: str) -> Optional[dict]:
         await _goto_with_retry(page, url)
         
         # After navigation, check for common block strings in the text
+        # We check both the full text and the title
         body_text = (await page.inner_text("body")).lower()
         title = (await page.title()).lower()
         
         block_strings = [
             "uso indebido", "access denied", "muchas peticiones tuyas", 
-            "verificar tu dispositivo", "acceso se ha bloqueado"
+            "verificar tu dispositivo", "acceso se ha bloqueado",
+            "un uso indebido", "acceso restringido"
         ]
         
         if any(bs in body_text for bs in block_strings) or any(bs in title for bs in block_strings):
-            log("ERR", "⛔ BLOQUEO DETECTADO post-navegación.")
+            log("ERR", f"⛔ BLOQUEO DETECTADO en {url[:40]}...")
             return {"__blocked__": True}
 
         # Extra interaction just in case
@@ -194,7 +196,7 @@ async def enrich_single_property(page, url: str) -> Optional[dict]:
         
         # Check if the extractor itself detected a block
         if data.get("isBlocked") or data.get("__blocked__"):
-             log("ERR", "⛔ BLOQUEO DETECTADO por el extractor.")
+             log("ERR", f"⛔ BLOQUEO DETECTADO por el extractor en {url[:40]}...")
              return {"__blocked__": True}
              
         # Only return enrich fields
@@ -205,7 +207,9 @@ async def enrich_single_property(page, url: str) -> Optional[dict]:
             log("INFO", f"  Anuncio de baja: {data.get('lowDate') or 'No disponible'}")
         elif not enriched or len(enriched) < 3:
              # If too many fields are empty, might be a soft block or rendering issue
-             log("WARN", f"Pocos datos extraídos para {url}. Posible renderizado incompleto.")
+             log("WARN", f"Pocos datos extraídos para {url[:60]}. Posible renderizado incompleto.")
+             # Mark as incomplete to allow re-trying after rotation if it's a soft-block
+             return {"__incomplete__": True, "__enriched__": False}
              
         enriched["__enriched__"] = True
         enriched["Fecha Enriquecimiento"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -214,15 +218,15 @@ async def enrich_single_property(page, url: str) -> Optional[dict]:
         
     except Exception as e:
         err_msg = str(e).lower()
-        block_strings = ["acceso bloqueado", "uso indebido", "peticiones tuyas", "verificar tu dispositivo"]
+        block_strings = ["acceso bloqueado", "uso indebido", "peticiones tuyas", "verificar tu dispositivo", "denied"]
         if any(bs in err_msg for bs in block_strings):
             return {"__blocked__": True}
-        log("WARN", f"Error enriqueciendo {url}: {e}")
+        log("WARN", f"Error enriqueciendo {url[:60]}: {e}")
         return None
 
 
 async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = False):
-    """Main enrichment loop."""
+    """Main enrichment loop with automatic session rotation."""
     state = load_enrich_state()
     enriched_urls = set(state.get("enriched_urls", []))
     
@@ -254,106 +258,126 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
     if dry_run:
         log("INFO", f"DRY RUN - Procesaría {len(all_properties)} inmuebles.")
         return
-    
-    # Start browser with EXACT same config as scraper.py
+
+    # Enrichment loop with rotation logic
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=False,
-            args=[
-                "--start-maximized",
-                "--disable-blink-features=AutomationControlled"
-            ],
-            ignore_default_args=["--enable-automation", "--no-sandbox"]
-        )
-        
-        # Pick random identity
-        ua = random.choice(USER_AGENTS)
-        v_size = random.choice(VIEWPORT_SIZES)
-        
-        context = await browser.new_context(
-            viewport={"width": v_size[0], "height": v_size[1]},
-            user_agent=ua
-        )
-        
-        # Stealth init
-        await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        
-        page = await context.new_page()
-        
+        i = 0
+        consecutive_failures = 0
+        enriched_data = {}  # file -> list of enriched rows
         session_count = 0
         batch_count = 0
-        enriched_data = {}  # file -> list of enriched rows
-        
-        try:
-            for i, prop in enumerate(all_properties):
-                if check_stop(): break
-                    
-                url = prop["url"]
-                file_path = prop["file"]
-                
-                log("INFO", f"[{i+1}/{len(all_properties)}] Enriching: {url[:60]}...")
-                
-                # Try enrichment with robust logic
-                enriched = await enrich_single_property(page, url)
-                
-                if enriched and enriched.get("__blocked__"):
-                    log("ERR", "⛔ Bloqueo detectado. Abortando lote para evitar baneo permanente.")
-                    break
-                
-                if enriched:
-                    # Update row
-                    merged = {**prop["row_data"], **enriched}
-                    if file_path not in enriched_data:
-                        enriched_data[file_path] = []
-                    enriched_data[file_path].append(merged)
-                    
-                    enriched_urls.add(url)
-                    real_fields = [k for k in enriched.keys() if k not in ["__enriched__", "Fecha Enriquecimiento"]]
-                    if real_fields:
-                        log("OK", f"  Éxito: {len(real_fields)} campos nuevos ({', '.join(real_fields[:3])}...)")
-                    else:
-                        log("OK", "  Éxito: Solo metadatos (Anuncio marcado como enriquecido)")
-                else:
-                    log("WARN", "  No se pudieron obtener datos.")
-                
-                session_count += 1
-                batch_count += 1
-                
-                # Periodic save
-                if session_count % 5 == 0:
-                    state["enriched_urls"] = list(enriched_urls)
-                    save_enrich_state(state)
-                
-                # Save to disk periodically (Enrichment updates are crucial)
-                # We save every 15 items but WITHOUT pausing
-                if batch_count >= 15:
-                    batch_count = 0
-                    log("INFO", "Guardando progreso intermedio...")
-                    for fp, rows in enriched_data.items():
-                        if rows:
-                            try:
-                                existing_df = pd.concat(pd.read_excel(fp, sheet_name=None).values(), ignore_index=True)
-                                export_split_by_distrito(existing_df, rows, str(fp), set())
-                            except Exception as e:
-                                log("ERR", f"Error guardando {fp.name}: {e}")
-                    enriched_data = {} # Reset list after saving
-                
-                # Generic page delay (Continuous flow)
-                await asyncio.sleep(random.uniform(*DELAY_BETWEEN_PAGES))
 
-        finally:
-            # Final Save always
-            for fp, rows in enriched_data.items():
-                if rows:
-                    log("INFO", f"Guardado final: {fp.name}")
-                    try:
-                        existing_df = pd.concat(pd.read_excel(fp, sheet_name=None).values(), ignore_index=True)
-                        export_split_by_distrito(existing_df, rows, str(fp), set())
-                    except: pass
+        while i < len(all_properties):
+            if check_stop(): break
             
-            state["enriched_urls"] = list(enriched_urls)
-            save_enrich_state(state)
-            await browser.close()
+            # Start/Restart browser session
+            ua = random.choice(USER_AGENTS)
+            v_size = random.choice(VIEWPORT_SIZES)
+            log("INFO", f"🚀 Iniciando nueva sesión de navegación (UA: {ua[:40]}...)")
+            
+            browser = await p.chromium.launch(
+                headless=False,
+                args=["--start-maximized", "--disable-blink-features=AutomationControlled"],
+                ignore_default_args=["--enable-automation", "--no-sandbox"]
+            )
+            context = await browser.new_context(viewport={"width": v_size[0], "height": v_size[1]}, user_agent=ua)
+            await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            page = await context.new_page()
+            
+            error_in_session = False
+            try:
+                while i < len(all_properties):
+                    if check_stop(): break
+                    
+                    prop = all_properties[i]
+                    url = prop["url"]
+                    file_path = prop["file"]
+                    
+                    log("INFO", f"[{i+1}/{len(all_properties)}] Enriching: {url[:60]}...")
+                    
+                    # Try enrichment
+                    enriched = await enrich_single_property(page, url)
+                    
+                    # 1. HARD BLOCK DETECTED
+                    if enriched and enriched.get("__blocked__"):
+                        log("ERR", "⛔ BLOQUEO CONFIRMADO. Rotando identidad...")
+                        error_in_session = True
+                        break # Break inner loop to rotate
+                    
+                    # 2. INCOMPLETE DATA (Soft block suspicion)
+                    if enriched and enriched.get("__incomplete__"):
+                        consecutive_failures += 1
+                        if consecutive_failures >= 3:
+                            log("WARN", "⚠️ 3 fallos consecutivos (datos vacíos). Sospecha de soft-block. Rotando...")
+                            consecutive_failures = 0
+                            error_in_session = True
+                            break # Break inner loop to rotate
+                    else:
+                        consecutive_failures = 0 # Reset if we get a good result or a hard fail
+
+                    if enriched and not enriched.get("__incomplete__"):
+                        # Update row
+                        merged = {**prop["row_data"], **enriched}
+                        if file_path not in enriched_data:
+                            enriched_data[file_path] = []
+                        enriched_data[file_path].append(merged)
+                        
+                        enriched_urls.add(url)
+                        real_fields = [k for k in enriched.keys() if k not in ["__enriched__", "Fecha Enriquecimiento"]]
+                        if real_fields:
+                            log("OK", f"  Éxito: {len(real_fields)} campos nuevos ({', '.join(real_fields[:3])}...)")
+                        else:
+                            log("OK", "  Éxito: Solo metadatos (Anuncio marcado como enriquecido)")
+                        
+                        i += 1 # Advance to next property only on success or expired
+                    elif not enriched:
+                        # General error (not block), maybe skip or retry once? 
+                        # For now, skip to avoid infinite loops but don't count as success
+                        log("WARN", "  No se pudieron obtener datos. Saltando...")
+                        i += 1
+                    
+                    session_count += 1
+                    batch_count += 1
+                    
+                    # Periodic state save
+                    if session_count % 5 == 0:
+                        state["enriched_urls"] = list(enriched_urls)
+                        save_enrich_state(state)
+                    
+                    # Periodic Excel save
+                    if batch_count >= 15:
+                        batch_count = 0
+                        log("INFO", "Guardando progreso intermedio...")
+                        for fp, rows in enriched_data.items():
+                            if rows:
+                                try:
+                                    existing_df = pd.concat(pd.read_excel(fp, sheet_name=None).values(), ignore_index=True)
+                                    export_split_by_distrito(existing_df, rows, str(fp), set())
+                                except Exception as e:
+                                    log("ERR", f"Error guardando {fp.name}: {e}")
+                        enriched_data = {}
+
+                    # Wait between pages
+                    await asyncio.sleep(random.uniform(*DELAY_BETWEEN_PAGES))
+                    
+            finally:
+                await browser.close()
+                if error_in_session:
+                    pause = random.randint(60, 120)
+                    log("INFO", f"💤 Pausa de seguridad de {pause}s antes de reintentar con nueva identidad...")
+                    await asyncio.sleep(pause)
+
+        # Final cleanup and save
+        log("INFO", "Finalizando sesión y guardando datos finales...")
+        for fp, rows in enriched_data.items():
+            if rows:
+                try:
+                    existing_df = pd.concat(pd.read_excel(fp, sheet_name=None).values(), ignore_index=True)
+                    export_split_by_distrito(existing_df, rows, str(fp), set())
+                except: pass
+        
+        state["enriched_urls"] = list(enriched_urls)
+        save_enrich_state(state)
     
     log("OK", f"Enriquecimiento finalizado. Total enriquecidos: {len(enriched_urls)}")
 

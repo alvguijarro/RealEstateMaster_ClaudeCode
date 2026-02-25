@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.14] - 2026-02-25
+### Added
+- **Rotación de Sesión en Enriquecimiento**: Implementada la rotación automática de navegador (User-Agent e identidad) tras detectar un bloqueo.
+- **Detección de Bloqueos Robusta**: Añadida detección de textos específicos de bloqueo ("uso indebido", "acceso restringido") tanto en el cuerpo como en el título de la página.
+- **Contador de Soft-Block**: El sistema ahora rota automáticamente la identidad si se detectan 3 anuncios consecutivos con datos incompletos, sospechando de un bloqueo suave.
+
 ## [2.9.13] - 2026-02-25
 ### Fixed
 - **Arranque de Scraper**: Corregido un error en `main.py` que impedía el inicio del módulo Scraper debido a una variable no definida y problemas en la resolución del paquete como módulo. Se ha estandarizado el arranque de todos los servicios para usar rutas directas a los scripts.
