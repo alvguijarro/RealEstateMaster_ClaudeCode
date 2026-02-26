@@ -50,6 +50,7 @@ def health_check():
 scraper_controller: ScraperController | None = None
 update_process = None
 last_task_mode = None  # To track if update_process is 'update_urls' or 'enrichment'
+session_start_time: float | None = None # Global start time for the current session/batch
 
 # Scrape history storage
 HISTORY_FILE = Path(__file__).parent.parent / "scrape_history.json"
@@ -173,7 +174,8 @@ def get_config():
 @app.route('/api/start', methods=['POST'])
 def start_scraping():
     """Start a new scraping session."""
-    global scraper_controller
+    global scraper_controller, session_start_time
+    session_start_time = time.time()
     
     data = request.get_json()
     seed_url = data.get('seed_url', '').strip()
@@ -496,10 +498,24 @@ def get_status():
         if (Path(__file__).parent.parent / "update_paused.flag").exists():
             status = 'paused'
             
+    current_page = scraper_controller.current_page if scraper_controller else 0
+    total_pages = scraper_controller.total_pages_expected if scraper_controller else 0
+    total_properties = scraper_controller.total_properties_expected if scraper_controller else 0
+    
+    # Use global session_start_time as priority for batches, 
+    # fallback to controller's start_time for manual scrapes
+    start_time_resp = session_start_time
+    if scraper_controller and not start_time_resp:
+        start_time_resp = scraper_controller.start_time
+
     return jsonify({
         'status': status,
         'internal_status': scraper_controller.status if scraper_controller else 'idle',
         'properties_count': properties_count,
+        'current_page': current_page,
+        'total_pages': total_pages,
+        'total_properties': total_properties,
+        'start_time': start_time_resp,
         'output_file': output_file,
         'mode': mode,
         'task_mode': last_task_mode
@@ -590,7 +606,8 @@ def periodic_log_monitor(process):
 @app.route('/api/periodic-lowcost/start', methods=['POST'])
 def start_periodic_lowcost():
     """Launch the periodic low-cost scraper in a background process."""
-    global periodic_process, periodic_thread
+    global periodic_process, periodic_thread, session_start_time
+    session_start_time = time.time()
     
     if periodic_process and periodic_process.poll() is None:
         return jsonify({'error': 'Periodic scan already running'}), 400
@@ -842,7 +859,8 @@ def expand_batch_urls(urls):
 @app.route('/api/start-batch', methods=['POST'])
 def start_batch_scraping():
     """Start a batch scraping process for a list of URLs."""
-    global periodic_process, periodic_thread
+    global periodic_process, periodic_thread, session_start_time
+    session_start_time = time.time()
     
     data = request.json
     print(f"DEBUG: start_batch received: {data}")
@@ -1379,7 +1397,8 @@ def get_salidas_files():
 @app.route('/api/batch/start', methods=['POST'])
 def start_batch_enrichment():
     """Start batch enrichment for one or more Excel files."""
-    global update_process
+    global update_process, last_task_mode, session_start_time
+    session_start_time = time.time()
     if update_process and update_process.poll() is None:
         return jsonify({'status': 'error', 'error': 'A task is already running. Please wait.'}), 409
 

@@ -1,4 +1,15 @@
 # Changelog
+ 
+## [2.9.28] - 2026-02-26
+### Fixed
+- **Sincronización de Dashboard**: Corregido el problema donde los contadores de página y tiempo se reseteaban a 0 al recargar la página.
+    - El backend ahora expone el estado completo (páginas, propiedades, tiempo de inicio) en `/api/status`.
+    - El frontend restaura automáticamente el progreso y el temporizador al sincronizar con el backend.
+- **Robustez del Scraper**: Mejorada la detección de bloqueos y manejo de errores de red.
+    - Implementada detección estricta del mensaje "El acceso se ha bloqueado", forzando una rotación inmediata de perfil.
+    - Añadido reintento automático con rotación de identidad ante errores "Failed sending data to the peer" (caídas del navegador).
+- **2Captcha**: Corregida la falta de la librería `twocaptcha-python` en el entorno portátil y asegurada la carga de la API Key como fallback.
+- **Deep Scrape**: Corregido el reset a 0 del contador de páginas esperado al transicionar al modo de búsqueda profunda tras la página 60.
 
 ## [2.9.27] - 2026-02-25
 ### Optimized

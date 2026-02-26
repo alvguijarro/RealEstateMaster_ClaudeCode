@@ -996,6 +996,7 @@ class ScraperController:
     total_pages_expected: int = 0
     current_page: int = 0
     current_property_count: int = 0
+    start_time: float = 0
     
     # Internal state
     _stop_evt: Optional[asyncio.Event] = None
@@ -2003,6 +2004,7 @@ class ScraperController:
         
         self.is_running = True
         self.status = "running"
+        self.start_time = time.time()
         self._pause_evt.set()
         
         # Start heartbeat monitor
@@ -2422,6 +2424,16 @@ class ScraperController:
                         rotate_identity()
                         await self._interruptible_sleep(3)
                         continue  # <-- Added: continue the outer while loop to try next browser
+                    except Exception as e:
+                        # --- Handle Peer Connection Error (Browser Crash) ---
+                        if "Failed sending data to the peer" in str(e) or "peer connection error" in str(e).lower():
+                            self.log("ERR", f"🔌 Peer connection error detected: {e}. Rotating browser identity...")
+                            mark_current_profile_blocked()
+                            rotate_identity()
+                            await self._interruptible_sleep(5)
+                            continue
+
+                        self.log("ERR", f"Could not launch browser: {e}")
             
                     # Navigate to seed URL (or direct page resume)
                     try:
@@ -2550,6 +2562,12 @@ class ScraperController:
                     
                             if h1txt:
                                 self.log("INFO", f"H1 text: '{h1txt[:100]}'")
+                                
+                                # --- MANDATORY BLOCK DETECTION (User Request) ---
+                                if "el acceso se ha bloqueado" in h1txt.lower():
+                                    self.log("WARN", "⚠️ BLOCK DETECTED in H1: 'El acceso se ha bloqueado'")
+                                    raise BlockedException("Acceso bloqueado detectado en H1")
+
                                 # Extract count immediately to check if we found properties
                                 match = re.search(r'(\d{1,3}(?:\.\d{3})*)\s*(?:vivienda|pisos?|casas?|inmuebles?|anuncios?|habitaci[oó]n|habitaciones)', h1txt, re.IGNORECASE)
                                 if match:
@@ -3340,7 +3358,7 @@ class ScraperController:
                                 
                                 page_num = 1
                                 self._pages_scraped = 0
-                                self.total_pages_expected = 0 # Allow another 60
+                                self.total_pages_expected = 60 # Allow another 60 (Deep Scrape)
                                 continue
                             else:
                                 self.log("INFO", f"All Deep Scrape sorts exhausted at max pages. Finishing scrape.")

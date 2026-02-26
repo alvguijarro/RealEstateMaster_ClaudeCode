@@ -1139,6 +1139,26 @@ function handleStatusChange(data) {
         isRunning = true;
         isPaused = false;
 
+        // Restore Progress Counters from sync data
+        if (data.current_page) {
+            if (statCurrentPage) statCurrentPage.textContent = data.current_page;
+            if (statTotalPages && data.total_pages) statTotalPages.textContent = data.total_pages;
+        }
+        if (data.properties_count || data.total_properties) {
+            if (statCurrentProps) statCurrentProps.textContent = data.properties_count || 0;
+            if (statTotalProps && data.total_properties) statTotalProps.textContent = data.total_properties;
+        }
+
+        // Restore Timer from sync data
+        if (data.start_time && !timerInterval) {
+            startTime = data.start_time * 1000;
+            if (data.mode === 'batch' || data.task_mode === 'enrichment') {
+                batchStartTime = startTime;
+            }
+            timerInterval = setInterval(updateTimer, 1000);
+            updateTimer();
+        }
+
         // Mode Specific UI
         if (data.task_mode === 'enrichment' || data.mode === 'batch') {
             setBatchUIState('running');

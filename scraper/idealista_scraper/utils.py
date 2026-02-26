@@ -24,6 +24,10 @@ try:
 except ImportError:
     TWOCAPTCHA_API_KEY = None
 
+# Fallback: ensure key is always available even if config import failed
+if not TWOCAPTCHA_API_KEY:
+    TWOCAPTCHA_API_KEY = os.environ.get("TWOCAPTCHA_API_KEY", "f49b4e9ed2e2b36add9c6ef3af3e6e4c")
+
 try:
     from twocaptcha import TwoCaptcha
     from twocaptcha.async_solver import AsyncTwoCaptcha
