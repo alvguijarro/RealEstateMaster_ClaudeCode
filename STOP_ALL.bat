@@ -15,13 +15,12 @@ echo [+] Cleaning up background Python workers...
 rem Use CIM for ultra-fast filtering of RealEstateMaster processes
 powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name LIKE 'python%%' AND CommandLine LIKE '%%RealEstateMaster%%'\" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
 
-echo [+] Cleaning up browser orphans...
-rem Mass terminate without /T (tree) to avoid slow recursive scanning
+echo [+] Cleaning up scraper-managed browsers only...
+rem SAFE CLEANUP: Only kill browsers with 'stealth_profile' in command line or from 'ms-playwright' folder
+powershell -NoProfile -Command "$targets = @('chrome', 'firefox', 'msedge', 'falkon'); $procs = Get-CimInstance Win32_Process -Filter \"CommandLine LIKE '%%stealth_profile%%' OR CommandLine LIKE '%%ms-playwright%%'\"; if ($procs) { $procs | ForEach-Object { if ($targets -contains $_.Name.Replace('.exe','').ToLower()) { Write-Output ('Stopping ' + $_.Name + ' PID ' + $_.ProcessId); Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } } }"
+
+echo [+] Cleaning up other orphans...
 taskkill /F /IM node.exe 2>nul
-taskkill /F /IM firefox.exe 2>nul
-taskkill /F /IM chrome.exe 2>nul
-taskkill /F /IM msedge.exe 2>nul
-taskkill /F /IM falkon.exe 2>nul
 
 echo [+] Removing stop flags...
 if exist scraper\ENRICH_STOP.flag del scraper\ENRICH_STOP.flag

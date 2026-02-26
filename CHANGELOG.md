@@ -11,6 +11,13 @@
 - **2Captcha**: Corregida la falta de la librería `twocaptcha-python` en el entorno portátil y asegurada la carga de la API Key como fallback.
 - **Deep Scrape**: Corregido el reset a 0 del contador de páginas esperado al transicionar al modo de búsqueda profunda tras la página 60.
 
+## [2.9.28] - 2026-02-26
+### Fixed
+- **Cierre Selectivo de Navegadores en STOP_ALL.bat**: Se ha refinado el script de parada para que NO cierre tus navegadores personales (Chrome, Firefox, etc.).
+    - Ahora utiliza **WMI/CIM** para filtrar procesos por su línea de comandos.
+    - Solo se cerrarán procesos de navegador que contengan la cadena `stealth_profile` o que se estén ejecutando desde la carpeta de Playwright (`ms-playwright`).
+    - Esto permite detener todos los hilos del scraper de forma segura sin afectar a tu navegación personal.
+
 ## [2.9.27] - 2026-02-25
 ### Optimized
 - **Ultra-Fast STOP_ALL.bat**: Rediseñado el script de parada para eliminar bloqueos.
