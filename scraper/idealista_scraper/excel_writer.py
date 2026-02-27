@@ -59,14 +59,25 @@ def load_existing_single_sheet(path: str, sheet: str):
         frames = []
         for sh in xls.sheet_names:
             df = pd.read_excel(xls, sheet_name=sh)
-            if "URL" not in df.columns:
+            
+            # Case-insensitive URL column finding
+            url_col = next((c for c in df.columns if str(c).upper() == "URL"), None)
+            if not url_col:
+                log("INFO", f"Skipping sheet '{sh}': no URL column found.")
                 continue
+            
+            if url_col != "URL":
+                df = df.rename(columns={url_col: "URL"})
+            
+            log("INFO", f"Loaded {len(df)} rows from sheet '{sh}'")
+            
             cols_set = set(df.columns)
             df = df.rename(columns={k:v for k,v in RENAME_COMPAT.items() if k in cols_set})
             for c in FILL_MISSING:
                 if c not in cols_set:
                     df[c] = None
             frames.append(df)
+            
         if not frames:
             return pd.DataFrame(columns=ORDERED_BASE), seen, set()
         df_all = pd.concat(frames, ignore_index=True)
@@ -97,8 +108,13 @@ def load_urls_with_dates(path: str) -> dict:
         with pd.ExcelFile(path) as xls:
             for sh in xls.sheet_names:
                 df = pd.read_excel(xls, sheet_name=sh)
-                if "URL" not in df.columns:
+                
+                # Case-insensitive URL column
+                url_col = next((c for c in df.columns if str(c).upper() == "URL"), None)
+                if not url_col:
                     continue
+                
+                df = df.rename(columns={url_col: "URL"})
                 
                 # Identify date and active columns
                 date_col = None
@@ -358,12 +374,27 @@ def export_split_by_distrito(existing_df: pd.DataFrame,
     else:
         existing_clean = existing_df.dropna(axis=1, how='all') if existing_df is not None else pd.DataFrame()
         add_clean = add_df.dropna(axis=1, how='all')
-        if existing_clean.empty:
-            combined = add_clean.copy()
-        else:
-            combined = pd.concat([existing_clean, add_clean], ignore_index=True)
+        
+        # Preserve ALL columns from both datasets
+        all_cols_dict = {}
+        for c in list(existing_clean.columns) + list(add_clean.columns):
+            all_cols_dict[c] = True
+        all_cols = list(all_cols_dict.keys())
+        
+        combined = pd.concat([existing_clean, add_clean], ignore_index=True)
+        
+        # Ensure correct column order: ORDERED_BASE first, then the rest
+        final_cols = []
+        for c in ORDERED_BASE:
+            if c in all_cols:
+                final_cols.append(c)
+        for c in all_cols:
+            if c not in final_cols:
+                final_cols.append(c)
+        combined = combined[final_cols]
     
-    for c in ordered:
+    # Ensure all required columns from ORDERED_BASE exist
+    for c in ORDERED_BASE:
         if c not in combined.columns:
             combined[c] = None
     
