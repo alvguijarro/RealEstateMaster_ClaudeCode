@@ -6,6 +6,7 @@ function init() {
     }
 
     loadFiles();
+    setupDropdownUI();
     // Removed loadResults() from init to keep tables empty on start
     setupFilters();
     setupAnalyze();
@@ -46,53 +47,35 @@ async function loadFiles() {
         // Sort by modified date (newest first)
         files.sort((a, b) => new Date(b.last_modified) - new Date(a.last_modified));
 
-        const ventaSelect = document.getElementById('ventaFile');
-        const alquilerSelect = document.getElementById('alquilerFile');
-
-        ventaSelect.innerHTML = '<option value="">-- Seleccionar archivo --</option>';
-        alquilerSelect.innerHTML = '<option value="">-- Seleccionar archivo --</option>';
+        // Store globally for filtering
+        window.allFilesData = files;
 
         let newestVenta = null;
         let newestAlquiler = null;
 
         files.forEach(file => {
-            const dateStr = `[${file.last_modified}]`;
-
-            // Venta Option
-            const optV = document.createElement('option');
-            optV.value = file.filename;
-            optV.innerHTML = `${file.filename} &nbsp;&nbsp; ${dateStr}`;
-            ventaSelect.appendChild(optV);
-
-            // Keep track of newest files
             if (!newestVenta && file.type === 'venta') newestVenta = file.filename;
             if (!newestAlquiler && file.type === 'alquiler') newestAlquiler = file.filename;
-
-            // Alquiler Option
-            const optA = document.createElement('option');
-            optA.value = file.filename;
-            optA.innerHTML = `${file.filename} &nbsp;&nbsp; ${dateStr}`;
-            alquilerSelect.appendChild(optA);
         });
+
+        // Initialize / Refresh custom dropdowns
+        renderCustomFileList('venta');
+        renderCustomFileList('alquiler');
 
         // --- Initial Selection Logic ---
         if (newestVenta) {
-            ventaSelect.value = newestVenta;
+            selectCustomFile('venta', newestVenta);
             // Try to find matching alquiler
             const prefix = extractFilePrefix(newestVenta);
-            const match = Array.from(alquilerSelect.options).find(opt => opt.value.startsWith(prefix) && opt.value.toLowerCase().includes('alquiler'));
+            const match = files.find(f => f.filename.startsWith(prefix) && f.filename.toLowerCase().includes('alquiler'));
             if (match) {
-                alquilerSelect.value = match.value;
+                selectCustomFile('alquiler', match.filename);
             } else if (newestAlquiler) {
-                alquilerSelect.value = newestAlquiler;
+                selectCustomFile('alquiler', newestAlquiler);
             }
         } else if (newestAlquiler) {
-            alquilerSelect.value = newestAlquiler;
+            selectCustomFile('alquiler', newestAlquiler);
         }
-
-        // Add event listeners for validation and SYNC
-        ventaSelect.addEventListener('change', (e) => validateFileSelection('venta'));
-        alquilerSelect.addEventListener('change', (e) => validateFileSelection('alquiler'));
 
         // Initial validation
         validateFileSelection();
@@ -102,6 +85,100 @@ async function loadFiles() {
     } finally {
         if (btnRefresh) btnRefresh.classList.remove('loading');
     }
+}
+
+function formatSize(bytes) {
+    if (!bytes) return "0 B";
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function renderCustomFileList(type, filterTerm = '') {
+    const list = document.getElementById(type + 'FileList');
+    if (!list) return;
+
+    list.innerHTML = '';
+    const term = filterTerm.toLowerCase();
+    const sorted = window.allFilesData || [];
+
+    const filtered = term
+        ? sorted.filter(f => f.filename.toLowerCase().includes(term))
+        : sorted;
+
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="dropdown-item" style="color: var(--text-muted); cursor: default;">No se encontraron archivos</div>';
+        return;
+    }
+
+    filtered.forEach(f => {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item';
+        const sizeStr = formatSize(f.size);
+        const dateStr = f.last_modified || "Desconocida";
+
+        item.innerHTML = `
+            <span>${f.filename}</span>
+            <span class="file-meta">${dateStr} (${sizeStr})</span>
+        `;
+        item.onclick = (e) => {
+            e.stopPropagation();
+            selectCustomFile(type, f.filename);
+            closeAllDropdowns();
+            validateFileSelection(type);
+        };
+        list.appendChild(item);
+    });
+}
+
+function selectCustomFile(type, filename) {
+    const input = document.getElementById(type + 'File');
+    const text = document.getElementById(type + 'SelectedText');
+    if (!input || !text) return;
+
+    input.value = filename;
+    text.textContent = filename || '-- Seleccionar archivo --';
+
+    // Trigger validation logic if needed
+    validateAnalyzeButton();
+}
+
+function closeAllDropdowns() {
+    document.querySelectorAll('.dropdown-overlay').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.dropdown-trigger').forEach(el => el.classList.remove('active'));
+}
+
+function setupDropdownUI() {
+    ['venta', 'alquiler'].forEach(type => {
+        const trigger = document.getElementById(type + 'FileTrigger');
+        const overlay = document.getElementById(type + 'FileDropdown');
+        const search = document.getElementById(type + 'FileSearch');
+
+        if (!trigger || !overlay || !search) return;
+
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const wasActive = overlay.classList.contains('active');
+            closeAllDropdowns();
+            if (!wasActive) {
+                overlay.classList.add('active');
+                trigger.classList.add('active');
+                setTimeout(() => search.focus(), 50);
+            }
+        });
+
+        search.addEventListener('input', (e) => {
+            renderCustomFileList(type, e.target.value);
+        });
+
+        search.addEventListener('click', (e) => e.stopPropagation());
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.custom-dropdown-group')) {
+            closeAllDropdowns();
+        }
+    });
 }
 
 function extractFilePrefix(filename) {
@@ -119,17 +196,17 @@ function validateFileSelection(changedSource) {
     // --- Sync Logic ---
     if (changedSource === 'venta' && vVal) {
         const prefix = extractFilePrefix(vVal);
-        const match = Array.from(aSelect.options).find(opt => opt.value.startsWith(prefix) && opt.value.toLowerCase().includes('alquiler'));
-        if (match) aSelect.value = match.value;
+        const match = (window.allFilesData || []).find(f => f.filename.startsWith(prefix) && f.filename.toLowerCase().includes('alquiler'));
+        if (match) selectCustomFile('alquiler', match.filename);
     } else if (changedSource === 'alquiler' && aVal) {
         const prefix = extractFilePrefix(aVal);
-        const match = Array.from(vSelect.options).find(opt => opt.value.startsWith(prefix) && opt.value.toLowerCase().includes('venta'));
-        if (match) vSelect.value = match.value;
+        const match = (window.allFilesData || []).find(f => f.filename.startsWith(prefix) && f.filename.toLowerCase().includes('venta'));
+        if (match) selectCustomFile('venta', match.filename);
     }
 
     // Refresh values after potential sync
-    const finalV = vSelect.value;
-    const finalA = aSelect.value;
+    const finalV = document.getElementById('ventaFile').value;
+    const finalA = document.getElementById('alquilerFile').value;
 
     // 1. Generic VENTA/ALQUILER keyword warnings (yellowish/orange)
     const vWarning = document.getElementById('ventaWarning');

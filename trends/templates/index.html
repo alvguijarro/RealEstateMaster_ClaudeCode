@@ -170,12 +170,11 @@
         }
 
         .dropdown-trigger {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 8px;
-            font-family: 'Outfit', sans-serif;
+            padding: 10px 15px;
+            color: var(--text-main);
             font-size: 0.95rem;
             cursor: pointer;
             display: flex;
@@ -186,7 +185,22 @@
 
         .dropdown-trigger:hover {
             border-color: rgba(255, 255, 255, 0.3);
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .dropdown-trigger .arrow {
+            font-size: 0.7rem;
+            transition: transform 0.3s ease;
+            opacity: 0.6;
+        }
+
+        .dropdown-trigger.active .arrow {
+            transform: rotate(180deg);
+        }
+
+        .dropdown-overlay.active {
+            display: flex;
+            flex-direction: column;
         }
 
         .dropdown-overlay {
@@ -195,30 +209,36 @@
             top: calc(100% + 5px);
             left: 0;
             width: 320px;
-            background: #1e293b;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: #111827;
+            /* Merger dark background */
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
             z-index: 1000;
-            padding: 10px;
+            overflow: hidden;
         }
 
-        .dropdown-overlay.active {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+        .dropdown-search {
+            padding: 10px;
+            background-color: #111827;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
 
         .search-field {
             width: 100%;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--border);
+            background-color: #030712;
+            /* Merger input background */
+            border: 1px solid rgba(255, 255, 255, 0.1);
             color: white;
-            padding: 8px 12px;
+            padding: 10px 12px;
             border-radius: 6px;
             outline: none;
             font-family: 'Outfit', sans-serif;
             box-sizing: border-box;
+            font-size: 0.85rem;
         }
 
         .search-field:focus {
@@ -228,9 +248,7 @@
         .checklist-container {
             max-height: 250px;
             overflow-y: auto;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
-            background: rgba(0, 0, 0, 0.1);
+            background: #111827;
             padding: 5px;
         }
 
@@ -406,15 +424,18 @@
                 <div class="custom-dropdown-group" id="zoneDropdownGroup">
                     <div class="dropdown-trigger" id="zoneDropdownTrigger">
                         <span>Seleccionar Zonas...</span>
-                        <span>▼</span>
+                        <span class="arrow">▼</span>
                     </div>
                     <div class="dropdown-overlay" id="zoneDropdownOverlay">
-                        <input type="text" id="zoneSearch" class="search-field" placeholder="Buscar provincia o zona..."
-                            autocomplete="off">
+                        <div class="dropdown-search">
+                            <input type="text" id="zoneSearch" class="search-field"
+                                placeholder="Buscar provincia o zona..." autocomplete="off">
+                        </div>
                         <div class="checklist-container" id="zoneChecklist">
                             <!-- Populated via JS -->
                         </div>
-                        <div class="dropdown-footer">
+                        <div class="dropdown-footer"
+                            style="padding: 12px; background: #0f172a; border-top: 1px solid rgba(255,255,255,0.05);">
                             <button class="btn" style="padding: 6px 12px; font-size: 0.85rem;"
                                 onclick="applyZoneSelection()">Aplicar y Filtrar</button>
                             <span id="selectionCount" style="font-size: 0.85rem; color: var(--text-muted);">0
@@ -518,7 +539,8 @@
             const search = document.getElementById('zoneSearch');
 
             trigger.addEventListener('click', () => {
-                overlay.classList.toggle('active');
+                const isActive = overlay.classList.toggle('active');
+                trigger.classList.toggle('active', isActive);
             });
 
             search.addEventListener('input', (e) => {
