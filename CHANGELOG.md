@@ -1,5 +1,9 @@
 # Changelog
- 
+
+## [2.9.29] - 2026-02-27
+### Added
+- **Checkpoints en Enriquecimiento**: Implementados puntos de guardado automático cada 50 URLs durante la fase de comprobación de anuncios desaparecidos (deactivation checks). Esto asegura que no se pierda el progreso en provincias con miles de anuncios si el proceso se detiene o bloquea.
+
 ## [2.9.28] - 2026-02-26
 ### Fixed
 - **Sincronización de Dashboard**: Corregido el problema donde los contadores de página y tiempo se reseteaban a 0 al recargar la página.
