@@ -9,6 +9,7 @@
     - Mejorada la inyección de la solución mediante el callback nativo de DataDome (`captchaCallback`).
     - Actualizado el solver de GeeTest para utilizar también la configuración centralizada de proxy.
 - **Configuración Centralizada de Proxy**: Creado `shared/proxy_config.py` para gestionar las credenciales del proxy de 2Captcha en un solo lugar, facilitando su mantenimiento.
+- **Limpieza de Datos (Viviendas >300k€)**: Ejecutado un script de limpieza sobre todos los archivos Excel en `scraper/salidas` para eliminar registros de viviendas con un precio superior a 300.000€. Esto optimiza el rendimiento del scraper durante las actualizaciones de estado de URLs al reducir el volumen de datos innecesarios (fuera de nuestro target).
 
 ## [2.9.29] - 2026-02-27
 ### Added
