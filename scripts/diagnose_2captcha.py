@@ -14,6 +14,13 @@ except ImportError:
 from twocaptcha import TwoCaptcha
 from twocaptcha.async_solver import AsyncTwoCaptcha
 
+# Import real proxy config
+try:
+    from shared.proxy_config import get_2captcha_proxy_params, get_2captcha_proxy_dict
+except ImportError:
+    get_2captcha_proxy_params = lambda: {}
+    get_2captcha_proxy_dict = lambda: {}
+
 async def diagnose():
     print(f"API Key present: {bool(TWOCAPTCHA_API_KEY)}")
     if not TWOCAPTCHA_API_KEY:
@@ -30,11 +37,10 @@ async def diagnose():
     except Exception as e:
         print(f"Balance check failed: {e}")
 
-    print("\n--- Testing DataDome Solver Params (Awaiting) ---")
-    dummy_proxy = {
-        'type': 'HTTP',
-        'uri': 'user:pass@1.2.3.4:5678'
-    }
+    print("\n--- Testing DataDome Solver Params ---")
+    proxy_params = get_2captcha_proxy_params()
+    proxy_dict = get_2captcha_proxy_dict()
+    print(f"Proxy config present: {bool(proxy_params)}")
     
     try:
         print("Calling ASYNC_SOLVER.datadome with dict proxy...")
@@ -44,7 +50,7 @@ async def diagnose():
                 captcha_url="https://geo.captcha-delivery.com/captcha/?initialCid=test",
                 pageurl="https://www.idealista.com",
                 userAgent="Mozilla/5.0",
-                proxy=dummy_proxy
+                proxy=proxy_dict
             )
         
         try:

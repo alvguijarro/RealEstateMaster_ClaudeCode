@@ -24,6 +24,11 @@ try:
 except ImportError:
     TWOCAPTCHA_API_KEY = None
 
+try:
+    from shared.proxy_config import get_2captcha_proxy_dict
+except ImportError:
+    get_2captcha_proxy_dict = lambda: {}
+
 # Fallback: ensure key is always available even if config import failed
 if not TWOCAPTCHA_API_KEY:
     TWOCAPTCHA_API_KEY = os.environ.get("TWOCAPTCHA_API_KEY", "f49b4e9ed2e2b36add9c6ef3af3e6e4c")
@@ -679,11 +684,13 @@ async def solve_geetest_2captcha(page):
             
         log("INFO", f"📦 GeeTest params found. Sending to 2Captcha... (gt: {params.get('gt', 'detected')})")
         
-        result = await asyncio.to_thread(
-            SOLVER.geetest,
+        proxy_dict = get_2captcha_proxy_dict()
+        
+        result = await ASYNC_SOLVER.geetest(
             gt=params['gt'],
             challenge=params['challenge'],
-            url=page.url
+            url=page.url,
+            proxy=proxy_dict
         )
         
         # Normalize response: 2captcha-python can return str or dict
@@ -725,10 +732,90 @@ async def solve_geetest_2captcha(page):
         
     return False
 
-async def solve_datadome_2captcha(page, logger=None):
-    """Solve DataDome CAPTCHA physically using 2Captcha Coordinates method (escaping proxy IP mismatch)."""
+async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
+    """Solve DataDome CAPTCHA using 2Captcha DataDomeSliderTask."""
     l = logger or log
-    l("INFO", "🛡️ CAPTCHA de DataDome detectado. Desplegando solución por Coordenadas Físicas...")
+    if not ASYNC_SOLVER:
+        l("WARN", "2Captcha ASYNC_SOLVER no inicializado.")
+        return False
+        
+    try:
+        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Desplegando solución dedicada (DataDomeSliderTask)...")
+        
+        # 1. Prepare parameters
+        page_url = page.url
+        user_agent = await page.evaluate("navigator.userAgent")
+        
+        if not captcha_url:
+            l("INFO", "🔍 Buscando captchaUrl de DataDome...")
+            captcha_url = await page.evaluate("""() => {
+                const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
+                return iframe ? iframe.src : null;
+            }""")
+            
+        if not captcha_url:
+            l("WARN", "No se pudo encontrar captchaUrl para DataDome.")
+            # Fallback to coordinates method if desired, but let's try to be precise first
+            l("INFO", "Reintentando por método de coordenadas físicas como fallback...")
+            return await solve_slider_2captcha(page, logger=l)
+
+        l("INFO", f"📤 Enviando tarea DataDome a 2Captcha... (Url base: {page_url[:50]}...)")
+        
+        # 2. Get proxy dict
+        proxy_dict = get_2captcha_proxy_dict()
+        
+        # 3. Call datadome solver
+        # The 2captcha-python SDK datadome method requires the proxy parameter as a dictionary.
+        result = await ASYNC_SOLVER.datadome(
+            captcha_url=captcha_url,
+            pageurl=page_url,
+            userAgent=user_agent,
+            proxy=proxy_dict
+        )
+        
+        code = None
+        if isinstance(result, str):
+            code = result
+        elif isinstance(result, dict):
+            code = result.get('code')
+            
+        if code:
+            l("OK", "✅ 2Captcha devolvió el token de DataDome. Inyectando...")
+            
+            # Inject solution into the page
+            # DataDome usually requires calling a callback or setting a cookie
+            # Often it's enough to call the callback function provided by DataDome
+            success = await page.evaluate(f"""(token) => {{
+                try {{
+                    if (window.captchaCallback) {{
+                        window.captchaCallback(token);
+                        return true;
+                    }}
+                    // If no explicit callback, try to find the hidden input or form
+                    const input = document.querySelector('input[name="g-recaptcha-response"]');
+                    if (input) {{
+                        input.value = token;
+                        const form = input.form;
+                        if (form) form.submit();
+                        return true;
+                    }}
+                    return false;
+                }} catch (e) {{
+                    return false;
+                }}
+            }}""", code)
+            
+            if not success:
+                l("WARN", "No se encontró callback automático para inyectar el token.")
+            
+            await asyncio.sleep(5)
+            return True
+            
+    except Exception as e:
+        l("ERR", f"Error en solver DataDome de 2Captcha: {type(e).__name__}: {e}")
+        
+    # Final fallback if dedicated fails
+    l("INFO", "Intento fallido con DataDomeSliderTask. Probando coordenadas como último recurso...")
     return await solve_slider_2captcha(page, logger=l)
 
 async def solve_slider_2captcha(page, logger=None):
@@ -945,16 +1032,20 @@ async def solve_captcha_advanced(page, logger=None):
         l("WARN", "Slider local falló o el bloqueo persiste.")
 
     # 2. Specific DataDome Check
-    is_datadome = await page.evaluate("() => !!document.querySelector('iframe[src*=\"captcha-delivery.com\"]')")
-    if is_datadome:
-        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Iniciando resolución física por Coordenadas (2Captcha)...")
-        if await solve_datadome_2captcha(page, logger=l):
-            await asyncio.sleep(4)
+    datadome_data = await page.evaluate("""() => {
+        const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
+        return iframe ? { is_datadome: true, captcha_url: iframe.src } : { is_datadome: false };
+    }""")
+    
+    if datadome_data.get('is_datadome'):
+        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Iniciando resolución dedicada (2Captcha)...")
+        if await solve_datadome_2captcha(page, captcha_url=datadome_data.get('captcha_url'), logger=l):
+            await asyncio.sleep(5)
             title = (await page.title()).lower()
             if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                l("OK", "✅ DataDome resuelto físicamente!")
+                l("OK", "✅ DataDome resuelto correctamente!")
                 return True
-            l("WARN", "El slider de DataDome se movió pero el bloqueo persiste.")
+            l("WARN", "El solver de DataDome terminó pero el bloqueo persiste.")
     
     # 3. Try 2Captcha (paid) as fallback
     if SOLVER:

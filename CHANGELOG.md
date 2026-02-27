@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.9.30] - 2026-02-27
+### Fixed
+- **Resolución de CAPTCHAs DataDome (2Captcha)**: Corregida la implementación del solver dedicado para DataDome Slider.
+    - Actualizado el uso del SDK de 2Captcha para utilizar el método oficial `datadome` (`DataDomeSliderTask`) en lugar del método genérico de coordenadas.
+    - Corregido el formato de paso de parámetros de proxy; ahora se utiliza un diccionario `{type, uri}` que el SDK procesa correctamente, eliminando los errores de `TypeError` y `ERROR_BAD_PARAMETERS`.
+    - Implementada extracción automática de `captchaUrl` desde el iFrame de DataDome para una resolución precisa.
+    - Mejorada la inyección de la solución mediante el callback nativo de DataDome (`captchaCallback`).
+    - Actualizado el solver de GeeTest para utilizar también la configuración centralizada de proxy.
+- **Configuración Centralizada de Proxy**: Creado `shared/proxy_config.py` para gestionar las credenciales del proxy de 2Captcha en un solo lugar, facilitando su mantenimiento.
+
 ## [2.9.29] - 2026-02-27
 ### Added
 - **Checkpoints en Enriquecimiento**: Implementados puntos de guardado automático cada 20 URLs durante la fase de comprobación de anuncios desaparecidos (deactivation checks). Esto asegura que no se pierda el progreso en provincias con miles de anuncios si el proceso se detiene o bloquea.
