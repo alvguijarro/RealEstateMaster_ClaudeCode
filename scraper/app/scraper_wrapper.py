@@ -2014,6 +2014,13 @@ class ScraperController:
             self.on_status("running")
         
         self.log("INFO", f"Starting scraper in {self.mode.upper()} mode")
+        
+        # PROACTIVE CLEANUP (2026): Clear any leftover profiles from crashed sessions
+        try:
+            cleanup_stealth_profiles()
+        except Exception as e:
+            self.log("WARN", f"Initial cleanup failed: {e}")
+
         # === AUTOMATIC PRICE FILTERS (2026) ===
         # Apply mandatory limits: Alquiler <= 2000, Venta <= 300.000
         original_url = self.seed_url
@@ -2615,11 +2622,16 @@ class ScraperController:
                             self.save_state(self.current_page or 1, target_file)
                             
                             # Cancel mouse jitter and close browser
+                            current_profile_idx = get_current_profile_config()["index"]
                             try:
                                 if 'mouse_jitter_task' in locals() and mouse_jitter_task:
                                     mouse_jitter_task.cancel()
                                 if ctx:
                                     await ctx.close()
+                                
+                                # GRANULAR CLEANUP: Erase the blocked profile's data immediately
+                                self.log("INFO", f"🧼 Cleaning up blocked Profile {current_profile_idx}...")
+                                cleanup_stealth_profiles(index=current_profile_idx)
                             except:
                                 pass
                             
@@ -3809,6 +3821,7 @@ class ScraperController:
                         self.on_status("blocked", error=f"CAPTCHA. Rotando a Perfil {next_config['index']}...")
                     
                     # Close browser explicitly
+                    current_profile_idx = get_current_profile_config()["index"]
                     try:
                         if 'mouse_jitter_task' in dir() and mouse_jitter_task:
                             mouse_jitter_task.cancel()
@@ -3816,6 +3829,10 @@ class ScraperController:
                             await browser.close()
                         elif ctx:
                             await ctx.close()
+                        
+                        # GRANULAR CLEANUP: Erase the blocked profile's data immediately
+                        self.log("INFO", f"🧼 Cleaning up blocked Profile {current_profile_idx}...")
+                        cleanup_stealth_profiles(index=current_profile_idx)
                     except:
                         pass
                     

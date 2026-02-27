@@ -107,23 +107,36 @@ def play_captcha_alert():
         # Fallback for non-Windows or if winsound fails
         print("\a")  # ASCII Bell
 
-def cleanup_stealth_profiles():
-    """Remove all stealth_profile* directories to free up space (cached data)."""
+def cleanup_stealth_profiles(index: Optional[int] = None):
+    """Remove stealth_profile* directories to free up space.
+    
+    Args:
+        index: If provided, only delete 'stealth_profile_{index}'.
+               If None, delete all 'stealth_profile*' directories.
+    """
     import shutil
     base_dir = Path(__file__).parent.parent.parent
     
     # Check root and scraper directory
     dirs_to_check = [base_dir, base_dir / 'scraper']
     
+    target_pattern = f"stealth_profile_{index}" if index is not None else "stealth_profile"
+    
     for d in dirs_to_check:
         if not d.exists(): continue
         for item in d.iterdir():
-            if item.is_dir() and item.name.startswith('stealth_profile'):
-                try:
-                    log("INFO", f"Limpiando perfil residual: {item.name}")
-                    shutil.rmtree(item, ignore_errors=True)
-                except Exception as e:
-                    log("WARN", f"No se pudo borrar {item.name}: {e}")
+            if item.is_dir() and (item.name == target_pattern if index is not None else item.name.startswith('stealth_profile')):
+                # Retry logic for Windows file locking issues
+                for attempt in range(3):
+                    try:
+                        # log("INFO", f"Limpiando perfil residual: {item.name} (intento {attempt+1})")
+                        shutil.rmtree(item, ignore_errors=True)
+                        if not item.exists():
+                            break
+                        time.sleep(0.5)
+                    except Exception as e:
+                        if attempt == 2:
+                            log("WARN", f"No se pudo borrar {item.name} tras 3 intentos: {e}")
 
 
 def play_blocked_alert():

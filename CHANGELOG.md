@@ -4,9 +4,11 @@
 ### Improved
 - **Homogeneización de Interfaz (Dropdowns Premium)**: Se ha unificado el diseño de los selectores desplegables en toda la plataforma ("Market Metrics" y "Analytics Pro") para que coincidan con el estilo de la "Merger Tool".
     - **Contraste Elevado**: Implementado un tema oscuro de alto contraste con efectos de cristalmorfismo (`backdrop-filter`) y bordes sutiles.
-    - **Buscador Integrado**: Se ha añadido un campo de búsqueda de texto libre en todos los desplegables para filtrar opciones rápidamente (provincias, zonas o archivos).
-    - **Animaciones Premium**: Añadidas transiciones suaves y rotación de flechas indicadoras de estado.
-    - **Funcionalidad Custom**: Sustituidos los selectores nativos de HTML por componentes personalizados en "Analytics Pro" para una experiencia de usuario más fluida y profesional.
+    - **Buscador Integrado**: Se ha añadido un campo de búsqueda de texto libre en todos los desplegables para filtrar opciones rápidamente.
+- **Gestión Inteligente de Perfiles (Limpieza Granular)**: Optimización drástica del uso de disco mediante la limpieza automática de perfiles de navegador temporales (`stealth_profile_*`).
+    - **Limpieza en Rotación**: El scraper ahora elimina los datos del perfil bloqueado inmediatamente al rotar de identidad, liberando cientos de MBs durante la ejecución.
+    - **Limpieza Proactiva**: Añadida limpieza total al inicio de cada sesión para eliminar restos de ejecuciones fallidas.
+    - **Robustez en Windows**: Implementada lógica de reintentos para manejar bloqueos de archivos de navegador al borrar.
 
 ## [2.9.30] - 2026-02-27
 ### Fixed
