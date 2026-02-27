@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-27T13:12:06.873177",
+    "seed_url": "https://www.idealista.com/venta-viviendas/melilla-melilla/con-precio-hasta_300000/",
+    "properties_count": 8,
+    "category": "venta",
+    "output_file": "idealista_Melilla_venta.xlsx",
+    "filename": "idealista_Melilla_venta.xlsx"
+  },
+  {
     "timestamp": "2026-02-20T17:11:38.017050",
     "seed_url": "https://www.idealista.com/alquiler-viviendas/guadalajara-provincia/con-precio-hasta_2000/",
     "properties_count": 31,

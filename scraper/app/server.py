@@ -429,6 +429,10 @@ def stop_scraping():
         try: (scraper_dir / f_name).touch()
         except: pass
 
+    # Synchronize: ensure batch_stop.flag is also set for any consumers checking it
+    try: (scraper_dir / "batch_stop.flag").touch()
+    except: pass
+
     # 2. Stop manual scraper controller
     if scraper_controller:
         scraper_controller.stop()
@@ -1040,6 +1044,7 @@ def stop_batch_scraping():
     
     # Touch ALL relevant stop flags
     (scraper_dir / "BATCH_STOP.flag").touch()
+    (scraper_dir / "batch_stop.flag").touch()
     (scraper_dir / "ENRICH_STOP.flag").touch()
     (scraper_dir / "update_stop.flag").touch()
     
@@ -1053,6 +1058,7 @@ def stop_batch_scraping():
     if periodic_process and periodic_process.poll() is None:
         try:
             periodic_process.terminate()
+            print("[server] Terminated periodic/batch process via batch/stop")
         except: pass
 
     # Terminate update/enrichment process (if running)
@@ -1298,12 +1304,19 @@ def resume_update():
 @app.route('/api/update/stop', methods=['POST'])
 def stop_update_process():
     """Stop the update process."""
-    global update_process
+    global update_process, scraper_controller
     update_script = Path(__file__).parent.parent / "update_urls.py"
+    scraper_dir = Path(__file__).parent.parent
+
+    # 1. Signal internal controller
+    if scraper_controller:
+        scraper_controller.stop()
     
-    # Set stop flag
-    stop_flag = update_script.parent / "update_stop.flag"
-    stop_flag.touch()
+    # 2. Set ALL stop flags (Update mode often triggers scraper runs)
+    flags = ["update_stop.flag", "BATCH_STOP.flag", "batch_stop.flag"]
+    for f_name in flags:
+        try: (scraper_dir / f_name).touch()
+        except: pass
     
     try:
         if update_process:

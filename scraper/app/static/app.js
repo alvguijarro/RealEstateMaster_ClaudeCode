@@ -2135,9 +2135,12 @@ function setBatchUIState(state) {
     if (!batchStartBtn) return;
 
     if (state === 'running') {
-        isBatchMode = false;
-        isUpdateMode = true;
-        updateScraperState(true, 'Enriquecimiento por Lotes');
+        // ONLY set these if we are actually in enrichment batch mode (the one that uses batchStartBtn)
+        // If we are in provincial batch mode, isBatchMode is already true and should stay true.
+        if (!isBatchMode) {
+            isUpdateMode = true;
+        }
+        updateScraperState(true, isBatchMode ? 'Scraping Batch' : 'Enriquecimiento por Lotes');
         batchStartBtn.disabled = true;
         batchStopBtn.disabled = false;
         batchPauseBtn.disabled = false;
@@ -2274,8 +2277,12 @@ function setupBatchSocketListeners() {
 
     // Also listen for legacy status if paused manually
     socket.on('status_change', (data) => {
-        if (data.status === 'paused') setBatchUIState('paused');
-        if (data.status === 'running') setBatchUIState('running');
+        // Only trigger Batch UI updates if we are in one of the batch/update modes
+        // and NOT in standard manual scraping.
+        if (isBatchMode || isUpdateMode) {
+            if (data.status === 'paused') setBatchUIState('paused');
+            if (data.status === 'running') setBatchUIState('running');
+        }
     });
 }
 

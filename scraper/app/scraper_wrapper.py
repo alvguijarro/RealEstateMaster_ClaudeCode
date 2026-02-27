@@ -1040,13 +1040,21 @@ class ScraperController:
     
     @property
     def _should_stop(self) -> bool:
-        """Check if stop has been requested from ANY thread (Flask or asyncio)."""
+        """Check if stop has been requested from ANY thread (Flask or asyncio) or cross-process flag."""
         if self._stopped_by_user:
             return True
         if self._thread_stop_evt and self._thread_stop_evt.is_set():
             return True
         if self._stop_evt and self._stop_evt.is_set():
             return True
+            
+        # Cross-process signal sensing (Flag Files)
+        scraper_dir = Path(__file__).parent.parent
+        if (scraper_dir / "BATCH_STOP.flag").exists() or (scraper_dir / "batch_stop.flag").exists():
+            # Mark self so we don't keep checking disk if possible
+            self._stopped_by_user = True
+            return True
+            
         return False
     
     def __post_init__(self):

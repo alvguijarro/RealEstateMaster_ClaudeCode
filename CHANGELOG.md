@@ -8,6 +8,11 @@
 - **Gestión Inteligente de Perfiles (Limpieza Granular)**: Optimización drástica del uso de disco mediante la limpieza automática de perfiles de navegador temporales (`stealth_profile_*`).
     - **Limpieza en Rotación**: El scraper ahora elimina los datos del perfil bloqueado inmediatamente al rotar de identidad, liberando cientos de MBs durante la ejecución.
     - **Limpieza Proactiva**: Añadida limpieza total al inicio de cada sesión para eliminar restos de ejecuciones fallidas.
+### Fixed
+- **Corrección Crítica: Detención de Scraping por Provincias**: Se ha solucionado el problema que impedía que el botón "Detener" detuviera correctamente los procesos de lote de provincias.
+    - **Sincronización de Estados**: Corregido un conflicto en `app.js` que provocaba que el frontend perdiera el estado de "Lote", enviando peticiones de parada al endpoint incorrecto.
+    - **Redundancia de Parada**: Los endpoints del servidor ahora aseguran la creación sincronizada de flags de parada (`BATCH_STOP.flag`, `batch_stop.flag`, etc.) y la terminación forzosa de procesos hijos si es necesario.
+    - **Detección Multi-proceso**: El `ScraperController` ahora monitoriza activamente la presencia física de archivos de bandera en el sistema de archivos como respaldo a las señales de hilos internas.
     - **Robustez en Windows**: Implementada lógica de reintentos para manejar bloqueos de archivos de navegador al borrar.
 
 ## [2.9.30] - 2026-02-27
