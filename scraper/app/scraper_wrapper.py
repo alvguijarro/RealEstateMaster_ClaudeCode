@@ -2934,7 +2934,11 @@ class ScraperController:
                                 
                                 from datetime import datetime
                                 # Update last seen date
-                                row_to_save = orig_row.copy()
+                                row_to_save = orig_row.get("full_row", {}).copy()
+                                if not row_to_save:
+                                    # Fallback if full_row is missing for some reason
+                                    row_to_save = {"URL": key}
+                                
                                 row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
                                 row_to_save["Anuncio activo"] = "Sí"
                                 
@@ -3425,7 +3429,10 @@ class ScraperController:
                                     
                                     if is_gone:
                                         self.log("WARN", f"Confirmed: Property deactivated -> {m_url}")
-                                        row_to_save = orig_row.copy()
+                                        row_to_save = orig_row.get("full_row", {}).copy()
+                                        if not row_to_save:
+                                            row_to_save = {"URL": m_url}
+                                            
                                         row_to_save["Anuncio activo"] = "No"
                                         from datetime import datetime
                                         row_to_save["Baja anuncio"] = datetime.now().strftime("%d/%m/%Y")
@@ -3435,7 +3442,10 @@ class ScraperController:
                                     else:
                                         # Property is still active, just not in this search result
                                         self.log("INFO", f"Property still active (not in search): {m_url}")
-                                        row_to_save = orig_row.copy()
+                                        row_to_save = orig_row.get("full_row", {}).copy()
+                                        if not row_to_save:
+                                            row_to_save = {"URL": m_url}
+                                            
                                         row_to_save["Anuncio activo"] = "Sí"
                                         from datetime import datetime
                                         row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")

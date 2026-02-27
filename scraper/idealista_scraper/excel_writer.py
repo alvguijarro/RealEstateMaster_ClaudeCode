@@ -369,6 +369,18 @@ def export_split_by_distrito(existing_df: pd.DataFrame,
     
     if "URL" in combined.columns:
         combined = combined.drop_duplicates(subset=["URL"], keep="last")
+
+    # CRITICAL VALIDATION: Ensure we are not saving "empty" rows that only have URL
+    if not combined.empty and "Titulo" in combined.columns:
+        empty_titles = combined["Titulo"].isna().sum() / len(combined)
+        if empty_titles > 0.9 and len(combined) > 5:
+            log("ERR", f"⚠️ DATA CORRUPTION DETECTED: {empty_titles*100:.1f}% rows missing titles. Aborting export.")
+            return
+
+    # Normalize "Distrito" column (case-insensitive)
+    dist_cols = [c for c in combined.columns if c.lower() == "distrito"]
+    if dist_cols and "Distrito" not in combined.columns:
+        combined = combined.rename(columns={dist_cols[0]: "Distrito"})
     
     # Convert numeric columns
     int_like_cols = ["Num plantas", "banos", "construido en",
