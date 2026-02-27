@@ -3439,8 +3439,8 @@ class ScraperController:
                                     
                                     checked_count += 1
                                     
-                                    # Checkpoint saving: save every 50 properties during deactivation checks
-                                    if checked_count > 0 and checked_count % 50 == 0:
+                                    # Checkpoint saving: save every 20 properties during deactivation checks
+                                    if checked_count > 0 and checked_count % 20 == 0:
                                         t_start_save = time.time()
                                         await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
                                         self.log("INFO", f"Saved periodic enrichment checkpoint in {time.time() - t_start_save:.2f}s")
