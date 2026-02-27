@@ -2751,7 +2751,11 @@ class ScraperController:
                         self.current_page = page_num
                         list_url = build_paginated_url(self.seed_url, page_num)
                         current_url = page.url
-                        is_already_on_target = list_url in current_url or current_url in list_url
+                        
+                        # Fixed: Use precise extraction instead of 'in' to avoid false positives
+                        # (e.g., Page 1 URL is a substring of Page 2 URL)
+                        current_page_in_browser = extract_page_from_url(current_url)
+                        is_already_on_target = (list_url.rstrip('/') == current_url.rstrip('/')) or (current_page_in_browser == page_num)
                         
                         try:
                             if is_already_on_target and page_num == self.current_page:
