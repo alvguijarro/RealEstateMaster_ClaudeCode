@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-02-27T14:15:07.820179",
+    "seed_url": "https://www.idealista.com/venta-viviendas/madrid-provincia/con-precio-hasta_300000/",
+    "properties_count": 453,
+    "category": "venta",
+    "output_file": "idealista_Madrid_venta.xlsx",
+    "filename": "idealista_Madrid_venta.xlsx"
+  },
+  {
     "timestamp": "2026-02-27T13:12:06.873177",
     "seed_url": "https://www.idealista.com/venta-viviendas/melilla-melilla/con-precio-hasta_300000/",
     "properties_count": 8,

@@ -2228,9 +2228,8 @@ function setupBatchSocketListeners() {
         // Track per-file max for batch logic
         if (current > maxEnrichedInCurrentFile) maxEnrichedInCurrentFile = current;
 
-        // 2. Add Row to Table
-        // Use standard addResultRow but ensure it handles dynamic columns if needed
-        addResultRow(data);
+        // Use addProperty to update UI and internal state
+        addProperty(data);
 
         // 3. Update Results Count text
         if (resultsCount) resultsCount.textContent = `${total} propiedades`;

@@ -2141,8 +2141,19 @@ class ScraperController:
                         self.log("INFO", f"📊 Will identify {enriched_count} already enriched properties during search to skip detail pages")
                     else:
                         self.log("INFO", f"Province file not found - will create: {province_file}")
-            else:
-                self.log("WARN", "Could not detect province/operation from URL. Smart enrichment partially disabled.")
+                    
+                    # PROACTIVE FIX (2026): Load existing_df early to prevent session data loss
+                    if province_path and os.path.exists(province_path):
+                        try:
+                            # Load full data once at start of session
+                            # We use existing_df = ... at the run level to maintain it
+                            existing_df, _, _ = load_existing_single_sheet(province_path, self._detected_sheet or self.sheet_name)
+                            self.log("INFO", f"✅ Session Init: Loaded {len(existing_df)} rows from existing file as base.")
+                        except Exception as e:
+                            self.log("WARN", f"Failed to load existing base data: {e}. Starting fresh.")
+                            existing_df = pd.DataFrame()
+                else:
+                    self.log("WARN", "Could not detect province/operation from URL. Smart enrichment partially disabled.")
         
         # Ensure self.output_file stays in sync with any detected/registered target_file
         if target_file and not self.output_file:
@@ -2161,6 +2172,10 @@ class ScraperController:
         LAUNCH_FAIL_BLACKLIST_THRESHOLD = 3  # Mark engine as session-dead after this many failures
         
         self.consecutive_skips = 0  # Track consecutive skipped properties to stop dead-end deep scrapes
+        
+        # Initialize existing_df outside the recovery loop to persist across browser restarts
+        if 'existing_df' not in locals():
+            existing_df = pd.DataFrame()
         
         while not self._should_stop:
             target_file = self.output_file # Initialize safe default
@@ -2734,7 +2749,20 @@ class ScraperController:
                             # Reset url_dates since we're using a different file
                             url_dates = {}
                             preloaded_urls = set()
-                            # self._processed.clear()  <-- REMOVED: Never clear processed URLs mid-run during identity rotation
+                            
+                            # CRITICAL: Reload existing data for the NEW target file
+                            out_effective_new = os.path.join(self.output_dir, target_file)
+                            if os.path.exists(out_effective_new):
+                                self.log("INFO", f"🔄 Switching base data to {target_file}...")
+                                existing_df, _, _ = load_existing_single_sheet(out_effective_new, self._detected_sheet or self.sheet_name)
+                                self._all_existing_urls = load_all_urls_from_excel(out_effective_new)
+                                self._enriched_urls = load_enriched_urls(out_effective_new)
+                                preloaded_urls = set(self._all_existing_urls.keys())
+                                self.log("OK", f"📊 New file base: {len(existing_df)} rows loaded.")
+                            else:
+                                existing_df = pd.DataFrame()
+                                self._all_existing_urls = {}
+                                self._enriched_urls = set()
             
                     # target_file and url_dates already set from registry lookup above (or overridden)
             
@@ -2760,9 +2788,7 @@ class ScraperController:
                     new_scraped = 0
                     smart_skipped = 0
                     deactivated_count = 0
-                    existing_df = pd.DataFrame()  # Will be loaded if target file exists
                     scraping_finished = False  # Track clean completion
-            
                     while not self._should_stop and not scraping_finished:
                         await self._wait_for_pause()
                         if self._should_stop or scraping_finished:
@@ -3117,10 +3143,11 @@ class ScraperController:
                                     if key in self._all_existing_urls:
                                         existing_data = self._all_existing_urls[key].get('full_row', {})
                                         if existing_data:
-                                            # Merge: new scraped data (row) takes precedence, 
-                                            # but we keep all columns that were already in Excel
-                                            merged = {**existing_data, **row}
-                                            row = merged
+                                            # Merge: new scraped data takes precedence for non-empty values, 
+                                            # but existing data fills holes and preserves additional columns.
+                                            for k, v in existing_data.items():
+                                                if k not in row or row[k] in [None, "", "NaN", "nan"]:
+                                                    row[k] = v
 
                                     # Smart Enrichment: Mark as enriched with current date
                                     if self.smart_enrichment:

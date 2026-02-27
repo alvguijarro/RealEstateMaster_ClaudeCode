@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.9.32] - 2026-02-27
+### Fixed
+- **Integridad de Datos Crítica (Pérdida de Filas Excel)**: Resuelto el fallo masivo que eliminaba filas de los ficheros Excel durante el proceso de scraping.
+    - **Carga Persistente de Base (existing_df)**: Se ha corregido la inicialización de la variable de memoria que ahora carga correctamente el contenido previo del Excel al inicio de la sesión, evitando que los puntos de control (checkpoints) sobrescriban y borren datos antiguos.
+    - **Fusión Inteligente de Filas (Merge Proactivo)**: Mejorada la lógica de mezcla para que los resultados de búsqueda parciales (sin enriquecer) no sobrescriban campos completos ya existentes en el Excel.
+    - **Seguridad en Desactivaciones**: Las comprobaciones de anuncios desactivados ahora conservan todos los detalles de la propiedad (precio, superficie, etc.) en lugar de guardar filas vacías.
+- **Estabilidad de Conexión (Socket.IO)**: Corregido un error tipográfico en el frontend (`addResultRow` vs `addProperty`) que provocaba cierres inesperados de la conexión y mensajes constantes de "Disconnected from server".
+
 ## [2.9.31] - 2026-02-27
 ### Improved
 - **Homogeneización de Interfaz (Dropdowns Premium)**: Se ha unificado el diseño de los selectores desplegables en toda la plataforma ("Market Metrics" y "Analytics Pro") para que coincidan con el estilo de la "Merger Tool".
