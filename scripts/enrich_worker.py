@@ -394,7 +394,7 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                     user_agent=random.choice(USER_AGENTS),
                     viewport={"width": random.choice(VIEWPORT_SIZES)[0], "height": random.choice(VIEWPORT_SIZES)[1]},
                     args=[
-                        "--disable-blink-features=AutomationControlled",
+                        # "--disable-blink-features=AutomationControlled", # Removed: triggers Chromium warning bar that DataDome immediately flags
                         "--no-sandbox",
                         "--disable-dev-shm-usage",
                         "--disable-web-security"

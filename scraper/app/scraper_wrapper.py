@@ -2209,7 +2209,7 @@ class ScraperController:
                     chromium_args = [
                         "--no-first-run",
                         "--no-default-browser-check",
-                        "--disable-blink-features=AutomationControlled", 
+                        # "--disable-blink-features=AutomationControlled",  # Removed: triggers Chromium warning bar that DataDome immediately flags
                         "--password-store=basic",
                         "--use-mock-keychain",
                         "--force-color-profile=srgb",

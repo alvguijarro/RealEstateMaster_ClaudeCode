@@ -832,7 +832,7 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
 
             # Inject the cookie via Playwright's native API (far more reliable than JS document.cookie)
             try:
-                domain = urlparse(page_url).netloc   # e.g. "www.idealista.com"
+                domain = ".idealista.com"  # e.g. ".idealista.com"
                 await page.context.add_cookies([{
                     'name': 'datadome',
                     'value': cookie_value,
@@ -856,14 +856,18 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
 
             await asyncio.sleep(3)
 
-            # Real success check — only return True if the page actually loaded
-            title = (await page.title()).lower()
-            block_kws = ['captcha', 'attention', 'robot', 'challenge', 'verification', 'acceso bloqueado', 'blocked']
-            if 'idealista' in title and not any(kw in title for kw in block_kws):
-                l("OK", "✅ DataDome resuelto: página de Idealista cargada correctamente.")
+            # Extraer el texto completo del DOM y buscar iframes de DataDome en lugar de mirar el title
+            is_still_blocked = await page.evaluate(r"""() => {
+                const hasDataDomeIframe = !!document.querySelector('iframe[src*="captcha-delivery.com"]');
+                const hasWarningText = document.body && document.body.innerText.toLowerCase().includes('estamos recibiendo muchas peticiones');
+                return !!(hasDataDomeIframe || hasWarningText);
+            }""")
+
+            if not is_still_blocked:
+                l("OK", "✅ DataDome resuelto: CAPTCHA desapareció exitosamente.")
                 return True
 
-            l("WARN", f"⚠️ Cookie inyectada pero la página sigue bloqueada (title: '{title[:60]}')")
+            l("WARN", "⚠️ Cookie inyectada pero el CAPTCHA de DataDome sigue presente en la página.")
             return False
 
     except Exception as e:
@@ -942,10 +946,18 @@ async def solve_slider_2captcha(page, logger=None):
             try: os.remove(img_path)
             except: pass
             
-        if result and len(result) > 0:
-            target = result[0]
-            tx = float(target['x'])
-            ty = float(target['y'])
+        if result:
+            if isinstance(result, list) and len(result) > 0:
+                target = result[0]
+            elif isinstance(result, dict) and '0' in result:
+                # Algunas versiones del wrapper devuelven un dict {"0": {"x": "...", "y": "..."}}
+                target = result['0']
+            else:
+                l("ERR", f"Unexpected result format from 2Captcha coordinates: {result}")
+                return False
+                
+            tx = float(target.get('x', 0))
+            ty = float(target.get('y', 0))
             
             box = await container.bounding_box()
             if not box: return False
