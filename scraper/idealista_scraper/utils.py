@@ -792,56 +792,87 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
             l("INFO", "Reintentando por método de coordenadas físicas como fallback...")
             return await solve_slider_2captcha(page, logger=l)
 
-        l("INFO", f"📤 Enviando tarea DataDome a 2Captcha... (Url base: {page_url[:50]}...)")
-        
-        # 2. Get proxy dict
-        proxy_dict = get_2captcha_proxy_dict()
-        
-        # 3. Call datadome solver directly via solve() to avoid library bugs with proxy dict parsing
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            result = await ASYNC_SOLVER.solve(
-                method="datadome",
-                captcha_url=captcha_url,
-                pageurl=page_url,
-                userAgent=user_agent,
-                proxy=proxy_dict.get('uri'),
-                proxytype=proxy_dict.get('type')
-            )
-        
-        # The SDK returns the full cookie string or just the value.
-        # Extract the raw cookie value from whatever format is returned.
-        code = None
-        if isinstance(result, str):
-            code = result
-        elif isinstance(result, dict):
-            # SDK may return {'code': '...'} or the raw solution dict
-            code = result.get('code') or result.get('cookie')
+        # 2. Call DataDomeSliderTask using the JSON API directly (bypassing the buggy twocaptcha SDK proxy parser)
+        try:
+            from shared.proxy_config import PROXY_CONFIG
+        except ImportError:
+            PROXY_CONFIG = None
 
-        if code:
-            l("OK", "✅ 2Captcha devolvió el token de DataDome. Inyectando como cookie...")
+        if not PROXY_CONFIG:
+            l("ERR", "❌ No se ha encontrado PROXY_CONFIG. DataDomeSliderTask exige proxy residencial para funcionar.")
+            return await solve_slider_2captcha(page, logger=l)
 
-            # DataDome solution is a cookie, NOT a JS callback.
-            # The response looks like: "datadome=XXXX; Path=/; Secure; SameSite=Lax"
-            # or just the raw value "XXXX". We extract the value part.
-            cookie_value = None
-            if 'datadome=' in code:
-                m = re.search(r'datadome=([^;]+)', code)
-                cookie_value = m.group(1).strip() if m else None
-            else:
-                cookie_value = code.strip()
+        import httpx
+        task_payload = {
+            "clientKey": TWOCAPTCHA_API_KEY,
+            "task": {
+                "type": "DataDomeSliderTask",
+                "websiteURL": page_url,
+                "captchaUrl": captcha_url,
+                "userAgent": user_agent,
+                "proxyType": PROXY_CONFIG.get('type', 'http').lower(),
+                "proxyAddress": PROXY_CONFIG.get('host'),
+                "proxyPort": PROXY_CONFIG.get('port'),
+                "proxyLogin": PROXY_CONFIG.get('login'),
+                "proxyPassword": PROXY_CONFIG.get('password')
+            }
+        }
 
-            if not cookie_value:
-                l("WARN", "No se pudo parsear el valor del cookie DataDome del token recibido.")
-                return False
+        async with httpx.AsyncClient() as client:
+            l("INFO", "📤 Enviando json payload a api.2captcha.com/createTask ...")
+            resp = await client.post("https://api.2captcha.com/createTask", json=task_payload, timeout=15)
+            resp_data = resp.json()
+
+            if resp_data.get("errorId") != 0:
+                l("ERR", f"❌ Error 2Captcha createTask: {resp_data}")
+                return await solve_slider_2captcha(page, logger=l)
+
+            task_id = resp_data.get("taskId")
+            l("INFO", f"⏳ Tarea {task_id} creada exitosamente en 2Captcha. Esperando solución (hasta 90s)...")
+
+            max_wait = 90
+            start_time = time.time()
+            code = None
+
+            while time.time() - start_time < max_wait:
+                await asyncio.sleep(5)
+                res = await client.post("https://api.2captcha.com/getTaskResult", json={
+                    "clientKey": TWOCAPTCHA_API_KEY,
+                    "taskId": task_id
+                }, timeout=15)
+                
+                res_data = res.json()
+                if res_data.get("errorId") != 0:
+                    l("ERR", f"❌ Error 2Captcha getTaskResult: {res_data}")
+                    break
+
+                status = res_data.get("status")
+                if status == "ready":
+                    solution = res_data.get("solution", {})
+                    # La cookie viene dentro del dict solution
+                    code = solution.get("cookie")
+                    break
+                elif status == "processing":
+                    continue
+                else:
+                    l("WARN", f"Estado de tarea 2Captcha desconocido: {status}")
+                    break
+
+            if not code:
+                l("WARN", "DataDome API task completada pero no se recibió cookie. Fallback a coordenadas.")
+                return await solve_slider_2captcha(page, logger=l)
 
             # Inject the cookie via Playwright's native API (far more reliable than JS document.cookie)
             try:
                 domain = ".idealista.com"  # Ampliado al dominio raíz para que los scripts de validación lo lean bien
+                # Some API responses might include the 'datadome=' prefix
+                if 'datadome=' in code:
+                    m = re.search(r'datadome=([^;]+)', code)
+                    code = m.group(1).strip() if m else code
+                    
                 await page.context.add_cookies([{
                     'name': 'datadome',
-                    'value': cookie_value,
+                    'value': code.strip(),
                     'domain': domain,
                     'path': '/',
                     'secure': True,
@@ -1089,17 +1120,18 @@ async def solve_slider_2captcha(page, logger=None):
             # 5. Verification: Check if captcha container is still present/visible
             await asyncio.sleep(3)
             still_there = False
-            try:
-                # Re-check the container visibility
-                curr_container = await page.query_selector(selectors[0]) # Use first/main selector
-                if curr_container and await curr_container.is_visible():
-                    still_there = True
-            except: pass
+            # Update trailing log logic to verify the DOM more robustly
+            is_still_blocked = await page.evaluate(r"""() => {
+                const hasCaptchaContainer = document.querySelector(".px-captcha-container, #captcha-container, #challenge-container, .geetest_holder, .nc-container, div[class*='captcha'], div[id*='captcha'], iframe[title*='captcha'], iframe[src*='captcha'], .captcha-box");
+                const hasWarningText = document.body && document.body.innerText.toLowerCase().includes('estamos recibiendo muchas peticiones');
+                return !!(hasCaptchaContainer && hasCaptchaContainer.offsetParent !== null || hasWarningText);
+            }""")
             
-            if still_there:
-                l("WARN", "⚠️ El slider se movió pero el captcha sigue visible.")
+            if is_still_blocked:
+                l("WARN", "⚠️ El slider se movió pero el captcha sigue visible o la página sigue bloqueada.")
                 return False
                 
+            l("OK", "✅ 2Captcha Coordinates solved!")
             return True
             
     except Exception as e:
@@ -1107,6 +1139,8 @@ async def solve_slider_2captcha(page, logger=None):
         
     l("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
     return False
+
+
 
 async def solve_captcha_advanced(page, logger=None):
     """Orchestrator for CAPTCHA solving: Slider (Local) -> DataDome -> 2Captcha (Slider/GeeTest)."""
