@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.9.34] - 2026-02-28
+### Fixed
+- **Error API 2Captcha (`ERROR_BAD_PARAMETERS`)**: Resuelto el fallo de formateo producido por el cliente oficial de `twocaptcha-python` al invocar el método de DataDome, el cual no desempaquetaba correctamente la configuración del proxy. La llamada a la API ahora puentea el wrapper, utilizando explícitamente los parámetros `proxy` y `proxytype` de manera directa para garantizar que el trabajador asigne correctamente la IP remota.
+- **Error de Fallback Slider (`Unexpected result format`)**: Subsanado fallo del parser de coordenadas utilizado como _último recurso_, que extraía un string dict `{'code': 'coordinates:x=...,y=...'}` resultando en error de inferencia para clics de Puppeteer. El algoritmo ahora trocea el array de coordenadas anidadas resolviendo el centro asíncrono.
 ## [2.9.33] - 2026-02-28
 ### Fixed
 - **Resolución Crítica CAPTCHA DataDome**: Subsanado fallo del solver DataDome donde la cookie se inyectaba exitosamente pero el desafío seguía en pantalla.

@@ -797,14 +797,18 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
         # 2. Get proxy dict
         proxy_dict = get_2captcha_proxy_dict()
         
-        # 3. Call datadome solver
-        # The 2captcha-python SDK datadome method requires the proxy parameter as a dictionary.
-        result = await ASYNC_SOLVER.datadome(
-            captcha_url=captcha_url,
-            pageurl=page_url,
-            userAgent=user_agent,
-            proxy=proxy_dict
-        )
+        # 3. Call datadome solver directly via solve() to avoid library bugs with proxy dict parsing
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = await ASYNC_SOLVER.solve(
+                method="datadome",
+                captcha_url=captcha_url,
+                pageurl=page_url,
+                userAgent=user_agent,
+                proxy=proxy_dict.get('uri'),
+                proxytype=proxy_dict.get('type')
+            )
         
         # The SDK returns the full cookie string or just the value.
         # Extract the raw cookie value from whatever format is returned.
@@ -949,18 +953,36 @@ async def solve_slider_2captcha(page, logger=None):
             except: pass
             
         # Type-safe parsing of 2Captcha coordinates result to prevent KeyError
+        # result for coordinates can be a list or a dict {'captchaId': '...', 'code': 'coordinates:x=614,y=390'}
+        # or {'0': {'x': '20', 'y': '30'}}
         if result:
+            tx, ty = 0.0, 0.0
+            parsed_successfully = False
+            
             if isinstance(result, list) and len(result) > 0:
                 target = result[0]
-            elif isinstance(result, dict) and '0' in result:
-                # Algunas versiones del API devuelven dict: {"0": {"x": "20", "y": "30"}}
-                target = result['0']
-            else:
+                tx = float(target.get('x', 0))
+                ty = float(target.get('y', 0))
+                parsed_successfully = True
+            elif isinstance(result, dict):
+                code = result.get('code')
+                if code and isinstance(code, str) and 'coordinates:' in code:
+                    # Example: 'coordinates:x=614,y=390' OR 'coordinates:x=244,y=80;x=474,y=558'
+                    # We only care about the first point
+                    first_coord = code.split(';')[0].replace('coordinates:', '') # 'x=614,y=390'
+                    parts = dict(kv.split('=') for kv in first_coord.split(','))
+                    tx = float(parts.get('x', 0))
+                    ty = float(parts.get('y', 0))
+                    parsed_successfully = True
+                elif '0' in result:
+                    target = result['0']
+                    tx = float(target.get('x', 0))
+                    ty = float(target.get('y', 0))
+                    parsed_successfully = True
+                    
+            if not parsed_successfully:
                 l("ERR", f"Unexpected result format from 2Captcha coordinates: {result}")
                 return False
-                
-            tx = float(target.get('x', 0))
-            ty = float(target.get('y', 0))
             
             box = await container.bounding_box()
             if not box: return False
