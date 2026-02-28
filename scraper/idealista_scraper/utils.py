@@ -613,45 +613,80 @@ async def simulate_human_interaction(page):
 async def solve_slider_captcha(page):
     """Automatically solve 'Slide to the Right' CAPTCHA with human-like dragging."""
     try:
+        # Determine the target frame (DataDome puts everything inside an iframe)
+        target_frame = page
+        
+        # Check for DataDome iframe
+        iframe_element = await page.query_selector('iframe[src*="captcha-delivery.com"]')
+        if iframe_element:
+            frame = await iframe_element.content_frame()
+            if frame:
+                target_frame = frame
+                
         # 1. Identify the slider handle
-        # Common selectors for slider captchas (Idealista uses specific ones, but we check common ones)
         selectors = [
             ".geetest_slider_button", ".nc_iconfont.btn_slide", "#nc_1_n1z", 
             ".slid_btn", ".captcha_slider", "div[role='button'][aria-label*='slider']",
-            ".px-captcha-container .px-captcha-slider-button" # PerimeterX/DataDome common
+            ".px-captcha-container .px-captcha-slider-button",
+            "div[class*='slider-handle']", "div[class*='captcha-slider-handle']",
+            ".arrow-right", "button[aria-label*='Slide']", "button[aria-label*='Desliza']"
         ]
         
         handle = None
         for sel in selectors:
-            handle = await page.query_selector(sel)
-            if handle and await handle.is_visible():
-                break
+            try:
+                h = await target_frame.query_selector(sel)
+                if h and await h.is_visible():
+                    handle = h
+                    break
+            except: continue
         
         if not handle:
             # Try finding by icon or style if specific selector fails
-            handle = await page.query_selector("span:has-text('→'), .arrow-right, [class*='slider']")
-            if not handle or not await handle.is_visible():
-                return False
+            try:
+                h = await target_frame.query_selector("span:has-text('→'), div[aria-label*='Slide to right'], div[aria-label*='Desliza hacia la derecha']")
+                if h and await h.is_visible():
+                    handle = h
+            except: pass
+            
+        if not handle:
+            return False
 
         # 2. Get bounding boxes
         box = await handle.bounding_box()
         if not box:
             return False
             
+        # If the handle is inside an iframe, we must adjust coordinates relative to the page
+        if target_frame != page and iframe_element:
+            iframe_box = await iframe_element.bounding_box()
+            if iframe_box:
+                box['x'] += iframe_box['x']
+                box['y'] += iframe_box['y']
         start_x = box['x'] + box['width'] / 2
         start_y = box['y'] + box['height'] / 2
         
         # Track length - usually around 250-300px, or we try to find the container
-        container = await page.query_selector(".geetest_slider, .nc-container, .captcha_track, [class*='track']")
+        container = await target_frame.query_selector(".geetest_slider, .nc-container, .captcha_track, [class*='track'], [class*='slider-track']")
         if container:
             cbox = await container.bounding_box()
             distance = cbox['width'] - box['width'] if cbox else 260
         else:
-            distance = 260 + random.randint(-10, 10)
+            if iframe_element:
+                container = await target_frame.query_selector(".px-captcha-container, body")
+                if container:
+                    cbox = await container.bounding_box()
+                    distance = cbox['width'] - box['width'] - 15 if cbox else 250
+                else:
+                    distance = 260 + random.randint(-5, 5)
+            else:
+                distance = 260 + random.randint(-10, 10)
 
         # 3. Perform human-like drag
         await page.mouse.move(start_x, start_y)
+        await asyncio.sleep(random.uniform(0.1, 0.3))
         await page.mouse.down()
+        await asyncio.sleep(random.uniform(0.1, 0.3))
         
         current_x = start_x
         steps = random.randint(15, 25)
