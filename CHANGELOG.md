@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.9.33] - 2026-02-28
+### Fixed
+- **Resolución Crítica CAPTCHA DataDome**: Subsanado fallo del solver DataDome donde la cookie se inyectaba exitosamente pero el desafío seguía en pantalla.
+    - **Ámbito del Cookie**: El dominio de inyección de la cookie `datadome` se amplió de web estricta (`www.idealista.com`) a dominio raíz (`.idealista.com`), posibilitando la lectura por scripts anti-fraude.
+    - **Validación Falsa**: Eliminada comprobación de `page.title()`. Fue sustituida por lectura del DOM interno validando la desaparición concluyente del `iframe` `captcha-delivery.com`.
+    - **Corrección Fallback de Coordenadas (KeyError)**: Se arregló el crash `KeyError: 0` ocasionado al fallar la recuperación de solución desde 2Captcha tras un Timeout inicial, permitiendo continuar la ejecución mediante rotación normal de perfiles de navegación en lugar de matar el programa.
+    - **Remoción de Flag Bot**: Eliminado `--disable-blink-features=AutomationControlled` de los scripts de lanzamiento en background para extinguir la barra superior nativa de Chromium, la cual DataDome detectaba ocasionando recargas de CAPTCHAs instantáneas e interminables ("Reintentar").
+
 ## [2.9.32] - 2026-02-27
 ### Fixed
 - **Integridad de Datos Crítica (Pérdida de Filas Excel)**: Resuelto el fallo masivo que eliminaba filas de los ficheros Excel durante el proceso de scraping.
