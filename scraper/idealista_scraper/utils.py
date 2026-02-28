@@ -804,48 +804,72 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
             proxy=proxy_dict
         )
         
+        # The SDK returns the full cookie string or just the value.
+        # Extract the raw cookie value from whatever format is returned.
         code = None
         if isinstance(result, str):
             code = result
         elif isinstance(result, dict):
-            code = result.get('code')
-            
+            # SDK may return {'code': '...'} or the raw solution dict
+            code = result.get('code') or result.get('cookie')
+
         if code:
-            l("OK", "✅ 2Captcha devolvió el token de DataDome. Inyectando...")
-            
-            # Inject solution into the page
-            # DataDome usually requires calling a callback or setting a cookie
-            # Often it's enough to call the callback function provided by DataDome
-            success = await page.evaluate(f"""(token) => {{
-                try {{
-                    if (window.captchaCallback) {{
-                        window.captchaCallback(token);
-                        return true;
-                    }}
-                    // If no explicit callback, try to find the hidden input or form
-                    const input = document.querySelector('input[name="g-recaptcha-response"]');
-                    if (input) {{
-                        input.value = token;
-                        const form = input.form;
-                        if (form) form.submit();
-                        return true;
-                    }}
-                    return false;
-                }} catch (e) {{
-                    return false;
-                }}
-            }}""", code)
-            
-            if not success:
-                l("WARN", "No se encontró callback automático para inyectar el token.")
-            
-            await asyncio.sleep(5)
-            return True
-            
+            l("OK", "✅ 2Captcha devolvió el token de DataDome. Inyectando como cookie...")
+
+            # DataDome solution is a cookie, NOT a JS callback.
+            # The response looks like: "datadome=XXXX; Path=/; Secure; SameSite=Lax"
+            # or just the raw value "XXXX". We extract the value part.
+            cookie_value = None
+            if 'datadome=' in code:
+                m = re.search(r'datadome=([^;]+)', code)
+                cookie_value = m.group(1).strip() if m else None
+            else:
+                cookie_value = code.strip()
+
+            if not cookie_value:
+                l("WARN", "No se pudo parsear el valor del cookie DataDome del token recibido.")
+                return False
+
+            # Inject the cookie via Playwright's native API (far more reliable than JS document.cookie)
+            try:
+                domain = urlparse(page_url).netloc   # e.g. "www.idealista.com"
+                await page.context.add_cookies([{
+                    'name': 'datadome',
+                    'value': cookie_value,
+                    'domain': domain,
+                    'path': '/',
+                    'secure': True,
+                    'sameSite': 'Lax'
+                }])
+                l("OK", f"🍪 Cookie 'datadome' inyectada correctamente en dominio: {domain}")
+            except Exception as cookie_err:
+                l("ERR", f"Error inyectando cookie DataDome: {cookie_err}")
+                return False
+
+            # Reload the ORIGINAL page (not the captcha URL) so DataDome reads the new cookie
+            l("INFO", f"🔄 Recargando página original para verificar acceso: {page_url[:60]}...")
+            try:
+                await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
+            except Exception as nav_err:
+                l("WARN", f"Error al recargar la página tras inyección: {nav_err}")
+                return False
+
+            await asyncio.sleep(3)
+
+            # Real success check — only return True if the page actually loaded
+            title = (await page.title()).lower()
+            block_kws = ['captcha', 'attention', 'robot', 'challenge', 'verification', 'acceso bloqueado', 'blocked']
+            if 'idealista' in title and not any(kw in title for kw in block_kws):
+                l("OK", "✅ DataDome resuelto: página de Idealista cargada correctamente.")
+                return True
+
+            l("WARN", f"⚠️ Cookie inyectada pero la página sigue bloqueada (title: '{title[:60]}')")
+            return False
+
     except Exception as e:
         l("ERR", f"Error en solver DataDome de 2Captcha: {type(e).__name__}: {e}")
-        
-    # Final fallback if dedicated fails
+
+    # Final fallback if dedicated solver fails entirely
     l("INFO", "Intento fallido con DataDomeSliderTask. Probando coordenadas como último recurso...")
     return await solve_slider_2captcha(page, logger=l)
 
