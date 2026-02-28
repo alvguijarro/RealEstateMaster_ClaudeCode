@@ -33,16 +33,34 @@ except ImportError:
 if not TWOCAPTCHA_API_KEY:
     TWOCAPTCHA_API_KEY = os.environ.get("TWOCAPTCHA_API_KEY", "f49b4e9ed2e2b36add9c6ef3af3e6e4c")
 
+# Sync solver (TwoCaptcha) — used for screenshots/coordinates
 try:
     from twocaptcha import TwoCaptcha
-    from twocaptcha.async_solver import AsyncTwoCaptcha
     SOLVER = TwoCaptcha(TWOCAPTCHA_API_KEY) if TWOCAPTCHA_API_KEY else None
-    ASYNC_SOLVER = AsyncTwoCaptcha(TWOCAPTCHA_API_KEY) if TWOCAPTCHA_API_KEY else None
-except ImportError:
+except Exception as _e:
     TwoCaptcha = None
-    AsyncTwoCaptcha = None
     SOLVER = None
+
+# Async solver (AsyncTwoCaptcha) — used for DataDome / GeeTest
+try:
+    from twocaptcha.async_solver import AsyncTwoCaptcha
+    ASYNC_SOLVER = AsyncTwoCaptcha(TWOCAPTCHA_API_KEY) if TWOCAPTCHA_API_KEY else None
+except Exception as _e:
+    AsyncTwoCaptcha = None
     ASYNC_SOLVER = None
+
+# --- Startup diagnostics ---
+if SOLVER:
+    _key_tail = TWOCAPTCHA_API_KEY[-4:] if TWOCAPTCHA_API_KEY else '????'
+    print(f"[2Captcha] ✅ SOLVER sync listo (key: ...{_key_tail})")
+else:
+    print("[2Captcha] ⚠️  SOLVER sync NO disponible (import fallida o key inválida)")
+
+if ASYNC_SOLVER:
+    _key_tail = TWOCAPTCHA_API_KEY[-4:] if TWOCAPTCHA_API_KEY else '????'
+    print(f"[2Captcha] ✅ ASYNC_SOLVER listo (key: ...{_key_tail})")
+else:
+    print("[2Captcha] ⚠️  ASYNC_SOLVER NO disponible (import fallida o key inválida)")
 
 
 
@@ -1083,7 +1101,7 @@ async def solve_captcha_advanced(page, logger=None):
                  l("OK", "✅ 2Captcha Coordinates solved!")
                  return True
     else:
-        l("WARN", "2Captcha no disponible (Sin API Key).")
+        l("WARN", "2Captcha no disponible (import fallida o API Key inválida — ver log de arranque).")
         
     l("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
     return False
