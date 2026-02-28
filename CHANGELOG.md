@@ -2,6 +2,7 @@
 
 ## [2.9.34] - 2026-02-28
 ### Fixed
+- **Bypass Nativo de DataDome (Proxyless)**: Reparada la resolución local del slider (que evita el uso de 2Captcha). El algoritmo de Playwright ahora es capaz de buscar recursivamente dentro del iframe `captcha-delivery.com` para encontrar el botón deslizable y moverlo nativamente, esquivando el uso de la API REST. Esto soluciona de raíz el fallo de IP mismatch donde DataDome rechazaba la cookie devuelta por 2Captcha al no coincidir la IP del solver con la de tu navegador local.
 - **Error API 2Captcha (`ERROR_BAD_PARAMETERS`)**: Resuelto el fallo de formateo producido por el cliente oficial de `twocaptcha-python` al invocar el método de DataDome, el cual no desempaquetaba correctamente la configuración del proxy. La llamada a la API ahora puentea el wrapper, utilizando explícitamente los parámetros `proxy` y `proxytype` de manera directa para garantizar que el trabajador asigne correctamente la IP remota.
 - **Error de Fallback Slider (`Unexpected result format`)**: Subsanado fallo del parser de coordenadas utilizado como _último recurso_, que extraía un string dict `{'code': 'coordinates:x=...,y=...'}` resultando en error de inferencia para clics de Puppeteer. El algoritmo ahora trocea el array de coordenadas anidadas resolviendo el centro asíncrono.
 ## [2.9.33] - 2026-02-28
