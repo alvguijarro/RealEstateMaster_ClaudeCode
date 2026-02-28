@@ -6,6 +6,7 @@
     - **Ámbito del Cookie**: El dominio de inyección de la cookie `datadome` se amplió de web estricta (`www.idealista.com`) a dominio raíz (`.idealista.com`), posibilitando la lectura por scripts anti-fraude.
     - **Validación Falsa**: Eliminada comprobación de `page.title()`. Fue sustituida por lectura del DOM interno validando la desaparición concluyente del `iframe` `captcha-delivery.com`.
     - **Corrección Fallback de Coordenadas (KeyError)**: Se arregló el crash `KeyError: 0` ocasionado al fallar la recuperación de solución desde 2Captcha tras un Timeout inicial, permitiendo continuar la ejecución mediante rotación normal de perfiles de navegación en lugar de matar el programa.
+    - **Afinación de Timeouts (Fail Fast)**: Se redujo el tiempo de espera de la librería `twocaptcha-python` de 120s a 90s para DataDome (y a 60s para Coordenadas). Si los workers de 2Captcha se demoran más de minuto y medio, la sesión de Idealista habrá caducado mostrando el botón "REINTENTAR". Es preferible abortar rápido y rotar IP a quedarse bloqueado 5 minutos esperando una solución que el servidor de Idealista rechazará.
     - **Remoción de Flag Bot**: Eliminado `--disable-blink-features=AutomationControlled` de los scripts de lanzamiento en background para extinguir la barra superior nativa de Chromium, la cual DataDome detectaba ocasionando recargas de CAPTCHAs instantáneas e interminables ("Reintentar").
 
 ## [2.9.32] - 2026-02-27

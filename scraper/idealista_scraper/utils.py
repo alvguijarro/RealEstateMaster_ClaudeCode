@@ -36,7 +36,8 @@ if not TWOCAPTCHA_API_KEY:
 # Sync solver (TwoCaptcha) — used for screenshots/coordinates
 try:
     from twocaptcha import TwoCaptcha
-    SOLVER = TwoCaptcha(TWOCAPTCHA_API_KEY) if TWOCAPTCHA_API_KEY else None
+    # Timeout corto (60s) para fallar rápido si el worker tarda demasiado en coordenadas
+    SOLVER = TwoCaptcha(TWOCAPTCHA_API_KEY, defaultTimeout=60, pollingInterval=5) if TWOCAPTCHA_API_KEY else None
 except Exception as _e:
     TwoCaptcha = None
     SOLVER = None
@@ -44,7 +45,8 @@ except Exception as _e:
 # Async solver (AsyncTwoCaptcha) — used for DataDome / GeeTest
 try:
     from twocaptcha.async_solver import AsyncTwoCaptcha
-    ASYNC_SOLVER = AsyncTwoCaptcha(TWOCAPTCHA_API_KEY) if TWOCAPTCHA_API_KEY else None
+    # Timeout de 90s para DataDome: si tarda más, el challenge de Idealista habrá caducado ("REINTENTAR")
+    ASYNC_SOLVER = AsyncTwoCaptcha(TWOCAPTCHA_API_KEY, defaultTimeout=90, pollingInterval=5) if TWOCAPTCHA_API_KEY else None
 except Exception as _e:
     AsyncTwoCaptcha = None
     ASYNC_SOLVER = None
@@ -832,7 +834,7 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
 
             # Inject the cookie via Playwright's native API (far more reliable than JS document.cookie)
             try:
-                domain = ".idealista.com"  # e.g. ".idealista.com"
+                domain = ".idealista.com"  # Ampliado al dominio raíz para que los scripts de validación lo lean bien
                 await page.context.add_cookies([{
                     'name': 'datadome',
                     'value': cookie_value,
@@ -856,7 +858,7 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
 
             await asyncio.sleep(3)
 
-            # Extraer el texto completo del DOM y buscar iframes de DataDome en lugar de mirar el title
+            # Verificación real consultando el DOM (buscamos iframes de captcha o texto de advertencia)
             is_still_blocked = await page.evaluate(r"""() => {
                 const hasDataDomeIframe = !!document.querySelector('iframe[src*="captcha-delivery.com"]');
                 const hasWarningText = document.body && document.body.innerText.toLowerCase().includes('estamos recibiendo muchas peticiones');
@@ -867,7 +869,7 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
                 l("OK", "✅ DataDome resuelto: CAPTCHA desapareció exitosamente.")
                 return True
 
-            l("WARN", "⚠️ Cookie inyectada pero el CAPTCHA de DataDome sigue presente en la página.")
+            l("WARN", "⚠️ Cookie inyectada pero el CAPTCHA de DataDome sigue presente tras recargar.")
             return False
 
     except Exception as e:
@@ -946,11 +948,12 @@ async def solve_slider_2captcha(page, logger=None):
             try: os.remove(img_path)
             except: pass
             
+        # Type-safe parsing of 2Captcha coordinates result to prevent KeyError
         if result:
             if isinstance(result, list) and len(result) > 0:
                 target = result[0]
             elif isinstance(result, dict) and '0' in result:
-                # Algunas versiones del wrapper devuelven un dict {"0": {"x": "...", "y": "..."}}
+                # Algunas versiones del API devuelven dict: {"0": {"x": "20", "y": "30"}}
                 target = result['0']
             else:
                 l("ERR", f"Unexpected result format from 2Captcha coordinates: {result}")
