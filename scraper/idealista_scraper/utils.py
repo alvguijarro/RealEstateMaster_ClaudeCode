@@ -823,9 +823,23 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
             
         if not captcha_url:
             l("WARN", "No se pudo encontrar captchaUrl para DataDome.")
-            # Fallback to coordinates method if desired, but let's try to be precise first
             l("INFO", "Reintentando por método de coordenadas físicas como fallback...")
             return await solve_slider_2captcha(page, logger=l)
+
+        # ── Validación del parámetro t= en captchaUrl ─────────────────────────
+        # DataDome incluye un parámetro t en la URL del iframe:
+        #   t=fe → IP en buen estado, el challenge puede resolverse
+        #   t=bv → IP marcada como bloqueada permanentemente por DataDome
+        # Si es t=bv, 2Captcha no puede ayudar porque DataDome rechazará
+        # cualquier cookie generada para esa IP. Hay que rotar identidad.
+        # Fuente: https://2captcha.com/api-docs/datadome-slider-captcha
+        from urllib.parse import urlparse as _urlparse, parse_qs as _parse_qs
+        _parsed_captcha = _urlparse(captcha_url)
+        _t_param = _parse_qs(_parsed_captcha.query).get('t', [''])[0]
+        l("INFO", f"📋 DataDome captchaUrl → t={_t_param!r} | {captcha_url[:100]}...")
+        if _t_param == 'bv':
+            l("WARN", "⛔ t=bv: IP bloqueada permanentemente por DataDome. 2Captcha no puede resolver esta sesión. Rotando identidad...")
+            return False
 
         # 2. Call DataDomeSliderTask using the JSON API directly (bypassing the buggy twocaptcha SDK proxy parser)
         try:

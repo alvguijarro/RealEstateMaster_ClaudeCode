@@ -73,6 +73,19 @@ from idealista_scraper.config import (
     BROWSER_ROTATION_POOL, MAX_PROFILE_POOL_SIZE, PROFILE_COOLDOWN_MINUTES
 )
 from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_captcha_advanced, cleanup_stealth_profiles
+
+# Proxy para el browser: necesario para que la IP del browser coincida con la IP
+# que usa 2Captcha al resolver DataDome (de lo contrario DataDome rechaza la cookie).
+_browser_proxy = None
+try:
+    from shared.proxy_config import PROXY_CONFIG as _PROXY_CONFIG
+    _browser_proxy = {
+        "server": f"http://{_PROXY_CONFIG['host']}:{_PROXY_CONFIG['port']}",
+        "username": _PROXY_CONFIG['login'],
+        "password": _PROXY_CONFIG['password'],
+    }
+except Exception:
+    _browser_proxy = None
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
@@ -2286,6 +2299,7 @@ class ScraperController:
                                         ignore_default_args=["-foreground"],
                                         executable_path=executable_path,
                                         timeout=120000, # Increased to 120s for Windows Juggler stability
+                                        proxy=_browser_proxy,
                                     )
                                 elif engine == "webkit": # Webkit (Safari-like)
                                     ctx = await pw.webkit.launch_persistent_context(
@@ -2293,6 +2307,7 @@ class ScraperController:
                                         headless=False,
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         timeout=120000, # Increased to 120s
+                                        proxy=_browser_proxy,
                                     )
                                 else:
                                     # Chromium / Chrome / Edge / Brave / Opera / Iron / Falkon
@@ -2330,6 +2345,7 @@ class ScraperController:
                                         channel=launch_channel,
                                         executable_path=executable_path,
                                         timeout=60000, # 60s for Chromium
+                                        proxy=_browser_proxy,
                                     )
                                 if ctx: break
                             except Exception as le:
