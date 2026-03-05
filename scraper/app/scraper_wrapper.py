@@ -76,16 +76,23 @@ from idealista_scraper.utils import same_domain, canonical_listing_url, is_listi
 
 # Proxy para el browser: necesario para que la IP del browser coincida con la IP
 # que usa 2Captcha al resolver DataDome (de lo contrario DataDome rechaza la cookie).
-_browser_proxy = None
-try:
-    from shared.proxy_config import PROXY_CONFIG as _PROXY_CONFIG
-    _browser_proxy = {
-        "server": f"http://{_PROXY_CONFIG['host']}:{_PROXY_CONFIG['port']}",
-        "username": _PROXY_CONFIG['login'],
-        "password": _PROXY_CONFIG['password'],
-    }
-except Exception:
-    _browser_proxy = None
+def _build_browser_proxy():
+    """Build fresh Playwright proxy dict using current sticky session ID."""
+    try:
+        from shared.proxy_config import PROXY_CONFIG as _PC
+        login = _PC['login']
+        sid = _PC.get('sticky_session_id')
+        if sid:
+            login = f"{login}-session-{sid}"
+        return {
+            "server": f"http://{_PC['host']}:{_PC['port']}",
+            "username": login,
+            "password": _PC['password'],
+        }
+    except Exception:
+        return None
+
+_browser_proxy = _build_browser_proxy()
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
@@ -371,8 +378,8 @@ def rotate_identity():
 # Constants for backward compatibility (mapped to current profile)
 # These will be dynamically resolved in the class, but we keep the variables
 STEALTH_PROFILE_DIR = get_profile_dir(get_current_profile_config()["index"])
-# Legacy compatibility for run_batch.py and others
-BROWSER_ENGINES = ["chromium", "firefox", "webkit"]
+# Legacy compatibility for run_batch.py and others (Chromium-only; Firefox/Webkit removed)
+BROWSER_ENGINES = ["chromium"]
 
 def load_profile_cooldowns() -> dict: return {}
 def save_profile_cooldowns(cooldowns: dict) -> None: pass
@@ -476,13 +483,15 @@ def get_random_gpu():
     import random
     return random.choice(GPU_FINGERPRINTS)
 
-# Generate GPU values at module load (per session)
-_GPU_VENDOR, _GPU_RENDERER = get_random_gpu()
-
 # Deep fingerprint spoofing script - injected before any page load
 # Uses f-string to inject randomized GPU values
-def generate_stealth_script():
-    """Generate stealth script with randomized GPU fingerprint and advanced noise."""
+def generate_stealth_script(gpu_vendor=None, gpu_renderer=None):
+    """Generate stealth script with randomized GPU fingerprint and advanced noise.
+
+    GPU values are randomized per call (per browser session) if not provided.
+    """
+    if gpu_vendor is None or gpu_renderer is None:
+        gpu_vendor, gpu_renderer = get_random_gpu()
     return f'''
 // ==================== PHASE 1: DEEP FINGERPRINT SPOOFING ====================
 
@@ -492,18 +501,9 @@ try {{
     if (window.chrome && window.chrome.runtime) {{
         delete window.chrome.runtime;
     }}
-    
-    // Hide cdc_ variables (ChromeDriver signature)
-    const originalCall = Function.prototype.call;
-    Function.prototype.call = function(...args) {{
-        if (args[0] && typeof args[0] === 'object') {{
-            const str = String(args[0]);
-            if (str.includes('cdc_') || str.includes('$cdc_')) {{
-                return undefined;
-            }}
-        }}
-        return originalCall.apply(this, args);
-    }};
+    // cdc_ variables are cleaned up directly in section 8 below (delete window.cdc_...)
+    // Note: Function.prototype.call hook removed — intercepting ALL .call() invocations
+    // can break legitimate JS on Idealista and trigger detection by DataDome.
 }} catch (e) {{}}
 
 // 2. Spoof WebGL to match a real GPU (randomized per session)
@@ -511,38 +511,39 @@ try {{
     const getParameterProto = WebGLRenderingContext.prototype.getParameter;
     WebGLRenderingContext.prototype.getParameter = function(param) {{
         // UNMASKED_VENDOR_WEBGL
-        if (param === 37445) return '{_GPU_VENDOR}';
-        // UNMASKED_RENDERER_WEBGL  
-        if (param === 37446) return '{_GPU_RENDERER}';
+        if (param === 37445) return '{gpu_vendor}';
+        // UNMASKED_RENDERER_WEBGL
+        if (param === 37446) return '{gpu_renderer}';
         return getParameterProto.call(this, param);
     }};
-    
+
     // Also patch WebGL2
     if (typeof WebGL2RenderingContext !== 'undefined') {{
         const getParameter2Proto = WebGL2RenderingContext.prototype.getParameter;
         WebGL2RenderingContext.prototype.getParameter = function(param) {{
-            if (param === 37445) return '{_GPU_VENDOR}';
-            if (param === 37446) return '{_GPU_RENDERER}';
+            if (param === 37445) return '{gpu_vendor}';
+            if (param === 37446) return '{gpu_renderer}';
             return getParameter2Proto.call(this, param);
         }};
     }}
 }} catch (e) {{}}
 
-// 3. Add realistic navigator.plugins
+// 3. Add realistic navigator.plugins (PluginArray-like with Symbol.iterator)
 try {{
+    const pluginData = [
+        {{type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format', name: 'Chrome PDF Plugin'}},
+        {{type: 'application/pdf', suffixes: 'pdf', description: '', name: 'Chrome PDF Viewer'}},
+        {{type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable', name: 'Native Client'}}
+    ];
+    const plugins = Object.create(PluginArray.prototype);
+    pluginData.forEach((p, i) => {{ plugins[i] = p; }});
+    Object.defineProperty(plugins, 'length', {{value: pluginData.length, writable: false, enumerable: true}});
+    plugins[Symbol.iterator] = function*() {{ for (let i = 0; i < this.length; i++) yield this[i]; }};
+    plugins.item = function(i) {{ return this[i] || null; }};
+    plugins.namedItem = function(name) {{ for (let i = 0; i < this.length; i++) {{ if (this[i].name === name) return this[i]; }} return null; }};
+    plugins.refresh = function() {{}};
     Object.defineProperty(navigator, 'plugins', {{
-        get: () => {{
-            const plugins = {{
-                0: {{type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format', name: 'Chrome PDF Plugin'}},
-                1: {{type: 'application/pdf', suffixes: 'pdf', description: '', name: 'Chrome PDF Viewer'}},
-                2: {{type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable', name: 'Native Client'}},
-                length: 3,
-                item: (i) => plugins[i],
-                namedItem: (name) => Object.values(plugins).find(p => p.name === name),
-                refresh: () => {{}}
-            }};
-            return plugins;
-        }}
+        get: () => plugins
     }});
 }} catch (e) {{}}
 
@@ -573,13 +574,15 @@ try {{
     }};
 }} catch (e) {{}}
 
-// 7. Override connection info
+// 7. Override connection info (jittered per session)
 try {{
+    const rtt = [50, 75, 100, 150][Math.floor(Math.random() * 4)];
+    const downlink = [1.5, 5, 10, 15][Math.floor(Math.random() * 4)];
     Object.defineProperty(navigator, 'connection', {{
         get: () => ({{
             effectiveType: '4g',
-            rtt: 50,
-            downlink: 10,
+            rtt: rtt,
+            downlink: downlink,
             saveData: false
         }})
     }});
@@ -596,13 +599,15 @@ try {{
     }});
 }} catch (e) {{}}
 
-// 9. Extra Hardware Randomization
+// 9. Extra Hardware Randomization (varied per session)
 try {{
-    Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => 8 }});
-    Object.defineProperty(navigator, 'deviceMemory', {{ get: () => 8 }});
+    const cores = [4, 6, 8, 12, 16][Math.floor(Math.random() * 5)];
+    const mem = [4, 8, 8, 16][Math.floor(Math.random() * 4)];
+    Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => cores }});
+    Object.defineProperty(navigator, 'deviceMemory', {{ get: () => mem }});
 }} catch (e) {{}}
 
-// 11. ADVANCED: Canvas Noise Fingerprinting
+// 11. ADVANCED: Canvas Noise Fingerprinting (toDataURL + getImageData)
 try {{
     const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
     HTMLCanvasElement.prototype.toDataURL = function(type) {{
@@ -610,29 +615,57 @@ try {{
             const ctx = this.getContext('2d');
             if (ctx) {{
                 const imageData = ctx.getImageData(0, 0, 1, 1);
-                imageData.data[0] = (imageData.data[0] + 1) % 255; // Subtlest noise
+                imageData.data[0] = (imageData.data[0] + 1) % 255;
                 ctx.putImageData(imageData, 0, 0);
             }}
         }}
         return originalToDataURL.apply(this, arguments);
     }};
+    const origGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+    CanvasRenderingContext2D.prototype.getImageData = function() {{
+        const data = origGetImageData.apply(this, arguments);
+        data.data[0] = (data.data[0] + 1) % 255;
+        return data;
+    }};
 }} catch (e) {{}}
 
-// 12. ADVANCED: WebRTC IP Protection
+// 12. ADVANCED: WebRTC IP Protection (Complete — blocks all real IP leaks via STUN/TURN)
 try {{
-    if (window.RTCPerformerConnection || window.RTCPeerConnection) {{
-        const originalRTC = window.RTCPeerConnection || window.RTCPerformerConnection;
-        window.RTCPeerConnection = function(...args) {{
-            const conn = new originalRTC(...args);
-            const originalAddIceCandidate = conn.addIceCandidate;
-            conn.addIceCandidate = function(candidate) {{
-                if (candidate && candidate.candidate && candidate.candidate.includes('192.168.')) {{
-                     return Promise.resolve();
-                }}
-                return originalAddIceCandidate.apply(this, arguments);
-            }};
-            return conn;
+    // Replace RTCPeerConnection with a stub that never exposes real IPs.
+    // DataDome doesn't require functional WebRTC to pass validation.
+    const RTCStub = function() {{
+        return {{
+            close: () => {{}},
+            createDataChannel: () => ({{}}),
+            createOffer: () => Promise.resolve({{}}),
+            createAnswer: () => Promise.resolve({{}}),
+            setLocalDescription: () => Promise.resolve(),
+            setRemoteDescription: () => Promise.resolve(),
+            addIceCandidate: () => Promise.resolve(),
+            addEventListener: () => {{}},
+            removeEventListener: () => {{}},
+            getStats: () => Promise.resolve(new Map()),
+            getSenders: () => [],
+            getReceivers: () => [],
+            onicecandidate: null,
+            ontrack: null,
+            ondatachannel: null,
+            onnegotiationneeded: null,
+            onsignalingstatechange: null,
+            oniceconnectionstatechange: null,
+            onicegatheringstatechange: null,
+            onconnectionstatechange: null,
+            signalingState: 'closed',
+            iceConnectionState: 'closed',
+            connectionState: 'closed',
+            iceGatheringState: 'complete'
         }};
+    }};
+    if (window.RTCPeerConnection) {{
+        window.RTCPeerConnection = RTCStub;
+    }}
+    if (window.webkitRTCPeerConnection) {{
+        window.webkitRTCPeerConnection = RTCStub;
     }}
 }} catch (e) {{}}
 
@@ -651,7 +684,7 @@ try {{
 // 14. MODERN: userAgentData Spoofing
 try {{
     if (navigator.userAgentData) {{
-        const majorVersion = (navigator.userAgent.match(/Chrome\/(\d+)/) || [null, '133'])[1];
+        const majorVersion = (navigator.userAgent.match(/Chrome\\/(\\d+)/) || [null, '137'])[1];
         const brands = [
             {{ brand: 'Not(A:Brand', version: '99' }},
             {{ brand: 'Google Chrome', version: majorVersion }},
@@ -666,7 +699,7 @@ try {{
                     brands: brands,
                     mobile: false,
                     platform: 'Windows',
-                    platformVersion: '15.0.0',
+                    platformVersion: ['10.0.0', '15.0.0'][Math.floor(Math.random() * 2)],
                     architecture: 'x86',
                     model: '',
                     uaFullVersion: `${{majorVersion}}.0.0.0`
@@ -676,10 +709,9 @@ try {{
     }}
 }} catch (e) {{}}
 
-console.log('[STEALTH] Advanced anti-detection active (Canvas/WebRTC/Fonts/UAData) - GPU: {_GPU_RENDERER}');
 '''
 
-# For backward compatibility, generate the script at module load
+# For backward compatibility, generate a default script at module load
 DEEP_STEALTH_SCRIPT = generate_stealth_script()
 
 
@@ -1040,7 +1072,7 @@ class ScraperController:
     
     # Checkpoint saving state
     _last_checkpoint_idx: int = 0  # Index of last saved property
-    _checkpoint_interval: int = 50  # Save every N properties
+    _checkpoint_interval: int = 20  # Save every N properties
     _target_file: Optional[str] = None  # Cached target filename for checkpoints
     
     # Smart Enrichment state
@@ -1568,95 +1600,47 @@ class ScraperController:
 
     async def _check_for_blocks(self, page) -> Optional[str]:
         """
-        Thoroughly check if the page is a CAPTCHA or a block.
+        Check if the page is a CAPTCHA or a block.
         Returns "block", "captcha", or None.
+        Verification screens ('Verificación del dispositivo') are NOT blocks.
         """
         try:
-            # 1. Get page title and full text
-            # Using documentElement.innerText is broader than body.innerText
+            # Verification screen is NEVER a block — caller must wait for it to resolve
+            if await self._is_verification_screen(page):
+                return None
+
             page_data = await page.evaluate("""
                 () => ({
                     title: document.title,
-                    text: document.documentElement ? document.documentElement.innerText : (document.body ? document.body.innerText : '')
+                    text: document.documentElement ? document.documentElement.innerText : (document.body ? document.body.innerText : ''),
+                    hasDatadome: !!(document.querySelector('iframe[src*="captcha-delivery.com"]') ||
+                                    window.dd ||
+                                    document.querySelector('script[src*="captcha-delivery.com"]'))
                 })
             """)
-            
+
             title = (page_data.get("title") or "").lower()
             text_lower = (page_data.get("text") or "").lower()
-            
-            # Normalize whitespace for reliable matching
             text_lower = re.sub(r'\s+', ' ', text_lower).strip()
-            
+            is_datadome = page_data.get("hasDatadome", False)
 
-                
-            # 2. Check for HARD BLOCKS (Highest Priority)
-            # Check for WAF/Block IDs (e.g. ID: c031717f...) or explicit block text
-            has_block_id = bool(re.search(r"id:\s*[0-9a-f]{8,32}-", text_lower))
-            
-            hard_block_keywords = [
-                "el acceso se ha bloqueado",
-                "se ha detectado un uso indebido",
-                "un uso indebido",
-                "uso no autorizado",
-                "acceso bloqueado",
-                "forbidden",
-                "access denied"
-            ]
-            
-            if any(kw in text_lower for kw in hard_block_keywords) or has_block_id:
-                reason = "Keywords" if not has_block_id else "WAF ID"
-                self.log("WARN", f"🛑 HARD BLOCK detected ({reason}). Deteniendo y rotando...")
+            # HARD BLOCK: only this exact phrase
+            if "el acceso se ha bloqueado" in text_lower:
+                self.log("WARN", "🛑 HARD BLOCK detected (El acceso se ha bloqueado). Rotando...")
                 return "block"
 
-            # 3. Check for DATADOME specifically
-            # DataDome text is inside an iframe, so top-level innerText is often empty.
-            # We must check for the iframe presence or the global 'dd' object.
-            is_datadome = await page.evaluate("""() => {
-                return !!(document.querySelector('iframe[src*="captcha-delivery.com"]') || 
-                          window.dd || 
-                          document.querySelector('script[src*="captcha-delivery.com"]'));
-            }""")
+            # CAPTCHA: DataDome iframe or "muchas peticiones tuyas"
             if is_datadome:
-                 return "captcha"
-                
-            # 4. Check for CAPTCHAs / Interstitials
-            captcha_keywords = [
-                "estamos recibiendo muchas peticiones tuyas",
-                "confirma que eres humano",
-                "verificación necesaria",
-                "un momento, por favor"
-            ]
-
-            if any(kw in text_lower for kw in captcha_keywords) or any(kw in title for kw in captcha_keywords):
-                self.log("WARN", f"CAPTCHA keywords matched: {[kw for kw in captcha_keywords if kw in text_lower or kw in title]}")
                 return "captcha"
-                
-            # 5. Check for CLOUDFLARE specifically
-            if "cloudflare" in text_lower or "checking your browser" in text_lower:
+            if "muchas peticiones tuyas" in text_lower:
+                self.log("WARN", "CAPTCHA detected (muchas peticiones tuyas)")
                 return "captcha"
 
-            # 6. Special Case: Signature of blocked/poisoned profile
-            # If we see title "idealista.com" but none of the keywords, and it's a short page,
-            # it's usually the "uso indebido" block page.
-            if title == "idealista.com" and len(text_lower) < 1200:
-                # RELIABILITY FIX: Double check if any actual cards/articles exist before flagging
-                # This prevents false positives when the page is simply slow to load its innerText
-                try:
-                    has_items = await page.evaluate("""() => {
-                        return !!document.querySelector('article, .item, [data-element-id], #h1-container');
-                    }""")
-                    if not has_items:
-                        # Before declaring block, see if we missed a captcha
-                        if is_datadome: return "captcha"
-                        
-                        self.log("WARN", "Suspiciously short 'idealista.com' page with NO property elements. Treating as BLOCK.")
-                        return "block"
-                    else:
-                        self.log("INFO", "Short page detected but property elements found. Proceeding...")
-                except:
-                    if is_datadome: return "captcha"
-                    return "block"
-            
+            # SSL/proxy certificate errors — treat as block to rotate
+            if "conexión no es privada" in text_lower or "error de privacidad" in text_lower:
+                self.log("WARN", "🛑 SSL certificate error detected. Rotando...")
+                return "block"
+
             return None
         except Exception as e:
             return None
@@ -1826,20 +1810,16 @@ class ScraperController:
                         self.log("WARN", f"CAPTCHA DETECTED on {url} (Title: '{curr_title}')")
                         
                         # Automatic/Manual solver logic...
-                        self.log("INFO", "🤖 Attempting automatic solver solve...")
+                        self.log("INFO", "Attempting automatic captcha solver...")
                         try:
                             solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=self.log), timeout=180.0)
                             if solved:
-                                try:
-                                    title_after = await asyncio.wait_for(page.title(), timeout=5.0)
-                                    if not any(kw in (title_after or "").lower() for kw in ["moment", "challenge", "robot", "captcha", "verification"]):
-                                        self.log("OK", "✅ CAPTCHA solved automatically!")
-                                        return 
-                                except: pass
+                                self.log("OK", "CAPTCHA solved automatically!")
+                                return
                         except asyncio.TimeoutError:
-                            self.log("WARN", "❌ Automatic solver timed out (180s).")
+                            self.log("WARN", "Automatic solver timed out (180s).")
                         except Exception as e:
-                            self.log("WARN", f"❌ Automatic solver error: {e}")
+                            self.log("WARN", f"Automatic solver error: {e}")
 
                         self.log("WARN", ">>> PLEASE SOLVE THE CAPTCHA MANUALLY IN THE BROWSER <<<")
                         if self.on_status: self.on_status("captcha")
@@ -2194,6 +2174,21 @@ class ScraperController:
             target_file = self.output_file # Initialize safe default
             try:
                 async with async_playwright() as pw:
+                    # ── Regenerate proxy session for fresh exit IP ──
+                    from shared.proxy_config import regenerate_session
+                    new_sid = regenerate_session()
+                    _browser_proxy = _build_browser_proxy()
+                    self.log("INFO", f"🔑 New proxy session: {new_sid}")
+                    # Reset IP-logged flag so new exit IP gets logged
+                    try:
+                        solve_datadome_2captcha = getattr(
+                            __import__('idealista_scraper.utils', fromlist=['solve_datadome_2captcha']),
+                            'solve_datadome_2captcha'
+                        )
+                        solve_datadome_2captcha._proxy_ip_logged = False
+                    except Exception:
+                        pass
+
                     # ========== ADVANCED IDENTITY ROTATION (2026) ==========
                     current_config = get_current_profile_config()
                     engine = current_config["engine"]
@@ -2205,6 +2200,7 @@ class ScraperController:
                     
                     self.log("INFO", f"🎭 Identity: {current_config['name']} (Profile {profile_index})")
                     self.log("INFO", f"📂 Directory: {os.path.basename(profile_dir)}")
+                    self.log("INFO", f"PLAYWRIGHT_BROWSERS_PATH: {os.environ.get('PLAYWRIGHT_BROWSERS_PATH', 'NOT SET')}")
                     
                     # Store current engine for block tracking
                     self.browser_engine = engine
@@ -2232,7 +2228,6 @@ class ScraperController:
                         # "--disable-web-security",  # REMOVED: Suspicious
                         # "--allow-running-insecure-content", # REMOVED: Suspicious
                         "--lang=es-ES,es", # FORCE SPANISH
-                        "--start-maximized", # Mimic human
                         "--disable-popup-blocking", # Reduce indicators
                         "--enable-features=NetworkService,NetworkServiceInProcess",
                     ]
@@ -2267,6 +2262,15 @@ class ScraperController:
                     # Silence Firefox remote settings warnings
                     os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
                     
+                    # PRE-LAUNCH: Verify browsers dir exists and is reachable
+                    pw_browsers_path = os.environ.get('PLAYWRIGHT_BROWSERS_PATH', '')
+                    if pw_browsers_path and not os.path.isdir(pw_browsers_path):
+                        self.log("ERR", f"PLAYWRIGHT_BROWSERS_PATH no existe: {pw_browsers_path}")
+                        self.log("ERR", "Ejecuta python_portable/SETUP.bat para instalar los navegadores.")
+                    elif pw_browsers_path:
+                        browser_dirs = [d for d in os.listdir(pw_browsers_path) if os.path.isdir(os.path.join(pw_browsers_path, d))]
+                        self.log("INFO", f"Navegadores disponibles en browsers/: {browser_dirs}")
+
                     # PRE-LAUNCH CLEANUP
                     self._cleanup_zombie_browsers()
                     self._clear_profile_locks(profile_dir)
@@ -2300,6 +2304,7 @@ class ScraperController:
                                         executable_path=executable_path,
                                         timeout=120000, # Increased to 120s for Windows Juggler stability
                                         proxy=_browser_proxy,
+                                        ignore_https_errors=True,
                                     )
                                 elif engine == "webkit": # Webkit (Safari-like)
                                     ctx = await pw.webkit.launch_persistent_context(
@@ -2308,6 +2313,7 @@ class ScraperController:
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         timeout=120000, # Increased to 120s
                                         proxy=_browser_proxy,
+                                        ignore_https_errors=True,
                                     )
                                 else:
                                     # Chromium / Chrome / Edge / Brave / Opera / Iron / Falkon
@@ -2346,6 +2352,7 @@ class ScraperController:
                                         executable_path=executable_path,
                                         timeout=60000, # 60s for Chromium
                                         proxy=_browser_proxy,
+                                        ignore_https_errors=True,
                                     )
                                 if ctx: break
                             except Exception as le:
@@ -2420,8 +2427,9 @@ class ScraperController:
                         
                         # ========== PHASE 1: DEEP FINGERPRINT SPOOFING ==========
                         # Inject comprehensive anti-detection script BEFORE any navigation
-                        await ctx.add_init_script(DEEP_STEALTH_SCRIPT)
-                        self.log("STEALTH", "Deep fingerprint spoofing injected")
+                        stealth_script = generate_stealth_script()
+                        await ctx.add_init_script(stealth_script)
+                        self.log("STEALTH", "Deep fingerprint spoofing injected (fresh GPU per session)")
                         
                         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
                         
@@ -2482,18 +2490,36 @@ class ScraperController:
                         self.log("ERR", f"Could not launch browser: {e}")
             
                     # Navigate to seed URL (or direct page resume)
+                    seed_nav_failed = False
+                    page_loaded_ok = False
                     try:
                         target_url = self.seed_url
                         if self.current_page > 1:
                             target_url = build_paginated_url(self.seed_url, self.current_page)
                             self.log("INFO", f"⏭️ Resuming directly from Page {self.current_page}...")
-                        
+
                         self.log("INFO", f"Navigating to: {target_url}")
                         await page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
                         await asyncio.sleep(3.0)
                         self.log("OK", "Page opened successfully")
+                        page_loaded_ok = True
                     except Exception as e:
                         self.log("ERR", f"Could not open seed URL: {e}")
+                        seed_nav_failed = True
+
+                    # --- Seed navigation failed (engine issue, not a block) → rotate without cooldown ---
+                    if seed_nav_failed:
+                        self.log("WARN", "⚡ Seed URL navigation failed (engine issue, not a block). Rotating without cooldown...")
+                        try:
+                            if 'mouse_jitter_task' in locals() and mouse_jitter_task:
+                                mouse_jitter_task.cancel()
+                            if ctx:
+                                await ctx.close()
+                        except Exception:
+                            pass
+                        rotate_identity()
+                        await self._interruptible_sleep(3)
+                        continue
             
                     # Try to dismiss cookie consent banners that might block content
                     try:
@@ -2530,7 +2556,18 @@ class ScraperController:
                         # 2. Check body text for specific block messages
                         body_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
                         text_lower = body_text.lower() if body_text else ""
-                        
+
+                        # SSL/Certificate error detection — proxy cert not trusted by browser
+                        ssl_error_keywords = [
+                            "conexión no es privada",
+                            "error de privacidad",
+                            "err_cert_authority_invalid",
+                            "your connection is not private",
+                        ]
+                        if any(kw in text_lower for kw in ssl_error_keywords):
+                            self.log("ERR", "🔒 SSL CERTIFICATE ERROR detectado (proxy cert rechazado). Rotando identidad...")
+                            raise BlockedException("SSL certificate error: proxy not trusted by browser")
+
                         # Only these two specific triggers as requested
                         if "el acceso se ha bloqueado" in text_lower:
                             self.log("WARN", "⚠️ BLOCK DETECTED: 'El acceso se ha bloqueado'")
@@ -2655,7 +2692,11 @@ class ScraperController:
                         if total_count == 0:
                             self.log("WARN", "⚠️ HARD BLOCK/CAPTCHA FAIL: 0 properties found. Initiating rotation.")
                             # ROTATION LOGIC (2026): Strict Sequential with Cooldown
-                            mark_current_profile_blocked()
+                            # Only mark as blocked if the page actually loaded (not an engine/nav issue)
+                            if page_loaded_ok:
+                                mark_current_profile_blocked()
+                            else:
+                                self.log("INFO", "⚡ Page never loaded successfully — skipping block mark (engine issue, not a real block)")
                             
                             # Save state for resume
                             self.save_state(self.current_page or 1, target_file)
@@ -3819,7 +3860,7 @@ class ScraperController:
                 if self.on_status:
                     self.on_status("blocked", error=f"Bloqueado. Rotando a Perfil {next_config['index']}...")
                 
-                # Close browser explicitly
+                # Close browser and delete profile dir immediately
                 try:
                     if 'mouse_jitter_task' in dir() and mouse_jitter_task:
                         mouse_jitter_task.cancel()
@@ -3829,17 +3870,23 @@ class ScraperController:
                         await ctx.close()
                 except:
                     pass
-                
+
+                try:
+                    self.log("INFO", f"🧹 Eliminando directorio de perfil {profile_index}...")
+                    cleanup_stealth_profiles(index=profile_index)
+                except Exception:
+                    pass
+
                 # Wait cooldown
                 try:
                     await self._interruptible_sleep(wait_time)
                 except StopException:
                     self.log("INFO", "Rollover wait cancelled by stop event.")
                     break
-                
+
                 if self._should_stop:
                     break
-                    
+
                 self.log("INFO", "🔄 Restarting browser now...")
                 continue # Loop back to start (and reuse persistent profile handling which will be fresh)
 
@@ -3859,20 +3906,21 @@ class ScraperController:
                     self.log("WARN", "⚠️ Se ha detectado un bloqueo por CAPTCHA durante el scraping.")
                     
                     # ROTATION LOGIC (2026): Strict Sequential with Cooldown
+                    # Capture profile index BEFORE rotate_identity() changes the current profile
+                    current_profile_idx = profile_index
                     mark_current_profile_blocked()
                     next_config, wait_time = rotate_identity()
-                    
+
                     self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
                     if wait_time > 0:
                         self.log("INFO", f"⏳ Profile is in cooldown ({int(wait_time)}s). Waiting...")
                     self.log("INFO", f"Restarting in {int(wait_time) + 5} seconds with fresh identity...")
                     wait_time += 5.0
-                    
+
                     if self.on_status:
                         self.on_status("blocked", error=f"CAPTCHA. Rotando a Perfil {next_config['index']}...")
-                    
-                    # Close browser explicitly
-                    current_profile_idx = get_current_profile_config()["index"]
+
+                    # Close browser and delete profile dir immediately
                     try:
                         if 'mouse_jitter_task' in dir() and mouse_jitter_task:
                             mouse_jitter_task.cancel()
@@ -3880,7 +3928,7 @@ class ScraperController:
                             await browser.close()
                         elif ctx:
                             await ctx.close()
-                        
+
                         # GRANULAR CLEANUP: Erase the blocked profile's data immediately
                         self.log("INFO", f"🧼 Cleaning up blocked Profile {current_profile_idx}...")
                         cleanup_stealth_profiles(index=current_profile_idx)
@@ -3934,6 +3982,12 @@ class ScraperController:
                 # Browser might be already closed
                 self._context = None
                 self._browser = None
+                pass
+
+            # Delete profile directory immediately after browser closes
+            try:
+                cleanup_stealth_profiles(index=profile_index)
+            except Exception:
                 pass
         
         # Log profile efficacy report

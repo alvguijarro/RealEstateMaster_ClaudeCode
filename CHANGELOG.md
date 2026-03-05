@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.9.35] - 2026-03-05
+### Fixed
+- **Diagnóstico de navegador no visible (versión portable)**: Al lanzar scraping desde la interfaz en un PC nuevo, el navegador no se abría sin mostrar ningún error. Las salidas del servidor del scraper eran silenciadas por `CREATE_NO_WINDOW`. Ahora se redirigen a `logs/scraper_server.log` para que los errores de arranque sean visibles.
+- **Log de `PLAYWRIGHT_BROWSERS_PATH`**: Se registra en el log de la interfaz la ruta donde Playwright busca los navegadores y los directorios disponibles, facilitando el diagnóstico de instalaciones incorrectas.
+
 ## [2.9.34] - 2026-02-28
 ### Fixed
 - **Bypass Nativo de DataDome (Proxyless)**: Reparada la resolución local del slider (que evita el uso de 2Captcha). El algoritmo de Playwright ahora es capaz de buscar recursivamente dentro del iframe `captcha-delivery.com` para encontrar el botón deslizable y moverlo nativamente, esquivando el uso de la API REST. Esto soluciona de raíz el fallo de IP mismatch donde DataDome rechazaba la cookie devuelta por 2Captcha al no coincidir la IP del solver con la de tu navegador local.

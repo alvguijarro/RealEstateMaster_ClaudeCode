@@ -18,6 +18,9 @@ scraper/salidas/
 analyzer/Salidas/
 scraper/scrape_history.json
 
+# Runtime logs
+logs/
+
 # Portable
 python_portable/*
 !python_portable/*.bat

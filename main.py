@@ -7,6 +7,9 @@ import time
 import requests
 from flask import Flask, render_template, jsonify, redirect
 
+# Global file handle for scraper log (kept alive to avoid GC closing it)
+SCRAPER_LOG_FILE = None
+
 # Add project root to path for shared imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -37,7 +40,7 @@ def is_port_in_use(port):
         return s.connect_ex(('127.0.0.1', port)) == 0
 
 def start_service(service_name):
-    global SCRAPER_PROCESS, ANALYZER_PROCESS, METRICS_PROCESS
+    global SCRAPER_PROCESS, ANALYZER_PROCESS, METRICS_PROCESS, SCRAPER_LOG_FILE
     
     # Get absolute path to RealEstateMaster directory
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -65,13 +68,28 @@ def start_service(service_name):
             if os.path.exists(portable_browsers):
                 env['PLAYWRIGHT_BROWSERS_PATH'] = portable_browsers
                 print(f"   [INFO] Setting PLAYWRIGHT_BROWSERS_PATH to: {portable_browsers}")
-        
+
+        print(f"   [INFO] PLAYWRIGHT_BROWSERS_PATH: {env.get('PLAYWRIGHT_BROWSERS_PATH', 'NOT SET')}")
         env['PYTHONPATH'] = scraper_dir
         env['NO_BROWSER_OPEN'] = '1'
-        
+
+        # Redirect scraper stdout/stderr to a log file so errors are not silently lost
+        log_dir = os.path.join(base_dir, 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, 'scraper_server.log')
+        print(f"   [INFO] Scraper log: {log_path}")
         try:
-            # We use subprocess.CREATE_NO_WINDOW to avoid popping up many consoles
-            SCRAPER_PROCESS = subprocess.Popen(cmd, cwd=scraper_dir, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
+            SCRAPER_LOG_FILE = open(log_path, 'a', encoding='utf-8', errors='replace')
+        except Exception:
+            SCRAPER_LOG_FILE = None
+
+        try:
+            SCRAPER_PROCESS = subprocess.Popen(
+                cmd, cwd=scraper_dir, env=env,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                stdout=SCRAPER_LOG_FILE,
+                stderr=SCRAPER_LOG_FILE,
+            )
             print(f"   [OK] Scraper process started (PID: {SCRAPER_PROCESS.pid})")
             return True
         except Exception as e:
