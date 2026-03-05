@@ -20,9 +20,10 @@ from pathlib import Path
 # Add project root to sys.path to import shared config
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 try:
-    from shared.config import TWOCAPTCHA_API_KEY
+    from shared.config import TWOCAPTCHA_API_KEY, CAPSOLVER_API_KEY
 except ImportError:
     TWOCAPTCHA_API_KEY = None
+    CAPSOLVER_API_KEY = ""
 
 try:
     from shared.proxy_config import get_2captcha_proxy_dict
@@ -803,55 +804,74 @@ async def solve_geetest_2captcha(page):
 async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
     """Solve DataDome CAPTCHA using 2Captcha DataDomeSliderTask."""
     l = logger or log
-    if not ASYNC_SOLVER:
-        l("WARN", "2Captcha ASYNC_SOLVER no inicializado.")
+    if not TWOCAPTCHA_API_KEY:
+        l("WARN", "2Captcha API key no configurada.")
         return False
-        
+
     try:
-        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Desplegando solución dedicada (DataDomeSliderTask)...")
-        
+        l("INFO", "Desplegando solución DataDome dedicada (DataDomeSliderTask)...")
+
         # 1. Prepare parameters
         page_url = page.url
         user_agent = await page.evaluate("navigator.userAgent")
-        
+
         if not captcha_url:
-            l("INFO", "🔍 Buscando captchaUrl de DataDome...")
+            l("INFO", "Buscando captchaUrl de DataDome...")
             captcha_url = await page.evaluate("""() => {
                 const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
                 return iframe ? iframe.src : null;
             }""")
-            
+
         if not captcha_url:
             l("WARN", "No se pudo encontrar captchaUrl para DataDome.")
-            l("INFO", "Reintentando por método de coordenadas físicas como fallback...")
-            return await solve_slider_2captcha(page, logger=l)
+            return False
 
-        # ── Validación del parámetro t= en captchaUrl ─────────────────────────
-        # DataDome incluye un parámetro t en la URL del iframe:
-        #   t=fe → IP en buen estado, el challenge puede resolverse
-        #   t=bv → IP marcada como bloqueada permanentemente por DataDome
-        # Si es t=bv, 2Captcha no puede ayudar porque DataDome rechazará
-        # cualquier cookie generada para esa IP. Hay que rotar identidad.
-        # Fuente: https://2captcha.com/api-docs/datadome-slider-captcha
+        # ── Validate t= parameter in captchaUrl ─────────────────────────
+        # t=fe → IP in good standing, challenge can be solved
+        # t=bv → IP permanently blocked by DataDome, any cookie will be rejected
         from urllib.parse import urlparse as _urlparse, parse_qs as _parse_qs
         _parsed_captcha = _urlparse(captcha_url)
         _t_param = _parse_qs(_parsed_captcha.query).get('t', [''])[0]
-        l("INFO", f"📋 DataDome captchaUrl → t={_t_param!r} | {captcha_url[:100]}...")
+        l("INFO", f"DataDome captchaUrl t={_t_param!r} | {captcha_url[:120]}...")
         if _t_param == 'bv':
-            l("WARN", "⛔ t=bv: IP bloqueada permanentemente por DataDome. 2Captcha no puede resolver esta sesión. Rotando identidad...")
+            l("WARN", "t=bv: IP bloqueada permanentemente por DataDome. Rotando identidad...")
             return False
 
-        # 2. Call DataDomeSliderTask using the JSON API directly (bypassing the buggy twocaptcha SDK proxy parser)
+        if '/interstitial/' in _parsed_captcha.path:
+            l("WARN", "URL tipo /interstitial/ detectada (no es slider). DataDomeSliderTask no puede resolver este tipo. Rotando...")
+            return False
+
+        # 2. Prepare proxy config
         try:
             from shared.proxy_config import PROXY_CONFIG
         except ImportError:
             PROXY_CONFIG = None
 
         if not PROXY_CONFIG:
-            l("ERR", "❌ No se ha encontrado PROXY_CONFIG. DataDomeSliderTask exige proxy residencial para funcionar.")
-            return await solve_slider_2captcha(page, logger=l)
+            l("ERR", "No se ha encontrado PROXY_CONFIG. DataDomeSliderTask exige proxy residencial.")
+            return False
 
         import httpx
+        # Build proxy login with sticky session ID so 2Captcha uses the same IP as the browser
+        proxy_login = PROXY_CONFIG.get('login', '')
+        sticky_sid = PROXY_CONFIG.get('sticky_session_id')
+        if sticky_sid:
+            proxy_login = f"{proxy_login}-session-{sticky_sid}"
+            l("INFO", f"Proxy session ID: {sticky_sid}")
+
+        # 3. Pre-flight proxy IP check (once per session, helps diagnose IP mismatches)
+        if not getattr(solve_datadome_2captcha, '_proxy_ip_logged', False):
+            try:
+                proxy_url = f"http://{proxy_login}:{PROXY_CONFIG.get('password', '')}@{PROXY_CONFIG.get('host')}:{PROXY_CONFIG.get('port')}"
+                async with httpx.AsyncClient(proxy=proxy_url, timeout=10, verify=False) as ip_client:
+                    ip_resp = await ip_client.get("https://api.ipify.org?format=json")
+                    proxy_exit_ip = ip_resp.json().get("ip", "unknown")
+                    l("INFO", f"Proxy exit IP: {proxy_exit_ip}")
+                    solve_datadome_2captcha._proxy_ip_logged = True
+            except Exception as ip_err:
+                l("WARN", f"No se pudo verificar IP del proxy: {ip_err}")
+
+        # 4. Build and send task payload
         task_payload = {
             "clientKey": TWOCAPTCHA_API_KEY,
             "task": {
@@ -862,63 +882,100 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
                 "proxyType": PROXY_CONFIG.get('type', 'http').lower(),
                 "proxyAddress": PROXY_CONFIG.get('host'),
                 "proxyPort": PROXY_CONFIG.get('port'),
-                "proxyLogin": PROXY_CONFIG.get('login'),
+                "proxyLogin": proxy_login,
                 "proxyPassword": PROXY_CONFIG.get('password')
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            l("INFO", "📤 Enviando json payload a api.2captcha.com/createTask ...")
-            resp = await client.post("https://api.2captcha.com/createTask", json=task_payload, timeout=15)
+        # Log sanitized payload (hide password)
+        safe_payload = {**task_payload, "task": {**task_payload["task"], "proxyPassword": "***", "proxyLogin": proxy_login[:10] + "..."}}
+        safe_payload["clientKey"] = "..." + TWOCAPTCHA_API_KEY[-4:]
+        l("INFO", f"Payload (sanitized): {safe_payload}")
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            l("INFO", "Enviando createTask a api.2captcha.com...")
+            try:
+                resp = await client.post("https://api.2captcha.com/createTask", json=task_payload, timeout=30)
+            except httpx.ReadTimeout:
+                l("ERR", "Timeout al enviar createTask a 2Captcha.")
+                return False
             resp_data = resp.json()
 
             if resp_data.get("errorId") != 0:
-                l("ERR", f"❌ Error 2Captcha createTask: {resp_data}")
-                return await solve_slider_2captcha(page, logger=l)
+                l("ERR", f"Error 2Captcha createTask: {resp_data}")
+                return False
 
             task_id = resp_data.get("taskId")
-            l("INFO", f"⏳ Tarea {task_id} creada exitosamente en 2Captcha. Esperando solución (hasta 90s)...")
+            l("INFO", f"Tarea {task_id} creada. Polling cada 5s (hasta 65s, tokens DataDome expiran ~60s)...")
 
-            max_wait = 90
+            max_wait = 65
             start_time = time.time()
             code = None
+            poll_count = 0
 
             while time.time() - start_time < max_wait:
                 await asyncio.sleep(5)
-                res = await client.post("https://api.2captcha.com/getTaskResult", json={
-                    "clientKey": TWOCAPTCHA_API_KEY,
-                    "taskId": task_id
-                }, timeout=15)
-                
+                poll_count += 1
+                elapsed = int(time.time() - start_time)
+                try:
+                    res = await client.post("https://api.2captcha.com/getTaskResult", json={
+                        "clientKey": TWOCAPTCHA_API_KEY,
+                        "taskId": task_id
+                    }, timeout=30)
+                except httpx.ReadTimeout:
+                    l("WARN", f"ReadTimeout en getTaskResult (poll #{poll_count}, {elapsed}s), reintentando...")
+                    continue
+
                 res_data = res.json()
                 if res_data.get("errorId") != 0:
-                    l("ERR", f"❌ Error 2Captcha getTaskResult: {res_data}")
+                    error_code = res_data.get("errorCode", "unknown")
+                    if error_code == "ERROR_CAPTCHA_UNSOLVABLE":
+                        l("WARN", f"2Captcha: CAPTCHA marcado como IRRESOLUBLE tras {elapsed}s")
+                    else:
+                        l("ERR", f"Error 2Captcha getTaskResult: {error_code} | {res_data}")
                     break
 
                 status = res_data.get("status")
                 if status == "ready":
                     solution = res_data.get("solution", {})
-                    # La cookie viene dentro del dict solution
-                    code = solution.get("cookie")
+                    l("INFO", f"Solución recibida en {elapsed}s. Keys: {list(solution.keys())}")
+                    # Robust cookie extraction: try multiple known keys
+                    code = solution.get("cookie") or solution.get("datadome") or solution.get("token")
+                    if not code:
+                        # Fallback: find any string value >20 chars (likely the cookie)
+                        for v in solution.values():
+                            if isinstance(v, str) and len(v) > 20:
+                                code = v
+                                l("INFO", f"Cookie extracted from fallback key (len={len(v)})")
+                                break
                     break
                 elif status == "processing":
+                    # Progress log every 30s
+                    if elapsed % 30 < 6:
+                        l("INFO", f"Polling... {elapsed}s/{max_wait}s (poll #{poll_count})")
                     continue
                 else:
                     l("WARN", f"Estado de tarea 2Captcha desconocido: {status}")
                     break
 
             if not code:
-                l("WARN", "DataDome API task completada pero no se recibió cookie. Fallback a coordenadas.")
-                return await solve_slider_2captcha(page, logger=l)
+                elapsed = int(time.time() - start_time)
+                if elapsed >= max_wait:
+                    l("WARN", f"2Captcha TIMEOUT: tarea sigue 'processing' tras {elapsed}s (URL captcha probablemente expirada)")
+                else:
+                    l("WARN", f"2Captcha: tarea finalizada sin cookie tras {elapsed}s")
+                return False
 
-            # Inject the cookie via Playwright's native API (far more reliable than JS document.cookie)
+            l("INFO", f"Cookie datadome obtenida (len={len(code)}): ...{code[-20:]}")
+
+            # 5. Inject the cookie via Playwright's native API
             try:
-                domain = ".idealista.com"  # Ampliado al dominio raíz para que los scripts de validación lo lean bien
-                # Some API responses might include the 'datadome=' prefix
+                domain = ".idealista.com"
+                # Strip 'datadome=' prefix if present
                 if 'datadome=' in code:
                     m = re.search(r'datadome=([^;]+)', code)
                     code = m.group(1).strip() if m else code
-                    
+
                 await page.context.add_cookies([{
                     'name': 'datadome',
                     'value': code.strip(),
@@ -927,41 +984,226 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
                     'secure': True,
                     'sameSite': 'Lax'
                 }])
-                l("OK", f"🍪 Cookie 'datadome' inyectada correctamente en dominio: {domain}")
+                l("OK", f"Cookie 'datadome' inyectada en {domain}")
             except Exception as cookie_err:
                 l("ERR", f"Error inyectando cookie DataDome: {cookie_err}")
                 return False
 
-            # Reload the ORIGINAL page (not the captcha URL) so DataDome reads the new cookie
-            l("INFO", f"🔄 Recargando página original para verificar acceso: {page_url[:60]}...")
+            # 6. Reload and verify (two-pass: handles slow page loads)
+            l("INFO", f"Recargando página: {page_url[:60]}...")
             try:
                 await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
             except Exception as nav_err:
-                l("WARN", f"Error al recargar la página tras inyección: {nav_err}")
+                l("WARN", f"Error al recargar tras inyección: {nav_err}")
                 return False
 
-            await asyncio.sleep(3)
+            for pass_num in (1, 2):
+                await asyncio.sleep(5)
+                is_still_blocked = await page.evaluate(r"""() => {
+                    const hasDataDomeIframe = !!document.querySelector('iframe[src*="captcha-delivery.com"]');
+                    const hasWarningText = document.body && document.body.innerText.toLowerCase().includes('estamos recibiendo muchas peticiones');
+                    return !!(hasDataDomeIframe || hasWarningText);
+                }""")
 
-            # Verificación real consultando el DOM (buscamos iframes de captcha o texto de advertencia)
-            is_still_blocked = await page.evaluate(r"""() => {
-                const hasDataDomeIframe = !!document.querySelector('iframe[src*="captcha-delivery.com"]');
-                const hasWarningText = document.body && document.body.innerText.toLowerCase().includes('estamos recibiendo muchas peticiones');
-                return !!(hasDataDomeIframe || hasWarningText);
-            }""")
+                if not is_still_blocked:
+                    l("OK", f"DataDome resuelto (pass {pass_num}): CAPTCHA desapareció.")
+                    return True
 
-            if not is_still_blocked:
-                l("OK", "✅ DataDome resuelto: CAPTCHA desapareció exitosamente.")
-                return True
+                if pass_num == 1:
+                    l("INFO", "CAPTCHA aún presente tras 5s, esperando 5s más (pass 2)...")
 
-            l("WARN", "⚠️ Cookie inyectada pero el CAPTCHA de DataDome sigue presente tras recargar.")
+            l("WARN", "Cookie inyectada pero el CAPTCHA persiste tras dos verificaciones.")
             return False
 
     except Exception as e:
-        l("ERR", f"Error en solver DataDome de 2Captcha: {type(e).__name__}: {e}")
+        l("ERR", f"Error en solver DataDome 2Captcha: {type(e).__name__}: {e}")
 
-    # Final fallback if dedicated solver fails entirely
-    l("INFO", "Intento fallido con DataDomeSliderTask. Probando coordenadas como último recurso...")
-    return await solve_slider_2captcha(page, logger=l)
+    l("WARN", "DataDome no resuelto via 2Captcha.")
+    return False
+
+
+async def solve_datadome_capsolver(page, captcha_url=None, logger=None):
+    """Fallback DataDome solver using CapSolver's DatadomeSliderTask API."""
+    l = logger or log
+    if not CAPSOLVER_API_KEY:
+        l("WARN", "CapSolver API key no configurada. Fallback deshabilitado.")
+        return False
+
+    try:
+        l("INFO", "Intentando CapSolver como fallback para DataDome...")
+
+        page_url = page.url
+        user_agent = await page.evaluate("navigator.userAgent")
+
+        # CapSolver solo soporta UAs Chrome/Edge estándar (hasta Chrome/144)
+        # — eliminar tokens Opera/Brave/Vivaldi y cap Chrome version a 144
+        import re as _re_ua
+        if _re_ua.search(r'\b(OPR|Brave|Vivaldi)/[\d.]+', user_agent):
+            user_agent = _re_ua.sub(r'\s*(OPR|Brave|Vivaldi)/[\d.]+', '', user_agent).strip()
+            l("INFO", f"UA sanitizado para CapSolver (tokens no estándar eliminados)")
+        # Cap Chrome version to max supported (144)
+        _chrome_match = _re_ua.search(r'Chrome/(\d+)', user_agent)
+        if _chrome_match and int(_chrome_match.group(1)) > 144:
+            user_agent = _re_ua.sub(r'Chrome/\d+', 'Chrome/144', user_agent)
+            l("INFO", f"UA Chrome version capped a 144 para CapSolver (era {_chrome_match.group(1)})")
+
+        if not captcha_url:
+            captcha_url = await page.evaluate("""() => {
+                const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
+                return iframe ? iframe.src : null;
+            }""")
+
+        if not captcha_url:
+            l("WARN", "No se encontró captchaUrl para CapSolver.")
+            return False
+
+        # Validate t= parameter
+        from urllib.parse import urlparse as _urlparse, parse_qs as _parse_qs
+        _parsed_captcha = _urlparse(captcha_url)
+        _t_param = _parse_qs(_parsed_captcha.query).get('t', [''])[0]
+        if _t_param == 'bv':
+            l("WARN", "t=bv: IP bloqueada. CapSolver tampoco puede resolver.")
+            return False
+
+        if '/interstitial/' in _parsed_captcha.path:
+            l("WARN", "URL tipo /interstitial/ detectada (no es slider). CapSolver no puede resolver este tipo. Rotando...")
+            return False
+
+        try:
+            from shared.proxy_config import PROXY_CONFIG
+        except ImportError:
+            PROXY_CONFIG = None
+
+        if not PROXY_CONFIG:
+            l("ERR", "No se ha encontrado PROXY_CONFIG para CapSolver.")
+            return False
+
+        import httpx
+        proxy_login = PROXY_CONFIG.get('login', '')
+        sticky_sid = PROXY_CONFIG.get('sticky_session_id')
+        if sticky_sid:
+            proxy_login = f"{proxy_login}-session-{sticky_sid}"
+
+        task_payload = {
+            "clientKey": CAPSOLVER_API_KEY,
+            "task": {
+                "type": "DatadomeSliderTask",
+                "websiteURL": page_url,
+                "captchaUrl": captcha_url,
+                "userAgent": user_agent,
+                "proxy": f"http://{proxy_login}:{PROXY_CONFIG.get('password', '')}@{PROXY_CONFIG.get('host')}:{PROXY_CONFIG.get('port')}"
+            }
+        }
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            l("INFO", "Enviando createTask a api.capsolver.com...")
+            try:
+                resp = await client.post("https://api.capsolver.com/createTask", json=task_payload, timeout=30)
+            except httpx.ReadTimeout:
+                l("ERR", "Timeout al enviar createTask a CapSolver.")
+                return False
+            resp_data = resp.json()
+
+            if resp_data.get("errorId", 1) != 0:
+                l("ERR", f"Error CapSolver createTask: {resp_data}")
+                return False
+
+            task_id = resp_data.get("taskId")
+            l("INFO", f"CapSolver tarea {task_id} creada. Polling (hasta 65s)...")
+
+            max_wait = 65
+            start_time = time.time()
+            code = None
+
+            while time.time() - start_time < max_wait:
+                await asyncio.sleep(5)
+                elapsed = int(time.time() - start_time)
+                try:
+                    res = await client.post("https://api.capsolver.com/getTaskResult", json={
+                        "clientKey": CAPSOLVER_API_KEY,
+                        "taskId": task_id
+                    }, timeout=30)
+                except httpx.ReadTimeout:
+                    l("WARN", f"ReadTimeout CapSolver ({elapsed}s), reintentando...")
+                    continue
+
+                res_data = res.json()
+                if res_data.get("errorId", 1) != 0:
+                    l("ERR", f"Error CapSolver getTaskResult: {res_data}")
+                    break
+
+                status = res_data.get("status")
+                if status == "ready":
+                    solution = res_data.get("solution", {})
+                    code = solution.get("cookie") or solution.get("datadome") or solution.get("token")
+                    if not code:
+                        for v in solution.values():
+                            if isinstance(v, str) and len(v) > 20:
+                                code = v
+                                break
+                    break
+                elif status == "processing":
+                    if elapsed % 30 < 6:
+                        l("INFO", f"CapSolver polling... {elapsed}s/{max_wait}s")
+                    continue
+                else:
+                    l("WARN", f"CapSolver estado desconocido: {status}")
+                    break
+
+            if not code:
+                l("WARN", "CapSolver: no se recibió cookie.")
+                return False
+
+            l("INFO", f"CapSolver cookie obtenida (len={len(code)})")
+
+            # Inject cookie
+            try:
+                domain = ".idealista.com"
+                if 'datadome=' in code:
+                    m = re.search(r'datadome=([^;]+)', code)
+                    code = m.group(1).strip() if m else code
+
+                await page.context.add_cookies([{
+                    'name': 'datadome',
+                    'value': code.strip(),
+                    'domain': domain,
+                    'path': '/',
+                    'secure': True,
+                    'sameSite': 'Lax'
+                }])
+                l("OK", f"CapSolver cookie inyectada en {domain}")
+            except Exception as cookie_err:
+                l("ERR", f"Error inyectando cookie CapSolver: {cookie_err}")
+                return False
+
+            # Reload and verify (two-pass)
+            try:
+                await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
+            except Exception as nav_err:
+                l("WARN", f"Error al recargar tras CapSolver: {nav_err}")
+                return False
+
+            for pass_num in (1, 2):
+                await asyncio.sleep(5)
+                is_still_blocked = await page.evaluate(r"""() => {
+                    const hasDataDomeIframe = !!document.querySelector('iframe[src*="captcha-delivery.com"]');
+                    const hasWarningText = document.body && document.body.innerText.toLowerCase().includes('estamos recibiendo muchas peticiones');
+                    return !!(hasDataDomeIframe || hasWarningText);
+                }""")
+                if not is_still_blocked:
+                    l("OK", f"CapSolver resolvió DataDome (pass {pass_num}).")
+                    return True
+                if pass_num == 1:
+                    l("INFO", "CapSolver: CAPTCHA aún presente, esperando 5s más...")
+
+            l("WARN", "CapSolver: cookie inyectada pero CAPTCHA persiste.")
+            return False
+
+    except Exception as e:
+        l("ERR", f"Error en CapSolver DataDome: {type(e).__name__}: {e}")
+
+    return False
+
 
 async def solve_slider_2captcha(page, logger=None):
     """Solve simple slider captchas using 2Captcha Coordinates method (Refined version)."""
@@ -1192,60 +1434,181 @@ async def solve_slider_2captcha(page, logger=None):
 
 
 async def solve_captcha_advanced(page, logger=None):
-    """Orchestrator for CAPTCHA solving: Slider (Local) -> DataDome -> 2Captcha (Slider/GeeTest)."""
+    """Orchestrator: DataDome (alternating 2Captcha/CapSolver) -> Local Slider -> 2Captcha (GeeTest/Coords)."""
     l = logger or log
-    
-    # 1. Try Slider FIRST (Fast, Free & very effective for DataDome and others)
-    l("INFO", "🤖 Intentando resolución local (Slider)...")
-    if await solve_slider_captcha(page):
-        # Brief wait to see if it clears
-        await asyncio.sleep(3)
-        title = (await page.title()).lower()
-        if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-            l("OK", "✅ Local slider solved the CAPTCHA!")
-            return True
-        l("WARN", "Slider local falló o el bloqueo persiste.")
 
-    # 2. Specific DataDome Check
+    # ── Guard: skip SSL error pages (not a captcha) ──────────────────────────
+    try:
+        page_title = await page.title()
+        if page_title and any(kw in page_title.lower() for kw in [
+            "no es privada", "error de privacidad",
+            "is not private", "err_cert_authority_invalid",
+        ]):
+            l("WARN", f"Página de error SSL detectada (título: '{page_title}'). No es un captcha.")
+            return False
+    except Exception:
+        pass
+
+    # ── 1. Check for DataDome FIRST (most common blocker) ──────────────────
     datadome_data = await page.evaluate("""() => {
         const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
         return iframe ? { is_datadome: true, captcha_url: iframe.src } : { is_datadome: false };
     }""")
-    
+
     if datadome_data.get('is_datadome'):
-        l("INFO", "🛡️ CAPTCHA de DataDome detectado. Iniciando resolución dedicada (2Captcha)...")
-        if await solve_datadome_2captcha(page, captcha_url=datadome_data.get('captcha_url'), logger=l):
-            await asyncio.sleep(5)
+        page_url = page.url
+
+        # Check if current browser UA is CapSolver-compatible (standard Chrome/Edge only)
+        import re as _re_ua
+        try:
+            current_ua = await page.evaluate("navigator.userAgent")
+        except Exception:
+            current_ua = ""
+        capsolver_compatible = not _re_ua.search(r'\b(OPR|Brave|Vivaldi)/[\d.]+', current_ua)
+
+        # Build solver sequence: alternate 2Captcha and CapSolver so CapSolver
+        # gets a fresh captcha URL before DataDome escalates to /interstitial/
+        solvers = [("2Captcha", solve_datadome_2captcha)]
+        if CAPSOLVER_API_KEY and capsolver_compatible:
+            solvers.append(("CapSolver", solve_datadome_capsolver))
+            solvers.append(("2Captcha", solve_datadome_2captcha))
+        else:
+            if CAPSOLVER_API_KEY and not capsolver_compatible:
+                l("INFO", f"CapSolver excluido: UA no compatible ({current_ua.split()[-1] if current_ua else 'unknown'})")
+            solvers.append(("2Captcha", solve_datadome_2captcha))
+            solvers.append(("2Captcha", solve_datadome_2captcha))
+        total = len(solvers)
+
+        l("INFO", f"DataDome CAPTCHA detectado. Secuencia de resolución: {' → '.join(s[0] for s in solvers)} ({total} intentos)...")
+
+        # ── Quick reload attempt BEFORE paid solvers ─────────────────────────
+        # DataDome often clears itself after a homepage→target reload cycle.
+        # This saves ~65s per 2Captcha call when it works (frequent case).
+        l("INFO", "🔄 Intentando recarga rápida (homepage → URL) antes de solvers de pago...")
+        try:
+            await page.goto("https://www.idealista.com", wait_until='domcontentloaded', timeout=15000)
+            await asyncio.sleep(2)
+            await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
+            await asyncio.sleep(2)
+            try:
+                await page.wait_for_load_state('load', timeout=10000)
+            except Exception:
+                pass
+            await asyncio.sleep(1)
+
+            # Check if DataDome is still present
+            quick_check = await page.evaluate("""() => {
+                const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
+                return iframe ? iframe.src : null;
+            }""")
+            if not quick_check:
+                l("OK", "✅ DataDome desapareció tras recarga rápida. Página libre (sin coste 2Captcha).")
+                return True
+            if '/interstitial/' in quick_check:
+                l("WARN", "⛔ URL /interstitial/ detectada tras recarga (IP bloqueada). Abortando.")
+                return False
+            # DataDome persists — update captcha_url for solver loop
+            l("INFO", "DataDome persiste tras recarga rápida. Continuando con solvers de pago...")
+            datadome_data['captcha_url'] = quick_check
+        except Exception as reload_err:
+            l("WARN", f"Error en recarga rápida pre-solver: {reload_err}. Navegando de vuelta a URL objetivo...")
+            try:
+                await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
+                await asyncio.sleep(2)
+            except Exception:
+                pass
+
+        for attempt, (solver_name, solver_fn) in enumerate(solvers, 1):
+            # On retries, navigate AWAY first to reset DataDome context and avoid escalation
+            # (reloading the same URL causes DataDome to escalate /captcha/ → /interstitial/)
+            if attempt > 1:
+                l("INFO", f"Intento {attempt}/{total}: Navegando a homepage para evitar escalación DataDome...")
+                try:
+                    await page.goto("https://www.idealista.com", wait_until='domcontentloaded', timeout=15000)
+                    await asyncio.sleep(2)
+                    l("INFO", f"Intento {attempt}/{total}: Volviendo a URL objetivo...")
+                    await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
+                    await asyncio.sleep(2)
+                    try:
+                        await page.wait_for_load_state('load', timeout=10000)
+                    except Exception:
+                        pass
+                    await asyncio.sleep(1)
+                except Exception as reload_err:
+                    l("WARN", f"Error en navegación de retry: {reload_err}")
+                    continue
+
+                # Re-detect captcha URL after reload (wrapped to prevent crash on context destruction)
+                try:
+                    fresh_data = await page.evaluate("""() => {
+                        const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
+                        return iframe ? iframe.src : null;
+                    }""")
+                except Exception as eval_err:
+                    l("WARN", f"Intento {attempt}/{total}: Error detectando captcha tras recarga: {eval_err}")
+                    continue
+                if not fresh_data:
+                    # Page might have loaded clean after reload
+                    l("OK", "DataDome desapareció tras recarga. Página libre.")
+                    return True
+                if '/interstitial/' in fresh_data:
+                    l("WARN", f"Intento {attempt}/{total}: URL /interstitial/ detectada (IP bloqueada). Abortando reintentos...")
+                    break
+                captcha_url = fresh_data
+            else:
+                captcha_url = datadome_data.get('captcha_url')
+
+            l("INFO", f"{solver_name} intento {attempt}/{total}...")
+            if await solver_fn(page, captcha_url=captcha_url, logger=l):
+                l("OK", f"DataDome resuelto via {solver_name} en intento {attempt}/{total}.")
+                return True
+
+            l("WARN", f"{solver_name} intento {attempt}/{total} falló.")
+
+        # DataDome: coordinates are useless (server-side validation)
+        # Rotar sticky session para que la próxima rotación de identidad use IP fresca
+        try:
+            from shared.proxy_config import regenerate_session
+            new_sid = regenerate_session()
+            l("INFO", f"🔑 Proxy session rotada tras fallo total de solvers DataDome (nueva: {new_sid})")
+        except Exception as proxy_err:
+            l("WARN", f"Error rotando proxy session: {proxy_err}")
+        l("WARN", "DataDome no resuelto tras todos los intentos. Rotando identidad.")
+        return False
+
+    # ── 2. Non-DataDome: try local slider first (fast, free) ───────────────
+    l("INFO", "Intentando resolución local (Slider)...")
+    if await solve_slider_captcha(page):
+        await asyncio.sleep(3)
+        title = (await page.title()).lower()
+        if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
+            l("OK", "Local slider solved the CAPTCHA!")
+            return True
+        l("WARN", "Slider local falló o el bloqueo persiste.")
+
+    # ── 3. Non-DataDome: 2Captcha paid solvers ─────────────────────────────
+    if SOLVER:
+        # A. GeeTest
+        is_geetest = await page.evaluate("() => !!(window.initGeetest || document.querySelector('.geetest_holder'))")
+        if is_geetest:
+            l("INFO", "Iniciando solver 2Captcha para GeeTest...")
+            if await solve_geetest_2captcha(page):
+                await asyncio.sleep(3)
+                title = (await page.title()).lower()
+                if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
+                    l("OK", "2Captcha GeeTest solved!")
+                    return True
+
+        # B. Coordinate-based slider
+        l("INFO", "Iniciando solver 2Captcha por Coordenadas (Screenshot)...")
+        if await solve_slider_2captcha(page, logger=l):
+            await asyncio.sleep(4)
             title = (await page.title()).lower()
             if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                l("OK", "✅ DataDome resuelto correctamente!")
+                l("OK", "2Captcha Coordinates solved!")
                 return True
-            l("WARN", "El solver de DataDome terminó pero el bloqueo persiste.")
-    
-    # 3. Try 2Captcha (paid) as fallback
-    if SOLVER:
-        # A. Try solving as GeeTest first (if identifiable)
-        is_geetest = await page.evaluate("() => !!(window.initGeetest || document.querySelector('.geetest_holder'))")
-        
-        if is_geetest:
-            l("INFO", "🚀 Iniciando solver 2Captcha para GeeTest...")
-            if await solve_geetest_2captcha(page):
-                 await asyncio.sleep(3)
-                 title = (await page.title()).lower()
-                 if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                     l("OK", "✅ 2Captcha GeeTest solved!")
-                     return True
-
-        # B. Fallback to Coordinate-based Slider solve
-        l("INFO", "🚀 Iniciando solver 2Captcha por Coordenadas (Screenshot)...")
-        if await solve_slider_2captcha(page, logger=l):
-             await asyncio.sleep(4)
-             title = (await page.title()).lower()
-             if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                 l("OK", "✅ 2Captcha Coordinates solved!")
-                 return True
     else:
-        l("WARN", "2Captcha no disponible (import fallida o API Key inválida — ver log de arranque).")
-        
-    l("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
+        l("WARN", "2Captcha no disponible (import fallida o API Key inválida).")
+
+    l("WARN", "Falló la resolución del CAPTCHA después de todos los intentos.")
     return False
