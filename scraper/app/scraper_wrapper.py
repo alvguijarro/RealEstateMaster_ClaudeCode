@@ -72,7 +72,12 @@ from idealista_scraper.config import (
     EXTRA_STEALTH_READING_TIME_PER_100_CHARS, USER_AGENTS, VIEWPORT_SIZES,
     BROWSER_ROTATION_POOL, MAX_PROFILE_POOL_SIZE, PROFILE_COOLDOWN_MINUTES
 )
-from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_captcha_advanced, cleanup_stealth_profiles
+from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_captcha_advanced, cleanup_stealth_profiles, reset_captcha_stats, get_captcha_stats
+
+try:
+    from app.shared_url_queue import SharedURLQueue
+except ImportError:
+    from shared_url_queue import SharedURLQueue
 
 # Proxy para el browser: necesario para que la IP del browser coincida con la IP
 # que usa 2Captcha al resolver DataDome (de lo contrario DataDome rechaza la cookie).
@@ -93,6 +98,44 @@ def _build_browser_proxy():
         return None
 
 _browser_proxy = _build_browser_proxy()
+
+
+async def _launch_headless_worker(pw, engine: str, channel, profile_slot: int, proxy=None):
+    """Lanza un contexto Playwright headless para workers paralelos de enriquecimiento.
+
+    Si se proporciona proxy (dict con server/username/password), se aplica al contexto
+    chromium. WebKit en Windows no admite proxies autenticados y se lanza sin proxy.
+    Devuelve el contexto lanzado, o None si el ejecutable no está disponible.
+    """
+    profile_dir = get_profile_dir(profile_slot)
+    os.makedirs(profile_dir, exist_ok=True)
+    if engine == "webkit":
+        # WebKit en Windows no soporta proxies autenticados: siempre sin proxy
+        return await pw.webkit.launch_persistent_context(
+            user_data_dir=profile_dir,
+            headless=True,
+            viewport={"width": 1280, "height": 800},
+            timeout=60000,
+            ignore_https_errors=True,
+        )
+    else:  # chromium (opera, etc.)
+        executable_path = get_browser_executable_path(channel)
+        if not executable_path:
+            return None  # Ejecutable no encontrado — omitir este worker
+        kwargs = dict(
+            user_data_dir=profile_dir,
+            headless=True,
+            viewport={"width": 1280, "height": 800},
+            executable_path=executable_path,
+            channel=None,  # channel=None cuando se usa executable_path
+            timeout=60000,
+            ignore_https_errors=True,
+        )
+        if proxy:
+            kwargs["proxy"] = proxy
+        return await pw.chromium.launch_persistent_context(**kwargs)
+
+
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.excel_writer import (
     load_existing_single_sheet, load_existing_specific_sheet, export_single_sheet,
@@ -154,8 +197,12 @@ def extract_page_from_url(url: str) -> int:
 # Default output directory - now uses 'salidas' subfolder
 DEFAULT_OUTPUT_DIR = str(Path(__file__).parent.parent / "salidas")
 
+# Worker isolation: each worker gets its own state files and browser profiles
+_WORKER_ID = os.environ.get("SCRAPER_WORKER_ID", "").strip()
+_WORKER_PREFIX = f"worker_{_WORKER_ID}_" if _WORKER_ID else ""
+
 # Resume state file path
-RESUME_STATE_FILE = str(Path(__file__).parent / "resume_state.json")
+RESUME_STATE_FILE = str(Path(__file__).parent / f"{_WORKER_PREFIX}resume_state.json")
 
 # Scrape history registry file path
 SCRAPE_HISTORY_FILE = str(Path(DEFAULT_OUTPUT_DIR) / "scrape_history.json")
@@ -165,7 +212,7 @@ SCRAPE_HISTORY_FILE = str(Path(DEFAULT_OUTPUT_DIR) / "scrape_history.json")
 # =============================================================================
 
 # Identity Rotation State File
-IDENTITY_STATE_FILE = str(Path(__file__).parent / "identity_state.json")
+IDENTITY_STATE_FILE = str(Path(__file__).parent / f"{_WORKER_PREFIX}identity_state.json")
 
 def load_identity_state() -> dict:
     """Load current identity state (current_profile_index) and cooldowns."""
@@ -202,9 +249,9 @@ def get_current_profile_config() -> dict:
 
 def get_profile_dir(profile_index: int) -> str:
     """Get the user data directory for a specific profile index (1-based from pool)."""
-    # config uses 1-based index, but we map to physical dirs
-    # e.g. stealth_profile_1, stealth_profile_2, etc.
     base_dir = Path(__file__).parent.parent
+    if _WORKER_ID:
+        return str(base_dir / f"stealth_w{_WORKER_ID}_profile_{profile_index}")
     return str(base_dir / f"stealth_profile_{profile_index}")
 
 def get_browser_executable_path(channel: Optional[str]) -> Optional[str]:
@@ -437,7 +484,7 @@ def clear_all_cooldowns() -> None:
 
 
 # Engine tracking file (to know which engine was used last)
-LAST_ENGINE_FILE = str(Path(__file__).parent / "last_engine.txt")
+LAST_ENGINE_FILE = str(Path(__file__).parent / f"{_WORKER_PREFIX}last_engine.txt")
 
 
 def get_last_engine() -> Optional[str]:
@@ -1019,6 +1066,7 @@ class ScraperController:
     
     # Smart Enrichment Mode
     smart_enrichment: bool = False  # If True, use province-file mapping and skip already enriched URLs
+    parallel_enrichment: bool = False  # If True, Phase 3 runs two concurrent workers (proxy + WebKit sin proxy)
     province_name: Optional[str] = None  # Province name for file lookup (e.g., "Toledo")
     operation_type: Optional[str] = None  # "venta" or "alquiler"
     forced_target_file: Optional[str] = None  # Manually selected target file to override auto-detection
@@ -1079,6 +1127,10 @@ class ScraperController:
     _enriched_urls: Set[str] = field(default_factory=set)  # URLs already enriched (skip completely)
     _all_existing_urls: Dict[str, dict] = field(default_factory=dict)  # All URLs in file with metadata
     _province_target_file: Optional[str] = None  # Province-based target file
+    # Enrichment resume state (persisted across browser restarts)
+    _in_enrichment: bool = False  # True while in the targeted deactivation check phase
+    _enrichment_done_urls: Set[str] = field(default_factory=set)  # URLs already checked in this run
+    _enrichment_missing_urls: List[str] = field(default_factory=list)  # Full missing list at enrichment start
     
     # Cross-thread stop signal (instantly visible from any thread, unlike asyncio.Event)
     _thread_stop_evt: Optional[threading.Event] = None
@@ -1096,10 +1148,14 @@ class ScraperController:
         # Cross-process signal sensing (Flag Files)
         scraper_dir = Path(__file__).parent.parent
         if (scraper_dir / "BATCH_STOP.flag").exists() or (scraper_dir / "batch_stop.flag").exists():
-            # Mark self so we don't keep checking disk if possible
             self._stopped_by_user = True
             return True
-            
+
+        # Worker-specific stop flag
+        if _WORKER_ID and (scraper_dir / f"WORKER_{_WORKER_ID}_STOP.flag").exists():
+            self._stopped_by_user = True
+            return True
+
         return False
     
     def __post_init__(self):
@@ -1659,7 +1715,11 @@ class ScraperController:
             "total_pages_expected": self.total_pages_expected,
             "scraped_count": len(self.scraped_properties),
             "detected_sheet": self._detected_sheet,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            # Enrichment resume fields
+            "in_enrichment": self._in_enrichment,
+            "enrichment_done_urls": list(self._enrichment_done_urls) if self._in_enrichment else [],
+            "enrichment_missing_urls": self._enrichment_missing_urls if self._in_enrichment else [],
         }
         try:
             with open(RESUME_STATE_FILE, 'w', encoding='utf-8') as f:
@@ -1745,8 +1805,12 @@ class ScraperController:
         except Exception as e:
             self.log("WARN", f"Checkpoint failed: {e}")
     
-    async def _goto_with_retry(self, page, url: str) -> None:
-        """Navigate to URL with retry logic. Detects browser close with 120s guard."""
+    async def _goto_with_retry(self, page, url: str, use_proxy: bool = True) -> None:
+        """Navigate to URL with retry logic. Detects browser close with 120s guard.
+
+        use_proxy: False para workers lanzados sin proxy (ej. WebKit). Se pasa a solve_captcha_advanced
+        para que omita los solvers de pago que producirían IP mismatch.
+        """
         delay = RETRY_BASE_DELAY
         last_err: Optional[Exception] = None
         for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
@@ -1812,7 +1876,7 @@ class ScraperController:
                         # Automatic/Manual solver logic...
                         self.log("INFO", "Attempting automatic captcha solver...")
                         try:
-                            solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=self.log), timeout=180.0)
+                            solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=self.log, use_proxy=use_proxy), timeout=180.0)
                             if solved:
                                 self.log("OK", "CAPTCHA solved automatically!")
                                 return
@@ -1859,6 +1923,7 @@ class ScraperController:
                         raise BlockedException("CAPTCHA_TIMEOUT")
                     self.log("DEBUG", f"Internal nav check ignored error: {e}")
 
+                self.consecutive_datadome_fails = 0  # Reset on successful navigation
                 await self._interruptible_sleep(3.0)
                 return
             except StopException:
@@ -1893,8 +1958,17 @@ class ScraperController:
                 await self._interruptible_sleep(delay)
                 delay *= 2
         if last_err:
+            if "CAPTCHA_TIMEOUT" in str(last_err):
+                self.consecutive_datadome_fails += 1
+                self.log("WARN", f"🌩️ DataDome fail #{self.consecutive_datadome_fails} consecutivo (URL: {url})")
+                if self.consecutive_datadome_fails >= 3:
+                    pause_min = 20
+                    self.log("ERR", f"🌩️ DataDome STORM: {self.consecutive_datadome_fails} fallos consecutivos. "
+                             f"Pausa de {pause_min}min para dejar enfriar la IP antes de continuar.")
+                    self.consecutive_datadome_fails = 0
+                    await self._interruptible_sleep(pause_min * 60)
             raise last_err
-    
+
     async def _wait_for_pause(self):
         """Wait if paused."""
         if not self._pause_evt.is_set() and not self._should_stop:
@@ -2007,6 +2081,7 @@ class ScraperController:
         self.status = "running"
         self.start_time = time.time()
         self._pause_evt.set()
+        reset_captcha_stats()
         
         # Start heartbeat monitor
         heartbeat_task = asyncio.create_task(self._heartbeat_monitor())
@@ -2062,12 +2137,21 @@ class ScraperController:
             
             if self.current_page > 1:
                 self.log("INFO", f"🔄 INIT: Found resume state for Page {self.current_page}")
-                
+
             # Restore processed URLs to avoid duplicates in the same run
             saved_processed = resume_state.get("processed_urls", [])
             if saved_processed:
                 self._processed.update(saved_processed)
                 self.log("INFO", f"🔄 INIT: Restored {len(saved_processed)} processed URLs from session file.")
+
+            # Restore enrichment phase state if interrupted mid-enrichment
+            if resume_state.get("in_enrichment", False):
+                self._in_enrichment = True
+                self._enrichment_done_urls = set(resume_state.get("enrichment_done_urls", []))
+                self._enrichment_missing_urls = resume_state.get("enrichment_missing_urls", [])
+                # Navigate directly to last listing page so the listing loop exits immediately
+                self.current_page = self.total_pages_expected or self.current_page
+                self.log("INFO", f"🔄 INIT: Resuming enrichment phase — {len(self._enrichment_done_urls)} done, {len(self._enrichment_missing_urls)} in original list")
 
         # 2. Lookup in Registry
         registry_entry = lookup_seed_url(self.seed_url)
@@ -2077,14 +2161,9 @@ class ScraperController:
             
             if target_path and os.path.exists(target_path):
                 self.log("INFO", f"Found previous scrape: {target_file}")
-                url_meta = load_urls_with_dates(target_path)
-                # Store metadata for later check in loop
-                for u, meta in url_meta.items():
-                    self._all_existing_urls[u] = {
-                        'is_inactive': not meta.get('is_active', True),
-                        'fecha_scraping': meta.get('date', '')
-                    }
-                
+                url_meta = load_all_urls_from_excel(target_path)
+                self._all_existing_urls.update(url_meta)
+
                 preloaded_urls = set(url_meta.keys())
                 self.log("OK", f"Pre-loaded {len(preloaded_urls)} existing URLs from previous scrape")
                 
@@ -2165,6 +2244,7 @@ class ScraperController:
         LAUNCH_FAIL_BLACKLIST_THRESHOLD = 3  # Mark engine as session-dead after this many failures
         
         self.consecutive_skips = 0  # Track consecutive skipped properties to stop dead-end deep scrapes
+        self.consecutive_datadome_fails = 0  # Track consecutive DataDome CAPTCHA_TIMEOUT failures
         
         # Initialize existing_df outside the recovery loop to persist across browser restarts
         if 'existing_df' not in locals():
@@ -2294,10 +2374,10 @@ class ScraperController:
                                     # Add extra stability env vars for Firefox on Windows
                                     os.environ["MOZ_PROXY_ALLOW_BYPASS_FROM_SETTINGS"] = "1"
                                     os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
-                                    
+
                                     ctx = await pw.firefox.launch_persistent_context(
                                         user_data_dir=profile_dir,
-                                        headless=False,
+                                        headless=True,  # Firefox siempre headless (sin ventana visible)
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         firefox_user_prefs=firefox_prefs,
                                         ignore_default_args=["-foreground"],
@@ -2344,7 +2424,7 @@ class ScraperController:
 
                                     ctx = await pw.chromium.launch_persistent_context(
                                         user_data_dir=profile_dir,
-                                        headless=False,
+                                        headless=(channel == "opera"),  # Opera siempre headless; el resto visible
                                         viewport={"width": viewport_width, "height": viewport_height},
                                         args=chromium_args,
                                         ignore_default_args=["--enable-automation", "--no-sandbox"],
@@ -2845,7 +2925,132 @@ class ScraperController:
                     new_scraped = 0
                     smart_skipped = 0
                     deactivated_count = 0
+
+                    # ===== EARLY HEADLESS WORKERS: Verificar URLs del Excel en paralelo con Phase 1 =====
+                    _early_queue = None
+                    _early_tasks = []
+                    _early_counters = {"checked": 0}
+                    _early_checkpoint_lock = asyncio.Lock()
+                    _early_webkit_ctx = None
+                    _early_opera_ctx = None
+                    if (self.parallel_enrichment and self.smart_enrichment
+                            and self._all_existing_urls and not self._in_enrichment):
+                        early_urls = [u for u in self._all_existing_urls.keys()
+                                      if u not in self._enrichment_done_urls]
+                        if early_urls:
+                            _early_queue = SharedURLQueue(early_urls)
+                            self.log("INFO", f"🚀 Lanzando workers headless antes de Phase 1: {len(early_urls)} URLs del Excel a verificar en paralelo...")
+
+                            async def _early_enrich_worker(worker_page, worker_label: str, use_proxy: bool = True):
+                                nonlocal deactivated_count
+                                while not self._should_stop:
+                                    m_url = await _early_queue.claim()
+                                    if m_url is None:
+                                        break
+                                    orig_row = self._all_existing_urls.get(m_url, {})
+                                    if orig_row.get("Anuncio activo") == "No":
+                                        self._enrichment_done_urls.add(m_url)
+                                        continue
+                                    if m_url in self._seen_in_search:
+                                        self._enrichment_done_urls.add(m_url)
+                                        continue
+                                    self.log("INFO", f"[{worker_label}] Early check ({_early_counters['checked']+1}/{_early_queue.total}): {m_url}")
+                                    try:
+                                        await self._interruptible_sleep(random.uniform(5, 10))
+                                        await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy)
+                                        try:
+                                            await worker_page.wait_for_selector("body", timeout=5000)
+                                        except Exception:
+                                            pass
+                                        body_text = await worker_page.evaluate("() => document.body ? document.body.innerText : ''")
+                                        body_lower = body_text.lower()
+
+                                        if any(kw in body_lower for kw in ["uso indebido", "bloqueado", "acceso bloqueado", "forbidden"]):
+                                            self.log("WARN", f"[{worker_label}] Bloqueado en early check. Devolviendo URL a cola y saliendo.")
+                                            await _early_queue.release(m_url)
+                                            break
+
+                                        # Re-check: Phase 1 may have found this URL while we were loading
+                                        if m_url in self._seen_in_search:
+                                            self._enrichment_done_urls.add(m_url)
+                                            _early_counters["checked"] += 1
+                                            continue
+
+                                        is_gone = any(msg in body_lower for msg in [
+                                            "no encontramos", "anuncio no disponible",
+                                            "ya no está disponible", "ya no está publicado",
+                                            "lo sentimos", "enlace antiguo"
+                                        ])
+                                        if is_gone:
+                                            self.log("WARN", f"[{worker_label}] Baja confirmada -> {m_url}")
+                                            row_to_save = orig_row.get("full_row", {}).copy()
+                                            if not row_to_save:
+                                                row_to_save = {"URL": m_url}
+                                            row_to_save["Anuncio activo"] = "No"
+                                            from datetime import datetime
+                                            row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+                                            row_to_save["Baja anuncio"] = datetime.now().strftime("%d/%m/%Y")
+                                            additions.append(row_to_save)
+                                            self._processed.add(m_url)
+                                            deactivated_count += 1
+                                        else:
+                                            self.log("INFO", f"[{worker_label}] Activa (aún no en búsqueda): {m_url}")
+                                            row_to_save = orig_row.get("full_row", {}).copy()
+                                            if not row_to_save:
+                                                row_to_save = {"URL": m_url}
+                                            row_to_save["Anuncio activo"] = "Sí"
+                                            from datetime import datetime
+                                            row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+                                            row_to_save = mark_as_enriched(row_to_save)
+                                            additions.append(row_to_save)
+
+                                        self._enrichment_done_urls.add(m_url)
+                                        _early_counters["checked"] += 1
+
+                                        if _early_counters["checked"] % 20 == 0:
+                                            async with _early_checkpoint_lock:
+                                                t_cp = time.time()
+                                                await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
+                                                self.log("INFO", f"[{worker_label}] Early checkpoint guardado en {time.time() - t_cp:.2f}s")
+
+                                    except (BlockedException, BrowserClosedException):
+                                        self.log("WARN", f"[{worker_label}] Bloqueado/cerrado en early worker. Devolviendo URL.")
+                                        await _early_queue.release(m_url)
+                                        break
+                                    except StopException:
+                                        self.log("INFO", f"[{worker_label}] Stop en early worker.")
+                                        break
+                                    except Exception as e:
+                                        self.log("WARN", f"[{worker_label}] Error en early check de {m_url}: {e}")
+                                        continue
+
+                            # Launch WebKit (slot 98) — no proxy (Windows limitation)
+                            try:
+                                _early_webkit_ctx = await _launch_headless_worker(pw, "webkit", None, 98)
+                                if _early_webkit_ctx:
+                                    _ewp = _early_webkit_ctx.pages[0] if _early_webkit_ctx.pages else await _early_webkit_ctx.new_page()
+                                    _early_tasks.append(asyncio.create_task(_early_enrich_worker(_ewp, "webkit", use_proxy=False)))
+                                    self.log("INFO", "✅ WebKit early worker lanzado (slot 98, sin proxy)")
+                            except Exception as e:
+                                self.log("WARN", f"⚠️ WebKit early worker no pudo lanzar: {e}")
+
+                            # Launch Opera/chromium (slot 96) — with proxy
+                            try:
+                                _early_opera_ctx = await _launch_headless_worker(pw, "chromium", "opera", 96, proxy=_browser_proxy)
+                                if _early_opera_ctx:
+                                    _eop = _early_opera_ctx.pages[0] if _early_opera_ctx.pages else await _early_opera_ctx.new_page()
+                                    _early_tasks.append(asyncio.create_task(_early_enrich_worker(_eop, "opera", use_proxy=True)))
+                                    self.log("INFO", "✅ Opera early worker lanzado (slot 96, con proxy)")
+                                else:
+                                    self.log("INFO", "ℹ️ Opera portable no disponible para early worker.")
+                            except Exception as e:
+                                self.log("WARN", f"⚠️ Opera early worker no pudo lanzar: {e}")
+
                     scraping_finished = False  # Track clean completion
+                    # Skip main listing loop if resuming an interrupted enrichment phase
+                    if self._in_enrichment:
+                        self.log("INFO", "🔄 Saltando bucle de listado: reanudando fase de enrichment interrumpida...")
+                        scraping_finished = True
                     while not self._should_stop and not scraping_finished:
                         await self._wait_for_pause()
                         if self._should_stop or scraping_finished:
@@ -2857,8 +3062,12 @@ class ScraperController:
                         
                         # Fixed: Use precise extraction instead of 'in' to avoid false positives
                         # (e.g., Page 1 URL is a substring of Page 2 URL)
+                        # Also guard against property detail pages (/inmueble/) which have no /pagina-X
+                        # and would make extract_page_from_url return 1, falsely matching page_num=1
+                        # after a Deep Scrape Mode transition.
                         current_page_in_browser = extract_page_from_url(current_url)
-                        is_already_on_target = (list_url.rstrip('/') == current_url.rstrip('/')) or (current_page_in_browser == page_num)
+                        is_listing_page = "/inmueble" not in current_url
+                        is_already_on_target = (list_url.rstrip('/') == current_url.rstrip('/')) or (is_listing_page and current_page_in_browser == page_num)
                         
                         try:
                             if is_already_on_target and page_num == self.current_page:
@@ -3044,7 +3253,8 @@ class ScraperController:
                                 
                                 row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
                                 row_to_save["Anuncio activo"] = "Sí"
-                                
+                                row_to_save = mark_as_enriched(row_to_save)
+
                                 additions.append(row_to_save)
                                 self.scraped_properties.append(row_to_save)
                                 self._processed.add(key)
@@ -3122,14 +3332,11 @@ class ScraperController:
                                     # Load existing URLs from this file
                                     # import time  <-- REMOVED to fix UnboundLocalError
                                     t_start_load = time.time()
-                                    url_meta = load_urls_with_dates(target_path)
-                                    # Copy metadata to state
+                                    url_meta = load_all_urls_from_excel(target_path)
+                                    # Copy metadata to state (no sobreescribir entradas ya presentes)
                                     for u, meta in url_meta.items():
                                         if u not in self._all_existing_urls:
-                                            self._all_existing_urls[u] = {
-                                                'is_inactive': not meta.get('is_active', True),
-                                                'fecha_scraping': meta.get('date', '')
-                                            }
+                                            self._all_existing_urls[u] = meta
                                     t_end_load = time.time()
                                     self.log("INFO", f"Loaded {len(url_meta)} existing URLs from file in {t_end_load - t_start_load:.2f}s")
                             
@@ -3206,10 +3413,9 @@ class ScraperController:
                                                 if k not in row or row[k] in [None, "", "NaN", "nan"]:
                                                     row[k] = v
 
-                                    # Smart Enrichment: Mark as enriched with current date
-                                    if self.smart_enrichment:
-                                        row = mark_as_enriched(row)
-                                
+                                    # Marcar siempre como enriquecido tras scrape exitoso
+                                    row = mark_as_enriched(row)
+
                                     additions.append(row)
                                     self.scraped_properties.append(row)
                                     self.consecutive_skips = 0
@@ -3338,10 +3544,9 @@ class ScraperController:
                                         merged = {**existing_data, **row}
                                         row = merged
 
-                                # Smart Enrichment: Mark as enriched with current date
-                                if self.smart_enrichment:
-                                    row = mark_as_enriched(row)
-                        
+                                # Marcar siempre como enriquecido tras scrape exitoso
+                                row = mark_as_enriched(row)
+
                                 additions.append(row)
                                 self.scraped_properties.append(row)
                                 self.consecutive_skips = 0
@@ -3484,97 +3689,207 @@ class ScraperController:
                 
                     # After phase 1 loop completes successfully
                     # === TARGETED DEACTIVATION CHECKS (SMART ENRICHMENT) ===
-                    if self.smart_enrichment and scraping_finished and not self._should_stop:
-                        # Only check if we successfully finished all pages (otherwise we might have missed active ones)
-                        missing_urls = [
-                            u for u in self._all_existing_urls.keys() 
-                            if u not in self._seen_in_search 
-                        ]
-                        
+                    if scraping_finished and not self._should_stop:
+                        # Mark that we are in the enrichment phase so restarts resume here
+                        self._in_enrichment = True
+
+                        # Wait for early headless workers (launched before Phase 1) to finish
+                        if _early_tasks:
+                            self.log("INFO", f"⏳ Esperando que {len(_early_tasks)} workers headless tempranos completen la cola...")
+                            await asyncio.gather(*_early_tasks, return_exceptions=True)
+                            if _early_counters["checked"] > 0:
+                                self.log("OK", f"✅ Workers tempranos verificaron {_early_counters['checked']} URLs del Excel antes de Phase 3.")
+                            for _ctx, _name in [(_early_webkit_ctx, "WebKit early"), (_early_opera_ctx, "Opera early")]:
+                                if _ctx:
+                                    try:
+                                        await _ctx.close()
+                                        self.log("INFO", f"✅ {_name} worker cerrado")
+                                    except Exception as e:
+                                        self.log("WARN", f"Error cerrando {_name} worker: {e}")
+
+                        # Compute missing_urls: use saved list if resuming, otherwise compute fresh
+                        if self._enrichment_missing_urls:
+                            missing_urls = [u for u in self._enrichment_missing_urls
+                                            if u not in self._enrichment_done_urls]
+                            self.log("INFO", f"🔄 Reanudando enrichment: {len(missing_urls)} URLs restantes "
+                                             f"({len(self._enrichment_done_urls)} ya verificadas)")
+                        else:
+                            # Fresh enrichment run — exclude URLs already handled by early workers
+                            missing_urls = [
+                                u for u in self._all_existing_urls.keys()
+                                if u not in self._seen_in_search
+                                and u not in self._enrichment_done_urls
+                            ]
+                            self._enrichment_missing_urls = list(missing_urls)
+
+                        counters = {"checked": 0}
                         if missing_urls:
                             self.log("INFO", f"🔍 Found {len(missing_urls)} properties in Excel missing from search. Verifying deactivations (all)...")
-                            
-                            checked_count = 0
-                            
-                            for m_url in missing_urls:
-                                if self._should_stop:
-                                    break
-                                
-                                # Skip if we already marked it as inactive in a previous check (avoid re-checking)
-                                orig_row = self._all_existing_urls.get(m_url, {})
-                                if orig_row.get("Anuncio activo") == "No":
-                                    continue
-                                    
-                                self.log("INFO", f"Checking missing property status ({checked_count+1}/{len(missing_urls)}): {m_url}")
-                                try:
-                                    await self._interruptible_sleep(random.uniform(5, 10))
-                                    await self._goto_with_retry(page, m_url)
-                                    
-                                    # If we reached here, navigation returned (either success or deactivated)
-                                    # Check for content to confirm we are NOT on a block page
+
+                            checkpoint_lock = asyncio.Lock()
+                            parallel_stop_evt = asyncio.Event()
+                            url_queue = SharedURLQueue(missing_urls)
+
+                            async def _enrich_worker(worker_page, worker_label: str, is_secondary: bool = False, use_proxy: bool = True):
+                                nonlocal deactivated_count
+                                while not self._should_stop and not parallel_stop_evt.is_set():
+                                    m_url = await url_queue.claim()
+                                    if m_url is None:
+                                        break
+
+                                    # Skip if already confirmed inactive in a previous check
+                                    orig_row = self._all_existing_urls.get(m_url, {})
+                                    if orig_row.get("Anuncio activo") == "No":
+                                        self._enrichment_done_urls.add(m_url)
+                                        continue
+
+                                    self.log("INFO", f"[{worker_label}] Checking missing property status ({counters['checked']+1}/{len(missing_urls)}): {m_url}")
                                     try:
-                                        await page.wait_for_selector("body", timeout=5000)
-                                    except: pass
-                                    
-                                    body_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
-                                    body_lower = body_text.lower()
-                                    
-                                    # CRITICAL: Verify we are NOT looking at a block page even after _goto_with_retry
-                                    if any(kw in body_lower for kw in ["uso indebido", "bloqueado", "acceso bloqueado", "forbidden"]):
-                                        self.log("ERR", f"🚫 INTERNAL BLOCK detected during enrichment for {m_url}")
-                                        mark_current_profile_blocked()
-                                        raise BlockedException("Block detected during enrichment check")
+                                        await self._interruptible_sleep(random.uniform(5, 10))
+                                        await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy)
 
-                                    is_gone = any(msg in body_lower for msg in [
-                                        "no encontramos", "anuncio no disponible", 
-                                        "ya no está disponible", "ya no está publicado",
-                                        "lo sentimos", "enlace antiguo"
-                                    ])
-                                    
-                                    if is_gone:
-                                        self.log("WARN", f"Confirmed: Property deactivated -> {m_url}")
-                                        row_to_save = orig_row.get("full_row", {}).copy()
-                                        if not row_to_save:
-                                            row_to_save = {"URL": m_url}
-                                            
-                                        row_to_save["Anuncio activo"] = "No"
-                                        from datetime import datetime
-                                        row_to_save["Baja anuncio"] = datetime.now().strftime("%d/%m/%Y")
-                                        additions.append(row_to_save)
-                                        self._processed.add(m_url) 
-                                        deactivated_count += 1
-                                    else:
-                                        # Property is still active, just not in this search result
-                                        self.log("INFO", f"Property still active (not in search): {m_url}")
-                                        row_to_save = orig_row.get("full_row", {}).copy()
-                                        if not row_to_save:
-                                            row_to_save = {"URL": m_url}
-                                            
-                                        row_to_save["Anuncio activo"] = "Sí"
-                                        from datetime import datetime
-                                        row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
-                                        additions.append(row_to_save)
-                                    
-                                    checked_count += 1
-                                    
-                                    # Checkpoint saving: save every 20 properties during deactivation checks
-                                    if checked_count > 0 and checked_count % 20 == 0:
-                                        t_start_save = time.time()
-                                        await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
-                                        self.log("INFO", f"Saved periodic enrichment checkpoint in {time.time() - t_start_save:.2f}s")
+                                        try:
+                                            await worker_page.wait_for_selector("body", timeout=5000)
+                                        except: pass
 
-                                except (BlockedException, BrowserClosedException):
-                                    # CRITICAL: Re-raise to trigger main loop restart/rotation logic
-                                    raise
-                                except StopException:
-                                    self.log("INFO", "Stop requested during missing property checks. Saving progress...")
-                                    break
+                                        body_text = await worker_page.evaluate("() => document.body ? document.body.innerText : ''")
+                                        body_lower = body_text.lower()
+
+                                        # CRITICAL: Verify we are NOT looking at a block page
+                                        if any(kw in body_lower for kw in ["uso indebido", "bloqueado", "acceso bloqueado", "forbidden"]):
+                                            self.log("ERR", f"🚫 [{worker_label}] INTERNAL BLOCK detected during enrichment for {m_url}")
+                                            if not is_secondary:
+                                                # El worker principal se bloquea: para todo y rota identidad
+                                                parallel_stop_evt.set()
+                                                mark_current_profile_blocked()
+                                                raise BlockedException("Block detected during enrichment check")
+                                            else:
+                                                # Worker secundario bloqueado: devuelve la URL y sale sin interrumpir al principal
+                                                self.log("WARN", f"[{worker_label}] Bloqueado. Devolviendo URL a la cola para que otro worker la procese.")
+                                                await url_queue.release(m_url)
+                                                break
+
+                                        is_gone = any(msg in body_lower for msg in [
+                                            "no encontramos", "anuncio no disponible",
+                                            "ya no está disponible", "ya no está publicado",
+                                            "lo sentimos", "enlace antiguo"
+                                        ])
+
+                                        if is_gone:
+                                            self.log("WARN", f"[{worker_label}] Confirmed: Property deactivated -> {m_url}")
+                                            row_to_save = orig_row.get("full_row", {}).copy()
+                                            if not row_to_save:
+                                                row_to_save = {"URL": m_url}
+                                            row_to_save["Anuncio activo"] = "No"
+                                            from datetime import datetime
+                                            row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+                                            row_to_save["Baja anuncio"] = datetime.now().strftime("%d/%m/%Y")
+                                            additions.append(row_to_save)
+                                            self._processed.add(m_url)
+                                            deactivated_count += 1
+                                        else:
+                                            self.log("INFO", f"[{worker_label}] Property still active (not in search): {m_url}")
+                                            row_to_save = orig_row.get("full_row", {}).copy()
+                                            if not row_to_save:
+                                                row_to_save = {"URL": m_url}
+                                            row_to_save["Anuncio activo"] = "Sí"
+                                            from datetime import datetime
+                                            row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+                                            row_to_save = mark_as_enriched(row_to_save)
+                                            additions.append(row_to_save)
+
+                                        # Mark this URL as done so restarts can skip it
+                                        self._enrichment_done_urls.add(m_url)
+                                        counters["checked"] += 1
+
+                                        # Checkpoint saving: save every 20 properties during deactivation checks
+                                        if counters["checked"] > 0 and counters["checked"] % 20 == 0:
+                                            async with checkpoint_lock:
+                                                t_start_save = time.time()
+                                                await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
+                                                self.log("INFO", f"Saved periodic enrichment checkpoint in {time.time() - t_start_save:.2f}s")
+
+                                    except (BlockedException, BrowserClosedException):
+                                        if not is_secondary:
+                                            # El worker principal se bloquea: para a los secundarios y rota identidad
+                                            parallel_stop_evt.set()
+                                            raise
+                                        else:
+                                            # Worker secundario bloqueado: devuelve la URL en vuelo y sale sin afectar al principal
+                                            self.log("WARN", f"[{worker_label}] Bloqueado/cerrado inesperadamente. Devolviendo URL a la cola y saliendo.")
+                                            await url_queue.release(m_url)
+                                            break
+                                    except StopException:
+                                        self.log("INFO", f"[{worker_label}] Stop requested during missing property checks. Saving progress...")
+                                        break
+                                    except Exception as e:
+                                        self.log("WARN", f"[{worker_label}] Could not verify {m_url}: {e}")
+                                        continue
+
+                            if not self.parallel_enrichment:
+                                # Sequential mode (existing behavior, no secondary browser)
+                                await _enrich_worker(page, "main")
+                            else:
+                                # Parallel mode: main browser (proxy) + WebKit (slot 99) + Opera (slot 97) sin proxy
+                                self.log("INFO", "🔀 Iniciando Phase 3 paralela: worker proxy + WebKit + Opera sin proxy")
+                                webkit_ctx2 = None
+                                webkit_page2 = None
+                                opera_ctx2 = None
+                                opera_page2 = None
+
+                                # Lanzar WebKit (slot 99) — sin proxy (limitación Windows)
+                                try:
+                                    webkit_ctx2 = await _launch_headless_worker(pw, "webkit", None, 99)
+                                    if webkit_ctx2:
+                                        webkit_page2 = webkit_ctx2.pages[0] if webkit_ctx2.pages else await webkit_ctx2.new_page()
+                                        self.log("INFO", "✅ WebKit worker (sin proxy) lanzado")
                                 except Exception as e:
-                                    self.log("WARN", f"Could not verify {m_url}: {e}")
-                                    continue
-                            
-                            if checked_count > 0:
-                                self.log("OK", f"Finished checking {checked_count} missing properties.")
+                                    self.log("WARN", f"⚠️ WebKit worker no pudo lanzar: {e}. Continuando sin él.")
+
+                                # Lanzar Opera (slot 97) — con proxy residencial
+                                try:
+                                    opera_ctx2 = await _launch_headless_worker(pw, "chromium", "opera", 97, proxy=_browser_proxy)
+                                    if opera_ctx2:
+                                        opera_page2 = opera_ctx2.pages[0] if opera_ctx2.pages else await opera_ctx2.new_page()
+                                        self.log("INFO", "✅ Opera worker (con proxy) lanzado")
+                                    else:
+                                        self.log("INFO", "ℹ️ Opera portable no disponible. Continuando sin worker Opera.")
+                                except Exception as e:
+                                    self.log("WARN", f"⚠️ Opera worker no pudo lanzar: {e}. Continuando sin él.")
+
+                                try:
+                                    # Construir lista de workers: siempre el main, secundarios según disponibilidad
+                                    worker_coros = [_enrich_worker(page, "main")]
+                                    if webkit_page2 is not None:
+                                        worker_coros.append(_enrich_worker(webkit_page2, "webkit", is_secondary=True, use_proxy=False))
+                                    if opera_page2 is not None:
+                                        worker_coros.append(_enrich_worker(opera_page2, "opera", is_secondary=True, use_proxy=True))
+
+                                    if len(worker_coros) > 1:
+                                        results = await asyncio.gather(*worker_coros, return_exceptions=True)
+                                        # Propagar excepciones criticas del worker principal (primer resultado)
+                                        main_exc = results[0]
+                                        if isinstance(main_exc, (BlockedException, BrowserClosedException, StopException)):
+                                            raise main_exc
+                                    else:
+                                        # Fallback secuencial si ningún worker secundario arrancó
+                                        await _enrich_worker(page, "main")
+                                finally:
+                                    for _ctx, _name in [(webkit_ctx2, "WebKit"), (opera_ctx2, "Opera")]:
+                                        if _ctx:
+                                            try:
+                                                await _ctx.close()
+                                                self.log("INFO", f"✅ {_name} worker cerrado")
+                                            except Exception as e:
+                                                self.log("WARN", f"Error cerrando {_name} worker: {e}")
+
+                            if counters["checked"] > 0:
+                                self.log("OK", f"Finished checking {counters['checked']} missing properties.")
+
+                        # Enrichment phase complete — clear resume state
+                        self._in_enrichment = False
+                        self._enrichment_done_urls.clear()
+                        self._enrichment_missing_urls.clear()
 
                     self.log("INFO", f"Summary: {new_scraped} new, {deactivated_count} deactivated, {smart_skipped} smart-skipped, {skipped} regular-skipped")
                     self._export_to_excel(additions, target_file, expired_urls)
@@ -3997,6 +4312,45 @@ class ScraperController:
             for profile, count in self._profile_stats.items():
                 percentage = (count / total_scraped) * 100
                 self.log("INFO", f"🔹 {profile} = {count} propiedades ({percentage:.1f}% del total)")
+
+        # Log captcha resolution report
+        captcha_stats = get_captcha_stats()
+        # Determine methods that were actually encountered
+        all_methods = [
+            ("Recarga rápida",       None),
+            ("DataDome 2Captcha",    ["ip_bloqueada", "interstitial", "timeout", "error_api", "irresoluble", "sin_cookie", "error_inyeccion", "cookie_rechazada"]),
+            ("DataDome CapSolver",   ["ip_bloqueada", "interstitial", "timeout", "error_api", "sin_cookie", "error_inyeccion", "cookie_rechazada"]),
+            ("Slider local",         None),
+            ("2Captcha GeeTest",     None),
+            ("2Captcha Coordenadas", None),
+        ]
+        active_methods = [m for m, _ in all_methods if captcha_stats.get(f"{m}|intentos", 0) > 0]
+        if active_methods:
+            total_resueltos = sum(captcha_stats.get(f"{m}|resueltos", 0) for m, _ in all_methods)
+            total_intentos  = sum(captcha_stats.get(f"{m}|intentos",  0) for m, _ in all_methods)
+            self.log("INFO", "─" * 60)
+            self.log("INFO", f"🧩 RESUMEN DE RESOLUCIÓN DE CAPTCHAS  |  {total_resueltos}/{total_intentos} resueltos")
+            self.log("INFO", "─" * 60)
+            for method, fail_keys in all_methods:
+                intentos  = captcha_stats.get(f"{method}|intentos",  0)
+                if intentos == 0:
+                    continue
+                resueltos = captcha_stats.get(f"{method}|resueltos", 0)
+                pct       = (resueltos / intentos * 100) if intentos else 0
+                label     = "sin coste" if method == "Recarga rápida" else "de pago"
+                line      = f"🔹 {method:<22} {intentos:>3} intentos | {resueltos:>3} resueltos ({pct:5.1f}%) [{label}]"
+                if fail_keys:
+                    fallos = []
+                    for k in fail_keys:
+                        v = captcha_stats.get(f"{method}|{k}", 0)
+                        if v:
+                            fallos.append(f"{k}={v}")
+                    if fallos:
+                        line += "  →  " + "  ".join(fallos)
+                self.log("INFO", line)
+            self.log("INFO", "─" * 60)
+        else:
+            self.log("INFO", "🧩 No se encontraron captchas durante el scraping.")
         
         # Clear resume state file ONLY on successful completion (not manual stop)
         if not self._should_stop:
