@@ -2270,14 +2270,22 @@ class ScraperController:
                         pass
 
                     # ========== ADVANCED IDENTITY ROTATION (2026) ==========
+                    # Motores incompatibles con proxy autenticado en Windows — nunca deben
+                    # ser el browser principal ya que navegarían sin proxy.
+                    _PROXY_INCOMPATIBLE_ENGINES = {"webkit", "firefox"}
                     current_config = get_current_profile_config()
+                    while current_config and current_config.get("engine") in _PROXY_INCOMPATIBLE_ENGINES:
+                        self.log("WARN", f"⚠️ Saltando perfil '{current_config['name']}' "
+                                         f"(motor '{current_config['engine']}' incompatible con proxy autenticado en Windows)")
+                        mark_current_profile_blocked()
+                        current_config, _ = rotate_identity()
                     engine = current_config["engine"]
                     channel = current_config["channel"]
                     profile_index = current_config["index"]
                     profile_dir = get_profile_dir(profile_index)
-                    
+
                     os.makedirs(profile_dir, exist_ok=True)
-                    
+
                     self.log("INFO", f"🎭 Identity: {current_config['name']} (Profile {profile_index})")
                     self.log("INFO", f"📂 Directory: {os.path.basename(profile_dir)}")
                     self.log("INFO", f"PLAYWRIGHT_BROWSERS_PATH: {os.environ.get('PLAYWRIGHT_BROWSERS_PATH', 'NOT SET')}")
@@ -2952,26 +2960,40 @@ class ScraperController:
                                         self._enrichment_done_urls.add(m_url)
                                         continue
                                     if m_url in self._seen_in_search:
+                                        self.log("INFO", f"[{worker_label}] Skip pre-navegación: Phase 1 ya encontró {m_url} en listado.")
                                         self._enrichment_done_urls.add(m_url)
                                         continue
                                     self.log("INFO", f"[{worker_label}] Early check ({_early_counters['checked']+1}/{_early_queue.total}): {m_url}")
                                     try:
                                         await self._interruptible_sleep(random.uniform(5, 10))
+                                        # Re-check after sleep: Phase 1 may have found this URL in a
+                                        # listing page while we were waiting — skip navigation entirely
+                                        if m_url in self._seen_in_search:
+                                            self.log("INFO", f"[{worker_label}] Skip post-sleep: Phase 1 encontró {m_url} mientras esperábamos. Ahorrando navegación.")
+                                            self._enrichment_done_urls.add(m_url)
+                                            _early_counters["checked"] += 1
+                                            continue
+                                        self.log("INFO", f"[{worker_label}] Navegando a: {m_url} (proxy={'sí' if use_proxy else 'no'})")
                                         await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy)
                                         try:
                                             await worker_page.wait_for_selector("body", timeout=5000)
                                         except Exception:
                                             pass
+                                        actual_url = worker_page.url
+                                        if actual_url.rstrip('/') != m_url.rstrip('/'):
+                                            self.log("INFO", f"[{worker_label}] URL final en browser: {actual_url} (redirigido desde {m_url})")
                                         body_text = await worker_page.evaluate("() => document.body ? document.body.innerText : ''")
                                         body_lower = body_text.lower()
 
-                                        if any(kw in body_lower for kw in ["uso indebido", "bloqueado", "acceso bloqueado", "forbidden"]):
-                                            self.log("WARN", f"[{worker_label}] Bloqueado en early check. Devolviendo URL a cola y saliendo.")
+                                        block_kw = next((kw for kw in ["uso indebido", "bloqueado", "acceso bloqueado", "forbidden"] if kw in body_lower), None)
+                                        if block_kw:
+                                            self.log("WARN", f"[{worker_label}] 🚫 Bloqueo detectado por keyword '{block_kw}' en body. URL en browser: {worker_page.url}. Devolviendo {m_url} a cola y saliendo del worker.")
                                             await _early_queue.release(m_url)
                                             break
 
                                         # Re-check: Phase 1 may have found this URL while we were loading
                                         if m_url in self._seen_in_search:
+                                            self.log("INFO", f"[{worker_label}] Skip post-carga: Phase 1 encontró {m_url} mientras navegábamos.")
                                             self._enrichment_done_urls.add(m_url)
                                             _early_counters["checked"] += 1
                                             continue
@@ -3013,16 +3035,24 @@ class ScraperController:
                                                 await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
                                                 self.log("INFO", f"[{worker_label}] Early checkpoint guardado en {time.time() - t_cp:.2f}s")
 
-                                    except (BlockedException, BrowserClosedException):
-                                        self.log("WARN", f"[{worker_label}] Bloqueado/cerrado en early worker. Devolviendo URL.")
+                                    except BlockedException as e:
+                                        self.log("WARN", f"[{worker_label}] 🚫 BlockedException en early worker (URL en browser: {worker_page.url}). Devolviendo {m_url} a cola. Detalle: {e}")
+                                        await _early_queue.release(m_url)
+                                        break
+                                    except BrowserClosedException as e:
+                                        self.log("WARN", f"[{worker_label}] 💀 BrowserClosedException en early worker. Browser cerrado inesperadamente mientras procesaba {m_url}. Devolviendo URL a cola. Detalle: {e}")
                                         await _early_queue.release(m_url)
                                         break
                                     except StopException:
                                         self.log("INFO", f"[{worker_label}] Stop en early worker.")
                                         break
                                     except Exception as e:
-                                        self.log("WARN", f"[{worker_label}] Error en early check de {m_url}: {e}")
+                                        import traceback
+                                        self.log("WARN", f"[{worker_label}] ⚠️ Error inesperado en early check de {m_url}: {type(e).__name__}: {e}")
+                                        self.log("WARN", f"[{worker_label}] Traceback: {traceback.format_exc(limit=3)}")
                                         continue
+                                pending_left = _early_queue.pending_count()
+                                self.log("INFO", f"[{worker_label}] Worker early finalizado. Procesadas: {_early_counters['checked']} URLs. Pendientes en cola: {pending_left}.")
 
                             # Launch WebKit (slot 98) — no proxy (Windows limitation)
                             try:
@@ -3725,6 +3755,7 @@ class ScraperController:
                         counters = {"checked": 0}
                         if missing_urls:
                             self.log("INFO", f"🔍 Found {len(missing_urls)} properties in Excel missing from search. Verifying deactivations (all)...")
+                            self.log("INFO", f"🔄 Nueva cola de enrichment creada con {len(missing_urls)} URLs (Phase 1 encontró {len(self._seen_in_search)}, ya enriquecidas: {len(self._enrichment_done_urls)}).")
 
                             checkpoint_lock = asyncio.Lock()
                             parallel_stop_evt = asyncio.Event()
@@ -3861,9 +3892,9 @@ class ScraperController:
                                     # Construir lista de workers: siempre el main, secundarios según disponibilidad
                                     worker_coros = [_enrich_worker(page, "main")]
                                     if webkit_page2 is not None:
-                                        worker_coros.append(_enrich_worker(webkit_page2, "webkit", is_secondary=True, use_proxy=False))
+                                        worker_coros.append(_enrich_worker(webkit_page2, "webkit", is_secondary=True))
                                     if opera_page2 is not None:
-                                        worker_coros.append(_enrich_worker(opera_page2, "opera", is_secondary=True, use_proxy=True))
+                                        worker_coros.append(_enrich_worker(opera_page2, "opera", is_secondary=True))
 
                                     if len(worker_coros) > 1:
                                         results = await asyncio.gather(*worker_coros, return_exceptions=True)
