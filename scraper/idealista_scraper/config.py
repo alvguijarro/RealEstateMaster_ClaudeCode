@@ -2,6 +2,10 @@ from __future__ import annotations
 from typing import Tuple, List
 
 DEFAULT_CDP_PORT: int = 9222
+
+# t=bv circuit breaker: pausa preventiva cuando el pool de IPs españolas está agotado
+TBV_CIRCUIT_BREAKER_THRESHOLD: int = 8    # t=bv consecutivos antes de pausar
+TBV_CIRCUIT_BREAKER_PAUSE_MIN: int = 30   # minutos de pausa para enfriar IPs
 HARVEST_DEBOUNCE_SECONDS: float = 1.5
 PAGE_WAIT_MS: int = 250
 RETRY_MAX_ATTEMPTS: int = 3
@@ -35,19 +39,25 @@ EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY: Tuple[int, int] = (10, 18)  # Every 10-18 
 # Extra Stealth: Reading time simulation (seconds per 100 characters of description)
 EXTRA_STEALTH_READING_TIME_PER_100_CHARS: float = 1.5
 
-# Extra Stealth: User-agent rotation list (Updated 2026)
+# Extra Stealth: User-agent rotation list (Updated March 2026)
+# Only Chromium-based UAs to match the browser pool (no Firefox/Safari UAs)
 USER_AGENTS: List[str] = [
-    # Windows 10/11 Chrome 132+
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-    # Windows Firefox 134+
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0",
-    # MacOS Chrome 132+
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
-    # MacOS Firefox 134+
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:134.0) Gecko/20100101 Firefox/134.0",
-    # Edge 132+
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0"
+    # Chrome 137
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+    # Chrome 136
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    # Chrome 135
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    # Chrome 134
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+    # Edge 137
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0",
+    # Edge 136
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0",
+    # Edge 135
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0",
+    # Opera (Chromium 137)
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 OPR/123.0.0.0",
 ]
 
 # Extra Stealth: Viewport sizes (width, height) for rotation
@@ -68,11 +78,19 @@ MAX_PROFILE_POOL_SIZE: int = 5
 PROFILE_COOLDOWN_MINUTES: int = 10
 
 # Browser Rotation Sequence (Strict Sequential)
-# 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 1
+# Firefox excluded: Juggler hang issues on Windows (~10 min wasted per cycle).
+# WebKit and Opera excluded from main pool: no soportan proxies autenticados en Windows.
+# Se lanzan como workers paralelos sin proxy en Phase 3 (ver PROXY_FREE_PARALLEL_BROWSERS).
 BROWSER_ROTATION_POOL: List[dict] = [
-    {"index": 1, "engine": "webkit",   "channel": None,     "name": "Webkit (Safari)"},   # Most reliable - goes first
-    {"index": 2, "engine": "chromium", "channel": None,     "name": "Chromium (Default)"},
-    {"index": 3, "engine": "chromium", "channel": "chrome", "name": "Google Chrome"},
-    {"index": 4, "engine": "chromium", "channel": "msedge", "name": "Microsoft Edge"},
-    {"index": 5, "engine": "firefox",  "channel": None,     "name": "Firefox"},           # Last resort - unstable on Windows Juggler
+    {"index": 1, "engine": "chromium", "channel": None,     "name": "Chromium (Default)"},
+    {"index": 2, "engine": "chromium", "channel": "chrome", "name": "Google Chrome"},
+    {"index": 3, "engine": "chromium", "channel": "msedge", "name": "Microsoft Edge"},
+]
+
+# Browsers que NO soportan proxy autenticado en Windows; se lanzan como workers
+# paralelos sin proxy durante Phase 3 (enriquecimiento) cuando parallel_enrichment=True.
+# Slots de perfil reservados: WebKit=99, Opera=97.
+PROXY_FREE_PARALLEL_BROWSERS: List[dict] = [
+    {"engine": "webkit",   "channel": None,    "name": "WebKit", "headless": True,  "slot": 99},
+    {"engine": "chromium", "channel": "opera", "name": "Opera",  "headless": True,  "slot": 97},
 ]

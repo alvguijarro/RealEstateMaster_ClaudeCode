@@ -87,6 +87,55 @@ def _captcha_inc(key: str) -> None:
     _captcha_stats[key] = _captcha_stats.get(key, 0) + 1
 
 # =============================================================================
+# t=bv (IP bloqueada) Counter — detecta cuándo el pool de IPs está agotado
+# =============================================================================
+
+_TBV_STATE_FILE = Path(__file__).parent.parent / 'app' / 'tbv_state.json'
+_last_solver_fail_reason: str = ''  # 'tbv' o '' — escrito por solver, leído por el bucle
+
+
+def _increment_tbv_counter(ip: str = 'unknown') -> int:
+    """Incrementa el contador global de t=bv consecutivos y persiste en JSON. Retorna el nuevo valor."""
+    import json
+    state: dict = {'consecutive': 0, 'last_ts': 0.0, 'last_ip': ''}
+    try:
+        if _TBV_STATE_FILE.exists():
+            state = json.loads(_TBV_STATE_FILE.read_text())
+    except Exception:
+        pass
+    state['consecutive'] = state.get('consecutive', 0) + 1
+    state['last_ts'] = time.time()
+    state['last_ip'] = ip
+    try:
+        _TBV_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _TBV_STATE_FILE.write_text(json.dumps(state))
+    except Exception:
+        pass
+    return state['consecutive']
+
+
+def _get_tbv_count() -> int:
+    """Lee el contador de t=bv consecutivos del archivo de estado."""
+    import json
+    try:
+        if _TBV_STATE_FILE.exists():
+            return json.loads(_TBV_STATE_FILE.read_text()).get('consecutive', 0)
+    except Exception:
+        pass
+    return 0
+
+
+def _reset_tbv_counter() -> None:
+    """Resetea el contador de t=bv consecutivos (llamar cuando un solve tiene éxito)."""
+    import json
+    try:
+        state = {'consecutive': 0, 'last_ts': time.time(), 'last_ip': ''}
+        _TBV_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _TBV_STATE_FILE.write_text(json.dumps(state))
+    except Exception:
+        pass
+
+# =============================================================================
 # Logging Functions
 # =============================================================================
 
@@ -850,12 +899,11 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
         # t=bv → IP permanently blocked by DataDome, any cookie will be rejected
         from urllib.parse import urlparse as _urlparse, parse_qs as _parse_qs
         _parsed_captcha = _urlparse(captcha_url)
-        _t_param = _parse_qs(_parsed_captcha.query).get('t', [''])[0]
-        l("INFO", f"DataDome captchaUrl t={_t_param!r} | {captcha_url[:120]}...")
-        if _t_param == 'bv':
-            l("WARN", "t=bv: IP bloqueada permanentemente por DataDome. Rotando identidad...")
-            _captcha_inc("DataDome 2Captcha|ip_bloqueada")
-            return False
+        _qs_params = _parse_qs(_parsed_captcha.query)
+        _t_param = _qs_params.get('t', [''])[0]
+        # Log completo (sin truncar) para diagnóstico
+        l("INFO", f"DataDome captchaUrl completa: {captcha_url}")
+        l("INFO", f"DataDome params: t={_t_param!r} | {_qs_params}")
 
         if '/interstitial/' in _parsed_captcha.path:
             l("WARN", "URL tipo /interstitial/ detectada (no es slider). DataDomeSliderTask no puede resolver este tipo. Rotando...")
@@ -880,17 +928,26 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
             proxy_login = f"{proxy_login}-session-{sticky_sid}"
             l("INFO", f"Proxy session ID: {sticky_sid}")
 
-        # 3. Pre-flight proxy IP check (once per session, helps diagnose IP mismatches)
-        if not getattr(solve_datadome_2captcha, '_proxy_ip_logged', False):
-            try:
-                proxy_url = f"http://{proxy_login}:{PROXY_CONFIG.get('password', '')}@{PROXY_CONFIG.get('host')}:{PROXY_CONFIG.get('port')}"
-                async with httpx.AsyncClient(proxy=proxy_url, timeout=10, verify=False) as ip_client:
-                    ip_resp = await ip_client.get("https://api.ipify.org?format=json")
-                    proxy_exit_ip = ip_resp.json().get("ip", "unknown")
-                    l("INFO", f"Proxy exit IP: {proxy_exit_ip}")
-                    solve_datadome_2captcha._proxy_ip_logged = True
-            except Exception as ip_err:
-                l("WARN", f"No se pudo verificar IP del proxy: {ip_err}")
+        # 3. Pre-flight proxy IP check — ANTES del check t=bv para loguear IP real en cada llamada
+        # (sin flag one-shot: así detectamos si las sesiones realmente rotan IPs distintas)
+        proxy_exit_ip = "unknown"
+        try:
+            proxy_url_check = f"http://{proxy_login}:{PROXY_CONFIG.get('password', '')}@{PROXY_CONFIG.get('host')}:{PROXY_CONFIG.get('port')}"
+            async with httpx.AsyncClient(proxy=proxy_url_check, timeout=10, verify=False) as _ipc:
+                _ip_resp = await _ipc.get("https://api.ipify.org?format=json")
+                proxy_exit_ip = _ip_resp.json().get("ip", "unknown")
+                l("INFO", f"🌐 Proxy exit IP (session {sticky_sid}): {proxy_exit_ip}")
+        except Exception as ip_err:
+            l("WARN", f"No se pudo verificar IP del proxy: {ip_err}")
+
+        # 4. Ahora check t=bv — con IP ya logueada para diagnóstico
+        if _t_param == 'bv':
+            tbv_count = _increment_tbv_counter(proxy_exit_ip)
+            l("WARN", f"t=bv #{tbv_count}: IP {proxy_exit_ip} bloqueada permanentemente por DataDome. Rotando identidad...")
+            _captcha_inc("DataDome 2Captcha|ip_bloqueada")
+            global _last_solver_fail_reason
+            _last_solver_fail_reason = 'tbv'
+            return False
 
         # 4. Build and send task payload
         task_payload = {
@@ -1098,6 +1155,8 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None):
         if _t_param == 'bv':
             l("WARN", "t=bv: IP bloqueada. CapSolver tampoco puede resolver.")
             _captcha_inc("DataDome CapSolver|ip_bloqueada")
+            global _last_solver_fail_reason
+            _last_solver_fail_reason = 'tbv'
             return False
 
         if '/interstitial/' in _parsed_captcha.path:
@@ -1510,6 +1569,22 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
     if datadome_data.get('is_datadome'):
         page_url = page.url
 
+        # ── Circuit breaker: demasiados t=bv consecutivos → pausa larga para enfriar IPs ──
+        try:
+            from scraper.idealista_scraper.config import TBV_CIRCUIT_BREAKER_THRESHOLD, TBV_CIRCUIT_BREAKER_PAUSE_MIN
+        except ImportError:
+            try:
+                from idealista_scraper.config import TBV_CIRCUIT_BREAKER_THRESHOLD, TBV_CIRCUIT_BREAKER_PAUSE_MIN
+            except ImportError:
+                TBV_CIRCUIT_BREAKER_THRESHOLD = 8
+                TBV_CIRCUIT_BREAKER_PAUSE_MIN = 30
+        _tbv_now = _get_tbv_count()
+        if _tbv_now >= TBV_CIRCUIT_BREAKER_THRESHOLD:
+            l("WARN", f"🚨 CIRCUIT BREAKER: {_tbv_now} t=bv consecutivos. Pausa de {TBV_CIRCUIT_BREAKER_PAUSE_MIN} min para enfriar IPs del pool español...")
+            await asyncio.sleep(TBV_CIRCUIT_BREAKER_PAUSE_MIN * 60)
+            _reset_tbv_counter()
+            l("INFO", "Circuit breaker expirado. Reanudando...")
+
         # Sin proxy: los solvers de pago producirían IP mismatch (cookie vinculada a IP de BrightData,
         # pero el browser navega con IP directa). Solo intentar recarga rápida, sin coste.
         if not use_proxy:
@@ -1603,7 +1678,14 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
             except Exception:
                 pass
 
+        _last_was_tbv = False
         for attempt, (solver_name, solver_fn) in enumerate(solvers, 1):
+            # Fast-fail: si el último intento fue t=bv (IP bloqueada), la misma sesión de proxy
+            # dará el mismo resultado — no gastar 10-15s en navegación innecesaria
+            if attempt > 1 and _last_was_tbv:
+                l("WARN", f"⚡ Saltando intento {attempt}/{total}: último fallo fue t=bv (IP bloqueada, misma sesión de proxy)")
+                break
+
             # On retries, navigate AWAY first to reset DataDome context and avoid escalation
             # (reloading the same URL causes DataDome to escalate /captcha/ → /interstitial/)
             if attempt > 1:
@@ -1636,6 +1718,7 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
                     # Page might have loaded clean after reload
                     l("OK", "DataDome desapareció tras recarga. Página libre.")
                     _captcha_inc("Recarga rápida|resueltos")
+                    _reset_tbv_counter()
                     return True
                 if '/interstitial/' in fresh_data:
                     l("WARN", f"Intento {attempt}/{total}: URL /interstitial/ detectada (IP bloqueada). Abortando reintentos...")
@@ -1644,14 +1727,18 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
             else:
                 captcha_url = datadome_data.get('captcha_url')
 
+            global _last_solver_fail_reason
+            _last_solver_fail_reason = ''  # Reset antes de llamar al solver
             _captcha_inc(f"DataDome {solver_name}|intentos")
             l("INFO", f"{solver_name} intento {attempt}/{total}...")
             if await solver_fn(page, captcha_url=captcha_url, logger=l):
                 l("OK", f"DataDome resuelto via {solver_name} en intento {attempt}/{total}.")
                 _captcha_inc(f"DataDome {solver_name}|resueltos")
+                _reset_tbv_counter()
                 return True
 
-            l("WARN", f"{solver_name} intento {attempt}/{total} falló.")
+            _last_was_tbv = (_last_solver_fail_reason == 'tbv')
+            l("WARN", f"{solver_name} intento {attempt}/{total} falló." + (" (t=bv)" if _last_was_tbv else ""))
 
         # DataDome: coordinates are useless (server-side validation)
         # Rotar sticky session para que la próxima rotación de identidad use IP fresca
