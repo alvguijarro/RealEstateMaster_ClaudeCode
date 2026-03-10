@@ -100,9 +100,9 @@
 
 ---
 
-## P3 — Prioridad baja
+## P3 — Prioridad baja ✅ COMPLETADAS
 
-### P3-1: Unificar funciones de detección de captcha duplicadas
+### P3-1: Unificar funciones de detección de captcha duplicadas ✅
 
 - **Archivos afectados**:
   - `scraper/update_urls.py` → `detect_captcha()` (líneas ~356-385)
@@ -118,7 +118,7 @@
   4. Añadir tests manuales: navegar a una URL de Idealista con cada módulo y verificar que la detección funciona.
 - **Resultado esperado**: Una sola función de detección mantenida en un solo lugar, cobertura completa en todos los módulos.
 
-### P3-2: Stats tracking faltante en `solve_slider_2captcha`
+### P3-2: Stats tracking faltante en `solve_slider_2captcha` ✅
 
 - **Archivo**: `scraper/idealista_scraper/utils.py`, función `solve_slider_2captcha` (líneas ~1317-1538)
 - **Problema**: La función nunca llama a `_captcha_inc()` para sus propios intentos/éxitos. Sus estadísticas no aparecen en el dashboard de captchas.
@@ -129,7 +129,7 @@
   3. Añadir `_captcha_inc("2Captcha Coordenadas|errores")` en el `except`.
 - **Resultado esperado**: Visibilidad completa de todos los métodos de resolución en las estadísticas.
 
-### P3-3: Detección de tipo de captcha en propiedades sin logging detallado
+### P3-3: Detección de tipo de captcha en propiedades sin logging detallado ✅
 
 - **Archivo**: `scraper/app/scraper_wrapper.py`, líneas ~3535-3560
 - **Problema**: Cuando se detecta un captcha en una página de detalle de propiedad, el log solo dice "CAPTCHA detectado en propiedad" sin indicar qué tipo es (DataDome iframe, slider, GeeTest, página vacía).
@@ -139,7 +139,7 @@
   2. Loggear el tipo detectado: "CAPTCHA detectado en propiedad (tipo: DataDome)" / "(tipo: GeeTest)" / "(tipo: slider)" / "(tipo: desconocido)".
 - **Resultado esperado**: Logs que permiten identificar el tipo de captcha más frecuente en detalle de propiedades.
 
-### P3-4: `solve_slider_captcha` siempre retorna `True` sin verificación
+### P3-4: `solve_slider_captcha` siempre retorna `True` sin verificación ✅
 
 - **Archivo**: `scraper/idealista_scraper/utils.py`, línea ~786
 - **Problema**: Tras completar el drag del slider, la función retorna `True` sin verificar que el captcha desapareció. El caller (`solve_captcha_advanced`) sí verifica después via título de página, pero el dato de éxito del slider es falso — infla las estadísticas de "resuelto" cuando en realidad solo hizo el drag.
@@ -150,7 +150,7 @@
   3. Alternativa: aceptar que la verificación real la hace el caller y documentar que el retorno de `solve_slider_captcha` es "drag completado" no "captcha resuelto".
 - **Resultado esperado**: Estadísticas precisas del slider local.
 
-### P3-5: `trends_tracker.py` re-navega innecesariamente tras resolver captcha
+### P3-5: `trends_tracker.py` re-navega innecesariamente tras resolver captcha ✅
 
 - **Archivo**: `trends/trends_tracker.py`, líneas ~591-594
 - **Problema**: Tras resolver exitosamente un captcha con `solve_captcha_advanced`, hace `continue` que reinicia el bucle de intentos, re-navegando desde cero a la URL. Esto desperdicia una navegación y arriesga un nuevo captcha.

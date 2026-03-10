@@ -38,7 +38,7 @@ if sys.platform == 'win32':
 from shared.proxy_config import PROXY_CONFIG
 from idealista_scraper.scraper import _goto_with_retry
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
-from idealista_scraper.utils import log, play_captcha_alert, simulate_human_interaction, solve_captcha_advanced
+from idealista_scraper.utils import log, play_captcha_alert, simulate_human_interaction, solve_captcha_advanced, detect_captcha_or_block
 from app.scraper_wrapper import get_browser_executable_path
 from idealista_scraper.config import (
     FAST_CARD_DELAY_RANGE, FAST_POST_CARD_DELAY_RANGE,
@@ -355,34 +355,9 @@ def handle_blocked_profile():
 
 async def detect_captcha(page) -> str | None:
     """Check if page shows CAPTCHA/bot protection. Returns 'block', 'captcha' or None.
-    Verification screens ('Verificación del dispositivo') are NOT blocks — returns None.
+    Delegado a detect_captcha_or_block (función canónica en utils.py).
     """
-    try:
-        page_data = await page.evaluate("""
-            () => ({
-                title: document.title,
-                text: document.documentElement ? document.documentElement.innerText : (document.body ? document.body.innerText : ''),
-                hasDatadome: !!document.querySelector('iframe[src*="captcha-delivery.com"]')
-            })
-        """)
-        text_lower = (page_data.get("text") or "").lower()
-        text_lower = re.sub(r'\s+', ' ', text_lower).strip()
-
-        # Verification screen is NEVER a block — caller must wait for it to resolve
-        if "verificación del dispositivo" in text_lower or "verificando su dispositivo" in text_lower:
-            return None
-
-        # Hard block: ONLY this exact phrase
-        if "el acceso se ha bloqueado" in text_lower:
-            return "block"
-
-        # Captcha: "muchas peticiones" or DataDome iframe
-        if "muchas peticiones tuyas" in text_lower or page_data.get("hasDatadome"):
-            return "captcha"
-
-        return None
-    except Exception:
-        return None
+    return await detect_captcha_or_block(page)
 
 async def variable_scroll(page):
     """Perform variable scroll pattern (Extra Stealth)."""

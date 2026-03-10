@@ -144,6 +144,80 @@ def _reset_tbv_counter() -> None:
             pass
 
 # =============================================================================
+# Canonical captcha/block detection — single source of truth para todos los módulos
+# =============================================================================
+
+async def detect_captcha_or_block(page, log_func=None) -> str | None:
+    """Detección completa de bloqueos y captchas. Retorna 'block', 'captcha' o None.
+
+    Versión canónica usada por update_urls, trends_tracker y enrich_worker.
+    Incluye: WAF IDs, DataDome (iframe + window.dd + script), keywords extendidos,
+    página vacía idealista.com y errores SSL.
+    Las pantallas de verificación de dispositivo retornan None (no son bloqueos).
+    """
+    try:
+        page_data = await page.evaluate("""
+            () => ({
+                title: document.title,
+                text: document.documentElement ? document.documentElement.innerText : (document.body ? document.body.innerText : ''),
+                hasDatadome: !!(document.querySelector('iframe[src*="captcha-delivery.com"]') ||
+                                window.dd ||
+                                document.querySelector('script[src*="captcha-delivery.com"]'))
+            })
+        """)
+        title = (page_data.get("title") or "").lower()
+        text_lower = (page_data.get("text") or "").lower()
+        import re as _re_det
+        text_lower = _re_det.sub(r'\s+', ' ', text_lower).strip()
+        is_datadome = page_data.get("hasDatadome", False)
+
+        # Pantalla de verificación de dispositivo — no es un bloqueo, el caller debe esperar
+        if "verificación del dispositivo" in text_lower or "verificando su dispositivo" in text_lower:
+            return None
+
+        # WAF ID pattern (cadena de 8-32 hex chars precedida de "id:")
+        has_block_id = bool(_re_det.search(r"id:\s*[0-9a-f]{8,32}-", text_lower))
+
+        # Hard block keywords
+        hard_block_keywords = [
+            "el acceso se ha bloqueado", "se ha detectado un uso indebido",
+            "un uso indebido", "uso no autorizado", "acceso bloqueado",
+            "forbidden", "access denied",
+        ]
+        if any(kw in text_lower for kw in hard_block_keywords) or has_block_id:
+            if log_func:
+                log_func("ERR", f"🛑 HARD BLOCK detectado (title: {title[:40]})")
+            return "block"
+
+        # SSL/proxy certificate errors — tratar como bloqueo para rotar
+        if "conexión no es privada" in text_lower or "error de privacidad" in text_lower:
+            if log_func:
+                log_func("WARN", "🛑 SSL certificate error detectado")
+            return "ssl_error"
+
+        # Captcha (DataDome o keywords de verificación)
+        captcha_keywords = [
+            "muchas peticiones tuyas", "confirma que eres humano",
+            "verificación necesaria", "un momento, por favor",
+            "cloudflare", "checking your browser",
+        ]
+        if is_datadome or any(kw in text_lower for kw in captcha_keywords) or any(kw in title for kw in captcha_keywords):
+            return "captcha"
+
+        # Página vacía "idealista.com" sin elementos — bloqueo silencioso
+        if title == "idealista.com" and len(text_lower) < 1200:
+            has_items = await page.evaluate("""() => {
+                return !!document.querySelector('article, .item, [data-element-id], #h1-container');
+            }""")
+            if not has_items:
+                return "block"
+
+        return None
+    except Exception:
+        return None
+
+
+# =============================================================================
 # Logging Functions
 # =============================================================================
 
@@ -788,11 +862,22 @@ async def solve_slider_captcha(page):
         
         await asyncio.sleep(random.uniform(0.2, 0.5))
         await page.mouse.up()
-        
-        # 4. Verification
+
+        # 4. Verification: check the slider container is gone (not just that the drag finished)
         await asyncio.sleep(2)
+        slider_still_visible = await page.evaluate("""() => {
+            const el = document.querySelector(
+                '.geetest_slider_button, .nc_iconfont.btn_slide, #nc_1_n1z, .slid_btn, ' +
+                '.captcha_slider, .px-captcha-container .px-captcha-slider-button, ' +
+                'div[class*="slider-handle"], div[class*="captcha-slider-handle"]'
+            );
+            return !!(el && el.offsetParent !== null);
+        }""")
+        if slider_still_visible:
+            log("WARN", "Slider drag completado pero el handle sigue visible — captcha no resuelto")
+            return False
         return True
-        
+
     except Exception as e:
         log("WARN", f"Slider solver attempt failed: {e}")
         return False
@@ -1327,7 +1412,8 @@ async def solve_slider_2captcha(page, logger=None):
     l = logger or log
     if not SOLVER:
         return False
-        
+
+    _captcha_inc("2Captcha Coordenadas|intentos")
     try:
         # Get Device Pixel Ratio for coordinate scaling
         pixel_ratio = await page.evaluate("window.devicePixelRatio || 1.0")
@@ -1540,12 +1626,15 @@ async def solve_slider_2captcha(page, logger=None):
                 return False
                 
             l("OK", "✅ 2Captcha Coordinates solved!")
+            _captcha_inc("2Captcha Coordenadas|resueltos")
             return True
-            
+
     except Exception as e:
         l("ERR", f"2Captcha Slider solver error: {type(e).__name__}: {e}")
-        
+        _captcha_inc("2Captcha Coordenadas|errores")
+
     l("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
+    _captcha_inc("2Captcha Coordenadas|errores")
     return False
 
 

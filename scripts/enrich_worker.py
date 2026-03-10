@@ -41,7 +41,7 @@ from playwright.async_api import async_playwright
 
 # Import scraper components
 from scraper.idealista_scraper.extractors import extract_detail_fields
-from scraper.idealista_scraper.utils import log, simulate_human_interaction, play_captcha_alert, solve_captcha_advanced, cleanup_stealth_profiles
+from scraper.idealista_scraper.utils import log, simulate_human_interaction, play_captcha_alert, solve_captcha_advanced, cleanup_stealth_profiles, detect_captcha_or_block
 from scraper.idealista_scraper.excel_writer import export_split_by_distrito
 from scraper.idealista_scraper.config import USER_AGENTS, VIEWPORT_SIZES, BROWSER_ROTATION_POOL
 from scraper.idealista_scraper.scraper import _goto_with_retry, ScraperSession # Import the robust navigator and session
@@ -111,54 +111,8 @@ ENRICH_FIELDS = {
 # =============================================================================
 
 async def check_for_blocks(page, log_func=None) -> Optional[str]:
-    """Granular block detection (WAF IDs, DataDome, Cloudflare, short pages)."""
-    try:
-        page_data = await page.evaluate("""
-            () => ({
-                title: document.title,
-                text: document.documentElement ? document.documentElement.innerText : (document.body ? document.body.innerText : '')
-            })
-        """)
-        title = (page_data.get("title") or "").lower()
-        text_lower = (page_data.get("text") or "").lower()
-        text_lower = re.sub(r'\s+', ' ', text_lower).strip()
-
-        # 1. HARD BLOCKS
-        has_block_id = bool(re.search(r"id:\s*[0-9a-f]{8,32}-", text_lower))
-        hard_block_keywords = [
-            "el acceso se ha bloqueado", "se ha detectado un uso indebido",
-            "un uso indebido", "uso no autorizado", "acceso bloqueado",
-            "forbidden", "access denied"
-        ]
-        if any(kw in text_lower for kw in hard_block_keywords) or has_block_id:
-            if log_func: log_func("ERR", f"🛑 HARD BLOCK detected (Title: {title[:30]})")
-            return "block"
-
-        # 2. CAPTCHAS / DATADOME
-        is_datadome = await page.evaluate("""() => {
-            return !!(document.querySelector('iframe[src*="captcha-delivery.com"]') || 
-                      window.dd || 
-                      document.querySelector('script[src*="captcha-delivery.com"]'));
-        }""")
-        captcha_keywords = [
-            "muchas peticiones tuyas", "confirma que eres humano",
-            "verificación necesaria", "un momento, por favor",
-            "cloudflare", "checking your browser"
-        ]
-        if is_datadome or any(kw in text_lower for kw in captcha_keywords) or any(kw in title for kw in captcha_keywords):
-            return "captcha"
-
-        # 3. Short 'idealista.com' page with NO elements
-        if title == "idealista.com" and len(text_lower) < 1200:
-            has_items = await page.evaluate("""() => {
-                return !!document.querySelector('article, .item, [data-element-id], #h1-container');
-            }""")
-            if not has_items:
-                return "block"
-        
-        return None
-    except:
-        return None
+    """Granular block detection. Delegado a detect_captcha_or_block (función canónica en utils.py)."""
+    return await detect_captcha_or_block(page, log_func=log_func)
 
 async def simulate_reading_time(text: str, log_func=None):
     """Wait proportional to description length (Extra Stealth behavior)."""

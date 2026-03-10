@@ -3568,7 +3568,16 @@ class ScraperController:
 
                                 # If missing fields and not a "not found" page, might be CAPTCHA
                                 if miss:
-                                    self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado en propiedad. Intentando resolución automática...")
+                                    try:
+                                        _captcha_type_info = await page.evaluate("""() => {
+                                            if (document.querySelector('iframe[src*="captcha-delivery.com"]')) return 'DataDome';
+                                            if (typeof window.initGeetest !== 'undefined' || document.querySelector('.geetest_holder')) return 'GeeTest';
+                                            if (document.querySelector('.px-captcha-container, .nc-container, .captcha_slider')) return 'slider';
+                                            return 'desconocido';
+                                        }""")
+                                    except Exception:
+                                        _captcha_type_info = 'desconocido'
+                                    self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado en propiedad (tipo: {_captcha_type_info}). Intentando resolución automática...")
 
                                     if self.on_status:
                                         self.on_status("captcha")

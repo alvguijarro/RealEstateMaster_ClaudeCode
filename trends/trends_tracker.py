@@ -19,6 +19,7 @@ CHECKPOINT_FILE = DATA_DIR / "checkpoint.json"
 STOP_FLAG_FILE = DATA_DIR / "TRACKER_STOP.flag"
 DEBUG_DIR = DATA_DIR / "debug"
 MAPPING_FILE = PROJECT_ROOT / "scraper" / "documentation" / "province_urls_mapping.md"
+SUBZONES_FILE = PROJECT_ROOT / "scraper" / "documentation" / "subzones_complete.json"
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -31,47 +32,158 @@ from playwright.async_api import async_playwright
 import random
 
 # Import stealth and captcha utilities from main scraper
-from app.scraper_wrapper import get_browser_executable_path
+from app.scraper_wrapper import get_browser_executable_path, generate_stealth_script
 from idealista_scraper.config import VIEWPORT_SIZES, USER_AGENTS, BROWSER_ROTATION_POOL
-from idealista_scraper.utils import solve_captcha_advanced
-from update_urls import rotate_identity, mark_current_profile_blocked, get_random_gpu, generate_stealth_script, get_profile_dir
+from idealista_scraper.utils import solve_captcha_advanced, simulate_human_interaction, detect_captcha_or_block
+from update_urls import rotate_identity, mark_current_profile_blocked, get_profile_dir
+from shared.proxy_config import PROXY_CONFIG
 
-# Parse the markdown mapping
-def parse_mapping(file_path):
-    """Parses the markdown file to extract a list of (Province, Zone, URL, Operation)"""
+def init_db():
+    """Inicializa/migra la base de datos SQLite añadiendo la columna subzone si no existe."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Crear tabla si no existe (instalaciones nuevas)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS inventory_trends (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date_record TEXT NOT NULL,
+            iso_year INTEGER NOT NULL,
+            iso_week INTEGER NOT NULL,
+            province TEXT NOT NULL,
+            zone TEXT NOT NULL,
+            subzone TEXT NOT NULL DEFAULT '',
+            operation TEXT NOT NULL,
+            total_properties INTEGER NOT NULL,
+            UNIQUE(date_record, province, zone, subzone, operation)
+        )
+    ''')
+
+    # Migración: añadir columna subzone si falta (instalaciones existentes)
+    cursor.execute("PRAGMA table_info(inventory_trends)")
+    cols = [row[1] for row in cursor.fetchall()]
+    if 'subzone' not in cols:
+        print("INFO: Migrando DB — añadiendo columna subzone y actualizando constraint...")
+        cursor.execute("ALTER TABLE inventory_trends RENAME TO inventory_trends_old")
+        cursor.execute('''
+            CREATE TABLE inventory_trends (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date_record TEXT NOT NULL,
+                iso_year INTEGER NOT NULL,
+                iso_week INTEGER NOT NULL,
+                province TEXT NOT NULL,
+                zone TEXT NOT NULL,
+                subzone TEXT NOT NULL DEFAULT '',
+                operation TEXT NOT NULL,
+                total_properties INTEGER NOT NULL,
+                UNIQUE(date_record, province, zone, subzone, operation)
+            )
+        ''')
+        cursor.execute('''
+            INSERT INTO inventory_trends
+                SELECT id, date_record, iso_year, iso_week, province, zone, '', operation, total_properties
+                FROM inventory_trends_old
+        ''')
+        cursor.execute("DROP TABLE inventory_trends_old")
+        print("INFO: Migración completada.")
+
+    conn.commit()
+    conn.close()
+
+
+def parse_mapping_v2(mapping_file, subzones_file):
+    """Parsea el mapping de URLs omitiendo zonas hoja (sin sub-zonas).
+    Las zonas hoja se capturan vía sidenotes al visitar la página de provincia.
+    Devuelve (urls_list, subzones_data) donde urls_list contiene tuplas de 5 elementos:
+    (province, zone, url, operation, level) con level='province' o 'zone'.
+    """
+    subzones_data = {}
+    if subzones_file.exists():
+        try:
+            with open(subzones_file, 'r', encoding='utf-8') as f:
+                subzones_data = json.load(f)
+        except Exception as e:
+            print(f"WARN: No se pudo cargar subzones_complete.json: {e}")
+
+    def zone_subzone_status(province, zone):
+        """Devuelve True si zona tiene sub-zonas conocidas, False si es hoja confirmada,
+        None si la provincia/zona no está en el JSON (desconocida → tratar como visita directa).
+        """
+        prov_data = subzones_data.get(province)
+        if prov_data is None:
+            return None  # Provincia no mapeada aún — comportamiento conservador: visitar
+        zone_data = prov_data.get(zone)
+        if zone_data is None:
+            return None  # Zona no mapeada aún — comportamiento conservador: visitar
+        return bool(zone_data.get('subzones'))
+
     urls_to_scrape = []
     current_operation = None
     current_province = None
-    
-    with open(file_path, "r", encoding="utf-8") as f:
+
+    with open(mapping_file, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
-                
+
             if line.startswith("## 🏠 Alquiler"):
                 current_operation = "alquiler"
             elif line.startswith("## 💰 Venta"):
                 current_operation = "venta"
-                
+
             elif line.startswith("|") and not line.startswith("| :---"):
                 parts = [p.strip() for p in line.split("|")]
                 if len(parts) >= 4:
                     prov = parts[1].replace("**", "").strip()
                     zone = parts[2].strip()
                     url_md = parts[3].strip()
-                    
+
                     if prov and prov.lower() != "provincia":
                         current_province = prov
-                    
-                    # Check if it's a markdown url / code block
+
                     url_match = re.search(r'`(https?://[^`]+)`', url_md)
                     if url_match:
                         url = url_match.group(1)
                         if current_province and current_operation:
-                            urls_to_scrape.append((current_province, zone, url, current_operation))
-                            
-    return urls_to_scrape
+                            is_province_level = '(Toda la provincia)' in zone or zone.lower() == 'toda la provincia'
+                            if is_province_level:
+                                urls_to_scrape.append((current_province, zone, url, current_operation, 'province'))
+                            else:
+                                status = zone_subzone_status(current_province, zone)
+                                if status is True:
+                                    # Zona con sub-zonas conocidas → visitar para obtener sub-zonas vía sidenotes
+                                    urls_to_scrape.append((current_province, zone, url, current_operation, 'zone'))
+                                elif status is False:
+                                    pass  # Zona hoja confirmada → capturada vía sidenote de provincia, no se visita
+                                else:
+                                    # Desconocida (provincia/zona no en JSON) → visitar directamente (comportamiento seguro)
+                                    urls_to_scrape.append((current_province, zone, url, current_operation, 'zone'))
+
+    return urls_to_scrape, subzones_data
+
+
+async def extract_breadcrumb_sidenotes(page):
+    """Extrae conteos de zonas/sub-zonas desde los sidenotes del breadcrumb en el DOM."""
+    try:
+        return await page.evaluate('''() => {
+            return Array.from(document.querySelectorAll(
+                'li.breadcrumb-dropdown-subitem-element-list'))
+              .map(li => {
+                const link = li.querySelector('a');
+                const sidenote = li.querySelector('.breadcrumb-navigation-sidenote');
+                const raw = sidenote ? sidenote.innerText.trim() : '';
+                const m = raw.match(/([0-9][0-9.,]*)/);
+                return {
+                  name: link ? link.innerText.trim() : null,
+                  href: link ? link.getAttribute('href') : null,
+                  count: m ? parseInt(m[1].replace(/[.,]/g, '')) : 0
+                };
+              }).filter(i => i.name);
+        }''')
+    except Exception as e:
+        print(f"  ⚠️ Error extrayendo sidenotes del breadcrumb: {e}")
+        return []
 
 async def extract_h1_number(page):
     """Extracts the leading number from the H1 element with improved robustness."""
@@ -105,24 +217,13 @@ async def extract_h1_number(page):
     return 0
 
 async def detect_block(page):
-    """Detects if we are hard-blocked or on a specialized captcha page."""
-    try:
-        title = (await page.title() or "").lower()
-        # Simplified block detection to avoid expensive content extraction if possible
-        block_keywords = ["pardon our interruption", "captcha", "access denied", "forbidden", "uso indebido", "bloqueado"]
-        if any(kw in title for kw in block_keywords):
-            return True
-            
-        # Check for the datadome iframe or specific text
-        is_blocked = await page.evaluate("""() => {
-            const text = document.body ? document.body.innerText.toLowerCase() : '';
-            return text.includes('uso indebido') || 
-                   text.includes('pardon our interruption') || 
-                   !!document.querySelector('iframe[src*="captcha-delivery.com"]');
-        }""")
-        return is_blocked
-    except:
-        return False
+    """Detects if we are hard-blocked or on a captcha page.
+    Returns 'block', 'captcha', or None. Delegado a detect_captcha_or_block (función canónica en utils.py).
+    """
+    # Pantalla de verificación de dispositivo — no es un bloqueo
+    if await is_verification_screen(page):
+        return None
+    return await detect_captcha_or_block(page)
 
 async def take_debug_screenshot(page, province, zone, suffix=""):
     """Captures a screenshot when 0 properties are found or block detected."""
@@ -179,31 +280,31 @@ async def wait_for_verification(page, max_attempts=3):
             return True
     return False
     
-async def save_to_db(date_record, iso_year, iso_week, province, zone, operation, total):
+async def save_to_db(date_record, iso_year, iso_week, province, zone, operation, total, subzone=''):
     """Saves the extracted total to the SQLite database."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            INSERT OR REPLACE INTO inventory_trends 
-            (date_record, iso_year, iso_week, province, zone, operation, total_properties)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (date_record, iso_year, iso_week, province, zone, operation, total))
+            INSERT OR REPLACE INTO inventory_trends
+            (date_record, iso_year, iso_week, province, zone, subzone, operation, total_properties)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (date_record, iso_year, iso_week, province, zone, subzone, operation, total))
         conn.commit()
     except Exception as e:
         print(f"DB Error: {e}")
     finally:
         conn.close()
 
-async def record_exists_for_week(iso_year, iso_week, province, zone, operation):
-    """Checks if a record already exists for this exact combination to avoid double scraping."""
+async def record_exists_for_day(date_record, province, zone, operation, subzone=''):
+    """Checks if a record already exists for today to avoid double scraping."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            SELECT total_properties FROM inventory_trends 
-            WHERE iso_year = ? AND iso_week = ? AND province = ? AND zone = ? AND operation = ?
-        ''', (iso_year, iso_week, province, zone, operation))
+            SELECT total_properties FROM inventory_trends
+            WHERE date_record = ? AND province = ? AND zone = ? AND subzone = ? AND operation = ?
+        ''', (date_record, province, zone, subzone, operation))
         row = cursor.fetchone()
         if row:
             # If total is 0, we count it as non-existent to force a re-scrape (likely error)
@@ -215,50 +316,52 @@ async def record_exists_for_week(iso_year, iso_week, province, zone, operation):
     finally:
         conn.close()
 
-def save_checkpoint(index, iso_year, iso_week):
+def save_checkpoint(index, date_record):
     """Saves the current progress index to resume later."""
     try:
         with open(CHECKPOINT_FILE, 'w', encoding='utf-8') as f:
             json.dump({
                 "last_index": index,
-                "iso_year": iso_year,
-                "iso_week": iso_week
+                "date_record": date_record
             }, f)
     except Exception as e:
         print(f"Failed to save checkpoint: {e}")
 
 def load_checkpoint():
-    """Loads the checkpoint. Returns (last_index, iso_year, iso_week) or (0, None, None)."""
+    """Loads the checkpoint. Returns (last_index, date_record) or (0, None)."""
     if CHECKPOINT_FILE.exists():
         try:
             with open(CHECKPOINT_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return data.get("last_index", 0), data.get("iso_year"), data.get("iso_week")
+                # Support legacy weekly checkpoints (treat as expired)
+                if "iso_week" in data and "date_record" not in data:
+                    return 0, None
+                return data.get("last_index", 0), data.get("date_record")
         except:
             pass
-    return 0, None, None
+    return 0, None
 
 def auto_export_csv():
     """Generates a CSV export of the entire SQLite DB to disk."""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        
+
         # VENTA
-        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, operation, total_properties FROM inventory_trends WHERE operation = 'venta' ORDER BY id DESC")
+        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, subzone, operation, total_properties FROM inventory_trends WHERE operation = 'venta' ORDER BY id DESC")
         rows_venta = cursor.fetchall()
-        
+
         # ALQUILER
-        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, operation, total_properties FROM inventory_trends WHERE operation = 'alquiler' ORDER BY id DESC")
+        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, subzone, operation, total_properties FROM inventory_trends WHERE operation = 'alquiler' ORDER BY id DESC")
         rows_alquiler = cursor.fetchall()
 
         conn.close()
-        
+
         ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         file_venta = DATA_DIR / f"market_trends_venta_{ts}.csv"
         file_alquiler = DATA_DIR / f"market_trends_alquiler_{ts}.csv"
-        
-        headers = ['Fecha', 'Año ISO', 'Semana ISO', 'Provincia', 'Zona', 'Operación', 'Total Propiedades']
+
+        headers = ['Fecha', 'Año ISO', 'Semana ISO', 'Provincia', 'Zona', 'Subzona', 'Operación', 'Total Propiedades']
 
         if rows_venta:
             with open(file_venta, 'w', newline='', encoding='utf-8') as csvfile:
@@ -273,35 +376,45 @@ def auto_export_csv():
                 writer.writerow(headers)
                 writer.writerows(rows_alquiler)
             print(f"✅ Auto-exported {len(rows_alquiler)} records to {file_alquiler.name}")
-            
+
     except Exception as e:
         print(f"Error auto-exporting CSV: {e}")
 
-async def run_tracker(resume=False, headless=False):
+async def run_tracker(resume=False, headless=False, force_date=None):
     print(f"Starting Robust Market Trends Tracker (Resume: {resume}, Headless: {headless})...", flush=True)
     os.makedirs(DATA_DIR, exist_ok=True)
-    
-    urls_data = parse_mapping(MAPPING_FILE)
+
+    # Ensure DB schema is current (runs migration if subzone column missing)
+    init_db()
+
+    urls_data, subzones_data = parse_mapping_v2(MAPPING_FILE, SUBZONES_FILE)
     if not urls_data:
         print("Warning: No URLs found in mapping file.")
         return
-        
-    print(f"Found {len(urls_data)} URLs to track.")
-    
-    # Get current Date Data
-    now = datetime.datetime.now()
+
+    leaf_zones_count = sum(1 for _, _, _, _, lvl in urls_data if lvl == 'province')
+    zone_visits_count = sum(1 for _, _, _, _, lvl in urls_data if lvl == 'zone')
+    print(f"Found {len(urls_data)} URLs to track ({leaf_zones_count} province-level, {zone_visits_count} zone-level). "
+          f"Leaf zones captured via sidenotes (no direct visit).")
+
+    # Get current Date Data (allow override for re-running past days)
+    if force_date:
+        now = datetime.datetime.strptime(force_date, "%d-%m-%Y")
+        print(f"INFO: Fecha forzada a {force_date} (override manual)")
+    else:
+        now = datetime.datetime.now()
     date_formatted = now.strftime("%d-%m-%Y")
     iso_year, iso_week, _ = now.isocalendar()
-    
+
     start_index = 0
     uncertain_zero_urls = []
     if resume:
-        last_idx, cp_year, cp_week = load_checkpoint()
-        if cp_year == iso_year and cp_week == iso_week:
+        last_idx, cp_date = load_checkpoint()
+        if cp_date == date_formatted:
             start_index = last_idx
-            print(f"Resuming from index {start_index} for Week {iso_week}")
+            print(f"Resuming from index {start_index} for day {date_formatted}")
         else:
-            print("Checkpoint is from a previous week. Starting fresh.")
+            print("Checkpoint is from a previous day. Starting fresh.")
     
     urls_len = len(urls_data)
     
@@ -316,7 +429,13 @@ async def run_tracker(resume=False, headless=False):
             break
         
         # IDENTITY ROTATION
+        # WebKit on Windows no soporta proxies autenticados — excluir del pool
+        PROXY_INCOMPATIBLE_ENGINES = {"webkit", "firefox"}
         profile_config, wait_time = rotate_identity()
+        while profile_config and profile_config.get("engine") in PROXY_INCOMPATIBLE_ENGINES:
+            print(f"INFO: Saltando perfil {profile_config['name']} (motor {profile_config.get('engine')} incompatible con proxy autenticado en Windows)")
+            mark_current_profile_blocked()
+            profile_config, wait_time = rotate_identity()
         if wait_time > 0:
             print(f"WARN: All profiles in cooldown. Waiting {int(wait_time/60)}m...")
             await asyncio.sleep(wait_time)
@@ -333,6 +452,10 @@ async def run_tracker(resume=False, headless=False):
                 "--disable-dev-shm-usage",
                 "--disable-infobars",
                 "--no-first-run",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--lang=es-ES,es",
+                "--no-default-browser-check",
             ]
             
             exe_path = get_browser_executable_path(profile_config.get("channel"))
@@ -341,18 +464,31 @@ async def run_tracker(resume=False, headless=False):
             engine_name = profile_config.get("engine", "chromium")
             browser_launcher = getattr(pw, engine_name)
             
+            # Firefox y Opera siempre headless (sin ventana visible para el usuario)
+            _ch = profile_config.get("channel")
+            _is_headless = headless or engine_name == "firefox" or _ch == "opera"
+
             launch_options = {
                 "user_data_dir": profile_dir,
-                "headless": headless,
+                "headless": _is_headless,
                 "viewport": {"width": viewport[0], "height": viewport[1]},
-                "user_agent": random.choice(USER_AGENTS)
+                "user_agent": random.choice(USER_AGENTS),
+                "ignore_https_errors": True,
+                "proxy": {
+                    "server": f"http://{PROXY_CONFIG['host']}:{PROXY_CONFIG['port']}",
+                    "username": f"{PROXY_CONFIG['login']}-session-{PROXY_CONFIG['sticky_session_id']}",
+                    "password": PROXY_CONFIG['password'],
+                },
             }
             
             if engine_name == "chromium":
                 launch_options["args"] = browser_args
                 launch_options["ignore_default_args"] = ["--enable-automation"]
-                if profile_config.get("channel"):
-                    launch_options["channel"] = profile_config["channel"]
+                channel = profile_config.get("channel")
+                # Only pass channel for Playwright-recognized values (chrome, msedge)
+                # Non-standard channels (opera, brave, vivaldi) need executable_path instead
+                if channel and channel not in ("opera", "brave", "vivaldi", "iron"):
+                    launch_options["channel"] = channel
                 if exe_path:
                     launch_options["executable_path"] = exe_path
             elif engine_name == "firefox":
@@ -366,10 +502,8 @@ async def run_tracker(resume=False, headless=False):
             try:
                 context = await browser_launcher.launch_persistent_context(**launch_options)
                 
-                # ADVANCED GPU/DEEP STEALTH
-                _GPU_VENDOR, _GPU_RENDERER = get_random_gpu()
-                stealth_script = generate_stealth_script().replace('{_GPU_VENDOR}', _GPU_VENDOR).replace('{_GPU_RENDERER}', _GPU_RENDERER)
-                await context.add_init_script(stealth_script)
+                # ADVANCED GPU/DEEP STEALTH (14-phase full stealth, GPU randomized per call)
+                await context.add_init_script(generate_stealth_script())
                 
                 page = context.pages[0] if context.pages else await context.new_page()
                 
@@ -388,50 +522,67 @@ async def run_tracker(resume=False, headless=False):
                     if STOP_FLAG_FILE.exists():
                         print("🔴 Stop flag detected. Halting inner loop.")
                         break
-                        
-                    province, zone, url, operation = urls_data[scan_idx]
-                    print(f"[{scan_idx+1}/{urls_len}] Tracking {province} ({zone}) - {operation.upper()}...")
-                    
-                    # Deduplication Check
-                    if await record_exists_for_week(iso_year, iso_week, province, zone, operation):
-                        print(f"  -> Skipping. Data already exists for Week {iso_week}.")
+
+                    province, zone, url, operation, level = urls_data[scan_idx]
+                    level_label = "🏙️ Provincia" if level == 'province' else "🗺️ Zona"
+                    print(f"[{scan_idx+1}/{urls_len}] {level_label} {province} ({zone}) - {operation.upper()}...")
+
+                    # Deduplication Check (daily) — solo para el registro principal (subzone='')
+                    if await record_exists_for_day(date_formatted, province, zone, operation, subzone=''):
+                        print(f"  -> Skipping. Data already exists for {date_formatted}.")
                         scan_idx += 1
                         consecutive_skips += 1
-                        
+
                         # Auto-stop: if we've skipped all remaining URLs without any scrape
                         remaining = urls_len - start_index
                         if consecutive_skips >= remaining:
-                            print(f"✅ Auto-stop: All {consecutive_skips} remaining URLs already have data for Week {iso_week}. Finishing.")
+                            print(f"✅ Auto-stop: All {consecutive_skips} remaining URLs already have data for {date_formatted}. Finishing.")
                             scan_idx = urls_len  # Force exit
                             break
                         continue
-                    
+
                     # Reset skip counter when we actually attempt a scrape
                     consecutive_skips = 0
-                    
+
                     # Retry logic for this specific URL (up to 3 attempts)
                     success = False
                     for attempt in range(1, 4):
                         try:
                             if attempt > 1:
                                 print(f"  -> Retry attempt {attempt}/3...")
-                            
+
                             await page.goto(url, timeout=45000, wait_until="domcontentloaded")
-                            await asyncio.sleep(random.uniform(2.5, 4.5)) 
-                            
+                            await asyncio.sleep(random.uniform(2.5, 4.5))
+                            try:
+                                await asyncio.wait_for(simulate_human_interaction(page), timeout=8.0)
+                            except Exception:
+                                pass
+
                             # Adaptive wait for "Device Verification" screen
-                            # Wait up to 30s (3x10s) before considering it a block
-                            await wait_for_verification(page)
-                            
-                            # Enhanced block detection
-                            if await detect_block(page):
-                                print(f"WARN: BLOCK detected on attempt {attempt}.")
-                                await take_debug_screenshot(page, province, zone, suffix=f"_block_att{attempt}")
+                            if not await wait_for_verification(page):
+                                print(f"  ⏳ Verification still active. Waiting 10s extra...")
+                                await asyncio.sleep(10)
+
+                            # Block/captcha detection (verification screens are excluded)
+                            block_status = await detect_block(page)
+                            if block_status == "block":
+                                print(f"WARN: BLOCK detected on attempt {attempt} (El acceso se ha bloqueado).")
                                 mark_current_profile_blocked()
                                 raise RuntimeError("CAPTCHA_CRITICAL_BLOCK")
+                            elif block_status == "captcha":
+                                print(f"WARN: CAPTCHA detected on attempt {attempt}. Intentando resolver...")
+                                solved = await solve_captcha_advanced(page)
+                                if solved:
+                                    print("INFO: Captcha resuelto. Extrayendo datos de la página actual (sin re-navegar)...")
+                                    # solve_captcha_advanced ya dejó la página en la URL objetivo:
+                                    # caer al extract_h1_number en vez de re-navegar con continue
+                                else:
+                                    print("WARN: Captcha no resuelto. Rotando identidad...")
+                                    mark_current_profile_blocked()
+                                    raise RuntimeError("CAPTCHA_CRITICAL_BLOCK")
 
                             total_properties = await extract_h1_number(page)
-                            
+
                             if total_properties == 0:
                                 # Distinguish between real 0 and load error/block
                                 if await is_legit_zero_results(page):
@@ -440,35 +591,57 @@ async def run_tracker(resume=False, headless=False):
                                     print(f"WARN: 0 properties found on attempt {attempt} (No confirmation message).")
                                     await take_debug_screenshot(page, province, zone, suffix=f"_0props_att{attempt}")
                                     if attempt < 3:
-                                        continue # Try again
+                                        continue  # Try again
                                     else:
-                                        # Third attempt failed without confirmation. Tag for Double-Check.
                                         print(f"  -> Tagging {province} ({zone}) for Double-Check Phase.")
                                         uncertain_zero_urls.append((province, zone, url, operation))
-                            
+
                             print(f"  -> Found {total_properties} properties.")
                             if total_properties >= 0:
-                                await save_to_db(date_formatted, iso_year, iso_week, province, zone, operation, total_properties)
+                                # Guardar registro principal (H1 de la URL visitada)
+                                await save_to_db(date_formatted, iso_year, iso_week, province, zone, operation, total_properties, subzone='')
+
+                                # Extraer sidenotes del breadcrumb y guardar registros secundarios
+                                sidenotes = await extract_breadcrumb_sidenotes(page)
+                                if sidenotes:
+                                    if level == 'province':
+                                        # Guardar solo zonas hoja (sin sub-zonas en subzones_data)
+                                        prov_zones = subzones_data.get(province, {})
+                                        saved_sidenotes = 0
+                                        for item in sidenotes:
+                                            zone_name = item['name']
+                                            zone_entry = prov_zones.get(zone_name, {})
+                                            is_leaf = not zone_entry.get('subzones')
+                                            if is_leaf:
+                                                await save_to_db(date_formatted, iso_year, iso_week, province, zone_name, operation, item['count'], subzone='')
+                                                saved_sidenotes += 1
+                                        if saved_sidenotes:
+                                            print(f"  -> Sidenotes: {saved_sidenotes} zonas hoja guardadas desde breadcrumb.")
+                                    elif level == 'zone':
+                                        # Guardar sub-zonas de esta zona
+                                        for item in sidenotes:
+                                            await save_to_db(date_formatted, iso_year, iso_week, province, zone, operation, item['count'], subzone=item['name'])
+                                        print(f"  -> Sidenotes: {len(sidenotes)} sub-zonas guardadas para {zone}.")
+
                                 success = True
                                 made_progress = True
-                                break # Exit retry loop
-                                
+                                break  # Exit retry loop
+
                         except Exception as e:
                             if "CAPTCHA_CRITICAL_BLOCK" in str(e):
-                                raise e # Propagate to outer loop for rotation
+                                raise e  # Propagate to outer loop for rotation
                             print(f"  ⚠️ Error attempt {attempt}: {e}")
                             if attempt < 3: await asyncio.sleep(5)
                     
                     # Move to next URL even if it failed all retries (to avoid infinite loops)
                     scan_idx += 1
-                    
+                    start_index = scan_idx  # Keep outer loop in sync (critical for CAPTCHA rotation)
+
                     # Save Checkpoint every 20 urls
                     if scan_idx > 0 and scan_idx % 20 == 0:
                         print(f"💾 Saving Checkpoint at index {scan_idx}...")
-                        save_checkpoint(scan_idx, iso_year, iso_week)
-                        
-                start_index = scan_idx # Updates outer loop progress
-                
+                        save_checkpoint(scan_idx, date_formatted)
+
                 if STOP_FLAG_FILE.exists() or scan_idx >= urls_len:
                     # --- DOUBLE-CHECK PHASE ---
                     if scan_idx >= urls_len and uncertain_zero_urls and not STOP_FLAG_FILE.exists():
@@ -478,15 +651,16 @@ async def run_tracker(resume=False, headless=False):
                             print(f"  -> Re-checking {prov} ({zn})...")
                             try:
                                 await page.goto(u, timeout=45000, wait_until="domcontentloaded")
-                                await asyncio.sleep(random.uniform(5.0, 8.0)) # More conservative wait
+                                await asyncio.sleep(random.uniform(5.0, 8.0))  # More conservative wait
                                 await wait_for_verification(page)
-                                
+
                                 recheck_val = await extract_h1_number(page)
                                 if recheck_val > 0:
                                     print(f"    ✨ Corrected! Found {recheck_val} properties.")
-                                    await save_to_db(date_formatted, iso_year, iso_week, prov, zn, op, recheck_val)
+                                    await save_to_db(date_formatted, iso_year, iso_week, prov, zn, op, recheck_val, subzone='')
                                 elif await is_legit_zero_results(page):
                                     print(f"    ✅ Confirmed 0 properties (No hay anuncios).")
+                                    await save_to_db(date_formatted, iso_year, iso_week, prov, zn, op, 0, subzone='')
                                 else:
                                     print(f"    ❌ Still 0 properties (Unconfirmed).")
                             except Exception as re_e:
@@ -494,15 +668,31 @@ async def run_tracker(resume=False, headless=False):
                         print("✅ Double-Check Phase completed.\n")
                     break
             except Exception as e:
-                print(f"CRITICAL: Browser instance failed: {e}")
-                
+                err_str = str(e)
+                if "CAPTCHA_CRITICAL_BLOCK" in err_str:
+                    print(f"INFO: Identity rotation triggered (CAPTCHA/block detected).")
+                else:
+                    print(f"CRITICAL: Browser instance failed: {e}")
+                    # Mark the failed profile as blocked so we don't re-select it immediately
+                    # (e.g. Opera crash loop: launch_persistent_context fails, profile stays unblocked,
+                    # rotate_identity picks it again → infinite crash)
+                    try:
+                        mark_current_profile_blocked()
+                    except Exception:
+                        pass
+                # Preserve progress so outer loop doesn't restart from the beginning
+                if 'scan_idx' in locals():
+                    start_index = scan_idx
+                    save_checkpoint(scan_idx, date_formatted)
+
             finally:
                 if 'context' in locals():
                     await context.close()
-                
+                # Profiles are kept between runs to accumulate cookie history and session credibility.
+                # Only blocked profiles should be purged (handled by mark_current_profile_blocked).
 
     # Final checkpoint update
-    save_checkpoint(start_index, iso_year, iso_week)
+    save_checkpoint(start_index, date_formatted)
     if start_index >= urls_len:
         print("Market Trends Tracking Completed Full List!")
     else:
@@ -516,6 +706,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--resume", action="store_true", help="Resume from last checkpoint")
     parser.add_argument("--headless", action="store_true", help="Run browser in headless mode")
+    parser.add_argument("--date", type=str, default=None, help="Forzar fecha del registro (formato DD-MM-YYYY)")
     args = parser.parse_args()
-    
-    asyncio.run(run_tracker(resume=args.resume, headless=args.headless))
+
+    asyncio.run(run_tracker(resume=args.resume, headless=args.headless, force_date=args.date))
