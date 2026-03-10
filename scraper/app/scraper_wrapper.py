@@ -100,24 +100,28 @@ def _build_browser_proxy():
 _browser_proxy = _build_browser_proxy()
 
 
-async def _launch_headless_worker(pw, engine: str, channel, profile_slot: int, proxy=None):
+async def _launch_headless_worker(pw, engine: str, channel, profile_slot: int, proxy=None, user_agent=None):
     """Lanza un contexto Playwright headless para workers paralelos de enriquecimiento.
 
     Si se proporciona proxy (dict con server/username/password), se aplica al contexto
     chromium. WebKit en Windows no admite proxies autenticados y se lanza sin proxy.
     Devuelve el contexto lanzado, o None si el ejecutable no está disponible.
+    user_agent: UA explícito para evitar HeadlessChrome en el UA del worker (Fix RC-3).
     """
     profile_dir = get_profile_dir(profile_slot)
     os.makedirs(profile_dir, exist_ok=True)
     if engine == "webkit":
         # WebKit en Windows no soporta proxies autenticados: siempre sin proxy
-        return await pw.webkit.launch_persistent_context(
+        kwargs_wk = dict(
             user_data_dir=profile_dir,
             headless=True,
             viewport={"width": 1280, "height": 800},
             timeout=60000,
             ignore_https_errors=True,
         )
+        if user_agent:
+            kwargs_wk["user_agent"] = user_agent
+        return await pw.webkit.launch_persistent_context(**kwargs_wk)
     else:  # chromium (opera, etc.)
         executable_path = get_browser_executable_path(channel)
         if not executable_path:
@@ -131,6 +135,8 @@ async def _launch_headless_worker(pw, engine: str, channel, profile_slot: int, p
             timeout=60000,
             ignore_https_errors=True,
         )
+        if user_agent:
+            kwargs["user_agent"] = user_agent
         if proxy:
             kwargs["proxy"] = proxy
         return await pw.chromium.launch_persistent_context(**kwargs)
@@ -3084,8 +3090,13 @@ class ScraperController:
 
                             # Launch WebKit (slot 98) — no proxy (Windows limitation)
                             try:
-                                _early_webkit_ctx = await _launch_headless_worker(pw, "webkit", None, 98)
+                                # Fix RC-3: UA estándar sin OPR/Edg para evitar HeadlessChrome en payloads
+                                _wk_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
+                                _wk_ua = random.choice(_wk_ua_pool) if _wk_ua_pool else random.choice(USER_AGENTS)
+                                _early_webkit_ctx = await _launch_headless_worker(pw, "webkit", None, 98, user_agent=_wk_ua)
                                 if _early_webkit_ctx:
+                                    # Fix RC-4: stealth injection en early worker (igual que context principal)
+                                    await _early_webkit_ctx.add_init_script(generate_stealth_script())
                                     _ewp = _early_webkit_ctx.pages[0] if _early_webkit_ctx.pages else await _early_webkit_ctx.new_page()
                                     _early_tasks.append(asyncio.create_task(_early_enrich_worker(_ewp, "webkit", use_proxy=False)))
                                     self.log("INFO", "✅ WebKit early worker lanzado (slot 98, sin proxy)")
@@ -3094,8 +3105,13 @@ class ScraperController:
 
                             # Launch Opera/chromium (slot 96) — with proxy
                             try:
-                                _early_opera_ctx = await _launch_headless_worker(pw, "chromium", "opera", 96, proxy=_browser_proxy)
+                                # Fix RC-3: UA con token OPR para Opera worker, sin HeadlessChrome
+                                _opr_ua_pool = [ua for ua in USER_AGENTS if 'OPR' in ua]
+                                _opr_ua = random.choice(_opr_ua_pool) if _opr_ua_pool else random.choice(USER_AGENTS)
+                                _early_opera_ctx = await _launch_headless_worker(pw, "chromium", "opera", 96, proxy=_browser_proxy, user_agent=_opr_ua)
                                 if _early_opera_ctx:
+                                    # Fix RC-4: stealth injection en early worker (igual que context principal)
+                                    await _early_opera_ctx.add_init_script(generate_stealth_script())
                                     _eop = _early_opera_ctx.pages[0] if _early_opera_ctx.pages else await _early_opera_ctx.new_page()
                                     _early_tasks.append(asyncio.create_task(_early_enrich_worker(_eop, "opera", use_proxy=True)))
                                     self.log("INFO", "✅ Opera early worker lanzado (slot 96, con proxy)")

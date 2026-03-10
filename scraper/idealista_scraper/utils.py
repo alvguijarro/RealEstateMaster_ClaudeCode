@@ -1246,6 +1246,35 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None
     return False
 
 
+def _sanitize_ua_for_capsolver(ua: str, logger=None) -> str:
+    """Sanitiza un User-Agent para que sea compatible con CapSolver DatadomeSliderTask.
+
+    CapSolver rechaza UAs con tokens no estándar (OPR, Brave, Vivaldi, Edg) y versiones
+    de Chrome > CAPSOLVER_MAX_CHROME_VERSION. Esta función replica la misma transformación
+    que solve_datadome_capsolver aplica internamente, para que el browser y CapSolver
+    usen exactamente el mismo UA (Fix RC-1: mismatch UA browser↔CapSolver).
+    """
+    import re as _re
+    try:
+        from scraper.idealista_scraper.config import CAPSOLVER_MAX_CHROME_VERSION as _cap_max
+    except ImportError:
+        try:
+            from idealista_scraper.config import CAPSOLVER_MAX_CHROME_VERSION as _cap_max
+        except ImportError:
+            _cap_max = 144
+    # 1. Eliminar tokens no estándar: OPR, Brave, Vivaldi
+    if _re.search(r'\b(OPR|Brave|Vivaldi)/[\d.]+', ua):
+        ua = _re.sub(r'\s*(OPR|Brave|Vivaldi)/[\d.]+', '', ua).strip()
+    # 2. Cap Chrome version al máximo soportado
+    _chrome_match = _re.search(r'Chrome/(\d+)', ua)
+    if _chrome_match and int(_chrome_match.group(1)) > _cap_max:
+        ua = _re.sub(r'Chrome/\d+', f'Chrome/{_cap_max}', ua)
+    # 3. Eliminar token Edg/ (CapSolver rechaza cualquier UA con Edg/)
+    if _re.search(r'Edg/[\d.]+', ua):
+        ua = _re.sub(r'\s*Edg/[\d.]+', '', ua).strip()
+    return ua
+
+
 async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=None):
     """Fallback DataDome solver using CapSolver's DatadomeSliderTask API."""
     l = logger or log
@@ -1260,28 +1289,11 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
         user_agent = await page.evaluate("navigator.userAgent")
 
         # CapSolver solo soporta UAs Chrome/Edge estándar (hasta CAPSOLVER_MAX_CHROME_VERSION)
-        # — eliminar tokens Opera/Brave/Vivaldi y cap Chrome version
-        import re as _re_ua
-        try:
-            from scraper.idealista_scraper.config import CAPSOLVER_MAX_CHROME_VERSION as _CAP_MAX_VER
-        except ImportError:
-            try:
-                from idealista_scraper.config import CAPSOLVER_MAX_CHROME_VERSION as _CAP_MAX_VER
-            except ImportError:
-                _CAP_MAX_VER = 144
-        if _re_ua.search(r'\b(OPR|Brave|Vivaldi)/[\d.]+', user_agent):
-            user_agent = _re_ua.sub(r'\s*(OPR|Brave|Vivaldi)/[\d.]+', '', user_agent).strip()
-            l("INFO", f"UA sanitizado para CapSolver (tokens no estándar eliminados)")
-        # Cap Chrome version to max supported
-        _chrome_match = _re_ua.search(r'Chrome/(\d+)', user_agent)
-        if _chrome_match and int(_chrome_match.group(1)) > _CAP_MAX_VER:
-            user_agent = _re_ua.sub(r'Chrome/\d+', f'Chrome/{_CAP_MAX_VER}', user_agent)
-            l("INFO", f"UA Chrome version capped a {_CAP_MAX_VER} para CapSolver (era {_chrome_match.group(1)})")
-        # Eliminar Edg/ completamente: CapSolver rechaza cualquier UA con token Edg/ → ERROR_INVALID_TASK_DATA
-        _edge_match = _re_ua.search(r'Edg/([\d.]+)', user_agent)
-        if _edge_match:
-            user_agent = _re_ua.sub(r'\s*Edg/[\d.]+', '', user_agent).strip()
-            l("INFO", f"UA Edge token eliminado para CapSolver (era Edg/{_edge_match.group(1)})")
+        # Usar _sanitize_ua_for_capsolver para aplicar la misma transformación que en solve_captcha_advanced
+        _ua_before = user_agent
+        user_agent = _sanitize_ua_for_capsolver(user_agent, logger=l)
+        if user_agent != _ua_before:
+            l("INFO", f"UA sanitizado para CapSolver: {_ua_before.split()[-1]} → {user_agent.split()[-1]}")
 
         if not captcha_url:
             captcha_url = await page.evaluate("""() => {
@@ -1359,9 +1371,33 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
             resp_data = resp.json()
 
             if resp_data.get("errorId", 1) != 0:
-                l("ERR", f"Error CapSolver createTask: {resp_data}")
-                _captcha_inc("DataDome CapSolver|error_api")
-                return False
+                _cap_err_ct = resp_data.get("errorCode", "unknown")
+                l("ERR", f"Error CapSolver createTask [{_cap_err_ct}]: {resp_data}")
+                _captcha_inc(f"DataDome CapSolver|{_cap_err_ct}" if _cap_err_ct != "unknown" else "DataDome CapSolver|error_api")
+                # Fix RC-6: reintentar con proxy rotado en errores de conectividad del proxy
+                _proxy_error_codes = {"ERROR_PROXY_CONNECT_REFUSED", "ERROR_BAD_PROXY", "ERROR_PROXY_NOT_AUTHORISED"}
+                _proxy_retry_ok = False
+                if _cap_err_ct in _proxy_error_codes:
+                    try:
+                        from shared.proxy_config import regenerate_session
+                        _new_sid = regenerate_session()
+                        _base_login = proxy_login.split('-session-')[0]
+                        _new_login = f"{_base_login}-session-{_new_sid}"
+                        _new_proxy_str = f"http://{_new_login}:{PROXY_CONFIG.get('password', '')}@{PROXY_CONFIG.get('host')}:{PROXY_CONFIG.get('port')}"
+                        l("WARN", f"🔄 {_cap_err_ct} — rotando sesión proxy ({_new_sid}) y reintentando createTask...")
+                        _retry_payload = {**task_payload, "task": {**task_payload["task"], "proxy": _new_proxy_str}}
+                        _resp2 = await client.post("https://api.capsolver.com/createTask", json=_retry_payload, timeout=30)
+                        _resp2_data = _resp2.json()
+                        if _resp2_data.get("errorId", 1) == 0:
+                            resp_data = _resp2_data
+                            _proxy_retry_ok = True
+                            l("INFO", "CapSolver createTask OK tras rotación de proxy.")
+                        else:
+                            l("WARN", f"CapSolver createTask sigue fallando tras rotación: {_resp2_data}")
+                    except Exception as _prx_err:
+                        l("WARN", f"Error al rotar proxy para reintentar CapSolver: {_prx_err}")
+                if not _proxy_retry_ok:
+                    return False
 
             task_id = resp_data.get("taskId")
             l("INFO", f"CapSolver tarea {task_id} creada. Primer poll en 10s, luego cada 5s...")
@@ -1812,12 +1848,24 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
             and bool(_re_ua.search(r'Chrome/\d+', current_ua))  # Safari/WebKit no tienen Chrome en UA
         )
 
-        # Build solver sequence: CapSolver primero (más rápido, ~5s vs ~65s de 2Captcha)
-        # 2Captcha hace timeout sistemáticamente antes de que expire el token DataDome (~60s)
+        # Fix RC-1: Sincronizar UA del browser con el UA que CapSolver usará en su tarea.
+        # CapSolver sanitiza el UA antes de enviarlo a DataDome; si el browser usa un UA diferente
+        # DataDome detecta el mismatch → t=fe (cookie rechazada). Ajustar ahora para que coincidan.
+        if capsolver_compatible:
+            _sync_ua = _sanitize_ua_for_capsolver(current_ua)
+            if _sync_ua != current_ua:
+                try:
+                    await page.set_extra_http_headers({"User-Agent": _sync_ua})
+                    l("INFO", f"🔄 UA sincronizado para resolver captcha: {current_ua.split()[-1]} → {_sync_ua.split()[-1]}")
+                except Exception:
+                    pass
+
+        # Build solver sequence: CapSolver×3 (Fix RC-5: 2Captcha siempre hace timeout para DataDome,
+        # el token expira ~60s y 2Captcha tarda ~65-70s → desperdicio de créditos garantizado)
         if CAPSOLVER_API_KEY and capsolver_compatible:
             solvers = [
                 ("CapSolver", solve_datadome_capsolver),
-                ("2Captcha", solve_datadome_2captcha),
+                ("CapSolver", solve_datadome_capsolver),
                 ("CapSolver", solve_datadome_capsolver),
             ]
         else:
@@ -1898,6 +1946,28 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
                     pass  # Si el check falla, continuar al loop de solvers
             except Exception:
                 pass
+
+        # Fix RC-2: Intentar slider in-browser para DataDome ANTES de solvers de pago.
+        # La cookie se genera con el fingerprint real del browser → no hay mismatch de UA/IP.
+        # Coste: cero. Si falla, continuar con CapSolver/2Captcha como antes.
+        _captcha_inc("Slider local DataDome|intentos")
+        l("INFO", "🎰 Intentando slider in-browser para DataDome (antes de solvers de pago)...")
+        try:
+            if await solve_slider_captcha(page):
+                await asyncio.sleep(2)
+                _dd_check = await page.evaluate(
+                    "() => !document.querySelector('iframe[src*=\"captcha-delivery.com\"]')"
+                )
+                if _dd_check:
+                    l("OK", "✅ Slider in-browser resolvió DataDome (sin coste).")
+                    _captcha_inc("Slider local DataDome|resueltos")
+                    _reset_tbv_counter()
+                    return True
+                l("INFO", "Slider ejecutado pero DataDome persiste. Pasando a solvers de pago...")
+            else:
+                l("INFO", "Slider in-browser no encontró handle DataDome. Pasando a solvers de pago...")
+        except Exception as _slider_err:
+            l("WARN", f"Error en slider in-browser DataDome: {_slider_err}. Continuando con solvers de pago...")
 
         _last_was_tbv = False
         for attempt, (solver_name, solver_fn) in enumerate(solvers, 1):
