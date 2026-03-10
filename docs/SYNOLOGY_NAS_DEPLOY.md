@@ -1,9 +1,11 @@
 # Despliegue del Market Trends Tracker en Synology NAS
 
-## Estado actual (sesión completada)
+## Estado del despliegue
 
-**Todo el trabajo de código ya está hecho y subido.** El commit `f389c523` en el remote
-`claudecode` contiene los tres cambios necesarios para que el tracker funcione en Linux/Docker:
+**✅ DESPLIEGUE COMPLETADO** — El tracker corre en el NAS 24/7 y el Programador de Tareas
+de DSM lo lanza automáticamente cada día.
+
+### Trabajo de código realizado (commit `f389c523` en `claudecode`)
 
 | Archivo | Cambio | Estado |
 |---------|--------|--------|
@@ -13,8 +15,66 @@
 | `Dockerfile` | Python 3.11-slim + Playwright + Chromium | ✅ Hecho |
 | `docker-compose.yml` | Servicio con volumen, shm_size=256mb, restart=unless-stopped | ✅ Hecho |
 
-El NAS ejecutará **únicamente** el servicio `trends` (puerto 5005). El resto de servicios
-(analyzer, scraper, merger, dashboard) seguirán corriendo en el PC Windows.
+### Pasos de despliegue completados en el NAS
+
+| Paso | Descripción | Estado |
+|------|-------------|--------|
+| 1 | Instalar Container Manager en DSM | ✅ Hecho |
+| 2 | Habilitar SSH | ✅ Hecho |
+| 3 | Conectar por SSH | ✅ Hecho |
+| 4 | Clonar repo en `/volume1/docker/RealEstateMaster` | ✅ Hecho |
+| 5 | `docker build -t realestate-trends:latest .` | ✅ Hecho |
+| 6 | `docker-compose up -d` | ✅ Hecho |
+| 7 | Verificar que el servicio responde en puerto 5005 | ✅ Hecho |
+| 8 | Programar tarea diaria en DSM Task Scheduler | ✅ Hecho |
+
+### Detalles de la instalación en el NAS
+
+- **Ruta del repo**: `/volume1/docker/RealEstateMaster`
+- **Usuario SSH**: `alvaro` (con alias `docker='sudo docker'` en `~/.bashrc`)
+- **IP del NAS**: `192.168.1.2`
+- **Puerto del servicio**: `5005`
+- **Script de la tarea DSM**: `curl -s -X POST http://localhost:5005/api/start_tracker`
+  (llamada desde el host del NAS, no desde dentro del contenedor — ver nota abajo)
+- **Usuario de la tarea DSM**: `root`
+
+El NAS ejecuta **únicamente** el servicio `trends` (puerto 5005). El resto de servicios
+(analyzer, scraper, merger, dashboard) siguen corriendo en el PC Windows.
+
+---
+
+## Lecciones aprendidas durante el despliegue
+
+### Permisos Docker en Synology
+- El socket `/var/run/docker.sock` pertenece a `root`, no al grupo `docker`, aunque el
+  usuario esté en ese grupo.
+- Solución definitiva: alias en `~/.bashrc`:
+  ```bash
+  echo "alias docker='sudo docker'" >> ~/.bashrc
+  echo "alias docker-compose='sudo docker-compose'" >> ~/.bashrc
+  source ~/.bashrc
+  ```
+- Para tareas DSM usar siempre usuario `root`.
+
+### curl no disponible dentro del contenedor
+- `python:3.11-slim` no incluye `curl`.
+- El script de la tarea DSM **no debe usar `docker exec ... curl`** sino llamar directamente
+  al puerto expuesto desde el host:
+  ```bash
+  curl -s -X POST http://localhost:5005/api/start_tracker   # ✅ correcto
+  docker exec realestate-trends curl ...                    # ❌ falla: curl not found
+  ```
+
+### Permisos en /volume1
+- No se puede clonar directamente en `/volume1` (Permission denied).
+- Clonar en una carpeta compartida existente, p.ej. `/volume1/docker/`.
+
+### Timeout de red al hacer docker build
+- `python:3.11-slim` se descarga de Docker Hub (~300 MB). Si hay un timeout, simplemente
+  reintentar el build — suele ser un corte puntual.
+
+### Comprobar grupos en Synology
+- `groups` no existe en el shell ash de Synology. Usar `id` en su lugar.
 
 ---
 
@@ -66,7 +126,7 @@ la carpeta `trends/`.
 
 ---
 
-## Despliegue inicial (paso a paso)
+## Cómo hacer un despliegue desde cero (referencia)
 
 ### 1. Habilitar SSH en el NAS
 
@@ -76,31 +136,28 @@ DSM → **Panel de Control** → **Terminal y SNMP** → activar **Habilitar ser
 ### 2. Conectar por SSH desde el PC
 
 ```bash
-ssh admin@192.168.1.XXX    # reemplaza con la IP real del NAS
-# Ver la IP en: DSM → Panel de Control → Red → Interfaz de red
+ssh alvaro@192.168.1.2
 ```
 
-### 3. Ir al volumen con más espacio y clonar el repo
+### 3. Configurar alias Docker y clonar el repo
 
 ```bash
-df -h                      # ver espacio disponible por volumen
-cd /volume1                # o /volume2 según el resultado anterior
+# Alias permanente para evitar problemas de permisos con el socket Docker:
+echo "alias docker='sudo docker'" >> ~/.bashrc
+echo "alias docker-compose='sudo docker-compose'" >> ~/.bashrc
+source ~/.bashrc
 
+# Clonar en la carpeta compartida docker (NO directamente en /volume1):
+cd /volume1/docker
 git clone https://github.com/alvguijarro/RealEstateMaster_ClaudeCode.git RealEstateMaster
 cd RealEstateMaster
 ```
 
-> El repo `claudecode` (`RealEstateMaster_ClaudeCode`) es el workspace de Claude Code y
-> siempre está al día. El repo `origin` (`RealEstateMaster`) es el del usuario.
-
-### 4. (Opcional) Verificar que los archivos Docker existen
+### 4. Verificar que los archivos Docker existen
 
 ```bash
 ls -la Dockerfile docker-compose.yml
-cat Dockerfile
 ```
-
-Deben existir con el contenido correcto (ver sección "Estado actual" arriba).
 
 ### 5. Construir la imagen Docker
 
@@ -109,43 +166,27 @@ docker build -t realestate-trends:latest .
 ```
 
 - Primera vez: **5-15 minutos** (descarga ~300 MB de Chromium + deps del sistema)
+- Si hay timeout de red, simplemente reintentar
 - Solo hay que repetir este paso si cambia `requirements_master.txt` o el `Dockerfile`
-
-Si hay errores de memoria durante el build, añadir `--memory=2g`:
-```bash
-docker build --memory=2g -t realestate-trends:latest .
-```
 
 ### 6. Lanzar el contenedor
 
 ```bash
+cd /volume1/docker/RealEstateMaster
 docker-compose up -d
-```
-
-O manualmente sin docker-compose:
-```bash
-docker run -d \
-  --name realestate-trends \
-  -p 5005:5005 \
-  -v $(pwd):/app \
-  --shm-size=256mb \
-  --restart unless-stopped \
-  realestate-trends:latest
 ```
 
 ### 7. Verificar que el servicio responde
 
 ```bash
-# Ver logs del arranque (esperar ~5 segundos):
 docker logs realestate-trends
 # Debe aparecer: "Starting Trends Service on port 5005..."
 
-# Comprobar endpoint de estado:
 curl http://localhost:5005/api/status
 # Debe responder: {"running": false, ...}
 ```
 
-Desde el navegador en la red local: `http://192.168.1.XXX:5005`
+Desde el navegador en la red local: `http://192.168.1.2:5005`
 
 ### 8. Programar el rastreo diario en DSM
 
@@ -157,7 +198,11 @@ DSM → **Panel de Control** → **Programador de Tareas** → **Crear** →
 | Nombre | `Market Trends Tracker` |
 | Usuario | `root` |
 | Horario | Diario, hora deseada (recomendado: 02:00 o 03:00) |
-| Script | `docker exec realestate-trends curl -s -X POST http://localhost:5005/api/start_tracker` |
+| Script | `curl -s -X POST http://localhost:5005/api/start_tracker` |
+
+> ⚠️ No usar `docker exec realestate-trends curl ...` — `curl` no está disponible dentro
+> del contenedor (`python:3.11-slim` no lo incluye). Llamar directamente al puerto expuesto
+> desde el host del NAS.
 
 Pestaña **Configuración de la tarea** → activar **Enviar detalles de ejecución por email**
 si se quieren notificaciones de fallo.
@@ -170,16 +215,16 @@ si se quieren notificaciones de fallo.
 
 ```bash
 # Nuevo rastreo desde el principio:
-curl -X POST http://192.168.1.XXX:5005/api/start_tracker
+curl -X POST http://192.168.1.2:5005/api/start_tracker
 
 # Reanudar desde el checkpoint (si se interrumpió a medias):
-curl -X POST http://192.168.1.XXX:5005/api/resume_tracker
+curl -X POST http://192.168.1.2:5005/api/resume_tracker
 ```
 
 ### Parar el rastreo
 
 ```bash
-curl -X POST http://192.168.1.XXX:5005/api/stop_tracker
+curl -X POST http://192.168.1.2:5005/api/stop_tracker
 ```
 
 ### Ver logs en tiempo real
@@ -191,7 +236,7 @@ docker logs -f realestate-trends
 ### Exportar datos a CSV
 
 ```bash
-curl http://192.168.1.XXX:5005/api/export_csv -o trends_export.csv
+curl http://192.168.1.2:5005/api/export_csv -o trends_export.csv
 ```
 
 ---
@@ -199,11 +244,9 @@ curl http://192.168.1.XXX:5005/api/export_csv -o trends_export.csv
 ## Actualizar el código en el futuro
 
 ```bash
-ssh admin@192.168.1.XXX
-cd /volume1/RealEstateMaster
-git pull origin main          # desde el repo del usuario
-# o:
-git pull claudecode main       # desde el repo de Claude Code (si se añadió el remote)
+ssh alvaro@192.168.1.2
+cd /volume1/docker/RealEstateMaster
+git pull origin main
 ```
 
 **No hace falta reconstruir la imagen** salvo que cambien `requirements_master.txt` o
@@ -215,11 +258,11 @@ docker build -t realestate-trends:latest .
 docker-compose up -d
 ```
 
-### Añadir el remote claudecode al NAS (opcional pero recomendado)
+### Añadir el remote claudecode al NAS (si se quiere tirar de ese repo)
 
 ```bash
 git remote add claudecode https://github.com/alvguijarro/RealEstateMaster_ClaudeCode.git
-git remote -v    # verificar ambos remotes
+git remote -v
 ```
 
 ---
@@ -243,7 +286,7 @@ docker exec -it realestate-trends bash   # abrir shell dentro del contenedor
 Al estar todo montado como volumen, los datos se guardan directamente en el repo clonado:
 
 ```
-/volume1/RealEstateMaster/
+/volume1/docker/RealEstateMaster/
 ├── trends/data/
 │   ├── market_trends.db          ← Base de datos SQLite principal
 │   ├── checkpoint.json           ← Progreso del rastreo (para --resume)
@@ -287,10 +330,9 @@ docker exec -it realestate-trends python -c "import playwright; print('ok')"
 
 ### Error "No such file or directory: province_urls_mapping.md"
 
-El volumen no se montó correctamente o el path en el NAS no es `/app`.
-Verificar que `$(pwd)` al hacer `docker run` apunta al directorio correcto:
+El volumen no se montó correctamente. Verificar:
 ```bash
-pwd    # debe ser /volume1/RealEstateMaster
+pwd    # debe ser /volume1/docker/RealEstateMaster
 ls scraper/documentation/province_urls_mapping.md   # debe existir
 ```
 
@@ -305,6 +347,15 @@ docker exec -it realestate-trends playwright install chromium --with-deps
 Normal si Idealista ha bloqueado el pool de IPs. Esperar 24h o cambiar el rango de IPs
 en `shared/proxy_config.py` (quitar `-country-es` para usar IPs internacionales).
 
+### La tarea DSM devuelve error 126 / "curl not found"
+
+Ocurre si el script de la tarea usa `docker exec realestate-trends curl ...`.
+`python:3.11-slim` no incluye `curl`. Cambiar el script a:
+```bash
+curl -s -X POST http://localhost:5005/api/start_tracker
+```
+(llamada directa al puerto expuesto, sin entrar al contenedor)
+
 ### Ver qué provincias se han completado
 
 ```bash
@@ -314,6 +365,12 @@ conn = sqlite3.connect('trends/data/market_trends.db')
 rows = conn.execute('SELECT DISTINCT province, date_record FROM inventory_trends ORDER BY date_record DESC LIMIT 20').fetchall()
 for r in rows: print(r)
 "
+```
+
+### Ver grupos del usuario en Synology (ash shell)
+
+```bash
+id    # 'groups' no existe en ash; usar 'id' en su lugar
 ```
 
 ---
