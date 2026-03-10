@@ -3101,6 +3101,8 @@ class ScraperController:
                     _worker_checkpoint_lock = asyncio.Lock()
                     _worker_webkit_ctx = None
                     _worker_opera_ctx = None
+                    _worker_webkit_page = None
+                    _worker_opera_page = None
                     if self.parallel_enrichment and not self._in_enrichment:
 
                         async def _detail_scrape_worker(worker_page, worker_label: str, use_proxy: bool = True):
@@ -3173,8 +3175,8 @@ class ScraperController:
                             _worker_webkit_ctx = await _launch_headless_worker(pw, "webkit", None, 98, user_agent=_wk_ua)
                             if _worker_webkit_ctx:
                                 await _worker_webkit_ctx.add_init_script(generate_stealth_script())
-                                _ewp = _worker_webkit_ctx.pages[0] if _worker_webkit_ctx.pages else await _worker_webkit_ctx.new_page()
-                                _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(_ewp, "webkit", use_proxy=False)))
+                                _worker_webkit_page = _worker_webkit_ctx.pages[0] if _worker_webkit_ctx.pages else await _worker_webkit_ctx.new_page()
+                                _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(_worker_webkit_page, "webkit", use_proxy=False)))
                                 self.log("INFO", "✅ WebKit scraping worker lanzado (slot 98, sin proxy)")
                         except Exception as e:
                             self.log("WARN", f"⚠️ WebKit scraping worker no pudo lanzar: {e}")
@@ -3186,8 +3188,8 @@ class ScraperController:
                             _worker_opera_ctx = await _launch_headless_worker(pw, "chromium", "opera", 96, proxy=_browser_proxy, user_agent=_opr_ua)
                             if _worker_opera_ctx:
                                 await _worker_opera_ctx.add_init_script(generate_stealth_script())
-                                _eop = _worker_opera_ctx.pages[0] if _worker_opera_ctx.pages else await _worker_opera_ctx.new_page()
-                                _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(_eop, "opera", use_proxy=True)))
+                                _worker_opera_page = _worker_opera_ctx.pages[0] if _worker_opera_ctx.pages else await _worker_opera_ctx.new_page()
+                                _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(_worker_opera_page, "opera", use_proxy=True)))
                                 self.log("INFO", "✅ Opera scraping worker lanzado (slot 96, con proxy)")
                             else:
                                 self.log("INFO", "ℹ️ Opera portable no disponible para scraping worker.")
@@ -3798,19 +3800,14 @@ class ScraperController:
                                 self.log("ERR", f"Error draining {_drain_url}: {e}")
                                 self._processed.add(_drain_key)
 
-                        # Esperar a que los workers headless terminen
+                        # Esperar a que los workers headless terminen la cola de Phase 1
                         if _worker_tasks:
-                            self.log("INFO", f"⏳ Esperando que {len(_worker_tasks)} workers headless completen sus URLs...")
+                            self.log("INFO", f"⏳ Esperando que {len(_worker_tasks)} workers headless completen sus URLs de Phase 1...")
                             await asyncio.gather(*_worker_tasks, return_exceptions=True)
                             if _worker_counters["scraped"] > 0 or _worker_counters["real_changes"] > 0:
-                                self.log("OK", f"✅ Workers scrapearon {_worker_counters['real_changes']} propiedades.")
-                        for _ctx, _name in [(_worker_webkit_ctx, "WebKit"), (_worker_opera_ctx, "Opera")]:
-                            if _ctx:
-                                try:
-                                    await _ctx.close()
-                                    self.log("INFO", f"✅ {_name} worker cerrado")
-                                except Exception as e:
-                                    self.log("WARN", f"Error cerrando {_name} worker: {e}")
+                                self.log("OK", f"✅ Workers scrapearon {_worker_counters['real_changes']} propiedades en Phase 1.")
+                            # Limpiar tasks completados para reutilizar workers en Phase 2
+                            _worker_tasks.clear()
 
                         if _main_drain_count > 0:
                             self.log("INFO", f"Browser visible scrapeó {_main_drain_count} propiedades adicionales de la cola.")
@@ -3951,40 +3948,18 @@ class ScraperController:
                                 # Sequential mode (existing behavior, no secondary browser)
                                 await _enrich_worker(page, "main")
                             else:
-                                # Parallel mode: main browser (proxy) + WebKit (slot 99) + Opera (slot 97) sin proxy
-                                self.log("INFO", "🔀 Iniciando Phase 3 paralela: worker proxy + WebKit + Opera sin proxy")
-                                webkit_ctx2 = None
-                                webkit_page2 = None
-                                opera_ctx2 = None
-                                opera_page2 = None
-
-                                # Lanzar WebKit (slot 99) — sin proxy (limitación Windows)
-                                try:
-                                    webkit_ctx2 = await _launch_headless_worker(pw, "webkit", None, 99)
-                                    if webkit_ctx2:
-                                        webkit_page2 = webkit_ctx2.pages[0] if webkit_ctx2.pages else await webkit_ctx2.new_page()
-                                        self.log("INFO", "✅ WebKit worker (sin proxy) lanzado")
-                                except Exception as e:
-                                    self.log("WARN", f"⚠️ WebKit worker no pudo lanzar: {e}. Continuando sin él.")
-
-                                # Lanzar Opera (slot 97) — con proxy residencial
-                                try:
-                                    opera_ctx2 = await _launch_headless_worker(pw, "chromium", "opera", 97, proxy=_browser_proxy)
-                                    if opera_ctx2:
-                                        opera_page2 = opera_ctx2.pages[0] if opera_ctx2.pages else await opera_ctx2.new_page()
-                                        self.log("INFO", "✅ Opera worker (con proxy) lanzado")
-                                    else:
-                                        self.log("INFO", "ℹ️ Opera portable no disponible. Continuando sin worker Opera.")
-                                except Exception as e:
-                                    self.log("WARN", f"⚠️ Opera worker no pudo lanzar: {e}. Continuando sin él.")
+                                # Parallel mode: reutilizar workers headless de Phase 1
+                                self.log("INFO", "🔀 Iniciando Phase 2 paralela: reutilizando workers de Phase 1")
 
                                 try:
                                     # Construir lista de workers: siempre el main, secundarios según disponibilidad
                                     worker_coros = [_enrich_worker(page, "main")]
-                                    if webkit_page2 is not None:
-                                        worker_coros.append(_enrich_worker(webkit_page2, "webkit", is_secondary=True))
-                                    if opera_page2 is not None:
-                                        worker_coros.append(_enrich_worker(opera_page2, "opera", is_secondary=True))
+                                    if _worker_webkit_page is not None:
+                                        worker_coros.append(_enrich_worker(_worker_webkit_page, "webkit", is_secondary=True, use_proxy=False))
+                                        self.log("INFO", "✅ WebKit worker reutilizado para Phase 2")
+                                    if _worker_opera_page is not None:
+                                        worker_coros.append(_enrich_worker(_worker_opera_page, "opera", is_secondary=True, use_proxy=True))
+                                        self.log("INFO", "✅ Opera worker reutilizado para Phase 2")
 
                                     if len(worker_coros) > 1:
                                         results = await asyncio.gather(*worker_coros, return_exceptions=True)
@@ -3996,13 +3971,7 @@ class ScraperController:
                                         # Fallback secuencial si ningún worker secundario arrancó
                                         await _enrich_worker(page, "main")
                                 finally:
-                                    for _ctx, _name in [(webkit_ctx2, "WebKit"), (opera_ctx2, "Opera")]:
-                                        if _ctx:
-                                            try:
-                                                await _ctx.close()
-                                                self.log("INFO", f"✅ {_name} worker cerrado")
-                                            except Exception as e:
-                                                self.log("WARN", f"Error cerrando {_name} worker: {e}")
+                                    pass  # Workers se cierran al final, fuera de este bloque
 
                             if counters["checked"] > 0:
                                 self.log("OK", f"Finished checking {counters['checked']} missing properties.")
@@ -4011,6 +3980,15 @@ class ScraperController:
                         self._in_enrichment = False
                         self._enrichment_done_urls.clear()
                         self._enrichment_missing_urls.clear()
+
+                    # === Cerrar workers headless (después de Phase 1 + Phase 2) ===
+                    for _ctx, _name in [(_worker_webkit_ctx, "WebKit"), (_worker_opera_ctx, "Opera")]:
+                        if _ctx:
+                            try:
+                                await _ctx.close()
+                                self.log("INFO", f"✅ {_name} worker cerrado")
+                            except Exception as e:
+                                self.log("WARN", f"Error cerrando {_name} worker: {e}")
 
                     self.log("INFO", f"Summary: {new_scraped} new, {deactivated_count} deactivated, {smart_skipped} smart-skipped, {skipped} regular-skipped")
                     self._export_to_excel(additions, target_file, expired_urls)
