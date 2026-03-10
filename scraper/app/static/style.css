@@ -135,8 +135,7 @@ h1 {
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     width: 100%;
-    align-items: flex-start;
-    /* Don't stretch by default, let stack define height */
+    align-items: stretch;
 }
 
 /* Left Panel: Main Controls - fills full height */
@@ -153,13 +152,13 @@ h1 {
     gap: 20px;
 }
 
-/* Right panels share height evenly (50/50) to match left column */
+/* Right panels share available height equally (override .panel min-height) */
 .province-selection-panel,
 .excel-update-panel {
     flex: 1;
-    overflow-y: auto;
-    min-height: 0;
-    /* Allow shrinking below content size if container is small */
+    min-height: 0 !important;
+    overflow: visible;
+    padding: 15px;
 }
 
 /* Global Action Buttons Row */
@@ -362,8 +361,8 @@ select:focus {
 
 /* Grid */
 .content-grid {
-    display: grid;
-    grid-template-columns: 38% minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 20px;
 }
 
@@ -460,6 +459,13 @@ select:focus {
     color: var(--text-muted);
     opacity: 0.6;
     min-width: 70px;
+    flex-shrink: 0;
+}
+
+.log-message {
+    min-width: 0;
+    word-break: break-all;
+    overflow-wrap: anywhere;
 }
 
 .log-info .log-message {
@@ -1010,6 +1016,52 @@ select:focus {
 .zone-item:hover {
     background: rgba(255, 255, 255, 0.03);
     color: var(--text-main);
+}
+
+/* Subzone toggle button (zone → subzone level) */
+.toggle-subzones-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    padding: 0 3px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.toggle-subzones-btn:hover {
+    color: var(--text-main);
+}
+
+/* 3rd level: sub-subzones container */
+.sub-subzones-container {
+    padding-left: 22px;
+    display: none;
+    border-left: 1px dashed var(--border);
+    margin-left: 9px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+.sub-subzones-container.expanded {
+    display: block;
+}
+
+/* 3rd level: individual subzone row */
+.subzone-item {
+    padding: 3px 8px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.subzone-item:hover {
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text-secondary);
 }
 
 /* Partial Checkbox State (Indeterminate) */

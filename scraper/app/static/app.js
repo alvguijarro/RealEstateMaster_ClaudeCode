@@ -81,6 +81,7 @@ let socket = null;
 let isUpdateMode = false;
 let audioCtx = null;
 let autoScrollEnabled = true;
+let headlessAutoScrollEnabled = true;
 
 // Batch Global State
 let batchPriorEnriched = 0;
@@ -133,6 +134,7 @@ const fastBtn = getEl('fastBtn');
 const stealthBtn = getEl('stealthBtn');
 const statusBadge = getEl('statusBadge');
 const logsContainer = getEl('logsContainer');
+const headlessLogsContainer = getEl('headlessLogsContainer');
 const clearLogsBtn = getEl('clearLogsBtn');
 const tableHeader = getEl('tableHeader');
 const tableBody = getEl('tableBody');
@@ -771,8 +773,14 @@ function initializeSocket() {
     socket = io();
 
     let firstConnect = true;
+    let disconnectTimer = null;
 
     socket.on('connect', () => {
+        // Cancelar aviso de desconexión si reconecta antes de los 3s
+        if (disconnectTimer) {
+            clearTimeout(disconnectTimer);
+            disconnectTimer = null;
+        }
         if (!firstConnect) {
             addLog('INFO', 'Conexión restablecida con el servidor');
         }
@@ -783,9 +791,14 @@ function initializeSocket() {
     });
 
     socket.on('disconnect', () => {
-        addLog('WARN', 'Desconectado del servidor');
-        updateServerButtons(false);
-        resetUIState(); // Ensure timer stops on disconnect
+        // Esperar 3s antes de actuar: socket.io reconecta automáticamente
+        // en desconexiones transitorias (cambio de transporte, red momentánea)
+        disconnectTimer = setTimeout(() => {
+            addLog('WARN', 'Desconectado del servidor');
+            updateServerButtons(false);
+            resetUIState();
+            disconnectTimer = null;
+        }, 3000);
     });
 
     socket.on('log', (data) => {
@@ -934,6 +947,13 @@ function initializeUI() {
         pauseLogBtn.addEventListener('click', toggleAutoScroll);
     }
 
+    // Headless log panel controls
+    const clearHeadlessLogsBtn = document.getElementById('clearHeadlessLogsBtn');
+    if (clearHeadlessLogsBtn) clearHeadlessLogsBtn.addEventListener('click', clearHeadlessLogs);
+
+    const pauseHeadlessLogBtn = document.getElementById('pauseHeadlessLogBtn');
+    if (pauseHeadlessLogBtn) pauseHeadlessLogBtn.addEventListener('click', toggleHeadlessAutoScroll);
+
     // NordVPN Rotate Button
     if (rotateVpnBtn) {
         rotateVpnBtn.addEventListener('click', manualVpnRotate);
@@ -1017,7 +1037,10 @@ function buildTableHeader() {
 }
 
 function addLog(level, message) {
-    if (!logsContainer) return;
+    const isHeadless = /^\s*\[(webkit|opera)\]/i.test(message);
+    const container = isHeadless ? headlessLogsContainer : logsContainer;
+    if (!container) return;
+
     const now = new Date();
     const time = now.toLocaleTimeString('es-ES', { hour12: false });
 
@@ -1028,16 +1051,15 @@ function addLog(level, message) {
         <span class="log-message">${escapeHtml(message)}</span>
     `;
 
-    logsContainer.appendChild(entry);
+    container.appendChild(entry);
 
-    // Only auto-scroll if enabled
-    if (autoScrollEnabled) {
-        logsContainer.scrollTop = logsContainer.scrollHeight;
+    const autoScroll = isHeadless ? headlessAutoScrollEnabled : autoScrollEnabled;
+    if (autoScroll) {
+        container.scrollTop = container.scrollHeight;
     }
 
-    // Keep only last 500 entries
-    while (logsContainer.children.length > 500) {
-        logsContainer.removeChild(logsContainer.firstChild);
+    while (container.children.length > 500) {
+        container.removeChild(container.firstChild);
     }
 }
 
@@ -1066,6 +1088,31 @@ function toggleAutoScroll() {
             if (logsContainer) {
                 logsContainer.classList.add('paused');
             }
+        }
+    }
+}
+
+function clearHeadlessLogs() {
+    if (headlessLogsContainer) headlessLogsContainer.innerHTML = '';
+}
+
+function toggleHeadlessAutoScroll() {
+    headlessAutoScrollEnabled = !headlessAutoScrollEnabled;
+    const btn = document.getElementById('pauseHeadlessLogBtn');
+    if (btn) {
+        if (headlessAutoScrollEnabled) {
+            btn.innerHTML = '⏸';
+            btn.title = 'Pausar auto-scroll';
+            btn.classList.remove('is-paused');
+            if (headlessLogsContainer) {
+                headlessLogsContainer.classList.remove('paused');
+                headlessLogsContainer.scrollTop = headlessLogsContainer.scrollHeight;
+            }
+        } else {
+            btn.innerHTML = '▶';
+            btn.title = 'Reanudar auto-scroll';
+            btn.classList.add('is-paused');
+            if (headlessLogsContainer) headlessLogsContainer.classList.add('paused');
         }
     }
 }
@@ -1347,7 +1394,9 @@ async function startScraping(isDualMode = false) {
                 seed_url: seedUrl,
                 mode: currentMode,
                 dual_mode: isDualMode,
-                use_vpn: useVpnToggle ? useVpnToggle.checked : false
+                use_vpn: useVpnToggle ? useVpnToggle.checked : false,
+                smart_enrichment: true,
+                parallel_enrichment: true
             })
         });
 
@@ -2601,32 +2650,100 @@ function populateDropdown(listId, type) {
 
         container.appendChild(item);
 
-        // Sub-zones Container
+        // Sub-zones Container (Zones Level)
         if (hasZones) {
             const subContainer = document.createElement('div');
             subContainer.className = 'sub-zones-container';
 
             p.zones.forEach(zone => {
+                const hasSubzones = zone.subzones && zone.subzones.length > 0;
+
+                // Zone group wrapper
+                const zGroup = document.createElement('div');
+                zGroup.className = 'zone-group';
+
+                // Zone row
                 const zItem = document.createElement('div');
                 zItem.className = 'zone-item';
+
+                let zToggleHtml = '';
+                if (hasSubzones) {
+                    zToggleHtml = `<button class="toggle-subzones-btn" title="Ver ${zone.subzones.length} subzonas">▶</button>`;
+                }
+
                 zItem.innerHTML = `
                     <input type="checkbox" value="${zone.id}" data-href="${zone.href}" data-parent="${p.id}" class="zone-cb-${type}">
                     <span>${escapeHtml(zone.name)}</span>
+                    ${zToggleHtml}
                 `;
 
                 const zCheckbox = zItem.querySelector('input');
+                const zToggleBtn = zItem.querySelector('.toggle-subzones-btn');
+
+                // Toggle subzones visibility
+                if (zToggleBtn) {
+                    zToggleBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        const subSubContainer = zGroup.querySelector('.sub-subzones-container');
+                        if (subSubContainer) {
+                            subSubContainer.classList.toggle('expanded');
+                            zToggleBtn.textContent = subSubContainer.classList.contains('expanded') ? '▼' : '▶';
+                        }
+                    };
+                }
+
+                // Zone checkbox: cascade down to subzones, bubble up to province
                 zCheckbox.addEventListener('change', () => {
+                    const subzoneCbs = zGroup.querySelectorAll(`.subzone-cb-${type}`);
+                    subzoneCbs.forEach(s => { s.checked = zCheckbox.checked; });
+                    zCheckbox.indeterminate = false;
                     handleZoneChange(p, type, container);
                 });
 
                 zItem.addEventListener('click', (e) => {
-                    if (e.target !== zCheckbox) {
+                    if (e.target !== zCheckbox && e.target !== zToggleBtn) {
                         zCheckbox.checked = !zCheckbox.checked;
+                        zCheckbox.indeterminate = false;
+                        const subzoneCbs = zGroup.querySelectorAll(`.subzone-cb-${type}`);
+                        subzoneCbs.forEach(s => { s.checked = zCheckbox.checked; });
                         handleZoneChange(p, type, container);
                     }
                 });
 
-                subContainer.appendChild(zItem);
+                zGroup.appendChild(zItem);
+
+                // Subzones container (3rd level)
+                if (hasSubzones) {
+                    const subSubContainer = document.createElement('div');
+                    subSubContainer.className = 'sub-subzones-container';
+
+                    zone.subzones.forEach(subzone => {
+                        const szItem = document.createElement('div');
+                        szItem.className = 'subzone-item';
+                        szItem.innerHTML = `
+                            <input type="checkbox" value="${subzone.id}" data-href="${subzone.href}" data-zone-id="${zone.id}" class="subzone-cb-${type}">
+                            <span>${escapeHtml(subzone.name)}</span>
+                        `;
+
+                        const szCheckbox = szItem.querySelector('input');
+                        szCheckbox.addEventListener('change', () => {
+                            handleSubzoneChange(zCheckbox, zGroup, type, p, container);
+                        });
+
+                        szItem.addEventListener('click', (e) => {
+                            if (e.target !== szCheckbox) {
+                                szCheckbox.checked = !szCheckbox.checked;
+                                handleSubzoneChange(zCheckbox, zGroup, type, p, container);
+                            }
+                        });
+
+                        subSubContainer.appendChild(szItem);
+                    });
+
+                    zGroup.appendChild(subSubContainer);
+                }
+
+                subContainer.appendChild(zGroup);
             });
             container.appendChild(subContainer);
         }
@@ -2647,9 +2764,11 @@ function toggleAll(type, checked) {
         cb.checked = checked;
         cb.indeterminate = false;
 
-        // Find all zone checkboxes in container and check them
+        // Find all zone and subzone checkboxes in container and check them
         const zoneCbs = container.querySelectorAll(`.zone-cb-${type}`);
-        zoneCbs.forEach(zcb => zcb.checked = checked);
+        zoneCbs.forEach(zcb => { zcb.checked = checked; zcb.indeterminate = false; });
+        const subzoneCbs = container.querySelectorAll(`.subzone-cb-${type}`);
+        subzoneCbs.forEach(scb => { scb.checked = checked; });
     });
 
     updateSelectionUI();
@@ -2659,11 +2778,11 @@ function toggleAll(type, checked) {
  * Handle Province Checkbox Change (Cascade Down)
  */
 function handleProvinceChange(province, type, checked, container) {
-    // 1. Select/Deselect all children zones
+    // 1. Select/Deselect all children zones and subzones
     const zoneCbs = container.querySelectorAll(`.zone-cb-${type}`);
-    zoneCbs.forEach(cb => {
-        cb.checked = checked;
-    });
+    zoneCbs.forEach(cb => { cb.checked = checked; cb.indeterminate = false; });
+    const subzoneCbs = container.querySelectorAll(`.subzone-cb-${type}`);
+    subzoneCbs.forEach(cb => { cb.checked = checked; });
 
     // 2. Update visual state of province checkbox (remove indeterminate)
     const provCb = container.querySelector(`.prov-cb-${type}`);
@@ -2682,8 +2801,8 @@ function handleZoneChange(province, type, container) {
     const zoneCbs = Array.from(container.querySelectorAll(`.zone-cb-${type}`));
     const provCb = container.querySelector(`.prov-cb-${type}`);
 
-    const allChecked = zoneCbs.every(cb => cb.checked);
-    const someChecked = zoneCbs.some(cb => cb.checked);
+    const allChecked = zoneCbs.every(cb => cb.checked && !cb.indeterminate);
+    const someChecked = zoneCbs.some(cb => cb.checked || cb.indeterminate);
 
     if (allChecked) {
         provCb.checked = true;
@@ -2697,6 +2816,28 @@ function handleZoneChange(province, type, container) {
     }
 
     updateSelectionUI();
+}
+
+/**
+ * Handle Subzone Checkbox Change (Bubble Up through Zone → Province)
+ */
+function handleSubzoneChange(zoneCheckbox, zoneGroup, type, province, provinceContainer) {
+    const subzoneCbs = Array.from(zoneGroup.querySelectorAll(`.subzone-cb-${type}`));
+    const allChecked = subzoneCbs.every(cb => cb.checked);
+    const someChecked = subzoneCbs.some(cb => cb.checked);
+
+    if (allChecked) {
+        zoneCheckbox.checked = true;
+        zoneCheckbox.indeterminate = false;
+    } else if (someChecked) {
+        zoneCheckbox.checked = false;
+        zoneCheckbox.indeterminate = true;
+    } else {
+        zoneCheckbox.checked = false;
+        zoneCheckbox.indeterminate = false;
+    }
+
+    handleZoneChange(province, type, provinceContainer);
 }
 
 function updateSelectionUI() {
@@ -2758,16 +2899,17 @@ window.startBatchFromProvinces = async function (type) {
         const groups = list.querySelectorAll('.province-group');
         groups.forEach(group => {
             const provCb = group.querySelector(`.prov-cb-${targetType}`);
-            const zoneCbs = group.querySelectorAll(`.zone-cb-${targetType}`); // All zones
-            const checkedZones = Array.from(zoneCbs).filter(z => z.checked);
+            const zoneCbs = Array.from(group.querySelectorAll(`.zone-cb-${targetType}`));
 
             // Logic: Full province check takes precedence
             const isFullProvince = provCb.checked && !provCb.indeterminate;
-            const explicitAllZones = (zoneCbs.length > 0 && checkedZones.length === zoneCbs.length);
+            const explicitAllZones = zoneCbs.length > 0 && zoneCbs.every(z => z.checked && !z.indeterminate);
+            const anyActive = provCb.checked || provCb.indeterminate;
+
+            if (!anyActive) return; // Nothing selected in this province
 
             if (isFullProvince || explicitAllZones) {
-                // MODIFIED: Prioritize Province URL as requested
-                // If the user selects the full province (or all zones explicitly), we send the Province Seed URL.
+                // Use Province URL (most efficient)
                 const pSlug = provCb.dataset.slug;
                 let addedProvinceUrl = false;
 
@@ -2779,16 +2921,28 @@ window.startBatchFromProvinces = async function (type) {
                     }
                 }
 
-                // fallback to zones if province URL not found (shouldn't happen with verified data)
+                // fallback to zones if province URL not found
                 if (!addedProvinceUrl && zoneCbs.length > 0) {
-                    zoneCbs.forEach(z => {
-                        urls.push(getZoneUrl(z, targetType));
-                    });
+                    zoneCbs.forEach(z => urls.push(getZoneUrl(z, targetType)));
                 }
             } else {
-                // Partial selection
-                checkedZones.forEach(z => {
-                    urls.push(getZoneUrl(z, targetType));
+                // Partial province: drill into each zone
+                zoneCbs.forEach(zCb => {
+                    if (!zCb.checked && !zCb.indeterminate) return; // skip fully unchecked zones
+
+                    const zGroup = zCb.closest('.zone-group');
+                    const subzoneCbs = zGroup
+                        ? Array.from(zGroup.querySelectorAll(`.subzone-cb-${targetType}`))
+                        : [];
+                    const checkedSubzones = subzoneCbs.filter(s => s.checked);
+
+                    if (subzoneCbs.length === 0 || (zCb.checked && !zCb.indeterminate)) {
+                        // Leaf zone OR all subzones selected → use zone URL
+                        urls.push(getZoneUrl(zCb, targetType));
+                    } else {
+                        // Partial subzone selection → individual subzone URLs
+                        checkedSubzones.forEach(s => urls.push(getZoneUrl(s, targetType)));
+                    }
                 });
             }
         });
@@ -2871,6 +3025,7 @@ window.startBatchFromProvinces = async function (type) {
                 mode: 'fast',
                 expand: false,
                 smart_enrichment: true,
+                parallel_enrichment: true,
                 target_file: targetFile,
                 province_name: urls.length === 1 ? 'SingleProvince' : 'MultiProvince', // Naive, server can handle
                 operation_type: type

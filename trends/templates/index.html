@@ -246,7 +246,7 @@
         }
 
         .checklist-container {
-            max-height: 250px;
+            max-height: 420px;
             overflow-y: auto;
             background: #111827;
             padding: 5px;
@@ -334,6 +334,30 @@
 
         .toggle-zones-btn:hover {
             color: white;
+        }
+
+        /* Zona con sub-zonas dentro de la lista de zonas */
+        .sub-zone-group {
+            width: 100%;
+        }
+
+        .sub-zone-group .sub-zones-container {
+            padding-left: 24px;
+        }
+
+        .zone-expandable-header {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px 6px 20px;
+            gap: 8px;
+            font-size: 0.9rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .zone-expandable-header:hover {
+            background: rgba(59, 130, 246, 0.2);
         }
 
         /* --- LOG TERMINAL STYLES --- */
@@ -465,12 +489,12 @@
 
     <script>
         let rawData = [];
-        let provinceData = {};
+        let provinceData = {};  // { province: { zone: [subzones] } }
         let chartInstance = null;
         let isTrackerRunning = false;
 
+        // Selection key format: "Province|Zone|Subzone" (subzone='' for zone-level entries)
         let selectedZones = new Set();
-        let expandedProvinces = new Set();
 
         const COLORS = [
             '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -498,18 +522,12 @@
                 entry.classList.add('success');
             }
 
-            // Optional timestamp prepending (or if the scanner prints it, skip it)
-            // entry.textContent = `[${new Date().toLocaleTimeString('es-ES')}] ${msg}`;
             entry.textContent = msg;
-
             logContainer.appendChild(entry);
 
-            // Keep only last 300 to prevent layout lag
             if (logContainer.children.length > 300) {
                 logContainer.removeChild(logContainer.firstChild);
             }
-
-            // Auto Scroll
             logContainer.scrollTop = logContainer.scrollHeight;
         });
 
@@ -522,13 +540,13 @@
 
         async function init() {
             setupDropdown();
-            await fetchProvinces();
 
             await Promise.all([
                 fetchData(),
                 checkTrackerStatus()
             ]);
 
+            provinceData = buildProvinceDataFromRawData(rawData);
             populateChecklist();
             applyZoneSelection();
         }
@@ -545,34 +563,54 @@
 
             search.addEventListener('input', (e) => {
                 const term = e.target.value.toLowerCase();
-                const items = document.querySelectorAll('.checklist-group');
+                const groups = document.querySelectorAll('.checklist-group');
                 const allDiv = document.getElementById('selectAllDiv');
 
-                if (allDiv) {
-                    allDiv.style.display = term ? 'none' : 'flex';
-                }
+                if (allDiv) allDiv.style.display = term ? 'none' : 'flex';
 
-                items.forEach(group => {
-                    const provText = group.querySelector('label').textContent.toLowerCase();
-                    const subItems = group.querySelectorAll('.sub-zone');
-                    const subContainer = group.querySelector('.sub-zones-container');
-                    const toggleBtn = group.querySelector('.toggle-zones-btn');
+                groups.forEach(group => {
+                    const provLabelEl = group.querySelector('.checklist-group-header label');
+                    const provText = provLabelEl ? provLabelEl.textContent.toLowerCase() : '';
+                    const subContainer = group.querySelector(':scope > .sub-zones-container');
+                    const toggleBtn = group.querySelector(':scope > .checklist-group-header .toggle-zones-btn');
 
                     let anyVisible = provText.includes(term);
 
-                    subItems.forEach(item => {
-                        const itemText = item.querySelector('label').textContent.toLowerCase();
-                        if (itemText.includes(term) || provText.includes(term)) {
-                            item.style.display = 'flex';
-                            anyVisible = true;
-                        } else {
-                            item.style.display = 'none';
-                        }
-                    });
+                    // Leaf zones (direct .checklist-item children of subContainer)
+                    if (subContainer) {
+                        subContainer.querySelectorAll(':scope > .checklist-item').forEach(item => {
+                            const itemText = item.querySelector('label') ? item.querySelector('label').textContent.toLowerCase() : '';
+                            const visible = itemText.includes(term) || provText.includes(term);
+                            item.style.display = visible ? 'flex' : 'none';
+                            if (visible) anyVisible = true;
+                        });
+
+                        // Zone groups (expandable zones with subzones)
+                        subContainer.querySelectorAll(':scope > .sub-zone-group').forEach(wrapper => {
+                            const zoneLabel = wrapper.querySelector('.zone-expandable-header label');
+                            const zoneText = zoneLabel ? zoneLabel.textContent.toLowerCase() : '';
+                            const subSubContainer = wrapper.querySelector('.sub-zones-container');
+                            let zoneVisible = zoneText.includes(term) || provText.includes(term);
+
+                            if (subSubContainer) {
+                                subSubContainer.querySelectorAll('.checklist-item').forEach(szItem => {
+                                    const szLabel = szItem.querySelector('label');
+                                    const szText = szLabel ? szLabel.textContent.toLowerCase() : '';
+                                    const visible = szText.includes(term) || zoneText.includes(term) || provText.includes(term);
+                                    szItem.style.display = visible ? 'flex' : 'none';
+                                    if (visible) zoneVisible = true;
+                                });
+                                if (term && zoneVisible) subSubContainer.classList.add('expanded');
+                                else if (!term) subSubContainer.classList.remove('expanded');
+                            }
+
+                            wrapper.style.display = zoneVisible ? 'block' : 'none';
+                            if (zoneVisible) anyVisible = true;
+                        });
+                    }
 
                     group.style.display = anyVisible ? 'block' : 'none';
 
-                    // Auto-expand if there's a search term and it's visible
                     if (subContainer && toggleBtn) {
                         if (term && anyVisible) {
                             subContainer.classList.add('expanded');
@@ -598,14 +636,39 @@
 
         async function fetchData() {
             try {
-                // To avoid sending massive payload, we don't send zones in the initial load,
-                // Server returns everything and we filter client-side for immediate interactions.
                 const response = await fetch('/api/trends');
                 rawData = await response.json();
                 console.log("Loaded Trends:", rawData.length, "records");
             } catch (err) {
                 console.error("Failed to load trends:", err);
             }
+        }
+
+        /**
+         * Construye el árbol province → zone → [subzones] directamente desde
+         * los registros del DB (rawData), en lugar de limitarse al fichero de
+         * mapping. Esto expone todas las zonas y sub-zonas reales que hay en la BD.
+         */
+        function buildProvinceDataFromRawData(data) {
+            const pd = {};
+            data.forEach(d => {
+                if (!d.province || !d.zone) return;
+                if (!pd[d.province]) pd[d.province] = {};
+                if (!pd[d.province][d.zone]) pd[d.province][d.zone] = [];
+                const sz = d.subzone || '';
+                if (sz && !pd[d.province][d.zone].includes(sz)) {
+                    pd[d.province][d.zone].push(sz);
+                }
+            });
+            // Ordenar provincias, zonas y sub-zonas alfabéticamente
+            const sorted = {};
+            Object.keys(pd).sort().forEach(prov => {
+                sorted[prov] = {};
+                Object.keys(pd[prov]).sort().forEach(zone => {
+                    sorted[prov][zone] = pd[prov][zone].sort();
+                });
+            });
+            return sorted;
         }
 
         async function checkTrackerStatus() {
@@ -636,7 +699,7 @@
 
                     if (cpData.available) {
                         cpBadge.style.display = 'inline-block';
-                        cpBadge.title = `Checkpoint Index: ${cpData.data.last_index} (Week ${cpData.data.iso_week})`;
+                        cpBadge.title = `Checkpoint Index: ${cpData.data.last_index} (${cpData.data.date_record})`;
                         resumeBtn.style.display = 'inline-block';
                     } else {
                         cpBadge.style.display = 'none';
@@ -668,23 +731,19 @@
             const container = document.getElementById('zoneChecklist');
             container.innerHTML = '';
 
-            // Pre-select Default (e.g. Madrid - Toda la provincia)
-            let defaultZone = '';
-            if (provinceData['Madrid'] && provinceData['Madrid'].includes('(Toda la provincia)')) {
-                defaultZone = 'Madrid|(Toda la provincia)';
-                selectedZones.add(defaultZone);
-                expandedProvinces.add('Madrid');
+            // Pre-select Default: Madrid > (Toda la provincia)
+            if (provinceData['Madrid'] && provinceData['Madrid']['(Toda la provincia)'] !== undefined) {
+                selectedZones.add('Madrid|(Toda la provincia)|');
             }
 
             const provinces = Object.keys(provinceData).sort();
 
-            // Fallback: Si no hay nada seleccionado (ej. inicio y no hay Madrid), seleccionar el primero
+            // Fallback: seleccionar el primero si nada fue seleccionado
             if (selectedZones.size === 0 && provinces.length > 0) {
                 const firstProv = provinces[0];
-                if (provinceData[firstProv] && provinceData[firstProv].length > 0) {
-                    const firstZone = provinceData[firstProv][0];
-                    selectedZones.add(`${firstProv}|${firstZone}`);
-                    expandedProvinces.add(firstProv);
+                const firstZones = Object.keys(provinceData[firstProv] || {});
+                if (firstZones.length > 0) {
+                    selectedZones.add(`${firstProv}|${firstZones[0]}|`);
                 }
             }
 
@@ -696,113 +755,235 @@
             allDiv.style.marginBottom = '5px';
             allDiv.style.fontWeight = 'bold';
             allDiv.innerHTML = '<input type="checkbox" id="selectAllZones" style="margin-right:8px;"> <label for="selectAllZones" style="cursor:pointer; flex:1;">Todas las zonas</label>';
-
             allDiv.onclick = (e) => {
                 if (e.target.tagName !== 'INPUT') {
                     const cb = allDiv.querySelector('input');
                     cb.checked = !cb.checked;
                     toggleAllZones(cb.checked);
-                } else if (e.target.tagName === 'INPUT') {
+                } else {
                     toggleAllZones(e.target.checked);
                 }
             };
             container.appendChild(allDiv);
 
             provinces.forEach(prov => {
+                const zones = provinceData[prov] || {};  // { zoneName: [subzones] }
+                const zoneNames = Object.keys(zones);
                 const group = document.createElement('div');
                 group.className = 'checklist-group';
 
+                // Province header
                 const header = document.createElement('div');
                 header.className = 'checklist-group-header';
 
-                const provCheckbox = document.createElement('input');
-                provCheckbox.type = 'checkbox';
-                provCheckbox.id = `prov_${prov}`;
-                provCheckbox.className = 'prov-cb';
+                const provCb = document.createElement('input');
+                provCb.type = 'checkbox';
+                provCb.id = `prov_${prov}`;
+                provCb.className = 'prov-cb';
 
-                const label = document.createElement('label');
-                label.htmlFor = `prov_${prov}`;
-                label.textContent = prov;
-                label.style.cursor = 'pointer';
-                label.style.flex = "1";
+                const provLabel = document.createElement('label');
+                provLabel.htmlFor = `prov_${prov}`;
+                provLabel.textContent = prov;
+                provLabel.style.cursor = 'pointer';
+                provLabel.style.flex = '1';
 
-                const subZones = provinceData[prov] || [];
-                const hasZones = subZones.length > 0;
-
+                const hasZones = zoneNames.length > 0;
                 let toggleBtn = null;
                 if (hasZones) {
                     toggleBtn = document.createElement('button');
                     toggleBtn.className = 'toggle-zones-btn';
                     toggleBtn.textContent = '▼';
-                    toggleBtn.title = `Ver ${subZones.length} zonas`;
+                    toggleBtn.title = `Ver ${zoneNames.length} zonas`;
                 }
 
-                header.appendChild(provCheckbox);
-                header.appendChild(label);
+                header.appendChild(provCb);
+                header.appendChild(provLabel);
                 if (toggleBtn) header.appendChild(toggleBtn);
                 group.appendChild(header);
 
-                const zoneElements = [];
+                // All selectable checkboxes under this province (for parent state tracking)
+                const allProvCbs = [];
                 let subContainer = null;
 
                 if (hasZones) {
                     subContainer = document.createElement('div');
                     subContainer.className = 'sub-zones-container';
 
-                    subZones.forEach(z => {
-                        const item = document.createElement('div');
-                        item.className = 'checklist-item sub-zone';
+                    zoneNames.forEach(zoneName => {
+                        const subzones = zones[zoneName];  // [] or ["sz1","sz2",...]
+                        const zoneKey = `${prov}|${zoneName}|`;  // zone-level key (subzone='')
 
-                        const cbox = document.createElement('input');
-                        cbox.type = 'checkbox';
-                        const valKey = `${prov}|${z}`;
-                        cbox.value = valKey;
-                        cbox.id = `zone_${prov}_${z}`;
-                        cbox.className = 'zone-cb';
-                        cbox.checked = selectedZones.has(valKey);
+                        if (!subzones || subzones.length === 0) {
+                            // LEAF ZONE — simple checkbox item
+                            const item = document.createElement('div');
+                            item.className = 'checklist-item';
 
-                        const zLabel = document.createElement('label');
-                        zLabel.htmlFor = cbox.id;
-                        zLabel.textContent = z;
-                        zLabel.style.cursor = 'pointer';
-                        zLabel.style.flex = "1";
+                            const cbox = document.createElement('input');
+                            cbox.type = 'checkbox';
+                            cbox.value = zoneKey;
+                            cbox.id = `zone_${prov}_${zoneName}`;
+                            cbox.className = 'zone-cb';
+                            cbox.checked = selectedZones.has(zoneKey);
 
-                        item.appendChild(cbox);
-                        item.appendChild(zLabel);
-                        subContainer.appendChild(item);
-                        zoneElements.push(cbox);
+                            const zLabel = document.createElement('label');
+                            zLabel.htmlFor = cbox.id;
+                            zLabel.textContent = zoneName;
+                            zLabel.style.cursor = 'pointer';
+                            zLabel.style.flex = '1';
 
-                        cbox.addEventListener('change', (e) => {
-                            if (e.target.checked) selectedZones.add(valKey);
-                            else selectedZones.delete(valKey);
-                            updateParentCheckbox(provCheckbox, zoneElements);
-                            updateSelectionText();
-                        });
+                            item.appendChild(cbox);
+                            item.appendChild(zLabel);
+                            subContainer.appendChild(item);
+                            allProvCbs.push(cbox);
 
-                        item.addEventListener('click', (e) => {
-                            if (e.target !== cbox && e.target !== zLabel) {
-                                cbox.checked = !cbox.checked;
-                                if (cbox.checked) selectedZones.add(valKey);
-                                else selectedZones.delete(valKey);
-                                updateParentCheckbox(provCheckbox, zoneElements);
+                            cbox.addEventListener('change', () => {
+                                if (cbox.checked) selectedZones.add(zoneKey);
+                                else selectedZones.delete(zoneKey);
+                                updateParentCheckbox(provCb, allProvCbs);
                                 updateSelectionText();
-                            }
-                        });
+                            });
+                            item.addEventListener('click', (e) => {
+                                if (e.target !== cbox && e.target !== zLabel) {
+                                    cbox.checked = !cbox.checked;
+                                    if (cbox.checked) selectedZones.add(zoneKey);
+                                    else selectedZones.delete(zoneKey);
+                                    updateParentCheckbox(provCb, allProvCbs);
+                                    updateSelectionText();
+                                }
+                            });
+
+                        } else {
+                            // ZONE WITH SUBZONES — expandable group
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'sub-zone-group';
+
+                            // Zone header row (zone total + expand toggle)
+                            const zoneHeader = document.createElement('div');
+                            zoneHeader.className = 'zone-expandable-header';
+
+                            const zoneCb = document.createElement('input');
+                            zoneCb.type = 'checkbox';
+                            zoneCb.value = zoneKey;
+                            zoneCb.id = `zone_${prov}_${zoneName}`;
+                            zoneCb.className = 'zone-cb';
+                            zoneCb.checked = selectedZones.has(zoneKey);
+
+                            const zoneLabel = document.createElement('label');
+                            zoneLabel.htmlFor = zoneCb.id;
+                            zoneLabel.textContent = zoneName;
+                            zoneLabel.style.cursor = 'pointer';
+                            zoneLabel.style.flex = '1';
+
+                            const subToggle = document.createElement('button');
+                            subToggle.className = 'toggle-zones-btn';
+                            subToggle.textContent = '▶';
+                            subToggle.title = `Ver ${subzones.length} sub-zonas`;
+
+                            zoneHeader.appendChild(zoneCb);
+                            zoneHeader.appendChild(zoneLabel);
+                            zoneHeader.appendChild(subToggle);
+                            wrapper.appendChild(zoneHeader);
+
+                            // Subzones container
+                            const subSubContainer = document.createElement('div');
+                            subSubContainer.className = 'sub-zones-container';
+
+                            const subzoneCbs = [];
+                            subzones.forEach(szName => {
+                                const szKey = `${prov}|${zoneName}|${szName}`;
+                                const szItem = document.createElement('div');
+                                szItem.className = 'checklist-item';
+
+                                const szCb = document.createElement('input');
+                                szCb.type = 'checkbox';
+                                szCb.value = szKey;
+                                szCb.id = `subzone_${prov}_${zoneName}_${szName}`;
+                                szCb.className = 'zone-cb';
+                                szCb.checked = selectedZones.has(szKey);
+
+                                const szLabel = document.createElement('label');
+                                szLabel.htmlFor = szCb.id;
+                                szLabel.textContent = szName;
+                                szLabel.style.cursor = 'pointer';
+                                szLabel.style.flex = '1';
+
+                                szItem.appendChild(szCb);
+                                szItem.appendChild(szLabel);
+                                subSubContainer.appendChild(szItem);
+                                subzoneCbs.push(szCb);
+                                allProvCbs.push(szCb);
+
+                                szCb.addEventListener('change', () => {
+                                    if (szCb.checked) selectedZones.add(szKey);
+                                    else selectedZones.delete(szKey);
+                                    updateParentCheckbox(zoneCb, subzoneCbs);
+                                    updateParentCheckbox(provCb, allProvCbs);
+                                    updateSelectionText();
+                                });
+                                szItem.addEventListener('click', (e) => {
+                                    if (e.target !== szCb && e.target !== szLabel) {
+                                        szCb.checked = !szCb.checked;
+                                        if (szCb.checked) selectedZones.add(szKey);
+                                        else selectedZones.delete(szKey);
+                                        updateParentCheckbox(zoneCb, subzoneCbs);
+                                        updateParentCheckbox(provCb, allProvCbs);
+                                        updateSelectionText();
+                                    }
+                                });
+                            });
+
+                            wrapper.appendChild(subSubContainer);
+                            subContainer.appendChild(wrapper);
+                            allProvCbs.push(zoneCb);
+
+                            // Zone checkbox → check/uncheck zone total + all subzones
+                            zoneCb.addEventListener('change', () => {
+                                if (zoneCb.checked) selectedZones.add(zoneKey);
+                                else selectedZones.delete(zoneKey);
+                                subzoneCbs.forEach(szCb => {
+                                    szCb.checked = zoneCb.checked;
+                                    if (zoneCb.checked) selectedZones.add(szCb.value);
+                                    else selectedZones.delete(szCb.value);
+                                });
+                                updateParentCheckbox(provCb, allProvCbs);
+                                updateSelectionText();
+                            });
+                            zoneHeader.addEventListener('click', (e) => {
+                                if (e.target !== zoneCb && e.target !== zoneLabel && e.target !== subToggle) {
+                                    zoneCb.checked = !zoneCb.checked;
+                                    if (zoneCb.checked) selectedZones.add(zoneKey);
+                                    else selectedZones.delete(zoneKey);
+                                    subzoneCbs.forEach(szCb => {
+                                        szCb.checked = zoneCb.checked;
+                                        if (zoneCb.checked) selectedZones.add(szCb.value);
+                                        else selectedZones.delete(szCb.value);
+                                    });
+                                    updateParentCheckbox(provCb, allProvCbs);
+                                    updateSelectionText();
+                                }
+                            });
+                            subToggle.onclick = (e) => {
+                                e.stopPropagation();
+                                subSubContainer.classList.toggle('expanded');
+                                subToggle.textContent = subSubContainer.classList.contains('expanded') ? '▼' : '▶';
+                            };
+                        }
                     });
+
                     group.appendChild(subContainer);
                 }
 
                 if (toggleBtn && subContainer) {
                     toggleBtn.onclick = (e) => {
-                        e.stopPropagation(); // Evitar click en la fila
+                        e.stopPropagation();
                         subContainer.classList.toggle('expanded');
                         toggleBtn.textContent = subContainer.classList.contains('expanded') ? '▲' : '▼';
                     };
                 }
 
-                provCheckbox.addEventListener('change', (e) => {
-                    const isChecked = e.target.checked;
-                    zoneElements.forEach(cb => {
+                provCb.addEventListener('change', () => {
+                    const isChecked = provCb.checked;
+                    allProvCbs.forEach(cb => {
                         cb.checked = isChecked;
                         if (isChecked) selectedZones.add(cb.value);
                         else selectedZones.delete(cb.value);
@@ -811,19 +992,18 @@
                 });
 
                 header.addEventListener('click', (e) => {
-                    if (e.target !== provCheckbox && e.target !== toggleBtn && e.target !== label) {
-                        provCheckbox.checked = !provCheckbox.checked;
-                        const isChecked = provCheckbox.checked;
-                        zoneElements.forEach(cb => {
-                            cb.checked = isChecked;
-                            if (isChecked) selectedZones.add(cb.value);
+                    if (e.target !== provCb && e.target !== toggleBtn && e.target !== provLabel) {
+                        provCb.checked = !provCb.checked;
+                        allProvCbs.forEach(cb => {
+                            cb.checked = provCb.checked;
+                            if (provCb.checked) selectedZones.add(cb.value);
                             else selectedZones.delete(cb.value);
                         });
                         updateSelectionText();
                     }
                 });
 
-                updateParentCheckbox(provCheckbox, zoneElements);
+                updateParentCheckbox(provCb, allProvCbs);
                 container.appendChild(group);
             });
 
@@ -831,27 +1011,24 @@
         }
 
         function toggleAllZones(checked) {
-            const provCbs = document.querySelectorAll('.prov-cb');
-            provCbs.forEach(cb => {
+            document.querySelectorAll('.zone-cb').forEach(cb => {
                 const group = cb.closest('.checklist-group');
-                if (group.style.display === 'none') return; // visible only
-
+                if (!group || group.style.display === 'none') return;
+                cb.checked = checked;
+                if (checked) selectedZones.add(cb.value);
+                else selectedZones.delete(cb.value);
+            });
+            document.querySelectorAll('.prov-cb').forEach(cb => {
+                const group = cb.closest('.checklist-group');
+                if (!group || group.style.display === 'none') return;
                 cb.checked = checked;
                 cb.indeterminate = false;
-
-                const zoneCbs = group.querySelectorAll('.zone-cb');
-                zoneCbs.forEach(zcb => {
-                    if (zcb.closest('.sub-zone').style.display !== 'none') {
-                        zcb.checked = checked;
-                        if (checked) selectedZones.add(zcb.value);
-                        else selectedZones.delete(zcb.value);
-                    }
-                });
             });
             updateSelectionText();
         }
 
         function updateParentCheckbox(parentCb, childrenCbs) {
+            if (!childrenCbs.length) return;
             const allChecked = childrenCbs.every(cb => cb.checked);
             const someChecked = childrenCbs.some(cb => cb.checked);
             parentCb.checked = allChecked;
@@ -866,8 +1043,9 @@
             if (selectedZones.size === 0) {
                 triggerText.textContent = "Seleccionar Zonas...";
             } else if (selectedZones.size === 1) {
-                const z = Array.from(selectedZones)[0].split('|')[1];
-                triggerText.textContent = z.length > 20 ? z.substring(0, 20) + '...' : z;
+                const parts = Array.from(selectedZones)[0].split('|');
+                const display = parts[2] || parts[1]; // subzone name or zone name
+                triggerText.textContent = display.length > 20 ? display.substring(0, 20) + '...' : display;
             } else {
                 triggerText.textContent = `${selectedZones.size} zonas seleccionadas`;
             }
@@ -886,28 +1064,24 @@
                 return;
             }
 
-            // Group by X-Axis Label (Year-Week)
+            // Group data by date label
             const labelsMap = new Map();
 
-            // Structure: labelsMap.get(label) = { sortKey, datasets: { "Prov|Zone|Op": value } }
             rawData.forEach(d => {
-                const key = `${d.province}|${d.zone}`;
-
+                // Key format: "Province|Zone|Subzone"
+                const key = `${d.province}|${d.zone}|${d.subzone || ''}`;
                 if (!selectedZones.has(key)) return;
                 if (opFilter !== 'both' && d.operation !== opFilter) return;
 
-                const label = `S${String(d.iso_week).padStart(2, '0')}/${d.iso_year} (${d.date_record.substring(0, 5)})`;
+                const label = d.date_record;
                 if (!labelsMap.has(label)) {
-                    labelsMap.set(label, {
-                        label: label,
-                        sortKey: `${d.iso_year}-${String(d.iso_week).padStart(2, '0')}`,
-                        values: {}
-                    });
+                    const parts = d.date_record.split('-');
+                    const sortKey = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : d.date_record;
+                    labelsMap.set(label, { label, sortKey, values: {} });
                 }
 
-                const entry = labelsMap.get(label);
                 const dsKey = `${key}|${d.operation}`;
-                entry.values[dsKey] = d.total_properties;
+                labelsMap.get(label).values[dsKey] = d.total_properties;
             });
 
             const sortedEntries = Array.from(labelsMap.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
@@ -916,26 +1090,35 @@
             const datasets = [];
             let colorIndex = 0;
 
-            // Build datasets dynamically based on selected combos
             selectedZones.forEach(sz => {
-                const [prov, zone] = sz.split('|');
+                const parts = sz.split('|');
+                const prov = parts[0];
+                const zone = parts[1];
+                const subzone = parts[2] || '';
 
                 const opsToDraw = opFilter === 'both' ? ['venta', 'alquiler'] : [opFilter];
 
                 opsToDraw.forEach(op => {
                     const dsKey = `${sz}|${op}`;
-                    const dsData = sortedEntries.map(e => e.values[dsKey] || null);
+                    const dsData = sortedEntries.map(e => e.values[dsKey] !== undefined ? e.values[dsKey] : null);
 
-                    // Only add if there is data
                     if (dsData.some(v => v !== null)) {
                         const color = COLORS[colorIndex % COLORS.length];
-                        const displayZone = zone === '(Toda la provincia)' ? prov : zone;
+                        // Display: use subzone name if present, otherwise zone (or province for "toda la provincia")
+                        let displayName;
+                        if (subzone) {
+                            displayName = `${subzone} (${zone})`;
+                        } else if (zone === '(Toda la provincia)') {
+                            displayName = prov;
+                        } else {
+                            displayName = zone;
+                        }
 
                         datasets.push({
-                            label: `${displayZone} (${op === 'venta' ? 'Venta' : 'Alquiler'})`,
+                            label: `${displayName} (${op === 'venta' ? 'Venta' : 'Alquiler'})`,
                             data: dsData,
                             borderColor: color,
-                            backgroundColor: color + '1A', // 10% opacity
+                            backgroundColor: color + '1A',
                             borderWidth: 2,
                             pointBackgroundColor: '#1e293b',
                             pointBorderColor: color,
@@ -951,31 +1134,20 @@
                 });
             });
 
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
+            if (chartInstance) chartInstance.destroy();
 
             const ctx = document.getElementById('trendsChart').getContext('2d');
-
             Chart.defaults.color = '#94a3b8';
             Chart.defaults.font.family = "'Outfit', sans-serif";
 
             chartInstance = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: datasets
-                },
+                data: { labels, datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            labels: {
-                                font: { size: 12 },
-                                boxWidth: 15
-                            }
-                        },
+                        legend: { labels: { font: { size: 12 }, boxWidth: 15 } },
                         tooltip: {
                             backgroundColor: 'rgba(15, 23, 42, 0.9)',
                             titleColor: '#f8fafc',
@@ -988,22 +1160,10 @@
                         }
                     },
                     scales: {
-                        x: {
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.05)'
-                            }
-                        },
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.05)'
-                            }
-                        }
+                        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+                        y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
                     },
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    }
+                    interaction: { mode: 'index', intersect: false }
                 }
             });
         }
