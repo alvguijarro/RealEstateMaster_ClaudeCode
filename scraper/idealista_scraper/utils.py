@@ -789,14 +789,16 @@ async def solve_slider_captcha(page):
         log("WARN", f"Slider solver attempt failed: {e}")
         return False
 
-async def solve_geetest_2captcha(page):
+async def solve_geetest_2captcha(page, logger=None):
     """Solve GeeTest CAPTCHA using 2Captcha service."""
-    if not SOLVER:
-        log("WARN", "2Captcha SOLVER not initialized (check API Key).")
+    l = logger or log
+    if not ASYNC_SOLVER:
+        l("WARN", "2Captcha ASYNC_SOLVER not initialized (check API Key).")
         return False
         
     try:
-        log("INFO", "🌀 Detecting GeeTest parameters...")
+        _captcha_inc("geetest_attempts")
+        l("INFO", "🌀 Detecting GeeTest parameters...")
         # Idealista usually puts GeeTest params in a specific script or object
         # We try to extract gt and challenge
         params = await page.evaluate("""() => {
@@ -814,22 +816,22 @@ async def solve_geetest_2captcha(page):
             if (window.initGeetest) return { type: 'dynamic' };
             return null;
         }""")
-        
+
         if not params:
-            log("WARN", "Could not find GeeTest parameters automatically.")
+            l("WARN", "Could not find GeeTest parameters automatically.")
             return False
-            
-        log("INFO", f"📦 GeeTest params found. Sending to 2Captcha... (gt: {params.get('gt', 'detected')})")
-        
+
+        l("INFO", f"📦 GeeTest params found. Sending to 2Captcha... (gt: {params.get('gt', 'detected')})")
+
         proxy_dict = get_2captcha_proxy_dict()
-        
+
         result = await ASYNC_SOLVER.geetest(
             gt=params['gt'],
             challenge=params['challenge'],
             url=page.url,
             proxy=proxy_dict
         )
-        
+
         # Normalize response: 2captcha-python can return str or dict
         code = None
         if isinstance(result, str) and result:
@@ -838,7 +840,7 @@ async def solve_geetest_2captcha(page):
             code = result['code']
 
         if code:
-            log("OK", "✅ 2Captcha returned solution. Injecting into page...")
+            l("OK", "✅ 2Captcha returned solution. Injecting into page...")
             
             # Inject the solution
             await page.evaluate(f"""(code) => {{
@@ -861,12 +863,13 @@ async def solve_geetest_2captcha(page):
             }}""", code)
             
             await asyncio.sleep(3)
+            _captcha_inc("geetest_solved")
             return True
-            
+
     except Exception as e:
-        if logger: logger("ERR", f"2Captcha GeeTest solver failed: {e}")
-        else: log("ERR", f"2Captcha GeeTest solver failed: {e}")
-        
+        _captcha_inc("geetest_errors")
+        l("ERR", f"2Captcha GeeTest solver failed: {e}")
+
     return False
 
 async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
@@ -1655,11 +1658,25 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
                 pass
             await asyncio.sleep(1)
 
-            # Check if DataDome is still present
-            quick_check = await page.evaluate("""() => {
-                const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
-                return iframe ? iframe.src : null;
-            }""")
+            # Check if DataDome is still present. Wrapped with retry: after domcontentloaded
+            # the page may still be executing JS redirects (DataDome iframe injection), which
+            # destroys the execution context. A 3s retry avoids falling through to paid solvers.
+            try:
+                quick_check = await page.evaluate("""() => {
+                    const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
+                    return iframe ? iframe.src : null;
+                }""")
+            except Exception as eval_err:
+                l("WARN", f"Error evaluando captcha (contexto destruido): {eval_err}. Reintentando en 3s...")
+                await asyncio.sleep(3)
+                try:
+                    quick_check = await page.evaluate("""() => {
+                        const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
+                        return iframe ? iframe.src : null;
+                    }""")
+                except Exception:
+                    quick_check = datadome_data.get('captcha_url')  # fallback: asumir captcha persiste
+
             if not quick_check:
                 l("OK", "✅ DataDome desapareció tras recarga rápida. Página libre (sin coste 2Captcha).")
                 _captcha_inc("Recarga rápida|resueltos")
@@ -1675,6 +1692,20 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
             try:
                 await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
                 await asyncio.sleep(2)
+                # Comprobar si DataDome desapareció tras la navegación de recuperación.
+                # Es posible que la recarga homepage→URL sí funcionara pero el evaluate()
+                # fallara por contexto destruido — en ese caso evitamos llamar a 2Captcha.
+                try:
+                    recovery_check = await page.evaluate("""() => {
+                        const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
+                        return iframe ? iframe.src : null;
+                    }""")
+                    if not recovery_check:
+                        l("OK", "✅ DataDome desapareció tras navegación de recuperación. Página libre (sin coste 2Captcha).")
+                        _captcha_inc("Recarga rápida|resueltos")
+                        return True
+                except Exception:
+                    pass  # Si el check falla, continuar al loop de solvers
             except Exception:
                 pass
 
@@ -1770,7 +1801,7 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
         if is_geetest:
             _captcha_inc("2Captcha GeeTest|intentos")
             l("INFO", "Iniciando solver 2Captcha para GeeTest...")
-            if await solve_geetest_2captcha(page):
+            if await solve_geetest_2captcha(page, logger=l):
                 await asyncio.sleep(3)
                 title = (await page.title()).lower()
                 if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
