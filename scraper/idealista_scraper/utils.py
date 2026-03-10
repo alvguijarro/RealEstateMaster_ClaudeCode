@@ -1816,13 +1816,14 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
             _captcha_inc("Recarga rápida sin proxy|intentos")
             try:
                 await page.goto("https://www.idealista.com", wait_until='domcontentloaded', timeout=15000)
-                await asyncio.sleep(2)
+                await asyncio.sleep(7)
                 await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
-                await asyncio.sleep(2)
+                await asyncio.sleep(7)
                 try:
                     await page.wait_for_load_state('load', timeout=10000)
                 except Exception:
                     pass
+                await asyncio.sleep(5)
                 quick_check = await page.evaluate("""() => {
                     const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
                     return iframe ? iframe.src : null;
@@ -1887,14 +1888,14 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
         l("INFO", "🔄 Intentando recarga rápida (homepage → URL) antes de solvers de pago...")
         try:
             await page.goto("https://www.idealista.com", wait_until='domcontentloaded', timeout=15000)
-            await asyncio.sleep(2)
+            await asyncio.sleep(7)
             await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
-            await asyncio.sleep(2)
+            await asyncio.sleep(7)
             try:
                 await page.wait_for_load_state('load', timeout=10000)
             except Exception:
                 pass
-            await asyncio.sleep(1)
+            await asyncio.sleep(6)
 
             # Check if DataDome is still present. Wrapped with retry: after domcontentloaded
             # the page may still be executing JS redirects (DataDome iframe injection), which
@@ -1961,15 +1962,15 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
                 l("INFO", f"Intento {attempt}/{total}: Navegando a homepage para evitar escalación DataDome...")
                 try:
                     await page.goto("https://www.idealista.com", wait_until='domcontentloaded', timeout=15000)
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(7)
                     l("INFO", f"Intento {attempt}/{total}: Volviendo a URL objetivo...")
                     await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(7)
                     try:
                         await page.wait_for_load_state('load', timeout=10000)
                     except Exception:
                         pass
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(6)
                 except Exception as reload_err:
                     l("WARN", f"Error en navegación de retry: {reload_err}")
                     continue

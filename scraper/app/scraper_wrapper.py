@@ -3290,8 +3290,28 @@ class ScraperController:
                                         raise BlockedException("Listing loop block detection: uso indebido")
                                         
                                     if block_type == "captcha":
-                                        self.log("WARN", f"⚠️ CAPTCHA/LIMIT DETECTED on page {page_num}.")
-                                        raise BlockedException("Listing loop block detection: CAPTCHA")
+                                        self.log("WARN", f"⚠️ CAPTCHA/LIMIT DETECTED on page {page_num}. Intentando resolver antes de rotar...")
+                                        try:
+                                            solved = await asyncio.wait_for(
+                                                solve_captcha_advanced(page, logger=self.log, use_proxy=use_proxy),
+                                                timeout=180.0
+                                            )
+                                        except asyncio.TimeoutError:
+                                            solved = False
+                                            self.log("WARN", "Captcha solver timeout (180s) en página de listado.")
+                                        except Exception as _ce:
+                                            solved = False
+                                            self.log("WARN", f"Captcha solver error en página de listado: {_ce}")
+                                        if solved:
+                                            self.log("OK", "✅ Captcha resuelto en página de listado. Reintentando extracción de links...")
+                                            # Recargar hrefs desde la misma página ya desbloqueada
+                                            hrefs = await page.evaluate("""() => {
+                                                return Array.from(document.querySelectorAll('a[href*="/inmueble/"]')).map(a => a.href);
+                                            }""")
+                                            # Continuar con los hrefs obtenidos (pueden estar vacíos si la página no se cargó bien)
+                                        else:
+                                            self.log("ERR", "Captcha no resuelto en página de listado. Rotando identidad...")
+                                            raise BlockedException("Listing loop: captcha no resuelto tras intento de solver")
 
                                     # 2. Detailed info for logs if not blocked
                                     page_title = await page.title()
