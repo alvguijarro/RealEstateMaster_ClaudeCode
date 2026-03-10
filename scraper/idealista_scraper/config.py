@@ -6,6 +6,10 @@ DEFAULT_CDP_PORT: int = 9222
 # t=bv circuit breaker: pausa preventiva cuando el pool de IPs españolas está agotado
 TBV_CIRCUIT_BREAKER_THRESHOLD: int = 8    # t=bv consecutivos antes de pausar
 TBV_CIRCUIT_BREAKER_PAUSE_MIN: int = 30   # minutos de pausa para enfriar IPs
+
+# CapSolver: versión máxima de Chrome soportada por la API de CapSolver DatadomeSliderTask.
+# Actualizar cuando CapSolver anuncie soporte para versiones superiores.
+CAPSOLVER_MAX_CHROME_VERSION: int = 144
 HARVEST_DEBOUNCE_SECONDS: float = 1.5
 PAGE_WAIT_MS: int = 250
 RETRY_MAX_ATTEMPTS: int = 3

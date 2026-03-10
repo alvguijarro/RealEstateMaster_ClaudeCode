@@ -87,6 +87,31 @@ def _captcha_inc(key: str) -> None:
     _captcha_stats[key] = _captcha_stats.get(key, 0) + 1
 
 # =============================================================================
+# Solver error codes — mensajes legibles para diagnóstico rápido
+# =============================================================================
+
+_TWOCAPTCHA_ERROR_CODES: dict = {
+    "ERROR_PROXY_NOT_AUTHORISED": "Credenciales proxy incorrectas — verificar PROXY_CONFIG.login/password",
+    "ERROR_BAD_PROXY": "Proxy no responde — verificar host/port en PROXY_CONFIG",
+    "ERROR_PROXY_TIMEOUT": "Proxy lento/caído — el solver no pudo conectar a través de él",
+    "ERROR_CAPTCHA_UNSOLVABLE": "CAPTCHA irresoluble para los trabajadores de 2Captcha",
+    "ERROR_INVALID_TASK_DATA": "Datos de tarea inválidos — UA incorrecto o parámetros malformados",
+    "ERROR_ZERO_BALANCE": "Saldo 2Captcha agotado — recargar cuenta en 2captcha.com",
+    "ERROR_IP_NOT_ALLOWED": "IP no autorizada para esta API key",
+    "ERROR_KEY_DOES_NOT_EXIST": "API key 2Captcha inválida o expirada",
+}
+
+_CAPSOLVER_ERROR_CODES: dict = {
+    "ERROR_PROXY_NOT_AUTHORISED": "Credenciales proxy incorrectas — verificar PROXY_CONFIG.login/password",
+    "ERROR_BAD_PROXY": "Proxy no responde o rechazado por CapSolver",
+    "ERROR_PROXY_TIMEOUT": "Proxy lento/caído",
+    "ERROR_CAPTCHA_UNSOLVABLE": "CAPTCHA irresoluble para CapSolver",
+    "ERROR_INVALID_TASK_DATA": "Datos inválidos — UA incompatible (Chrome version cap, tokens Edg/OPR)",
+    "ERROR_ZERO_BALANCE": "Saldo CapSolver agotado — recargar cuenta en capsolver.com",
+    "ERROR_KEY_DOES_NOT_EXIST": "API key CapSolver inválida o expirada",
+}
+
+# =============================================================================
 # t=bv (IP bloqueada) Counter — detecta cuándo el pool de IPs está agotado
 # =============================================================================
 
@@ -1082,15 +1107,17 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None
                 return False
 
             task_id = resp_data.get("taskId")
-            l("INFO", f"Tarea {task_id} creada. Polling cada 5s (hasta 65s, tokens DataDome expiran ~60s)...")
+            l("INFO", f"Tarea {task_id} creada. Primer poll en 10s, luego cada 5s (DataDome suele tardar 10-20s)...")
 
             max_wait = 65
             start_time = time.time()
             code = None
             poll_count = 0
+            poll_interval = 10  # primer poll tardío para evitar peticiones innecesarias (S-5)
 
             while time.time() - start_time < max_wait:
-                await asyncio.sleep(5)
+                await asyncio.sleep(poll_interval)
+                poll_interval = 5  # segundo poll en adelante cada 5s
                 poll_count += 1
                 elapsed = int(time.time() - start_time)
                 try:
@@ -1105,12 +1132,13 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None
                 res_data = res.json()
                 if res_data.get("errorId") != 0:
                     error_code = res_data.get("errorCode", "unknown")
+                    _desc = _TWOCAPTCHA_ERROR_CODES.get(error_code, f"código desconocido: {error_code}")
                     if error_code == "ERROR_CAPTCHA_UNSOLVABLE":
-                        l("WARN", f"2Captcha: CAPTCHA marcado como IRRESOLUBLE tras {elapsed}s")
+                        l("WARN", f"2Captcha: {_desc} (tras {elapsed}s)")
                         _captcha_inc("DataDome 2Captcha|irresoluble")
                     else:
-                        l("ERR", f"Error 2Captcha getTaskResult: {error_code} | {res_data}")
-                        _captcha_inc("DataDome 2Captcha|error_api")
+                        l("ERR", f"2Captcha getTaskResult [{error_code}]: {_desc} | raw: {res_data}")
+                        _captcha_inc(f"DataDome 2Captcha|{error_code}" if error_code != "unknown" else "DataDome 2Captcha|error_api")
                     break
 
                 status = res_data.get("status")
@@ -1193,6 +1221,20 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None
                 if pass_num == 1:
                     l("INFO", "CAPTCHA aún presente tras 5s, esperando 5s más (pass 2)...")
 
+            # Diagnosticar motivo del rechazo: extraer t= del nuevo captcha
+            try:
+                _new_iframe_src = await page.evaluate("""() => {
+                    const f = document.querySelector('iframe[src*="captcha-delivery.com"]');
+                    return f ? f.src : null;
+                }""")
+                if _new_iframe_src:
+                    from urllib.parse import urlparse as _up2, parse_qs as _pq2
+                    _new_t = _pq2(_up2(_new_iframe_src).query).get('t', ['?'])[0]
+                    l("WARN", f"Cookie rechazada — nuevo captcha URL tiene t={_new_t}")
+                    if _new_t == 'bv':
+                        _increment_tbv_counter()
+            except Exception:
+                pass
             l("WARN", "Cookie inyectada pero el CAPTCHA persiste tras dos verificaciones.")
             _captcha_inc("DataDome 2Captcha|cookie_rechazada")
             return False
@@ -1217,17 +1259,24 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
         page_url = page.url
         user_agent = await page.evaluate("navigator.userAgent")
 
-        # CapSolver solo soporta UAs Chrome/Edge estándar (hasta Chrome/144)
-        # — eliminar tokens Opera/Brave/Vivaldi y cap Chrome version a 144
+        # CapSolver solo soporta UAs Chrome/Edge estándar (hasta CAPSOLVER_MAX_CHROME_VERSION)
+        # — eliminar tokens Opera/Brave/Vivaldi y cap Chrome version
         import re as _re_ua
+        try:
+            from scraper.idealista_scraper.config import CAPSOLVER_MAX_CHROME_VERSION as _CAP_MAX_VER
+        except ImportError:
+            try:
+                from idealista_scraper.config import CAPSOLVER_MAX_CHROME_VERSION as _CAP_MAX_VER
+            except ImportError:
+                _CAP_MAX_VER = 144
         if _re_ua.search(r'\b(OPR|Brave|Vivaldi)/[\d.]+', user_agent):
             user_agent = _re_ua.sub(r'\s*(OPR|Brave|Vivaldi)/[\d.]+', '', user_agent).strip()
             l("INFO", f"UA sanitizado para CapSolver (tokens no estándar eliminados)")
-        # Cap Chrome version to max supported (144)
+        # Cap Chrome version to max supported
         _chrome_match = _re_ua.search(r'Chrome/(\d+)', user_agent)
-        if _chrome_match and int(_chrome_match.group(1)) > 144:
-            user_agent = _re_ua.sub(r'Chrome/\d+', 'Chrome/144', user_agent)
-            l("INFO", f"UA Chrome version capped a 144 para CapSolver (era {_chrome_match.group(1)})")
+        if _chrome_match and int(_chrome_match.group(1)) > _CAP_MAX_VER:
+            user_agent = _re_ua.sub(r'Chrome/\d+', f'Chrome/{_CAP_MAX_VER}', user_agent)
+            l("INFO", f"UA Chrome version capped a {_CAP_MAX_VER} para CapSolver (era {_chrome_match.group(1)})")
         # Eliminar Edg/ completamente: CapSolver rechaza cualquier UA con token Edg/ → ERROR_INVALID_TASK_DATA
         _edge_match = _re_ua.search(r'Edg/([\d.]+)', user_agent)
         if _edge_match:
@@ -1248,12 +1297,6 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
         from urllib.parse import urlparse as _urlparse, parse_qs as _parse_qs
         _parsed_captcha = _urlparse(captcha_url)
         _t_param = _parse_qs(_parsed_captcha.query).get('t', [''])[0]
-        if _t_param == 'bv':
-            l("WARN", "t=bv: IP bloqueada. CapSolver tampoco puede resolver.")
-            _captcha_inc("DataDome CapSolver|ip_bloqueada")
-            if _ctx is not None:
-                _ctx['fail_reason'] = 'tbv'
-            return False
 
         if '/interstitial/' in _parsed_captcha.path:
             l("WARN", "URL tipo /interstitial/ detectada (no es slider). CapSolver no puede resolver este tipo. Rotando...")
@@ -1274,6 +1317,25 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
         sticky_sid = PROXY_CONFIG.get('sticky_session_id')
         if sticky_sid:
             proxy_login = f"{proxy_login}-session-{sticky_sid}"
+
+        # Pre-flight proxy IP check — misma lógica que 2Captcha para diagnóstico de IP mismatch (S-2)
+        proxy_exit_ip = "unknown"
+        try:
+            _proxy_url_check = f"http://{proxy_login}:{PROXY_CONFIG.get('password', '')}@{PROXY_CONFIG.get('host')}:{PROXY_CONFIG.get('port')}"
+            async with httpx.AsyncClient(proxy=_proxy_url_check, timeout=10, verify=False) as _ipc:
+                _ip_resp = await _ipc.get("https://api.ipify.org?format=json")
+                proxy_exit_ip = _ip_resp.json().get("ip", "unknown")
+                l("INFO", f"🌐 Proxy exit IP (session {sticky_sid}): {proxy_exit_ip}")
+        except Exception as ip_err:
+            l("WARN", f"No se pudo verificar IP del proxy (CapSolver): {ip_err}")
+
+        if _t_param == 'bv':
+            tbv_count = _increment_tbv_counter(proxy_exit_ip)
+            l("WARN", f"t=bv #{tbv_count}: IP {proxy_exit_ip} bloqueada permanentemente. CapSolver tampoco puede resolver.")
+            _captcha_inc("DataDome CapSolver|ip_bloqueada")
+            if _ctx is not None:
+                _ctx['fail_reason'] = 'tbv'
+            return False
 
         task_payload = {
             "clientKey": CAPSOLVER_API_KEY,
@@ -1302,14 +1364,16 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
                 return False
 
             task_id = resp_data.get("taskId")
-            l("INFO", f"CapSolver tarea {task_id} creada. Polling (hasta 65s)...")
+            l("INFO", f"CapSolver tarea {task_id} creada. Primer poll en 10s, luego cada 5s...")
 
             max_wait = 65
             start_time = time.time()
             code = None
+            poll_interval = 10  # primer poll tardío para evitar peticiones innecesarias (S-5)
 
             while time.time() - start_time < max_wait:
-                await asyncio.sleep(5)
+                await asyncio.sleep(poll_interval)
+                poll_interval = 5  # segundo poll en adelante cada 5s
                 elapsed = int(time.time() - start_time)
                 try:
                     res = await client.post("https://api.capsolver.com/getTaskResult", json={
@@ -1322,8 +1386,10 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
 
                 res_data = res.json()
                 if res_data.get("errorId", 1) != 0:
-                    l("ERR", f"Error CapSolver getTaskResult: {res_data}")
-                    _captcha_inc("DataDome CapSolver|error_api")
+                    _cap_err = res_data.get("errorCode", "unknown")
+                    _cap_desc = _CAPSOLVER_ERROR_CODES.get(_cap_err, f"código desconocido: {_cap_err}")
+                    l("ERR", f"CapSolver getTaskResult [{_cap_err}]: {_cap_desc} | raw: {res_data}")
+                    _captcha_inc(f"DataDome CapSolver|{_cap_err}" if _cap_err != "unknown" else "DataDome CapSolver|error_api")
                     break
 
                 status = res_data.get("status")
@@ -1397,6 +1463,20 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
                 if pass_num == 1:
                     l("INFO", "CapSolver: CAPTCHA aún presente, esperando 5s más...")
 
+            # Diagnosticar motivo del rechazo: extraer t= del nuevo captcha
+            try:
+                _new_iframe_src = await page.evaluate("""() => {
+                    const f = document.querySelector('iframe[src*="captcha-delivery.com"]');
+                    return f ? f.src : null;
+                }""")
+                if _new_iframe_src:
+                    from urllib.parse import urlparse as _upc, parse_qs as _pqc
+                    _new_t = _pqc(_upc(_new_iframe_src).query).get('t', ['?'])[0]
+                    l("WARN", f"CapSolver cookie rechazada — nuevo captcha URL tiene t={_new_t}")
+                    if _new_t == 'bv':
+                        _increment_tbv_counter(proxy_exit_ip)
+            except Exception:
+                pass
             l("WARN", "CapSolver: cookie inyectada pero CAPTCHA persiste.")
             _captcha_inc("DataDome CapSolver|cookie_rechazada")
             return False

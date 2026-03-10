@@ -162,9 +162,9 @@
 
 ---
 
-## Mejoras en implementación de solvers 2Captcha / CapSolver
+## Mejoras en implementación de solvers 2Captcha / CapSolver ✅ COMPLETADAS
 
-### S-1: Logging de error codes específicos de 2Captcha y CapSolver
+### S-1: Logging de error codes específicos de 2Captcha y CapSolver ✅
 
 - **Severidad**: Media
 - **Archivos**: `utils.py`, funciones `solve_datadome_2captcha` (~línea 1014) y `solve_datadome_capsolver` (~línea 1231)
@@ -181,7 +181,7 @@
   3. Crear un diccionario `KNOWN_ERROR_CODES` con mensajes en español para cada código.
 - **Resultado esperado**: Logs que indican exactamente por qué falló cada intento de solver.
 
-### S-2: Pre-flight IP check en CapSolver
+### S-2: Pre-flight IP check en CapSolver ✅
 
 - **Severidad**: Media
 - **Archivo**: `utils.py`, función `solve_datadome_capsolver` (~línea 1170)
@@ -192,7 +192,7 @@
   2. Loggear la IP con el mismo formato: `"🌐 Proxy exit IP (session {sticky_sid}): {proxy_exit_ip}"`.
 - **Resultado esperado**: Visibilidad completa de la IP del proxy en ambos solvers para diagnóstico de IP mismatch.
 
-### S-3: Chrome version cap dinámica en CapSolver
+### S-3: Chrome version cap dinámica en CapSolver ✅
 
 - **Severidad**: Media
 - **Archivo**: `utils.py`, líneas ~1134-1137
@@ -205,7 +205,7 @@
   4. Alternativa avanzada: consultar la API de CapSolver (`/getBalance` o similar) para determinar la versión máxima soportada dinámicamente (si la API lo expone).
 - **Resultado esperado**: Actualización del cap de Chrome en un solo lugar, sin buscar en el código.
 
-### S-4: Verificación post-inyección no extrae `t=` del nuevo captcha
+### S-4: Verificación post-inyección no extrae `t=` del nuevo captcha ✅
 
 - **Severidad**: Baja
 - **Archivos**: `utils.py`, funciones `solve_datadome_2captcha` (~líneas 1088-1103) y `solve_datadome_capsolver` (~líneas 1294-1308)
@@ -217,7 +217,7 @@
   3. Si `t=bv`, incrementar el contador tbv.
 - **Resultado esperado**: Diagnóstico preciso del motivo de rechazo de cookie tras inyección.
 
-### S-5: Primer poll innecesariamente temprano
+### S-5: Primer poll innecesariamente temprano ✅
 
 - **Severidad**: Baja
 - **Archivos**: `utils.py`, funciones `solve_datadome_2captcha` (~línea 1000) y `solve_datadome_capsolver` (~línea 1219)
