@@ -1627,17 +1627,22 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
             and bool(_re_ua.search(r'Chrome/\d+', current_ua))  # Safari/WebKit no tienen Chrome en UA
         )
 
-        # Build solver sequence: alternate 2Captcha and CapSolver so CapSolver
-        # gets a fresh captcha URL before DataDome escalates to /interstitial/
-        solvers = [("2Captcha", solve_datadome_2captcha)]
+        # Build solver sequence: CapSolver primero (más rápido, ~5s vs ~65s de 2Captcha)
+        # 2Captcha hace timeout sistemáticamente antes de que expire el token DataDome (~60s)
         if CAPSOLVER_API_KEY and capsolver_compatible:
-            solvers.append(("CapSolver", solve_datadome_capsolver))
-            solvers.append(("2Captcha", solve_datadome_2captcha))
+            solvers = [
+                ("CapSolver", solve_datadome_capsolver),
+                ("2Captcha", solve_datadome_2captcha),
+                ("CapSolver", solve_datadome_capsolver),
+            ]
         else:
             if CAPSOLVER_API_KEY and not capsolver_compatible:
                 l("INFO", f"CapSolver excluido: UA no compatible ({current_ua.split()[-1] if current_ua else 'unknown'})")
-            solvers.append(("2Captcha", solve_datadome_2captcha))
-            solvers.append(("2Captcha", solve_datadome_2captcha))
+            solvers = [
+                ("2Captcha", solve_datadome_2captcha),
+                ("2Captcha", solve_datadome_2captcha),
+                ("2Captcha", solve_datadome_2captcha),
+            ]
         total = len(solvers)
 
         l("INFO", f"DataDome CAPTCHA detectado. Secuencia de resolución: {' → '.join(s[0] for s in solvers)} ({total} intentos)...")
