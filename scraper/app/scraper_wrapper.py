@@ -1119,8 +1119,9 @@ class ScraperController:
     _profile_stats: Dict[str, int] = field(default_factory=dict)
     
     # Checkpoint saving state
-    _last_checkpoint_idx: int = 0  # Index of last saved property
-    _checkpoint_interval: int = 20  # Save every N properties
+    _last_checkpoint_idx: int = 0  # Index of last saved property (usado para captcha checkpoints)
+    _checkpoint_interval: int = 20  # Guardar cada N cambios reales
+    _real_changes_for_checkpoint: int = 0  # Cambios reales desde último checkpoint (loop principal)
     _target_file: Optional[str] = None  # Cached target filename for checkpoints
     
     # Smart Enrichment state
@@ -1805,12 +1806,14 @@ class ScraperController:
         except Exception as e:
             self.log("WARN", f"Checkpoint failed: {e}")
     
-    async def _goto_with_retry(self, page, url: str, use_proxy: bool = True) -> None:
+    async def _goto_with_retry(self, page, url: str, use_proxy: bool = True, label: str = "") -> None:
         """Navigate to URL with retry logic. Detects browser close with 120s guard.
 
         use_proxy: False para workers lanzados sin proxy (ej. WebKit). Se pasa a solve_captcha_advanced
         para que omita los solvers de pago que producirían IP mismatch.
+        label: Prefijo para logs (ej. 'webkit', 'opera') para distinguir workers headless del browser principal.
         """
+        _pfx = f"[{label}] " if label else ""
         delay = RETRY_BASE_DELAY
         last_err: Optional[Exception] = None
         for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
@@ -1818,7 +1821,7 @@ class ScraperController:
                 raise StopException("Navegación interrumpida por el usuario")
             try:
                 t_nav_start = time.time()
-                self.log("INFO", f"Navigating to {url} (Attempt {attempt})...")
+                self.log("INFO", f"{_pfx}Navigating to {url} (Attempt {attempt})...")
                 
                 # Global guard to prevent silent hangs (120s max for any navigation)
                 try:
@@ -1827,91 +1830,91 @@ class ScraperController:
                         timeout=120.0
                     )
                 except asyncio.TimeoutError:
-                    self.log("ERR", f"⏰ NAVIGATION HANG: {url} timed out after 120s guard.")
+                    self.log("ERR", f"{_pfx}⏰ NAVIGATION HANG: {url} timed out after 120s guard.")
                     raise Exception("NAVIGATION_HANG")
                 except Exception as e:
                     # Specific handling for "Failed sending data to the peer" (Playwright connection error)
                     if "failed sending data to the peer" in str(e).lower():
-                        self.log("WARN", f"🔌 Peer connection error detected. Cooling down 5s before retry...")
+                        self.log("WARN", f"{_pfx}🔌 Peer connection error detected. Cooling down 5s before retry...")
                         await asyncio.sleep(5.0)
                     raise e
-                
+
                 # Humanize interaction after reaching the page (Wrapped in timeout)
                 try:
                     await asyncio.wait_for(simulate_human_interaction(page), timeout=5.0)
                 except (asyncio.TimeoutError, Exception) as e:
                     if not isinstance(e, asyncio.TimeoutError):
-                        self.log("WARN", f"⚠️ Human interaction failed: {e}")
+                        self.log("WARN", f"{_pfx}⚠️ Human interaction failed: {e}")
                     pass
-                
+
                 # Check for CAPTCHA/Bot protection using unified helper
                 try:
                     # 0. Immediate Soft Block Check (Hompage Redirect)
                     current_url = page.url
                     current_title = (await page.title()).lower()
-                    
+
                     if "idealista.com" == current_title and url != current_url and "idealista.com" not in url:
-                         self.log("ERR", f"🚫 SOFT BLOCK DETECTED: Redirected to homepage from {url}")
+                         self.log("ERR", f"{_pfx}🚫 SOFT BLOCK DETECTED: Redirected to homepage from {url}")
                          mark_current_profile_blocked()
                          raise BlockedException("Soft Block: Homepage Redirect")
 
                     block_type = await self._check_for_blocks(page)
-                    
+
                     if block_type == "block":
-                        self.log("ERR", f"🚫 BLOCK DETECTED on {url}: 'Uso indebido/Bloqueado'.")
+                        self.log("ERR", f"{_pfx}🚫 BLOCK DETECTED on {url}: 'Uso indebido/Bloqueado'.")
                         play_blocked_alert()
                         mark_current_profile_blocked()
                         raise BlockedException("Acceso bloqueado por uso indebido")
-                    
+
                     # Check for deactivated listing (specific text patterns)
                     page_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
                     if "anuncio ya no está publicado" in page_text or "este anuncio no está publicado" in page_text:
-                        self.log("WARN", f"El anuncio ya no está activo: {url}")
+                        self.log("WARN", f"{_pfx}El anuncio ya no está activo: {url}")
                         return
 
                     if block_type == "captcha":
                         curr_title = await page.title()
-                        self.log("WARN", f"CAPTCHA DETECTED on {url} (Title: '{curr_title}')")
-                        
+                        self.log("WARN", f"{_pfx}CAPTCHA DETECTED on {url} (Title: '{curr_title}')")
+
                         # Automatic/Manual solver logic...
-                        self.log("INFO", "Attempting automatic captcha solver...")
+                        self.log("INFO", f"{_pfx}Attempting automatic captcha solver...")
                         try:
                             solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=self.log, use_proxy=use_proxy), timeout=180.0)
                             if solved:
-                                self.log("OK", "CAPTCHA solved automatically!")
+                                self.log("OK", f"{_pfx}CAPTCHA solved automatically!")
                                 return
                         except asyncio.TimeoutError:
-                            self.log("WARN", "Automatic solver timed out (180s).")
+                            self.log("WARN", f"{_pfx}Automatic solver timed out (180s).")
                         except Exception as e:
-                            self.log("WARN", f"Automatic solver error: {e}")
+                            self.log("WARN", f"{_pfx}Automatic solver error: {e}")
 
-                        self.log("WARN", ">>> PLEASE SOLVE THE CAPTCHA MANUALLY IN THE BROWSER <<<")
+                        self.log("WARN", f"{_pfx}>>> PLEASE SOLVE THE CAPTCHA MANUALLY IN THE BROWSER <<<")
                         if self.on_status: self.on_status("captcha")
-                        
+
                         captcha_wait_start = asyncio.get_running_loop().time()
                         captcha_timeout = 60
-                        
+
                         while True:
                             if self._should_stop: raise StopException("Interrumpido por el usuario")
                             elapsed = asyncio.get_running_loop().time() - captcha_wait_start
                             if elapsed > captcha_timeout:
-                                self.log("ERR", "CAPTCHA timeout - triggering auto-restart")
+                                self.log("ERR", f"{_pfx}CAPTCHA timeout - triggering auto-restart")
                                 mark_current_profile_blocked()
                                 raise Exception("CAPTCHA_TIMEOUT")
-                            
+
                             play_captcha_alert()
                             await asyncio.sleep(2.0)
-                            
+
                             try:
                                 current_block = await self._check_for_blocks(page)
                                 if current_block == "block":
-                                    self.log("ERR", "🚫 Manual wait failed: Page is still BLOCKED. Triggering rotation.")
+                                    self.log("ERR", f"{_pfx}🚫 Manual wait failed: Page is still BLOCKED. Triggering rotation.")
                                     mark_current_profile_blocked()
                                     raise BlockedException("Acceso bloqueado persistente")
-                                
+
                                 new_title = (await page.title()).lower()
                                 if "idealista" in new_title and new_title != "idealista.com" and "captcha" not in new_title:
-                                    self.log("OK", "✅ CAPTCHA solved! Resuming...")
+                                    self.log("OK", f"{_pfx}✅ CAPTCHA solved! Resuming...")
                                     if self.on_status: self.on_status("running")
                                     break
                             except BlockedException: raise
@@ -1921,7 +1924,7 @@ class ScraperController:
                 except Exception as e:
                     if str(e) == "CAPTCHA_TIMEOUT":
                         raise BlockedException("CAPTCHA_TIMEOUT")
-                    self.log("DEBUG", f"Internal nav check ignored error: {e}")
+                    self.log("DEBUG", f"{_pfx}Internal nav check ignored error: {e}")
 
                 self.consecutive_datadome_fails = 0  # Reset on successful navigation
                 await self._interruptible_sleep(3.0)
@@ -1935,35 +1938,35 @@ class ScraperController:
                 error_msg = str(e).lower()
                 # Detect browser close OR crash - pause and notify UI
                 if any(msg in error_msg for msg in [
-                    "browser has been closed", 
+                    "browser has been closed",
                     "target page, context or browser has been closed",
                     "page crashed",
                     "target closed"
                 ]):
-                    self.log("ERR", f"🛑 BROWSER CRASH/CLOSE DETECTED on {url}: {e}")
+                    self.log("ERR", f"{_pfx}🛑 BROWSER CRASH/CLOSE DETECTED on {url}: {e}")
                     # If stop event is set, it means the user initiated the close, so just log and raise
                     if self._should_stop:
-                        self.log("INFO", "Browser closed during stop sequence.")
+                        self.log("INFO", f"{_pfx}Browser closed during stop sequence.")
                     else:
                         # Otherwise, it's an unexpected close/crash, so pause and notify
-                        self.log("WARN", "Browser was closed or crashed unexpectedly. Pausing scraper...")
+                        self.log("WARN", f"{_pfx}Browser was closed or crashed unexpectedly. Pausing scraper...")
                         self._browser_closed = True
                         self.pause()  # Pause instead of stop
                         if self.on_browser_closed:
                             self.on_browser_closed()
                     raise BrowserClosedException("Browser was closed")
-                
+
                 last_err = e
-                self.log("WARN", f"goto attempt {attempt}/{RETRY_MAX_ATTEMPTS} failed: {e}")
+                self.log("WARN", f"{_pfx}goto attempt {attempt}/{RETRY_MAX_ATTEMPTS} failed: {e}")
                 await self._interruptible_sleep(delay)
                 delay *= 2
         if last_err:
             if "CAPTCHA_TIMEOUT" in str(last_err):
                 self.consecutive_datadome_fails += 1
-                self.log("WARN", f"🌩️ DataDome fail #{self.consecutive_datadome_fails} consecutivo (URL: {url})")
+                self.log("WARN", f"{_pfx}🌩️ DataDome fail #{self.consecutive_datadome_fails} consecutivo (URL: {url})")
                 if self.consecutive_datadome_fails >= 3:
                     pause_min = 20
-                    self.log("ERR", f"🌩️ DataDome STORM: {self.consecutive_datadome_fails} fallos consecutivos. "
+                    self.log("ERR", f"{_pfx}🌩️ DataDome STORM: {self.consecutive_datadome_fails} fallos consecutivos. "
                              f"Pausa de {pause_min}min para dejar enfriar la IP antes de continuar.")
                     self.consecutive_datadome_fails = 0
                     await self._interruptible_sleep(pause_min * 60)
@@ -2937,7 +2940,7 @@ class ScraperController:
                     # ===== EARLY HEADLESS WORKERS: Verificar URLs del Excel en paralelo con Phase 1 =====
                     _early_queue = None
                     _early_tasks = []
-                    _early_counters = {"checked": 0}
+                    _early_counters = {"checked": 0, "real_changes": 0, "last_checkpoint_real_changes": 0}
                     _early_checkpoint_lock = asyncio.Lock()
                     _early_webkit_ctx = None
                     _early_opera_ctx = None
@@ -2974,7 +2977,7 @@ class ScraperController:
                                             _early_counters["checked"] += 1
                                             continue
                                         self.log("INFO", f"[{worker_label}] Navegando a: {m_url} (proxy={'sí' if use_proxy else 'no'})")
-                                        await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy)
+                                        await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy, label=worker_label)
                                         try:
                                             await worker_page.wait_for_selector("body", timeout=5000)
                                         except Exception:
@@ -3003,6 +3006,7 @@ class ScraperController:
                                             "ya no está disponible", "ya no está publicado",
                                             "lo sentimos", "enlace antiguo"
                                         ])
+                                        was_active = orig_row.get("full_row", {}).get("Anuncio activo", "Sí") == "Sí"
                                         if is_gone:
                                             self.log("WARN", f"[{worker_label}] Baja confirmada -> {m_url}")
                                             row_to_save = orig_row.get("full_row", {}).copy()
@@ -3015,6 +3019,7 @@ class ScraperController:
                                             additions.append(row_to_save)
                                             self._processed.add(m_url)
                                             deactivated_count += 1
+                                            _early_counters["real_changes"] += 1  # baja = cambio real
                                         else:
                                             self.log("INFO", f"[{worker_label}] Activa (aún no en búsqueda): {m_url}")
                                             row_to_save = orig_row.get("full_row", {}).copy()
@@ -3025,15 +3030,24 @@ class ScraperController:
                                             row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
                                             row_to_save = mark_as_enriched(row_to_save)
                                             additions.append(row_to_save)
+                                            if not was_active:
+                                                _early_counters["real_changes"] += 1  # reactivación = cambio real
+                                            # Si ya estaba activa: solo confirmación, no cuenta como cambio
 
                                         self._enrichment_done_urls.add(m_url)
                                         _early_counters["checked"] += 1
 
-                                        if _early_counters["checked"] % 20 == 0:
+                                        # Checkpoint: solo cuando hay 20 cambios reales (bajas o reactivaciones)
+                                        real_changes_since_last = _early_counters["real_changes"] - _early_counters["last_checkpoint_real_changes"]
+                                        if real_changes_since_last >= self._checkpoint_interval:
                                             async with _early_checkpoint_lock:
-                                                t_cp = time.time()
-                                                await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
-                                                self.log("INFO", f"[{worker_label}] Early checkpoint guardado en {time.time() - t_cp:.2f}s")
+                                                # Re-verificar bajo el lock por si otro worker ya guardó
+                                                real_changes_since_last = _early_counters["real_changes"] - _early_counters["last_checkpoint_real_changes"]
+                                                if real_changes_since_last >= self._checkpoint_interval:
+                                                    t_cp = time.time()
+                                                    await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
+                                                    _early_counters["last_checkpoint_real_changes"] = _early_counters["real_changes"]
+                                                    self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_cp:.2f}s")
 
                                     except BlockedException as e:
                                         self.log("WARN", f"[{worker_label}] 🚫 BlockedException en early worker (URL en browser: {worker_page.url}). Devolviendo {m_url} a cola. Detalle: {e}")
@@ -3097,15 +3111,19 @@ class ScraperController:
                         # after a Deep Scrape Mode transition.
                         current_page_in_browser = extract_page_from_url(current_url)
                         is_listing_page = "/inmueble" not in current_url
-                        is_already_on_target = (list_url.rstrip('/') == current_url.rstrip('/')) or (is_listing_page and current_page_in_browser == page_num)
-                        
+                        # Deep Scrape transition sets _force_navigate to bypass false positives
+                        # when extract_page_from_url returns 1 for the old listing page
+                        force_nav = getattr(self, '_force_navigate', False)
+                        is_already_on_target = (not force_nav) and ((list_url.rstrip('/') == current_url.rstrip('/')) or (is_listing_page and current_page_in_browser == page_num))
+
                         try:
                             if is_already_on_target and page_num == self.current_page:
                                 self.log("INFO", f"Already on Page {page_num} listing. Skipping redundant navigation.")
                             else:
                                 self.log("INFO", f"Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
                                 await self._goto_with_retry(page, list_url)
-                    
+                                self._force_navigate = False  # Clear flag after successful navigation
+
                             # Verify we are on the correct page (Idealista might redirect to previous page if blocked or bugged)
                             # Check if 'pagina-X' is in the URL if we expect it
                             current_url = page.url
@@ -3378,39 +3396,59 @@ class ScraperController:
                                     # Process first property - check for missing fields (CAPTCHA)
                                     miss = missing_fields(row, is_room_mode=self._is_room_mode)
                                     if miss:
-                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado en primera propiedad. Esperando 30s...")
-                                
+                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado en primera propiedad. Intentando resolución automática...")
+
                                         if self.on_status:
                                             self.on_status("captcha")
-                                
-                                        # CAPTCHA DETECTED - AUTO RESTART STRATEGY
-                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA DETECTED - Waiting 30s then aborting for auto-restart...")
-                                        
-                                        # Wait briefly to see if it clears (e.g. passive solve)
-                                        for i in range(3): # 3 * 10s = 30s
-                                            if self._should_stop: break
-                                            self.log("INFO", f"Starting 10s CAPTCHA check wait (Attempt {i+1}/3).")
-                                            await asyncio.sleep(10.0)
-                                            # Retry extraction check (With timeout)
-                                            try:
-                                                d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
-                                                if d.get("isBlocked"):
-                                                     self.log("ERR", "🚫 Manual wait failed: Page is still BLOCKED (Uso indebido).")
-                                                     mark_current_profile_blocked()
-                                                     raise BlockedException("Acceso bloqueado persistente")
-                                                
-                                                row = {"URL": key, **d}
-                                                if not missing_fields(row, is_room_mode=self._is_room_mode):
-                                                     self.log("OK", "✅ CAPTCHA cleared! Resuming...")
-                                                     miss = False
-                                                     break 
-                                            except BlockedException:
-                                                raise
-                                            except: pass
+
+                                        # 1) Intentar resolución automática con solve_captcha_advanced
+                                        try:
+                                            solved = await asyncio.wait_for(
+                                                solve_captcha_advanced(page, logger=self.log, use_proxy=True),
+                                                timeout=180.0
+                                            )
+                                            if solved:
+                                                self.log("OK", f"({property_idx}/{self.total_properties_expected}) ✅ CAPTCHA resuelto automáticamente en primera propiedad")
+                                                # Re-extraer datos tras resolver
+                                                try:
+                                                    d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
+                                                    row = {"URL": key, **d}
+                                                    miss = missing_fields(row, is_room_mode=self._is_room_mode)
+                                                except Exception as re_ex:
+                                                    self.log("WARN", f"Re-extracción tras auto-solve falló: {re_ex}")
+                                        except asyncio.TimeoutError:
+                                            self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solver timeout (180s) en primera propiedad")
+                                        except BlockedException:
+                                            raise
+                                        except Exception as solve_err:
+                                            self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solver error: {solve_err}")
+
+                                        # 2) Si auto-solve no funcionó, espera pasiva 30s como fallback
+                                        if miss:
+                                            self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solve insuficiente. Esperando 30s por resolución pasiva/manual...")
+                                            for i in range(3): # 3 * 10s = 30s
+                                                if self._should_stop: break
+                                                self.log("INFO", f"Espera CAPTCHA pasiva ({i+1}/3)...")
+                                                await asyncio.sleep(10.0)
+                                                try:
+                                                    d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
+                                                    if d.get("isBlocked"):
+                                                         self.log("ERR", "🚫 Espera pasiva: página sigue BLOQUEADA (Uso indebido).")
+                                                         mark_current_profile_blocked()
+                                                         raise BlockedException("Acceso bloqueado persistente")
+
+                                                    row = {"URL": key, **d}
+                                                    if not missing_fields(row, is_room_mode=self._is_room_mode):
+                                                         self.log("OK", "✅ CAPTCHA resuelto durante espera pasiva!")
+                                                         miss = False
+                                                         break
+                                                except BlockedException:
+                                                    raise
+                                                except Exception:
+                                                    pass
 
                                         if miss:
-                                            self.log("ERR", "CAPTCHA_BLOCK_DETECTED")
-                                            # Mark profile as blocked for cooldown rotation
+                                            self.log("ERR", "CAPTCHA_BLOCK_DETECTED tras auto-solve + espera pasiva")
                                             mark_profile_blocked(self.browser_engine)
                                             self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
                                             try:
@@ -3418,7 +3456,8 @@ class ScraperController:
                                                       t_start_save = time.time()
                                                       await self._save_checkpoint(additions, target_file, existing_df, set())
                                                       self.log("INFO", f"Saved captcha checkpoint in {time.time() - t_start_save:.2f}s")
-                                            except: pass
+                                            except Exception:
+                                                pass
                                             raise Exception("CAPTCHA_BLOCK_DETECTED")
                                         
                                         # CAPTCHA cleared - resume normal operation
@@ -3515,38 +3554,57 @@ class ScraperController:
 
                                 # If missing fields and not a "not found" page, might be CAPTCHA
                                 if miss:
-                                    self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado. Resuelve el CAPTCHA y pulsa Resume.")
-                            
+                                    self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado en propiedad. Intentando resolución automática...")
+
                                     if self.on_status:
                                         self.on_status("captcha")
-                            
-                                    # CAPTCHA DETECTED - AUTO RESTART STRATEGY
-                                    self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA DETECTED - Waiting 30s then aborting for auto-restart...")
-                                    
-                                    # Wait briefly to see if it clears (e.g. passive solve)
-                                    for _ in range(3): # 3 * 10s = 30s
-                                        if self._should_stop: break
-                                        await asyncio.sleep(10.0)
-                                        # Retry extraction check (With timeout)
-                                        try:
-                                            d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
-                                            if d.get("isBlocked"):
-                                                 self.log("ERR", "🚫 Manual wait failed: Page is still BLOCKED (Uso indebido).")
-                                                 mark_current_profile_blocked()
-                                                 raise BlockedException("Acceso bloqueado persistente")
-                                            
-                                            row = {"URL": key, **d}
-                                            if not missing_fields(row, is_room_mode=self._is_room_mode):
-                                                 self.log("OK", "✅ CAPTCHA cleared! Resuming...")
-                                                 miss = False
-                                                 break 
-                                        except BlockedException:
-                                            raise
-                                        except: pass
+
+                                    # 1) Intentar resolución automática con solve_captcha_advanced
+                                    try:
+                                        solved = await asyncio.wait_for(
+                                            solve_captcha_advanced(page, logger=self.log, use_proxy=True),
+                                            timeout=180.0
+                                        )
+                                        if solved:
+                                            self.log("OK", f"({property_idx}/{self.total_properties_expected}) ✅ CAPTCHA resuelto automáticamente en propiedad")
+                                            try:
+                                                d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
+                                                row = {"URL": key, **d}
+                                                miss = missing_fields(row, is_room_mode=self._is_room_mode)
+                                            except Exception as re_ex:
+                                                self.log("WARN", f"Re-extracción tras auto-solve falló: {re_ex}")
+                                    except asyncio.TimeoutError:
+                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solver timeout (180s) en propiedad")
+                                    except BlockedException:
+                                        raise
+                                    except Exception as solve_err:
+                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solver error: {solve_err}")
+
+                                    # 2) Fallback: espera pasiva 30s
+                                    if miss:
+                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solve insuficiente. Esperando 30s por resolución pasiva/manual...")
+                                        for _ in range(3): # 3 * 10s = 30s
+                                            if self._should_stop: break
+                                            await asyncio.sleep(10.0)
+                                            try:
+                                                d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
+                                                if d.get("isBlocked"):
+                                                     self.log("ERR", "🚫 Espera pasiva: página sigue BLOQUEADA (Uso indebido).")
+                                                     mark_current_profile_blocked()
+                                                     raise BlockedException("Acceso bloqueado persistente")
+
+                                                row = {"URL": key, **d}
+                                                if not missing_fields(row, is_room_mode=self._is_room_mode):
+                                                     self.log("OK", "✅ CAPTCHA resuelto durante espera pasiva!")
+                                                     miss = False
+                                                     break
+                                            except BlockedException:
+                                                raise
+                                            except Exception:
+                                                pass
 
                                     if miss:
-                                        self.log("ERR", "CAPTCHA_BLOCK_DETECTED")
-                                        # Mark profile as blocked for cooldown rotation
+                                        self.log("ERR", "CAPTCHA_BLOCK_DETECTED tras auto-solve + espera pasiva")
                                         mark_profile_blocked(self.browser_engine)
                                         self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
                                         try:
@@ -3554,10 +3612,11 @@ class ScraperController:
                                                   t_start_save = time.time()
                                                   await self._save_checkpoint(additions, target_file, existing_df, set())
                                                   self.log("INFO", f"Saved captcha checkpoint in {time.time() - t_start_save:.2f}s")
-                                        except: pass
+                                        except Exception:
+                                            pass
                                         raise Exception("CAPTCHA_BLOCK_DETECTED")
-                                    
-                                    # If cleared, proceed (miss is False)
+
+                                    # CAPTCHA resuelto - continuar operación normal
                                     if not miss:
                                          if self.on_status: self.on_status("running")
                                 
@@ -3585,8 +3644,10 @@ class ScraperController:
                                 # Update profile efficacy stats
                                 self._profile_stats[self._active_profile_name] = self._profile_stats.get(self._active_profile_name, 0) + 1
                         
-                                # Checkpoint saving: save every 100 properties
-                                if len(additions) > 0 and len(additions) % self._checkpoint_interval == 0:
+                                # Checkpoint: guardar cada N propiedades nuevas/actualizadas reales
+                                self._real_changes_for_checkpoint += 1
+                                if self._real_changes_for_checkpoint >= self._checkpoint_interval:
+                                    self._real_changes_for_checkpoint = 0
                                     t_start_save = time.time()
                                     await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
                                     self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_start_save:.2f}s")
@@ -3702,10 +3763,13 @@ class ScraperController:
                                 # Replace query to avoid duplicate sort keys
                                 current_base = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", parsed.fragment))
                                 self.seed_url = f"{current_base}?{next_sort}"
-                                
+
                                 page_num = 1
                                 self._pages_scraped = 0
+                                property_idx = 0  # Reset counter for new sort order
+                                self.current_property_count = 0
                                 self.total_pages_expected = 60 # Allow another 60 (Deep Scrape)
+                                self._force_navigate = True  # Force navigation to page 1 of new sort
                                 continue
                             else:
                                 self.log("INFO", f"All Deep Scrape sorts exhausted at max pages. Finishing scrape.")
@@ -3752,7 +3816,7 @@ class ScraperController:
                             ]
                             self._enrichment_missing_urls = list(missing_urls)
 
-                        counters = {"checked": 0}
+                        counters = {"checked": 0, "real_changes": 0, "last_checkpoint_real_changes": 0}
                         if missing_urls:
                             self.log("INFO", f"🔍 Found {len(missing_urls)} properties in Excel missing from search. Verifying deactivations (all)...")
                             self.log("INFO", f"🔄 Nueva cola de enrichment creada con {len(missing_urls)} URLs (Phase 1 encontró {len(self._seen_in_search)}, ya enriquecidas: {len(self._enrichment_done_urls)}).")
@@ -3777,7 +3841,7 @@ class ScraperController:
                                     self.log("INFO", f"[{worker_label}] Checking missing property status ({counters['checked']+1}/{len(missing_urls)}): {m_url}")
                                     try:
                                         await self._interruptible_sleep(random.uniform(5, 10))
-                                        await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy)
+                                        await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy, label=worker_label)
 
                                         try:
                                             await worker_page.wait_for_selector("body", timeout=5000)
@@ -3806,6 +3870,7 @@ class ScraperController:
                                             "lo sentimos", "enlace antiguo"
                                         ])
 
+                                        was_active = orig_row.get("full_row", {}).get("Anuncio activo", "Sí") == "Sí"
                                         if is_gone:
                                             self.log("WARN", f"[{worker_label}] Confirmed: Property deactivated -> {m_url}")
                                             row_to_save = orig_row.get("full_row", {}).copy()
@@ -3818,6 +3883,7 @@ class ScraperController:
                                             additions.append(row_to_save)
                                             self._processed.add(m_url)
                                             deactivated_count += 1
+                                            counters["real_changes"] += 1  # baja = cambio real
                                         else:
                                             self.log("INFO", f"[{worker_label}] Property still active (not in search): {m_url}")
                                             row_to_save = orig_row.get("full_row", {}).copy()
@@ -3828,17 +3894,25 @@ class ScraperController:
                                             row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
                                             row_to_save = mark_as_enriched(row_to_save)
                                             additions.append(row_to_save)
+                                            if not was_active:
+                                                counters["real_changes"] += 1  # reactivación = cambio real
+                                            # Si ya estaba activa: solo confirmación, no cuenta como cambio
 
                                         # Mark this URL as done so restarts can skip it
                                         self._enrichment_done_urls.add(m_url)
                                         counters["checked"] += 1
 
-                                        # Checkpoint saving: save every 20 properties during deactivation checks
-                                        if counters["checked"] > 0 and counters["checked"] % 20 == 0:
+                                        # Checkpoint: solo cuando hay 20 cambios reales (bajas o reactivaciones)
+                                        real_changes_since_last = counters["real_changes"] - counters["last_checkpoint_real_changes"]
+                                        if real_changes_since_last >= self._checkpoint_interval:
                                             async with checkpoint_lock:
-                                                t_start_save = time.time()
-                                                await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
-                                                self.log("INFO", f"Saved periodic enrichment checkpoint in {time.time() - t_start_save:.2f}s")
+                                                # Re-verificar bajo el lock por si otro worker ya guardó
+                                                real_changes_since_last = counters["real_changes"] - counters["last_checkpoint_real_changes"]
+                                                if real_changes_since_last >= self._checkpoint_interval:
+                                                    t_start_save = time.time()
+                                                    await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
+                                                    counters["last_checkpoint_real_changes"] = counters["real_changes"]
+                                                    self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_start_save:.2f}s")
 
                                     except (BlockedException, BrowserClosedException):
                                         if not is_secondary:
