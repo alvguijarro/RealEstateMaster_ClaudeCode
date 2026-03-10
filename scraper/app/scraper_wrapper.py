@@ -1868,7 +1868,8 @@ class ScraperController:
 
                     if block_type == "block":
                         self.log("ERR", f"{_pfx}🚫 BLOCK DETECTED on {url}: 'Uso indebido/Bloqueado'.")
-                        play_blocked_alert()
+                        if not label:  # solo browser visible; workers headless no emiten sonido
+                            play_blocked_alert()
                         mark_current_profile_blocked()
                         raise BlockedException("Acceso bloqueado por uso indebido")
 
@@ -1908,7 +1909,8 @@ class ScraperController:
                                 mark_current_profile_blocked()
                                 raise Exception("CAPTCHA_TIMEOUT")
 
-                            play_captcha_alert()
+                            if not label:  # solo browser visible; workers headless no emiten sonido
+                                play_captcha_alert()
                             await asyncio.sleep(2.0)
 
                             try:
