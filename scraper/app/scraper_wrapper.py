@@ -2770,7 +2770,15 @@ class ScraperController:
                         self.log("WARN", "⚠️ 0 properties found. Checking for CAPTCHA/Block...")
                         
                         # Try to solve captcha if present
-                        if await solve_captcha_advanced(page, logger=self.log):
+                        try:
+                            _captcha_solved = await asyncio.wait_for(
+                                solve_captcha_advanced(page, logger=self.log),
+                                timeout=180.0
+                            )
+                        except asyncio.TimeoutError:
+                            _captcha_solved = False
+                            self.log("WARN", "⏰ Timeout (180s) en solve_captcha_advanced (handler 0 props)")
+                        if _captcha_solved:
                             self.log("OK", "CAPTCHA solve attempted. Re-verifying page...")
                             await self._interruptible_sleep(5.0)
                             h1txt = await page.evaluate(r"() => { const el = document.querySelector('#h1-container__text') || document.querySelector('#h1-container') || document.querySelector('h1'); return el ? el.textContent.trim() : ''; }")

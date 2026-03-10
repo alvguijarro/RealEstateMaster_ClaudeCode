@@ -50,9 +50,9 @@
 
 ---
 
-## P2 — Prioridad media
+## P2 — Prioridad media ✅ COMPLETADAS
 
-### P2-1: Race condition en `_last_solver_fail_reason` (variable global mutable)
+### P2-1: Race condition en `_last_solver_fail_reason` (variable global mutable) ✅
 
 - **Archivo**: `scraper/idealista_scraper/utils.py`, línea ~94
 - **Problema**: `_last_solver_fail_reason` es una variable global que se escribe dentro de `solve_datadome_2captcha` y `solve_datadome_capsolver`, y se lee en `solve_captcha_advanced`. Múltiples workers paralelos comparten este estado. Un worker puede leer el `'tbv'` escrito por otro worker y hacer fast-fail incorrectamente (o viceversa, no hacer fast-fail cuando debería).
@@ -64,7 +64,7 @@
   4. Alternativa más simple: pasar un diccionario mutable como parámetro `context={}` que se usa solo dentro de una llamada a `solve_captcha_advanced`, evitando compartir estado entre workers.
 - **Resultado esperado**: Workers paralelos no interfieren entre sí en la lógica de fast-fail.
 
-### P2-2: Race condition en contador `t=bv` basado en fichero
+### P2-2: Race condition en contador `t=bv` basado en fichero ✅
 
 - **Archivo**: `scraper/idealista_scraper/utils.py`, líneas ~97-136 (`tbv_state.json`)
 - **Problema**: `_increment_tbv_counter()` y `_get_tbv_count()` leen/escriben `scraper/app/tbv_state.json` sin file locking. Workers concurrentes pueden corromper el JSON o perder incrementos.
@@ -75,7 +75,7 @@
   3. Alternativa más simple: aceptar la race condition como tolerable (el circuit breaker es una heurística, no necesita ser exacto).
 - **Resultado esperado**: Contador `t=bv` fiable en entornos con múltiples workers.
 
-### P2-3: Circuit breaker de 30 minutos no interrumpible
+### P2-3: Circuit breaker de 30 minutos no interrumpible ✅
 
 - **Archivo**: `scraper/idealista_scraper/utils.py`, línea ~1587
 - **Problema**: `await asyncio.sleep(TBV_CIRCUIT_BREAKER_PAUSE_MIN * 60)` bloquea la tarea 30 minutos. Si el usuario pulsa Stop durante este período, el scraper no responde hasta que termine el sleep. La función `solve_captcha_advanced` no tiene acceso al controlador del scraper para verificar `_should_stop`.
@@ -87,7 +87,7 @@
   4. Logear progreso cada 5 minutos durante la pausa para que el usuario sepa que el sistema no está colgado.
 - **Resultado esperado**: El circuit breaker es cancelable por el usuario en cualquier momento.
 
-### P2-4: `solve_captcha_advanced` sin timeout al llamarse desde handler de 0 propiedades
+### P2-4: `solve_captcha_advanced` sin timeout al llamarse desde handler de 0 propiedades ✅
 
 - **Archivo**: `scraper/app/scraper_wrapper.py`, línea ~2770
 - **Problema**: Cuando el conteo de propiedades es 0 (posible captcha en la página de listado), se llama a `solve_captcha_advanced(page, logger=self.log)` sin envolver en `asyncio.wait_for()`. A diferencia de `_goto_with_retry` (que usa timeout de 180s), aquí no hay límite. Si el circuit breaker se activa (30 min) o los solvers se cuelgan, bloqueo indefinido.

@@ -91,49 +91,57 @@ def _captcha_inc(key: str) -> None:
 # =============================================================================
 
 _TBV_STATE_FILE = Path(__file__).parent.parent / 'app' / 'tbv_state.json'
-_last_solver_fail_reason: str = ''  # 'tbv' o '' — escrito por solver, leído por el bucle
+import threading as _threading
+_tbv_file_lock = _threading.Lock()  # protege R/W de tbv_state.json en workers del mismo proceso
 
 
 def _increment_tbv_counter(ip: str = 'unknown') -> int:
     """Incrementa el contador global de t=bv consecutivos y persiste en JSON. Retorna el nuevo valor."""
     import json
-    state: dict = {'consecutive': 0, 'last_ts': 0.0, 'last_ip': ''}
-    try:
-        if _TBV_STATE_FILE.exists():
-            state = json.loads(_TBV_STATE_FILE.read_text())
-    except Exception:
-        pass
-    state['consecutive'] = state.get('consecutive', 0) + 1
-    state['last_ts'] = time.time()
-    state['last_ip'] = ip
-    try:
-        _TBV_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _TBV_STATE_FILE.write_text(json.dumps(state))
-    except Exception:
-        pass
-    return state['consecutive']
+    with _tbv_file_lock:
+        state: dict = {'consecutive': 0, 'last_ts': 0.0, 'last_ip': ''}
+        try:
+            if _TBV_STATE_FILE.exists():
+                state = json.loads(_TBV_STATE_FILE.read_text())
+        except Exception:
+            pass
+        state['consecutive'] = state.get('consecutive', 0) + 1
+        state['last_ts'] = time.time()
+        state['last_ip'] = ip
+        try:
+            _TBV_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _tmp = _TBV_STATE_FILE.with_suffix('.tmp')
+            _tmp.write_text(json.dumps(state))
+            _tmp.replace(_TBV_STATE_FILE)
+        except Exception:
+            pass
+        return state['consecutive']
 
 
 def _get_tbv_count() -> int:
     """Lee el contador de t=bv consecutivos del archivo de estado."""
     import json
-    try:
-        if _TBV_STATE_FILE.exists():
-            return json.loads(_TBV_STATE_FILE.read_text()).get('consecutive', 0)
-    except Exception:
-        pass
-    return 0
+    with _tbv_file_lock:
+        try:
+            if _TBV_STATE_FILE.exists():
+                return json.loads(_TBV_STATE_FILE.read_text()).get('consecutive', 0)
+        except Exception:
+            pass
+        return 0
 
 
 def _reset_tbv_counter() -> None:
     """Resetea el contador de t=bv consecutivos (llamar cuando un solve tiene éxito)."""
     import json
-    try:
-        state = {'consecutive': 0, 'last_ts': time.time(), 'last_ip': ''}
-        _TBV_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _TBV_STATE_FILE.write_text(json.dumps(state))
-    except Exception:
-        pass
+    with _tbv_file_lock:
+        try:
+            state = {'consecutive': 0, 'last_ts': time.time(), 'last_ip': ''}
+            _TBV_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _tmp = _TBV_STATE_FILE.with_suffix('.tmp')
+            _tmp.write_text(json.dumps(state))
+            _tmp.replace(_TBV_STATE_FILE)
+        except Exception:
+            pass
 
 # =============================================================================
 # Logging Functions
@@ -872,7 +880,7 @@ async def solve_geetest_2captcha(page, logger=None):
 
     return False
 
-async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
+async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None):
     """Solve DataDome CAPTCHA using 2Captcha DataDomeSliderTask."""
     l = logger or log
     if not TWOCAPTCHA_API_KEY:
@@ -948,8 +956,8 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
             tbv_count = _increment_tbv_counter(proxy_exit_ip)
             l("WARN", f"t=bv #{tbv_count}: IP {proxy_exit_ip} bloqueada permanentemente por DataDome. Rotando identidad...")
             _captcha_inc("DataDome 2Captcha|ip_bloqueada")
-            global _last_solver_fail_reason
-            _last_solver_fail_reason = 'tbv'
+            if _ctx is not None:
+                _ctx['fail_reason'] = 'tbv'
             return False
 
         # 4. Build and send task payload
@@ -1111,7 +1119,7 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None):
     return False
 
 
-async def solve_datadome_capsolver(page, captcha_url=None, logger=None):
+async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=None):
     """Fallback DataDome solver using CapSolver's DatadomeSliderTask API."""
     l = logger or log
     if not CAPSOLVER_API_KEY:
@@ -1158,8 +1166,8 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None):
         if _t_param == 'bv':
             l("WARN", "t=bv: IP bloqueada. CapSolver tampoco puede resolver.")
             _captcha_inc("DataDome CapSolver|ip_bloqueada")
-            global _last_solver_fail_reason
-            _last_solver_fail_reason = 'tbv'
+            if _ctx is not None:
+                _ctx['fail_reason'] = 'tbv'
             return False
 
         if '/interstitial/' in _parsed_captcha.path:
@@ -1584,7 +1592,15 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
         _tbv_now = _get_tbv_count()
         if _tbv_now >= TBV_CIRCUIT_BREAKER_THRESHOLD:
             l("WARN", f"🚨 CIRCUIT BREAKER: {_tbv_now} t=bv consecutivos. Pausa de {TBV_CIRCUIT_BREAKER_PAUSE_MIN} min para enfriar IPs del pool español...")
-            await asyncio.sleep(TBV_CIRCUIT_BREAKER_PAUSE_MIN * 60)
+            _cb_total_s = TBV_CIRCUIT_BREAKER_PAUSE_MIN * 60
+            _cb_step_s = 60  # intervalos cortos para que la tarea sea cancelable (Ctrl+Stop)
+            _cb_elapsed = 0
+            while _cb_elapsed < _cb_total_s:
+                await asyncio.sleep(min(_cb_step_s, _cb_total_s - _cb_elapsed))
+                _cb_elapsed += _cb_step_s
+                _cb_remaining = max(0, (_cb_total_s - _cb_elapsed) // 60)
+                if _cb_elapsed % 300 == 0 and _cb_remaining > 0:
+                    l("INFO", f"⏳ Circuit breaker activo: {_cb_remaining} min restantes para reanudar...")
             _reset_tbv_counter()
             l("INFO", "Circuit breaker expirado. Reanudando...")
 
@@ -1763,17 +1779,16 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
             else:
                 captcha_url = datadome_data.get('captcha_url')
 
-            global _last_solver_fail_reason
-            _last_solver_fail_reason = ''  # Reset antes de llamar al solver
+            _solver_ctx = {'fail_reason': ''}  # contexto local: evita race condition entre workers paralelos
             _captcha_inc(f"DataDome {solver_name}|intentos")
             l("INFO", f"{solver_name} intento {attempt}/{total}...")
-            if await solver_fn(page, captcha_url=captcha_url, logger=l):
+            if await solver_fn(page, captcha_url=captcha_url, logger=l, _ctx=_solver_ctx):
                 l("OK", f"DataDome resuelto via {solver_name} en intento {attempt}/{total}.")
                 _captcha_inc(f"DataDome {solver_name}|resueltos")
                 _reset_tbv_counter()
                 return True
 
-            _last_was_tbv = (_last_solver_fail_reason == 'tbv')
+            _last_was_tbv = (_solver_ctx['fail_reason'] == 'tbv')
             l("WARN", f"{solver_name} intento {attempt}/{total} falló." + (" (t=bv)" if _last_was_tbv else ""))
 
         # DataDome: coordinates are useless (server-side validation)
