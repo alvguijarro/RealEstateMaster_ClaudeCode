@@ -34,10 +34,10 @@ from playwright.async_api import async_playwright
 import random
 
 # Import stealth and captcha utilities from main scraper
-from app.scraper_wrapper import get_browser_executable_path, generate_stealth_script
+from browser_utils import get_browser_executable_path, generate_stealth_script
 from idealista_scraper.config import VIEWPORT_SIZES, USER_AGENTS, BROWSER_ROTATION_POOL
 from idealista_scraper.utils import solve_captcha_advanced, simulate_human_interaction, detect_captcha_or_block
-from update_urls import rotate_identity, mark_current_profile_blocked, get_profile_dir
+from identity_manager import rotate_identity, mark_current_profile_blocked, get_profile_dir
 from shared.proxy_config import PROXY_CONFIG
 
 def init_db():
