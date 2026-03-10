@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  trends:
+    build: .
+    image: realestate-trends:latest
+    container_name: realestate-trends
+    ports:
+      - "5005:5005"
+    volumes:
+      - .:/app           # Todo el proyecto montado (datos, perfiles, docs, shared)
+    # environment:  # Descomentar para sobreescribir claves de API
+      # Claves de API (si no están hardcodeadas en shared/config.py):
+      # - TWOCAPTCHA_API_KEY=tu_clave
+      # - CAPSOLVER_API_KEY=tu_clave
+      # - GEMINI_API_KEY=tu_clave
+      # SMTP para notificaciones de fallo:
+      # - SMTP_HOST=smtp.example.com
+      # - SMTP_PORT=587
+      # - SMTP_USER=user@example.com
+      # - SMTP_PASSWORD=contraseña
+      # - SMTP_FROM=from@example.com
+      # - SMTP_TO=to@example.com
+    restart: unless-stopped
+    shm_size: '256mb'    # Prevenir crash de Chromium por falta de shared memory

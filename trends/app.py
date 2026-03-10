@@ -51,9 +51,11 @@ def process_log_monitor(process, socketio, event_name='log_update'):
         print(f"Monitor error: {e}")
 
 def init_db():
-    """Initialize the SQLite database for Market Trends."""
+    """Initialize/migrate the SQLite database for Market Trends."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+
+    # Crear tabla si no existe (instalaciones nuevas)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS inventory_trends (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,11 +64,39 @@ def init_db():
             iso_week INTEGER NOT NULL,
             province TEXT NOT NULL,
             zone TEXT NOT NULL,
+            subzone TEXT NOT NULL DEFAULT '',
             operation TEXT NOT NULL,
             total_properties INTEGER NOT NULL,
-            UNIQUE(date_record, province, zone, operation)
+            UNIQUE(date_record, province, zone, subzone, operation)
         )
     ''')
+
+    # Migración: añadir columna subzone si falta (instalaciones existentes)
+    cursor.execute("PRAGMA table_info(inventory_trends)")
+    cols = [row[1] for row in cursor.fetchall()]
+    if 'subzone' not in cols:
+        cursor.execute("ALTER TABLE inventory_trends RENAME TO inventory_trends_old")
+        cursor.execute('''
+            CREATE TABLE inventory_trends (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date_record TEXT NOT NULL,
+                iso_year INTEGER NOT NULL,
+                iso_week INTEGER NOT NULL,
+                province TEXT NOT NULL,
+                zone TEXT NOT NULL,
+                subzone TEXT NOT NULL DEFAULT '',
+                operation TEXT NOT NULL,
+                total_properties INTEGER NOT NULL,
+                UNIQUE(date_record, province, zone, subzone, operation)
+            )
+        ''')
+        cursor.execute('''
+            INSERT INTO inventory_trends
+                SELECT id, date_record, iso_year, iso_week, province, zone, '', operation, total_properties
+                FROM inventory_trends_old
+        ''')
+        cursor.execute("DROP TABLE inventory_trends_old")
+
     conn.commit()
     conn.close()
 
@@ -94,54 +124,73 @@ def index():
 
 @app.route('/api/trends', methods=['GET'])
 def get_trends():
-    """Retrieve historical trend data. Optionally filter by province, zone, etc."""
+    """Retrieve historical trend data. Optionally filter by province, zone, subzone, operation."""
     province = request.args.get('province')
     zones = request.args.getlist('zone')
+    subzones = request.args.getlist('subzone')
     operation = request.args.get('operation')
-    
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    
+
     query = "SELECT * FROM inventory_trends"
     params = []
     conditions = []
-    
+
     if province:
         conditions.append("province = ?")
         params.append(province)
-    
+
     if zones:
-        # Create placeholders for 'IN' clause
         placeholders = ','.join(['?'] * len(zones))
         conditions.append(f"zone IN ({placeholders})")
         params.extend(zones)
-        
+
+    if subzones:
+        placeholders = ','.join(['?'] * len(subzones))
+        conditions.append(f"subzone IN ({placeholders})")
+        params.extend(subzones)
+
     if operation:
         conditions.append("operation = ?")
         params.append(operation)
-        
+
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
-        
-    query += " ORDER BY iso_year ASC, iso_week ASC, date_record ASC"
-    
+
+    query += " ORDER BY id ASC"
+
     cursor.execute(query, params)
     rows = cursor.fetchall()
-    
+
     data = [dict(row) for row in rows]
     conn.close()
-    
+
     return jsonify(data)
 
 @app.route('/api/provinces', methods=['GET'])
 def get_provinces():
-    """Get unique provinces and zones from the mapping file."""
+    """Get provinces/zones/subzones from mapping file + subzones_complete.json.
+    Returns a 3-level dict: { province: { zone: [subzone, ...] } }
+    where subzone list is [] for leaf zones and ["sz1","sz2",...] for zones with subzones.
+    """
     mapping_file = PROJECT_ROOT / "scraper" / "documentation" / "province_urls_mapping.md"
-    
+    subzones_file = PROJECT_ROOT / "scraper" / "documentation" / "subzones_complete.json"
+
+    # Load subzones data
+    subzones_data = {}
+    if subzones_file.exists():
+        try:
+            with open(subzones_file, 'r', encoding='utf-8') as f:
+                subzones_data = json.load(f)
+        except Exception:
+            pass
+
+    # Parse provinces and zones from mapping file
     provinces_dict = {}
     current_province = None
-    
+
     if mapping_file.exists():
         with open(mapping_file, "r", encoding="utf-8") as f:
             for line in f:
@@ -151,16 +200,28 @@ def get_provinces():
                     if len(parts) >= 4:
                         prov = parts[1].replace("**", "").strip()
                         zone = parts[2].strip()
-                        
+
                         if prov and prov.lower() != "provincia":
                             current_province = prov
                             if current_province not in provinces_dict:
-                                provinces_dict[current_province] = set()
-                            if zone:
-                                provinces_dict[current_province].add(zone)
-                                
-    # Convert sets to lists
-    result = {k: sorted(list(v)) for k, v in provinces_dict.items()}
+                                provinces_dict[current_province] = {}
+                            if zone and zone not in provinces_dict[current_province]:
+                                provinces_dict[current_province][zone] = []
+
+    # Enrich with subzones from subzones_complete.json
+    for province, zones in provinces_dict.items():
+        prov_subzones = subzones_data.get(province, {})
+        for zone in zones:
+            zone_data = prov_subzones.get(zone, {})
+            subzone_list = zone_data.get('subzones', [])
+            if subzone_list:
+                provinces_dict[province][zone] = [sz['name'] for sz in subzone_list]
+
+    # Sort zones alphabetically within each province
+    result = {
+        prov: dict(sorted(zones.items()))
+        for prov, zones in sorted(provinces_dict.items())
+    }
     return jsonify({"provinces": result})
 
 @app.route('/api/status', methods=['GET'])
@@ -209,23 +270,19 @@ def start_tracker():
     cmd = [sys.executable, "-u", str(script_path)]
     
     try:
-        TRACKER_PROCESS = subprocess.Popen(
-            cmd, 
-            cwd=str(BASE_DIR),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=False, # Keep as bytes to properly handle decode issues
-            creationflags=subprocess.CREATE_NO_WINDOW
-        )
-        
+        popen_kwargs = dict(cwd=str(BASE_DIR), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=False)
+        if sys.platform == "win32":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        TRACKER_PROCESS = subprocess.Popen(cmd, **popen_kwargs)
+
         # Start monitor thread
         monitor_thread = threading.Thread(
-            target=process_log_monitor, 
-            args=(TRACKER_PROCESS, socketio), 
+            target=process_log_monitor,
+            args=(TRACKER_PROCESS, socketio),
             daemon=True
         )
         monitor_thread.start()
-        
+
         return jsonify({"status": "started", "message": "Tracker background process launched."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -247,23 +304,19 @@ def resume_tracker():
     cmd = [sys.executable, "-u", str(script_path), "--resume"]
     
     try:
-        TRACKER_PROCESS = subprocess.Popen(
-            cmd, 
-            cwd=str(BASE_DIR),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=False,
-            creationflags=subprocess.CREATE_NO_WINDOW
-        )
-        
+        popen_kwargs = dict(cwd=str(BASE_DIR), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=False)
+        if sys.platform == "win32":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        TRACKER_PROCESS = subprocess.Popen(cmd, **popen_kwargs)
+
         # Start monitor thread
         monitor_thread = threading.Thread(
-            target=process_log_monitor, 
-            args=(TRACKER_PROCESS, socketio), 
+            target=process_log_monitor,
+            args=(TRACKER_PROCESS, socketio),
             daemon=True
         )
         monitor_thread.start()
-        
+
         return jsonify({"status": "started", "message": "Tracker resumed from checkpoint."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -288,7 +341,11 @@ def stop_tracker():
         except subprocess.TimeoutExpired:
             print("Force killing tracker process due to timeout.")
             TRACKER_PROCESS.terminate()
-            os.system(f"taskkill /F /T /PID {TRACKER_PROCESS.pid}")
+            if sys.platform == "win32":
+                os.system(f"taskkill /F /T /PID {TRACKER_PROCESS.pid}")
+            else:
+                import signal
+                os.kill(TRACKER_PROCESS.pid, signal.SIGKILL)
             
         TRACKER_PROCESS = None
         return jsonify({"status": "stopped", "message": "Tracker background process stopped."})
@@ -301,15 +358,15 @@ def export_csv():
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, operation, total_properties FROM inventory_trends ORDER BY id DESC")
+        cursor.execute("SELECT date_record, iso_year, iso_week, province, zone, subzone, operation, total_properties FROM inventory_trends ORDER BY id DESC")
         rows = cursor.fetchall()
         conn.close()
 
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(['Fecha', 'Año ISO', 'Semana ISO', 'Provincia', 'Zona', 'Operación', 'Total Propiedades'])
+        writer.writerow(['Fecha', 'Año ISO', 'Semana ISO', 'Provincia', 'Zona', 'Subzona', 'Operación', 'Total Propiedades'])
         writer.writerows(rows)
-        
+
         output.seek(0)
         return send_file(
             io.BytesIO(output.getvalue().encode('utf-8')),
@@ -324,4 +381,5 @@ def export_csv():
 if __name__ == '__main__':
     init_db()
     print(f"Starting Trends Service on port {TRENDS_PORT}...")
-    socketio.run(app, debug=False, host='127.0.0.1', port=TRENDS_PORT, allow_unsafe_werkzeug=True)
+    host = '0.0.0.0' if sys.platform != 'win32' else '127.0.0.1'
+    socketio.run(app, debug=False, host=host, port=TRENDS_PORT, allow_unsafe_werkzeug=True)
