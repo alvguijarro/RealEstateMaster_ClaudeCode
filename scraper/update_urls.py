@@ -24,15 +24,18 @@ JOURNAL_FILE = "update_progress.jsonl"
 ENRICHED_HISTORY_FILE = "enriched_history.json" # Local cache of enriched data
 STEALTH_PROFILE_DIR = str(Path(__file__).parent.parent / "stealth_profile")
 
-# Add scraper directory to path
+# Add scraper directory and project root to path
 SCRAPER_DIR = Path(__file__).parent
+PROJECT_ROOT = SCRAPER_DIR.parent
 sys.path.insert(0, str(SCRAPER_DIR))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # Force UTF-8 for stdout/stderr to avoid Windows charmap errors
 if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
 
+from shared.proxy_config import PROXY_CONFIG
 from idealista_scraper.scraper import _goto_with_retry
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.utils import log, play_captcha_alert, simulate_human_interaction, solve_captcha_advanced
@@ -66,49 +69,46 @@ GPU_FINGERPRINTS = [
 def get_random_gpu():
     return random.choice(GPU_FINGERPRINTS)
 
-_GPU_VENDOR, _GPU_RENDERER = get_random_gpu()
-
 def generate_stealth_script():
+    gpu_vendor, gpu_renderer = get_random_gpu()
     return f'''
 // ==================== PHASE 1: DEEP FINGERPRINT SPOOFING ====================
 try {{
     if (window.chrome && window.chrome.runtime) {{
         delete window.chrome.runtime;
     }}
-    const originalCall = Function.prototype.call;
-    Function.prototype.call = function(...args) {{
-        if (args[0] && typeof args[0] === 'object') {{
-            const str = String(args[0]);
-            if (str.includes('cdc_') || str.includes('$cdc_')) {{
-                return undefined;
-            }}
-        }}
-        return originalCall.apply(this, args);
-    }};
 }} catch (e) {{}}
 try {{
     const getParameterProto = WebGLRenderingContext.prototype.getParameter;
     WebGLRenderingContext.prototype.getParameter = function(param) {{
-        if (param === 37445) return '{_GPU_VENDOR}';
-        if (param === 37446) return '{_GPU_RENDERER}';
+        if (param === 37445) return '{gpu_vendor}';
+        if (param === 37446) return '{gpu_renderer}';
         return getParameterProto.call(this, param);
     }};
     if (typeof WebGL2RenderingContext !== 'undefined') {{
         const getParameter2Proto = WebGL2RenderingContext.prototype.getParameter;
         WebGL2RenderingContext.prototype.getParameter = function(param) {{
-            if (param === 37445) return '{_GPU_VENDOR}';
-            if (param === 37446) return '{_GPU_RENDERER}';
+            if (param === 37445) return '{gpu_vendor}';
+            if (param === 37446) return '{gpu_renderer}';
             return getParameter2Proto.call(this, param);
         }};
     }}
 }} catch (e) {{}}
 try {{
+    const pluginData = [
+        {{type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format', name: 'Chrome PDF Plugin'}},
+        {{type: 'application/pdf', suffixes: 'pdf', description: '', name: 'Chrome PDF Viewer'}},
+        {{type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable', name: 'Native Client'}}
+    ];
+    const plugins = Object.create(PluginArray.prototype);
+    pluginData.forEach((p, i) => {{ plugins[i] = p; }});
+    Object.defineProperty(plugins, 'length', {{value: pluginData.length, writable: false, enumerable: true}});
+    plugins[Symbol.iterator] = function*() {{ for (let i = 0; i < this.length; i++) yield this[i]; }};
+    plugins.item = function(i) {{ return this[i] || null; }};
+    plugins.namedItem = function(name) {{ for (let i = 0; i < this.length; i++) {{ if (this[i].name === name) return this[i]; }} return null; }};
+    plugins.refresh = function() {{}};
     Object.defineProperty(navigator, 'plugins', {{
-        get: () => [
-            {{type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format', name: 'Chrome PDF Plugin'}},
-            {{type: 'application/pdf', suffixes: 'pdf', description: '', name: 'Chrome PDF Viewer'}},
-            {{type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable', name: 'Native Client'}}
-        ],
+        get: () => plugins
     }});
 }} catch (e) {{}}
 try {{
@@ -124,7 +124,6 @@ try {{
         get: () => undefined
     }});
 }} catch (e) {{}}
-console.log('[STEALTH] Advanced anti-detection active - GPU: {_GPU_RENDERER}');
 '''
 
 DEEP_STEALTH_SCRIPT = generate_stealth_script()
@@ -355,63 +354,34 @@ def handle_blocked_profile():
         pass
 
 async def detect_captcha(page) -> str | None:
-    """Check if page shows CAPTCHA/bot protection. Returns 'block', 'captcha' or None."""
+    """Check if page shows CAPTCHA/bot protection. Returns 'block', 'captcha' or None.
+    Verification screens ('Verificación del dispositivo') are NOT blocks — returns None.
+    """
     try:
         page_data = await page.evaluate("""
             () => ({
                 title: document.title,
-                text: document.documentElement ? document.documentElement.innerText : (document.body ? document.body.innerText : '')
+                text: document.documentElement ? document.documentElement.innerText : (document.body ? document.body.innerText : ''),
+                hasDatadome: !!document.querySelector('iframe[src*="captcha-delivery.com"]')
             })
         """)
-        title = (page_data.get("title") or "").lower()
         text_lower = (page_data.get("text") or "").lower()
         text_lower = re.sub(r'\s+', ' ', text_lower).strip()
 
-        # Hard blocks
-        hard_block_keywords = [
-            "el acceso se ha bloqueado",
-            "se ha detectado un uso indebido",
-            "un uso indebido",
-            "uso no autorizado",
-            "acceso bloqueado",
-            "forbidden",
-            "access denied",
-            "uso indebido"
-        ]
-        
-        if any(kw in text_lower for kw in hard_block_keywords):
-            return "block"
-        if bool(re.search(r"id:\s*[0-9a-f]{8,32}-", text_lower)):
-            return "block"
-        
-        # Detect ID pattern: 3cc1692a-4eb3-73db-8328-e6e677b4cbc3
-        if re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", text_lower):
-            if "se ha detectado" in text_lower or "idealista" in title:
-                return "block"
+        # Verification screen is NEVER a block — caller must wait for it to resolve
+        if "verificación del dispositivo" in text_lower or "verificando su dispositivo" in text_lower:
+            return None
 
-        # Captchas
-        is_datadome = await page.evaluate("""() => {
-            return !!(document.querySelector('iframe[src*="captcha-delivery.com"]') || window.dd);
-        }""")
-        if is_datadome or any(kw in text_lower for kw in ["recibiendo muchas peticiones", "confirma que eres humano", "verificación necesaria"]):
+        # Hard block: ONLY this exact phrase
+        if "el acceso se ha bloqueado" in text_lower:
+            return "block"
+
+        # Captcha: "muchas peticiones" or DataDome iframe
+        if "muchas peticiones tuyas" in text_lower or page_data.get("hasDatadome"):
             return "captcha"
 
-        if title == "idealista.com" or "idealista" in title:
-            if len(text_lower) < 1200:
-                has_items = await page.evaluate("!!document.querySelector('article, .item, #h1-container, .detail-info, .main-info')")
-                if not has_items: 
-                    # If it's a very short page with "Idealista" title and no items, it's a block/empty page
-                    return "block"
-
         return None
-    except Exception as ex:
-        # If page.evaluate fails, try a simpler title-based check before giving up
-        try:
-            title = (await page.title() or "").lower()
-            if any(kw in title for kw in ["uso indebido", "bloqueado", "access denied", "forbidden"]):
-                return "block"
-        except:
-            pass
+    except Exception:
         return None
 
 async def variable_scroll(page):
@@ -641,10 +611,17 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     error_count = 0
 
     # ================= RECOVERY LOOP =================
+    # WebKit y Firefox no soportan proxies autenticados en Windows
+    PROXY_INCOMPATIBLE_ENGINES = {"webkit", "firefox"}
+
     while start_index < len(urls):
         try:
-            # IDENTITY ROTATION
+            # IDENTITY ROTATION — saltar engines incompatibles con proxy autenticado
             profile_config, wait_time = rotate_identity()
+            while profile_config and profile_config.get("engine") in PROXY_INCOMPATIBLE_ENGINES:
+                emit_to_ui('INFO', f'Saltando perfil {profile_config["name"]} (motor {profile_config.get("engine")} incompatible con proxy autenticado en Windows)')
+                mark_current_profile_blocked()
+                profile_config, wait_time = rotate_identity()
             if wait_time > 0:
                 emit_to_ui('WARN', f'All profiles in cooldown. Waiting {int(wait_time/60)}m...')
                 await asyncio.sleep(wait_time)
@@ -708,7 +685,12 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                 # ------------------------------------
 
                 # Headless Mode: Faster for URL updates if not in Stealth mode
-                is_headless = not is_stealth 
+                is_headless = not is_stealth
+                # Firefox y Opera siempre headless (sin ventana visible para el usuario)
+                _ch = profile_config.get("channel")
+                _eng = profile_config.get("engine", "chromium")
+                if _eng == "firefox" or _ch == "opera":
+                    is_headless = True
                 
                 try:
                     # Select the correct engine launcher (chromium, firefox, or webkit)
@@ -719,15 +701,23 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                         "user_data_dir": profile_dir,
                         "headless": is_headless,
                         "viewport": {"width": viewport[0], "height": viewport[1]},
-                        "user_agent": random.choice(USER_AGENTS)
+                        "user_agent": random.choice(USER_AGENTS),
+                        "proxy": {
+                            "server": f"http://{PROXY_CONFIG['host']}:{PROXY_CONFIG['port']}",
+                            "username": f"{PROXY_CONFIG['login']}-session-{PROXY_CONFIG['sticky_session_id']}",
+                            "password": PROXY_CONFIG['password'],
+                        },
                     }
                     
                     # ENGINE-SPECIFIC CONFIGURATION
                     if engine_name == "chromium":
                         launch_options["args"] = browser_args
                         launch_options["ignore_default_args"] = ["--enable-automation"]
-                        if profile_config.get("channel"):
-                            launch_options["channel"] = profile_config["channel"]
+                        channel = profile_config.get("channel")
+                        # Only pass channel for Playwright-recognized values (chrome, msedge)
+                        # Non-standard channels (opera, brave, vivaldi) need executable_path instead
+                        if channel and channel not in ("opera", "brave", "vivaldi", "iron"):
+                            launch_options["channel"] = channel
                         if exe_path:
                             launch_options["executable_path"] = exe_path
                     elif engine_name == "firefox":
@@ -959,7 +949,11 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                                 
                                 if await detect_captcha(page) == "captcha":
                                     emit_to_ui('WARN', 'Resuelve el CAPTCHA manualmente en el navegador.')
+                                    manual_deadline = asyncio.get_event_loop().time() + 90
                                     while await detect_captcha(page) == "captcha":
+                                        if asyncio.get_event_loop().time() >= manual_deadline:
+                                            emit_to_ui('ERR', '⏰ Timeout manual (90s). Rotando identidad...')
+                                            raise BlockedException("Manual captcha timeout")
                                         play_captcha_alert()
                                         await asyncio.sleep(5)
                                     d = await extract_detail_fields(page, debug_items=False)
@@ -1132,12 +1126,18 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                         break
 
                 finally:
-                    # Close context
+                    # Close context and delete profile directory
                     try:
                         await context.close()
                     except:
-                        pass 
-                            
+                        pass
+                    try:
+                        import shutil
+                        if os.path.exists(profile_dir):
+                            shutil.rmtree(profile_dir, ignore_errors=True)
+                    except Exception:
+                        pass
+
                     if start_index >= len(urls):
                         break
 
@@ -1145,10 +1145,16 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
         except BlockedException:
             emit_to_ui('ERR', 'HARD BLOCK DETECTED. Marking profile as blocked and rotating...')
             mark_current_profile_blocked()
-            
+            try:
+                import shutil
+                if os.path.exists(profile_dir):
+                    shutil.rmtree(profile_dir, ignore_errors=True)
+            except Exception:
+                pass
+
             # Wait a bit before rotating
             await asyncio.sleep(10)
-            continue 
+            continue
             
 
 

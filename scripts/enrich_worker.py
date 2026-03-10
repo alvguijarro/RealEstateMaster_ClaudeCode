@@ -270,10 +270,19 @@ async def enrich_single_property(page, url: str, session: Optional[ScraperSessio
             return {"__blocked__": True}
             
         if block_type == "captcha":
-            log("WARN", f"⚠️ CAPTCHA detectado. Intentando resolución...")
-            # If automatic solve is in _goto_with_retry, it already tried. 
-            # If still captcha, we might need manual solve as in main scraper.
-            if session:
+            log("WARN", f"⚠️ CAPTCHA detectado. Intentando resolución automática...")
+            try:
+                captcha_solved = await asyncio.wait_for(
+                    solve_captcha_advanced(page, logger=log, use_proxy=True),
+                    timeout=180.0
+                )
+            except asyncio.TimeoutError:
+                captcha_solved = False
+                log("WARN", "⏰ Timeout en resolución automática de captcha")
+
+            if captcha_solved and not await check_for_blocks(page):
+                log("OK", "✅ CAPTCHA resuelto automáticamente!")
+            elif session:
                 log("INFO", ">>> ESPERANDO RESOLUCIÓN MANUAL (30s max) <<<")
                 play_captcha_alert()
                 # Simple poll for 30s
@@ -285,6 +294,8 @@ async def enrich_single_property(page, url: str, session: Optional[ScraperSessio
                 else:
                     log("ERR", "❌ CAPTCHA no resuelto. Rotando...")
                     return {"__blocked__": True}
+            else:
+                return {"__blocked__": True}
 
         # 4. Humanization (Reading time simulation)
         await simulate_human_interaction(page)
@@ -369,24 +380,33 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
         if check_stop(): break
             
         # 1. Advanced Identity Rotation (with Cooldown)
+        # Motores incompatibles con proxy autenticado en Windows
+        _PROXY_INCOMPATIBLE = {"webkit", "firefox"}
         profile_config, wait_time = rotate_identity()
+        while profile_config and profile_config.get("engine") in _PROXY_INCOMPATIBLE:
+            log("WARN", f"⚠️ Saltando perfil '{profile_config['name']}' (motor incompatible con proxy)")
+            mark_current_profile_blocked()
+            profile_config, wait_time = rotate_identity()
         if wait_time > 0:
             log("WARN", f"⏳ Todos los perfiles en cooldown. Esperando {wait_time:.0f}s...")
             await asyncio.sleep(min(30, wait_time)) # Wait and retry
             continue
-            
+
         profile_dir = get_profile_dir(profile_config["index"])
         executable = get_browser_executable_path(profile_config.get("channel"))
-        
+
         log("INFO", f"🔄 Nueva sesión: Perfil {profile_config['index']} ({profile_config['name']})")
-        
+
         error_in_session = False
         async with async_playwright() as p:
             # Launch persistent context to reuse profiles and cookies
             try:
+                from scraper.app.scraper_wrapper import _build_browser_proxy
+                _ew_proxy = _build_browser_proxy()
+
                 # Use engine from config (chromium, firefox, webkit)
                 browser_type = getattr(p, profile_config["engine"])
-                
+
                 browser = await browser_type.launch_persistent_context(
                     user_data_dir=profile_dir,
                     headless=profile_config.get("headless", True),
@@ -394,11 +414,11 @@ async def run_enrichment(files: List[Path], max_price: int, dry_run: bool = Fals
                     user_agent=random.choice(USER_AGENTS),
                     viewport={"width": random.choice(VIEWPORT_SIZES)[0], "height": random.choice(VIEWPORT_SIZES)[1]},
                     args=[
-                        # "--disable-blink-features=AutomationControlled", # Removed: triggers Chromium warning bar that DataDome immediately flags
                         "--no-sandbox",
                         "--disable-dev-shm-usage",
                         "--disable-web-security"
                     ] if profile_config["engine"] == "chromium" else [],
+                    proxy=_ew_proxy,
                     ignore_https_errors=True
                 )
                 
