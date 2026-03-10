@@ -36,10 +36,13 @@ RAPIDAPI_KEY = os.environ.get(
 )
 
 # Google Gemini API Key
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "AIzaSyC7IGitg94xGP_ojTEbcnW9sHa24C1tFNM")
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "AIzaSyB5g2kv8fP4HEnPdhc8megfWQM4TFIp8Oc")
 
 # 2Captcha API Key
 TWOCAPTCHA_API_KEY = os.environ.get("TWOCAPTCHA_API_KEY", "f49b4e9ed2e2b36add9c6ef3af3e6e4c")
+
+# CapSolver API Key (fallback for DataDome when 2Captcha fails; empty = disabled)
+CAPSOLVER_API_KEY = os.environ.get("CAPSOLVER_API_KEY", "CAP-80466E39600EB27CBE3C64207EF3702BEE5F7662B71FCF0323FD4045AA753463")
 
 # =============================================================================
 # API FILTERS (Default constraints)
@@ -51,3 +54,14 @@ API_MAX_PRICE = 300000  # User request: limit to 300k EUR
 # SCRAPER CONFIGURATION
 # =============================================================================
 DEFAULT_OUTPUT_DIR = str(OUTPUT_DIR)
+
+# =============================================================================
+# NOTIFICACIONES EMAIL (Trends Tracker)
+# =============================================================================
+SMTP_HOST     = os.environ.get("SMTP_HOST", "")
+SMTP_PORT     = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER     = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM     = os.environ.get("SMTP_FROM", os.environ.get("SMTP_USER", ""))
+SMTP_TO       = os.environ.get("SMTP_TO", "")   # Puede ser lista separada por comas
+SMTP_ENABLED  = bool(SMTP_HOST and SMTP_USER and SMTP_TO)

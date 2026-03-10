@@ -17,6 +17,8 @@ DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "market_trends.db"
 CHECKPOINT_FILE = DATA_DIR / "checkpoint.json"
 STOP_FLAG_FILE = DATA_DIR / "TRACKER_STOP.flag"
+LOG_FILE = DATA_DIR / "execution_log.jsonl"
+RESUME_POINT_FILE = DATA_DIR / "resume_point.json"
 DEBUG_DIR = DATA_DIR / "debug"
 MAPPING_FILE = PROJECT_ROOT / "scraper" / "documentation" / "province_urls_mapping.md"
 SUBZONES_FILE = PROJECT_ROOT / "scraper" / "documentation" / "subzones_complete.json"
@@ -341,6 +343,94 @@ def load_checkpoint():
             pass
     return 0, None
 
+def log_event(event: str, **kwargs):
+    """Registra un evento en el log JSONL de ejecuciones (append-only)."""
+    entry = {"ts": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), "event": event}
+    entry.update(kwargs)
+    try:
+        with open(LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+    except Exception as e:
+        print(f"WARN: No se pudo escribir en execution_log: {e}")
+
+
+def save_resume_point(index, date_record, reason="interrupted", urls_total=0):
+    """Guarda el punto de reanudación cross-session."""
+    try:
+        with open(RESUME_POINT_FILE, 'w', encoding='utf-8') as f:
+            json.dump({
+                "last_index": index,
+                "date_record": date_record,
+                "saved_at": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                "reason": reason,
+                "urls_total": urls_total
+            }, f)
+    except Exception as e:
+        print(f"WARN: No se pudo guardar resume_point: {e}")
+
+
+def load_resume_point():
+    """Carga el punto de reanudación si existe."""
+    if RESUME_POINT_FILE.exists():
+        try:
+            with open(RESUME_POINT_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            pass
+    return None
+
+
+def clear_resume_point():
+    """Elimina el fichero de resume_point tras completar con éxito."""
+    try:
+        if RESUME_POINT_FILE.exists():
+            RESUME_POINT_FILE.unlink()
+            print("🗑️ Resume point eliminado (ejecución completada).")
+    except Exception as e:
+        print(f"WARN: No se pudo eliminar resume_point: {e}")
+
+
+def send_failure_email(start_index, urls_len, urls_data, date_record):
+    """Envía un email de notificación si el tracker se interrumpió inesperadamente."""
+    from shared.config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM, SMTP_TO, SMTP_ENABLED
+    if not SMTP_ENABLED:
+        return
+    import smtplib
+    from email.mime.text import MIMEText
+
+    pending = urls_data[start_index:]
+    pending_count = len(pending)
+    pending_lines = [
+        f"  [{start_index+i+1}/{urls_len}] {p} / {z} ({op})"
+        for i, (p, z, _, op, _) in enumerate(pending[:50])
+    ]
+    if pending_count > 50:
+        pending_lines.append(f"  ... y {pending_count - 50} más.")
+
+    subject = f"[RealEstateMaster] Trends Tracker interrumpido — {pending_count} URLs pendientes ({date_record})"
+    body = (
+        f"El Trends Tracker se ha interrumpido inesperadamente el {date_record}.\n\n"
+        f"Progreso: {start_index}/{urls_len} URLs procesadas.\n"
+        f"URLs pendientes: {pending_count}\n\n"
+        f"Provincias/zonas pendientes:\n" + "\n".join(pending_lines) + "\n\n"
+        f"El tracker reanudará automáticamente desde el índice {start_index} en la próxima ejecución.\n"
+    )
+    try:
+        recipients = [r.strip() for r in SMTP_TO.split(",") if r.strip()]
+        msg = MIMEText(body, 'plain', 'utf-8')
+        msg['Subject'] = subject
+        msg['From'] = SMTP_FROM
+        msg['To'] = ", ".join(recipients)
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_FROM, recipients, msg.as_string())
+        print(f"✉️ Email de fallo enviado a {SMTP_TO}")
+    except Exception as e:
+        print(f"WARN: No se pudo enviar email de notificación: {e}")
+
+
 def auto_export_csv():
     """Generates a CSV export of the entire SQLite DB to disk."""
     try:
@@ -409,14 +499,23 @@ async def run_tracker(resume=False, headless=False, force_date=None):
     start_index = 0
     uncertain_zero_urls = []
     if resume:
+        # Prioridad 1: checkpoint mismo día (comportamiento existente)
         last_idx, cp_date = load_checkpoint()
         if cp_date == date_formatted:
             start_index = last_idx
-            print(f"Resuming from index {start_index} for day {date_formatted}")
+            print(f"Resuming from checkpoint: index {start_index} for day {date_formatted}")
         else:
             print("Checkpoint is from a previous day. Starting fresh.")
-    
+    elif not force_date:
+        # Prioridad 2: resume_point cross-session (auto-detección sin --resume)
+        rp = load_resume_point()
+        if rp:
+            start_index = rp["last_index"]
+            print(f"🔄 Auto-resume: índice {start_index} (sesión anterior del {rp['date_record']}, motivo: {rp['reason']})")
+
     urls_len = len(urls_data)
+    stopped_by_user = False
+    log_event("session_start", idx=start_index, date=date_formatted, total_urls=urls_len)
     
     # Remove old stop flag if exists
     if STOP_FLAG_FILE.exists():
@@ -426,6 +525,7 @@ async def run_tracker(resume=False, headless=False, force_date=None):
     while start_index < urls_len:
         if STOP_FLAG_FILE.exists():
             print("🔴 Stop flag detected. Halting outer loop.")
+            stopped_by_user = True
             break
         
         # IDENTITY ROTATION
@@ -521,6 +621,7 @@ async def run_tracker(resume=False, headless=False, force_date=None):
                 while scan_idx < urls_len:
                     if STOP_FLAG_FILE.exists():
                         print("🔴 Stop flag detected. Halting inner loop.")
+                        stopped_by_user = True
                         break
 
                     province, zone, url, operation, level = urls_data[scan_idx]
@@ -530,6 +631,7 @@ async def run_tracker(resume=False, headless=False, force_date=None):
                     # Deduplication Check (daily) — solo para el registro principal (subzone='')
                     if await record_exists_for_day(date_formatted, province, zone, operation, subzone=''):
                         print(f"  -> Skipping. Data already exists for {date_formatted}.")
+                        log_event("url_skip", idx=scan_idx, province=province, zone=zone, operation=operation)
                         scan_idx += 1
                         consecutive_skips += 1
 
@@ -625,6 +727,7 @@ async def run_tracker(resume=False, headless=False, force_date=None):
 
                                 success = True
                                 made_progress = True
+                                log_event("url_ok", idx=scan_idx, province=province, zone=zone, operation=operation, total=total_properties)
                                 break  # Exit retry loop
 
                         except Exception as e:
@@ -632,7 +735,10 @@ async def run_tracker(resume=False, headless=False, force_date=None):
                                 raise e  # Propagate to outer loop for rotation
                             print(f"  ⚠️ Error attempt {attempt}: {e}")
                             if attempt < 3: await asyncio.sleep(5)
-                    
+
+                    if not success:
+                        log_event("url_fail", idx=scan_idx, province=province, zone=zone, operation=operation, total=None, reason="max_retries_exceeded")
+
                     # Move to next URL even if it failed all retries (to avoid infinite loops)
                     scan_idx += 1
                     start_index = scan_idx  # Keep outer loop in sync (critical for CAPTCHA rotation)
@@ -641,6 +747,7 @@ async def run_tracker(resume=False, headless=False, force_date=None):
                     if scan_idx > 0 and scan_idx % 20 == 0:
                         print(f"💾 Saving Checkpoint at index {scan_idx}...")
                         save_checkpoint(scan_idx, date_formatted)
+                        save_resume_point(scan_idx, date_formatted, urls_total=urls_len)
 
                 if STOP_FLAG_FILE.exists() or scan_idx >= urls_len:
                     # --- DOUBLE-CHECK PHASE ---
@@ -684,6 +791,7 @@ async def run_tracker(resume=False, headless=False, force_date=None):
                 if 'scan_idx' in locals():
                     start_index = scan_idx
                     save_checkpoint(scan_idx, date_formatted)
+                    save_resume_point(scan_idx, date_formatted, reason="captcha_block", urls_total=urls_len)
 
             finally:
                 if 'context' in locals():
@@ -693,11 +801,16 @@ async def run_tracker(resume=False, headless=False, force_date=None):
 
     # Final checkpoint update
     save_checkpoint(start_index, date_formatted)
+    log_event("session_end", idx=start_index, completed=(start_index >= urls_len), stopped_by_user=stopped_by_user)
+
     if start_index >= urls_len:
+        clear_resume_point()
         print("Market Trends Tracking Completed Full List!")
     else:
         print(f"Tracker Stopped at index {start_index}.")
-        
+        if not stopped_by_user:
+            send_failure_email(start_index, urls_len, urls_data, date_formatted)
+
     # Auto export to CSV locally at the end of run
     print("Initiating automatic database backup to CSV...", flush=True)
     auto_export_csv()

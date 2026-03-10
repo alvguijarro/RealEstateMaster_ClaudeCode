@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.9.37] - 2026-03-10
+### Added
+- **Log JSONL de ejecuciones (`trends/data/execution_log.jsonl`)**: Registro histórico append-only de todos los eventos del Trends Tracker (session_start, url_ok, url_fail, url_skip, session_end). Cada línea es JSON atómico; sobrevive a crashes.
+- **Punto de reanudación cross-session (`trends/data/resume_point.json`)**: Si el tracker se interrumpe (captcha, crash, apagado), al relanzar sin `--resume` detecta automáticamente el último índice guardado y retoma desde ahí. Se elimina automáticamente al completar con éxito.
+- **Email de notificación en fallo**: Si el tracker termina sin que el usuario lo detuviese manualmente, envía un email con el listado de URLs pendientes y el índice de reanudación. Configuración vía variables de entorno `SMTP_*` en `shared/config.py`; sin configurar, la función es un no-op.
+
+## [2.9.36] - 2026-03-08
+### Fixed
+- **CapSolver falla con Edge 145 (`ERROR_INVALID_TASK_DATA`)**: El sanitizador de UA para CapSolver capeaba `Chrome/145 → Chrome/144` pero dejaba `Edg/145.0.0.0` intacto. CapSolver valida la versión de todos los tokens del UA y rechaza Edge > 144. Ahora también se capea `Edg/` a `Edg/144.0.0.0` cuando es necesario.
+- **2Captcha DataDome timeout reducido de 65s a 50s**: Los tokens de DataDome expiran en ~60s, por lo que esperar 65s garantizaba un timeout. Reducido a 50s para reciclar antes hacia una URL fresca y ahorrar ~15s por intento (45s por ciclo de 3 intentos).
+- **DataDome Storm — pausa larga tras 3 fallos consecutivos**: Añadido contador `consecutive_datadome_fails` en `scraper_wrapper.py`. Cuando 3 llamadas consecutivas a `_goto_with_retry` terminan en `CAPTCHA_TIMEOUT`, el sistema aplica una pausa de 20 minutos para dejar enfriar la IP antes de continuar, en lugar de seguir girando en falso consumiendo todos los solvers indefinidamente.
+
 ## [2.9.35] - 2026-03-05
 ### Fixed
 - **Diagnóstico de navegador no visible (versión portable)**: Al lanzar scraping desde la interfaz en un PC nuevo, el navegador no se abría sin mostrar ningún error. Las salidas del servidor del scraper eran silenciadas por `CREATE_NO_WINDOW`. Ahora se redirigen a `logs/scraper_server.log` para que los errores de arranque sean visibles.
