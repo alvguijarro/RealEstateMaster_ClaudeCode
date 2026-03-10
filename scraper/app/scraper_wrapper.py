@@ -2946,11 +2946,17 @@ class ScraperController:
                     _early_opera_ctx = None
                     if (self.parallel_enrichment and self.smart_enrichment
                             and self._all_existing_urls and not self._in_enrichment):
+                        # Los early workers solo deben revisar URLs que NO estén ya enriquecidas.
+                        # Las URLs ya enriquecidas serán: (a) saltadas por SMART SKIP en Phase 1
+                        # si aparecen en resultados, o (b) verificadas por los enrich workers de
+                        # Phase 2 tras completar el scraping de listados. Verificarlas aquí sería
+                        # redundante y desperdiciaría recursos (igual que el SMART SKIP del browser visible).
                         early_urls = [u for u in self._all_existing_urls.keys()
-                                      if u not in self._enrichment_done_urls]
+                                      if u not in self._enrichment_done_urls
+                                      and u not in self._enriched_urls]
                         if early_urls:
                             _early_queue = SharedURLQueue(early_urls)
-                            self.log("INFO", f"🚀 Lanzando workers headless antes de Phase 1: {len(early_urls)} URLs del Excel a verificar en paralelo...")
+                            self.log("INFO", f"🚀 Lanzando workers headless antes de Phase 1: {len(early_urls)} URLs pendientes de enriquecer a verificar en paralelo...")
 
                             async def _early_enrich_worker(worker_page, worker_label: str, use_proxy: bool = True):
                                 nonlocal deactivated_count
