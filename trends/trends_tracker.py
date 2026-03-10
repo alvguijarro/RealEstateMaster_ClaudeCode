@@ -516,7 +516,11 @@ async def run_tracker(resume=False, headless=False, force_date=None):
     urls_len = len(urls_data)
     stopped_by_user = False
     log_event("session_start", idx=start_index, date=date_formatted, total_urls=urls_len)
-    
+
+    # Grabar checkpoint inicial con la fecha de hoy — así aunque el proceso muera
+    # antes de la URL #20, el siguiente --resume encontrará la fecha correcta.
+    save_checkpoint(start_index, date_formatted)
+
     # Remove old stop flag if exists
     if STOP_FLAG_FILE.exists():
         try: STOP_FLAG_FILE.unlink()
