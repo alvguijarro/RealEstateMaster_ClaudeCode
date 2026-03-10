@@ -1812,6 +1812,147 @@ class ScraperController:
         except Exception as e:
             self.log("WARN", f"Checkpoint failed: {e}")
     
+    async def _scrape_property_detail(self, page, url: str, *, label: str = "", use_proxy: bool = True):
+        """Navega a una página de detalle de propiedad, extrae datos y resuelve captchas.
+
+        Returns:
+            dict: fila con datos scrapeados (enriched, merged) si éxito.
+            None:  si la propiedad está dada de baja / no disponible.
+        Raises:
+            BlockedException, StopException, Exception("CAPTCHA_BLOCK_DETECTED").
+        """
+        _pfx = f"[{label}] " if label else ""
+        key = canonical_listing_url(url)
+
+        # 1) Navegar a la propiedad
+        await self._goto_with_retry(page, url, use_proxy=use_proxy, label=label)
+        if self._should_stop:
+            raise StopException("Scraping interrumpido por el usuario")
+
+        # 2) Extraer datos
+        await page.wait_for_timeout(PAGE_WAIT_MS)
+        try:
+            d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
+        except (IndexError, AttributeError, TypeError, asyncio.TimeoutError) as extraction_err:
+            self.log("WARN", f"{_pfx}Extraction failed: {extraction_err}")
+            d = {}
+
+        # 3) Block inmediato
+        if d.get("isBlocked"):
+            self.log("ERR", f"{_pfx}🚫 BLOCK detected during extraction. Triggering rotation...")
+            mark_current_profile_blocked()
+            raise BlockedException("Acceso bloqueado durante extracción")
+
+        row = {"URL": key, **d}
+        miss = missing_fields(row, is_room_mode=self._is_room_mode)
+
+        # 4) Página de baja / no disponible
+        page_text = None
+        if miss:
+            page_text = await page.evaluate(
+                "() => (document.body && document.body.innerText) ? document.body.innerText : ''"
+            )
+            is_not_found = any(msg in page_text.lower() for msg in [
+                "no encontramos", "anuncio no disponible",
+                "este anuncio ya no está disponible", "enlace antiguo",
+                "anuncio ya no está publicado", "lo sentimos"
+            ])
+            if is_not_found:
+                self.log("WARN", f"{_pfx}Anuncio no disponible: {key}")
+                return None
+
+            # 5) Uso indebido
+            page_text_lower = page_text.lower()
+            if any(kw in page_text_lower for kw in ["uso indebido", "se ha bloqueado", "uso no autorizado"]):
+                self.log("ERR", f"{_pfx}🚫 'Uso indebido' detected. Triggering rotation...")
+                mark_profile_blocked(self.browser_engine)
+                raise BlockedException("Acceso bloqueado por uso indebido")
+
+            # 6) CAPTCHA — auto-solve + espera pasiva
+            try:
+                _ctype = await page.evaluate("""() => {
+                    if (document.querySelector('iframe[src*="captcha-delivery.com"]')) return 'DataDome';
+                    if (typeof window.initGeetest !== 'undefined' || document.querySelector('.geetest_holder')) return 'GeeTest';
+                    if (document.querySelector('.px-captcha-container, .nc-container, .captcha_slider')) return 'slider';
+                    return 'desconocido';
+                }""")
+            except Exception:
+                _ctype = 'desconocido'
+            self.log("WARN", f"{_pfx}CAPTCHA detectado (tipo: {_ctype}). Intentando resolución automática...")
+
+            if not label and self.on_status:
+                self.on_status("captcha")
+
+            # 6a) Auto-solve
+            try:
+                solved = await asyncio.wait_for(
+                    solve_captcha_advanced(page, logger=self.log, use_proxy=use_proxy), timeout=180.0
+                )
+                if solved:
+                    self.log("OK", f"{_pfx}✅ CAPTCHA resuelto automáticamente")
+                    try:
+                        d = await asyncio.wait_for(
+                            extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode),
+                            timeout=20.0,
+                        )
+                        row = {"URL": key, **d}
+                        miss = missing_fields(row, is_room_mode=self._is_room_mode)
+                    except Exception as re_ex:
+                        self.log("WARN", f"{_pfx}Re-extracción tras auto-solve falló: {re_ex}")
+            except asyncio.TimeoutError:
+                self.log("WARN", f"{_pfx}Auto-solver timeout (180s)")
+            except BlockedException:
+                raise
+            except Exception as solve_err:
+                self.log("WARN", f"{_pfx}Auto-solver error: {solve_err}")
+
+            # 6b) Espera pasiva 30 s
+            if miss:
+                self.log("WARN", f"{_pfx}Auto-solve insuficiente. Esperando 30s por resolución pasiva...")
+                for _ in range(3):
+                    if self._should_stop:
+                        break
+                    await asyncio.sleep(10.0)
+                    try:
+                        d = await asyncio.wait_for(
+                            extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode),
+                            timeout=20.0,
+                        )
+                        if d.get("isBlocked"):
+                            self.log("ERR", f"{_pfx}🚫 Espera pasiva: página sigue BLOQUEADA.")
+                            mark_current_profile_blocked()
+                            raise BlockedException("Acceso bloqueado persistente")
+                        row = {"URL": key, **d}
+                        if not missing_fields(row, is_room_mode=self._is_room_mode):
+                            self.log("OK", f"{_pfx}✅ CAPTCHA resuelto durante espera pasiva!")
+                            miss = False
+                            break
+                    except BlockedException:
+                        raise
+                    except Exception:
+                        pass
+
+            if miss:
+                self.log("ERR", f"{_pfx}CAPTCHA_BLOCK_DETECTED tras auto-solve + espera pasiva")
+                mark_profile_blocked(self.browser_engine)
+                raise Exception("CAPTCHA_BLOCK_DETECTED")
+
+            # CAPTCHA resuelto
+            if not label and self.on_status:
+                self.on_status("running")
+
+        # 7) Fecha + merge + enriquecimiento
+        from datetime import datetime
+        row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
+
+        if key in self._all_existing_urls:
+            existing_data = self._all_existing_urls[key].get('full_row', {})
+            if existing_data:
+                row = {**existing_data, **row}
+
+        row = mark_as_enriched(row)
+        return row
+
     async def _goto_with_retry(self, page, url: str, use_proxy: bool = True, label: str = "") -> None:
         """Navigate to URL with retry logic. Detects browser close with 120s guard.
 
@@ -2953,175 +3094,105 @@ class ScraperController:
                     smart_skipped = 0
                     deactivated_count = 0
 
-                    # ===== EARLY HEADLESS WORKERS: Verificar URLs del Excel en paralelo con Phase 1 =====
-                    _early_queue = None
-                    _early_tasks = []
-                    _early_counters = {"checked": 0, "real_changes": 0, "last_checkpoint_real_changes": 0}
-                    _early_checkpoint_lock = asyncio.Lock()
-                    _early_webkit_ctx = None
-                    _early_opera_ctx = None
-                    # Early workers deshabilitados: la verificación de URLs del Excel se hace
-                    # en Phase 2 (enrich workers), una vez completado el scraping de todos los
-                    # listados de la URL semilla y todos los órdenes de búsqueda. Lanzarlos antes
-                    # de que Phase 1 termine es redundante: las URLs que aparezcan en Phase 1
-                    # son procesadas por el browser principal, y las que no aparezcan las gestiona
-                    # Phase 2 en el momento correcto, sin desperdiciar navegaciones ni créditos.
-                    if False and (self.parallel_enrichment and self.smart_enrichment
-                            and self._all_existing_urls and not self._in_enrichment):
-                        early_urls = [u for u in self._all_existing_urls.keys()
-                                      if u not in self._enrichment_done_urls
-                                      and u not in self._enriched_urls]
-                        if early_urls:
-                            _early_queue = SharedURLQueue(early_urls)
-                            self.log("INFO", f"🚀 Lanzando workers headless antes de Phase 1: {len(early_urls)} URLs pendientes de enriquecer a verificar en paralelo...")
+                    # ===== HEADLESS WORKERS: Scraping paralelo de detalle de propiedades =====
+                    _scrape_queue = SharedURLQueue()  # Cola productor-consumidor vacía
+                    _worker_tasks = []
+                    _worker_counters = {"scraped": 0, "real_changes": 0, "last_checkpoint_real_changes": 0}
+                    _worker_checkpoint_lock = asyncio.Lock()
+                    _worker_webkit_ctx = None
+                    _worker_opera_ctx = None
+                    if self.parallel_enrichment and not self._in_enrichment:
 
-                            async def _early_enrich_worker(worker_page, worker_label: str, use_proxy: bool = True):
-                                nonlocal deactivated_count
-                                while not self._should_stop:
-                                    m_url = await _early_queue.claim()
-                                    if m_url is None:
+                        async def _detail_scrape_worker(worker_page, worker_label: str, use_proxy: bool = True):
+                            nonlocal new_scraped
+                            _w_scraped = 0
+                            while not self._should_stop:
+                                m_url = await _scrape_queue.claim()
+                                if m_url is None:
+                                    break
+                                key = canonical_listing_url(m_url)
+                                if key in self._processed:
+                                    continue
+                                try:
+                                    await self._interruptible_sleep(random.uniform(3, 8))
+                                    if self._should_stop:
+                                        await _scrape_queue.release(m_url)
                                         break
-                                    orig_row = self._all_existing_urls.get(m_url, {})
-                                    if orig_row.get("Anuncio activo") == "No":
-                                        self._enrichment_done_urls.add(m_url)
-                                        continue
-                                    if m_url in self._seen_in_search:
-                                        self.log("INFO", f"[{worker_label}] Skip pre-navegación: Phase 1 ya encontró {m_url} en listado.")
-                                        self._enrichment_done_urls.add(m_url)
-                                        continue
-                                    self.log("INFO", f"[{worker_label}] Early check ({_early_counters['checked']+1}/{_early_queue.total}): {m_url}")
-                                    try:
-                                        await self._interruptible_sleep(random.uniform(5, 10))
-                                        # Re-check after sleep: Phase 1 may have found this URL in a
-                                        # listing page while we were waiting — skip navigation entirely
-                                        if m_url in self._seen_in_search:
-                                            self.log("INFO", f"[{worker_label}] Skip post-sleep: Phase 1 encontró {m_url} mientras esperábamos. Ahorrando navegación.")
-                                            self._enrichment_done_urls.add(m_url)
-                                            _early_counters["checked"] += 1
-                                            continue
-                                        self.log("INFO", f"[{worker_label}] Navegando a: {m_url} (proxy={'sí' if use_proxy else 'no'})")
-                                        await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy, label=worker_label)
-                                        try:
-                                            await worker_page.wait_for_selector("body", timeout=5000)
-                                        except Exception:
-                                            pass
-                                        actual_url = worker_page.url
-                                        if actual_url.rstrip('/') != m_url.rstrip('/'):
-                                            self.log("INFO", f"[{worker_label}] URL final en browser: {actual_url} (redirigido desde {m_url})")
-                                        body_text = await worker_page.evaluate("() => document.body ? document.body.innerText : ''")
-                                        body_lower = body_text.lower()
-
-                                        block_kw = next((kw for kw in ["uso indebido", "bloqueado", "acceso bloqueado", "forbidden"] if kw in body_lower), None)
-                                        if block_kw:
-                                            self.log("WARN", f"[{worker_label}] 🚫 Bloqueo detectado por keyword '{block_kw}' en body. URL en browser: {worker_page.url}. Devolviendo {m_url} a cola y saliendo del worker.")
-                                            await _early_queue.release(m_url)
-                                            break
-
-                                        # Re-check: Phase 1 may have found this URL while we were loading
-                                        if m_url in self._seen_in_search:
-                                            self.log("INFO", f"[{worker_label}] Skip post-carga: Phase 1 encontró {m_url} mientras navegábamos.")
-                                            self._enrichment_done_urls.add(m_url)
-                                            _early_counters["checked"] += 1
-                                            continue
-
-                                        is_gone = any(msg in body_lower for msg in [
-                                            "no encontramos", "anuncio no disponible",
-                                            "ya no está disponible", "ya no está publicado",
-                                            "lo sentimos", "enlace antiguo"
-                                        ])
-                                        was_active = orig_row.get("full_row", {}).get("Anuncio activo", "Sí") == "Sí"
-                                        if is_gone:
-                                            self.log("WARN", f"[{worker_label}] Baja confirmada -> {m_url}")
-                                            row_to_save = orig_row.get("full_row", {}).copy()
-                                            if not row_to_save:
-                                                row_to_save = {"URL": m_url}
-                                            row_to_save["Anuncio activo"] = "No"
-                                            from datetime import datetime
-                                            row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
-                                            row_to_save["Baja anuncio"] = datetime.now().strftime("%d/%m/%Y")
-                                            additions.append(row_to_save)
-                                            self._processed.add(m_url)
-                                            deactivated_count += 1
-                                            _early_counters["real_changes"] += 1  # baja = cambio real
-                                        else:
-                                            self.log("INFO", f"[{worker_label}] Activa (aún no en búsqueda): {m_url}")
-                                            row_to_save = orig_row.get("full_row", {}).copy()
-                                            if not row_to_save:
-                                                row_to_save = {"URL": m_url}
-                                            row_to_save["Anuncio activo"] = "Sí"
-                                            from datetime import datetime
-                                            row_to_save["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
-                                            row_to_save = mark_as_enriched(row_to_save)
-                                            additions.append(row_to_save)
-                                            if not was_active:
-                                                _early_counters["real_changes"] += 1  # reactivación = cambio real
-                                            # Si ya estaba activa: solo confirmación, no cuenta como cambio
-
-                                        self._enrichment_done_urls.add(m_url)
-                                        _early_counters["checked"] += 1
-
-                                        # Checkpoint: solo cuando hay 20 cambios reales (bajas o reactivaciones)
-                                        real_changes_since_last = _early_counters["real_changes"] - _early_counters["last_checkpoint_real_changes"]
-                                        if real_changes_since_last >= self._checkpoint_interval:
-                                            async with _early_checkpoint_lock:
-                                                # Re-verificar bajo el lock por si otro worker ya guardó
-                                                real_changes_since_last = _early_counters["real_changes"] - _early_counters["last_checkpoint_real_changes"]
-                                                if real_changes_since_last >= self._checkpoint_interval:
+                                    self.log("INFO", f"[{worker_label}] Scraping ({_w_scraped+1}): {m_url}")
+                                    row = await self._scrape_property_detail(
+                                        worker_page, m_url, label=worker_label, use_proxy=use_proxy
+                                    )
+                                    if row is not None:
+                                        additions.append(row)
+                                        self.scraped_properties.append(row)
+                                        self._processed.add(key)
+                                        _w_scraped += 1
+                                        new_scraped += 1
+                                        self.log("OK", f"[{worker_label}] Scraped: {key}")
+                                        if self.on_property:
+                                            self.on_property(row)
+                                        # Checkpoint cada N cambios reales
+                                        _worker_counters["real_changes"] += 1
+                                        real_since = _worker_counters["real_changes"] - _worker_counters["last_checkpoint_real_changes"]
+                                        if real_since >= self._checkpoint_interval:
+                                            async with _worker_checkpoint_lock:
+                                                real_since = _worker_counters["real_changes"] - _worker_counters["last_checkpoint_real_changes"]
+                                                if real_since >= self._checkpoint_interval:
                                                     t_cp = time.time()
                                                     await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
-                                                    _early_counters["last_checkpoint_real_changes"] = _early_counters["real_changes"]
+                                                    _worker_counters["last_checkpoint_real_changes"] = _worker_counters["real_changes"]
                                                     self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_cp:.2f}s")
-
-                                    except BlockedException as e:
-                                        self.log("WARN", f"[{worker_label}] 🚫 BlockedException en early worker (URL en browser: {worker_page.url}). Devolviendo {m_url} a cola. Detalle: {e}")
-                                        await _early_queue.release(m_url)
+                                    else:
+                                        # Propiedad dada de baja / no disponible
+                                        self._processed.add(key)
+                                except BlockedException as e:
+                                    self.log("WARN", f"[{worker_label}] 🚫 BlockedException. Devolviendo {m_url} a cola. Detalle: {e}")
+                                    await _scrape_queue.release(m_url)
+                                    break
+                                except BrowserClosedException as e:
+                                    self.log("WARN", f"[{worker_label}] 💀 BrowserClosedException. Devolviendo {m_url} a cola. Detalle: {e}")
+                                    await _scrape_queue.release(m_url)
+                                    break
+                                except StopException:
+                                    self.log("INFO", f"[{worker_label}] Stop solicitado.")
+                                    break
+                                except Exception as e:
+                                    if "CAPTCHA_BLOCK_DETECTED" in str(e):
+                                        self.log("WARN", f"[{worker_label}] CAPTCHA_BLOCK_DETECTED. Devolviendo {m_url} a cola.")
+                                        await _scrape_queue.release(m_url)
                                         break
-                                    except BrowserClosedException as e:
-                                        self.log("WARN", f"[{worker_label}] 💀 BrowserClosedException en early worker. Browser cerrado inesperadamente mientras procesaba {m_url}. Devolviendo URL a cola. Detalle: {e}")
-                                        await _early_queue.release(m_url)
-                                        break
-                                    except StopException:
-                                        self.log("INFO", f"[{worker_label}] Stop en early worker.")
-                                        break
-                                    except Exception as e:
-                                        import traceback
-                                        self.log("WARN", f"[{worker_label}] ⚠️ Error inesperado en early check de {m_url}: {type(e).__name__}: {e}")
-                                        self.log("WARN", f"[{worker_label}] Traceback: {traceback.format_exc(limit=3)}")
-                                        continue
-                                pending_left = _early_queue.pending_count()
-                                self.log("INFO", f"[{worker_label}] Worker early finalizado. Procesadas: {_early_counters['checked']} URLs. Pendientes en cola: {pending_left}.")
+                                    self.log("WARN", f"[{worker_label}] Error scraping {m_url}: {e}")
+                                    self._processed.add(key)
+                                    continue
+                            self.log("INFO", f"[{worker_label}] Worker finalizado. Scrapeadas: {_w_scraped} propiedades.")
 
-                            # Launch WebKit (slot 98) — no proxy (Windows limitation)
-                            try:
-                                # Fix RC-3: UA estándar sin OPR/Edg para evitar HeadlessChrome en payloads
-                                _wk_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
-                                _wk_ua = random.choice(_wk_ua_pool) if _wk_ua_pool else random.choice(USER_AGENTS)
-                                _early_webkit_ctx = await _launch_headless_worker(pw, "webkit", None, 98, user_agent=_wk_ua)
-                                if _early_webkit_ctx:
-                                    # Fix RC-4: stealth injection en early worker (igual que context principal)
-                                    await _early_webkit_ctx.add_init_script(generate_stealth_script())
-                                    _ewp = _early_webkit_ctx.pages[0] if _early_webkit_ctx.pages else await _early_webkit_ctx.new_page()
-                                    _early_tasks.append(asyncio.create_task(_early_enrich_worker(_ewp, "webkit", use_proxy=False)))
-                                    self.log("INFO", "✅ WebKit early worker lanzado (slot 98, sin proxy)")
-                            except Exception as e:
-                                self.log("WARN", f"⚠️ WebKit early worker no pudo lanzar: {e}")
+                        # Launch WebKit (slot 98) — no proxy (Windows limitation)
+                        try:
+                            _wk_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
+                            _wk_ua = random.choice(_wk_ua_pool) if _wk_ua_pool else random.choice(USER_AGENTS)
+                            _worker_webkit_ctx = await _launch_headless_worker(pw, "webkit", None, 98, user_agent=_wk_ua)
+                            if _worker_webkit_ctx:
+                                await _worker_webkit_ctx.add_init_script(generate_stealth_script())
+                                _ewp = _worker_webkit_ctx.pages[0] if _worker_webkit_ctx.pages else await _worker_webkit_ctx.new_page()
+                                _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(_ewp, "webkit", use_proxy=False)))
+                                self.log("INFO", "✅ WebKit scraping worker lanzado (slot 98, sin proxy)")
+                        except Exception as e:
+                            self.log("WARN", f"⚠️ WebKit scraping worker no pudo lanzar: {e}")
 
-                            # Launch Opera/chromium (slot 96) — with proxy
-                            try:
-                                # Fix RC-3: UA con token OPR para Opera worker, sin HeadlessChrome
-                                _opr_ua_pool = [ua for ua in USER_AGENTS if 'OPR' in ua]
-                                _opr_ua = random.choice(_opr_ua_pool) if _opr_ua_pool else random.choice(USER_AGENTS)
-                                _early_opera_ctx = await _launch_headless_worker(pw, "chromium", "opera", 96, proxy=_browser_proxy, user_agent=_opr_ua)
-                                if _early_opera_ctx:
-                                    # Fix RC-4: stealth injection en early worker (igual que context principal)
-                                    await _early_opera_ctx.add_init_script(generate_stealth_script())
-                                    _eop = _early_opera_ctx.pages[0] if _early_opera_ctx.pages else await _early_opera_ctx.new_page()
-                                    _early_tasks.append(asyncio.create_task(_early_enrich_worker(_eop, "opera", use_proxy=True)))
-                                    self.log("INFO", "✅ Opera early worker lanzado (slot 96, con proxy)")
-                                else:
-                                    self.log("INFO", "ℹ️ Opera portable no disponible para early worker.")
-                            except Exception as e:
-                                self.log("WARN", f"⚠️ Opera early worker no pudo lanzar: {e}")
+                        # Launch Opera/chromium (slot 96) — with proxy
+                        try:
+                            _opr_ua_pool = [ua for ua in USER_AGENTS if 'OPR' in ua]
+                            _opr_ua = random.choice(_opr_ua_pool) if _opr_ua_pool else random.choice(USER_AGENTS)
+                            _worker_opera_ctx = await _launch_headless_worker(pw, "chromium", "opera", 96, proxy=_browser_proxy, user_agent=_opr_ua)
+                            if _worker_opera_ctx:
+                                await _worker_opera_ctx.add_init_script(generate_stealth_script())
+                                _eop = _worker_opera_ctx.pages[0] if _worker_opera_ctx.pages else await _worker_opera_ctx.new_page()
+                                _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(_eop, "opera", use_proxy=True)))
+                                self.log("INFO", "✅ Opera scraping worker lanzado (slot 96, con proxy)")
+                            else:
+                                self.log("INFO", "ℹ️ Opera portable no disponible para scraping worker.")
+                        except Exception as e:
+                            self.log("WARN", f"⚠️ Opera scraping worker no pudo lanzar: {e}")
 
                     scraping_finished = False  # Track clean completion
                     # Skip main listing loop if resuming an interrupted enrichment phase
@@ -3535,197 +3606,39 @@ class ScraperController:
                                     self.emit_progress()
                                     continue
                         
-                                # URLs reaching here are NEW - not in _processed (filtered above)
-                                new_scraped += 1
-                        
-                                # Scrape the property
-                                await page.wait_for_timeout(PAGE_WAIT_MS)
-                                try:
-                                    d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
-                                except (IndexError, AttributeError, TypeError, asyncio.TimeoutError) as extraction_err:
-                                    self.log("WARN", f"Extraction failed (possible block/change): {extraction_err}")
-                                    d = {} # Will cause missing_fields to be True, triggering CAPTCHA/Block check
-                                
-                                # Immediate block check
-                                if d.get("isBlocked"):
-                                     self.log("ERR", "🚫 BLOCK detected during extraction. Triggering rotation...")
-                                     mark_current_profile_blocked()
-                                     raise BlockedException("Acceso bloqueado durante extracción")
-                        
-                                row = {"URL": key, **d}
-                                miss = missing_fields(row, is_room_mode=self._is_room_mode)
-                        
-                                # Check if this is a "listing not found" page (not a CAPTCHA)
-                                if miss:
-                                    page_text = await page.evaluate("() => (document.body && document.body.innerText) ? document.body.innerText : ''")
-                                    is_not_found = (
-                                        "no encontramos" in page_text.lower() or
-                                        "anuncio no disponible" in page_text.lower() or
-                                        "este anuncio ya no está disponible" in page_text.lower() or
-                                        "enlace antiguo" in page_text.lower() or
-                                        "anuncio ya no está publicado" in page_text.lower() or
-                                        "lo sentimos" in page_text.lower()
-                                    )
-                            
-                                    if is_not_found:
-                                        # Listing is unavailable - skip without pausing for CAPTCHA
-                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Anuncio no disponible: {key}")
-                                        self._processed.add(key)
-                                        self.current_property_count = property_idx
-                                        self.emit_progress()
-                                        self.emit_progress()
-                                        continue
-                        
-                                # Check for BLOCK (uso indebido) inside loop before CAPTCHA
-                                page_text_lower = page_text.lower() if 'page_text' in locals() else (await page.evaluate("() => document.body ? document.body.innerText : ''")).lower()
-                                if "uso indebido" in page_text_lower or "se ha bloqueado" in page_text_lower or "uso no autorizado" in page_text_lower:
-                                    self.log("ERR", "🚫 Loop detection: 'Uso indebido' detected. Triggering auto-restart...")
-                                    # Mark profile as blocked for cooldown rotation
-                                    mark_profile_blocked(self.browser_engine)
-                                    self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
-                                    raise BlockedException("Acceso bloqueado por uso indebido detected in loop")
-
-                                # If missing fields and not a "not found" page, might be CAPTCHA
-                                if miss:
-                                    try:
-                                        _captcha_type_info = await page.evaluate("""() => {
-                                            if (document.querySelector('iframe[src*="captcha-delivery.com"]')) return 'DataDome';
-                                            if (typeof window.initGeetest !== 'undefined' || document.querySelector('.geetest_holder')) return 'GeeTest';
-                                            if (document.querySelector('.px-captcha-container, .nc-container, .captcha_slider')) return 'slider';
-                                            return 'desconocido';
-                                        }""")
-                                    except Exception:
-                                        _captcha_type_info = 'desconocido'
-                                    self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado en propiedad (tipo: {_captcha_type_info}). Intentando resolución automática...")
-
-                                    if self.on_status:
-                                        self.on_status("captcha")
-
-                                    # 1) Intentar resolución automática con solve_captcha_advanced
-                                    try:
-                                        solved = await asyncio.wait_for(
-                                            solve_captcha_advanced(page, logger=self.log, use_proxy=True),
-                                            timeout=180.0
-                                        )
-                                        if solved:
-                                            self.log("OK", f"({property_idx}/{self.total_properties_expected}) ✅ CAPTCHA resuelto automáticamente en propiedad")
-                                            try:
-                                                d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
-                                                row = {"URL": key, **d}
-                                                miss = missing_fields(row, is_room_mode=self._is_room_mode)
-                                            except Exception as re_ex:
-                                                self.log("WARN", f"Re-extracción tras auto-solve falló: {re_ex}")
-                                    except asyncio.TimeoutError:
-                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solver timeout (180s) en propiedad")
-                                    except BlockedException:
-                                        raise
-                                    except Exception as solve_err:
-                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solver error: {solve_err}")
-
-                                    # 2) Fallback: espera pasiva 30s
-                                    if miss:
-                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solve insuficiente. Esperando 30s por resolución pasiva/manual...")
-                                        for _ in range(3): # 3 * 10s = 30s
-                                            if self._should_stop: break
-                                            await asyncio.sleep(10.0)
-                                            try:
-                                                d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
-                                                if d.get("isBlocked"):
-                                                     self.log("ERR", "🚫 Espera pasiva: página sigue BLOQUEADA (Uso indebido).")
-                                                     mark_current_profile_blocked()
-                                                     raise BlockedException("Acceso bloqueado persistente")
-
-                                                row = {"URL": key, **d}
-                                                if not missing_fields(row, is_room_mode=self._is_room_mode):
-                                                     self.log("OK", "✅ CAPTCHA resuelto durante espera pasiva!")
-                                                     miss = False
-                                                     break
-                                            except BlockedException:
-                                                raise
-                                            except Exception:
-                                                pass
-
-                                    if miss:
-                                        self.log("ERR", "CAPTCHA_BLOCK_DETECTED tras auto-solve + espera pasiva")
-                                        mark_profile_blocked(self.browser_engine)
-                                        self.log("WARN", f"⏳ Profile '{self.browser_engine}' entering {PROFILE_COOLDOWN_MINUTES}-min cooldown.")
-                                        try:
-                                             if len(additions) > self._last_checkpoint_idx and target_file:
-                                                  t_start_save = time.time()
-                                                  await self._save_checkpoint(additions, target_file, existing_df, set())
-                                                  self.log("INFO", f"Saved captcha checkpoint in {time.time() - t_start_save:.2f}s")
-                                        except Exception:
-                                            pass
-                                        raise Exception("CAPTCHA_BLOCK_DETECTED")
-
-                                    # CAPTCHA resuelto - continuar operación normal
-                                    if not miss:
-                                         if self.on_status: self.on_status("running")
-                                
-                                # Add scraping date in dd/mm/yyyy format
-                                from datetime import datetime
-                                row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
-                                
-                                # Merge with existing data if available (Smart Enrichment)
-                                if key in self._all_existing_urls:
-                                    existing_data = self._all_existing_urls[key].get('full_row', {})
-                                    if existing_data:
-                                        # Merge logic: new scraped data (row) takes precedence,
-                                        # preserving existing manual columns not present in scraping result
-                                        merged = {**existing_data, **row}
-                                        row = merged
-
-                                # Marcar siempre como enriquecido tras scrape exitoso
-                                row = mark_as_enriched(row)
-
-                                additions.append(row)
-                                self.scraped_properties.append(row)
+                                # === URL nueva — enviar a la cola para scraping paralelo ===
                                 self.consecutive_skips = 0
-                                self._processed.add(key)
-                                
-                                # Update profile efficacy stats
-                                self._profile_stats[self._active_profile_name] = self._profile_stats.get(self._active_profile_name, 0) + 1
-                        
-                                # Checkpoint: guardar cada N propiedades nuevas/actualizadas reales
-                                self._real_changes_for_checkpoint += 1
-                                if self._real_changes_for_checkpoint >= self._checkpoint_interval:
-                                    self._real_changes_for_checkpoint = 0
-                                    t_start_save = time.time()
-                                    await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
-                                    self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_start_save:.2f}s")
-                        
-                                await self.simulate_reading_time(row.get("Descripción"))
-                                
-                                if self._should_stop:
-                                    break
-
-                                # Extra Stealth: Mouse movement simulation
-                                await self.simulate_mouse_movement(page)
-                                if self._should_stop:
-                                    break
-                        
-                                # Extra Stealth: Increment session counter and check for breaks
-                                if self.mode == "stealth":
-                                    self._session_property_count += 1
-                                    await self.maybe_coffee_break()
-                                    if self._should_stop:
-                                        break
-                                    await self.maybe_session_rest()
-                                    if self._should_stop:
-                                        break
-                        
-                                # Always log successful scrape, even if it's an update
-                                self.log("OK", f"({property_idx}/{self.total_properties_expected}) Scraped: {key}")
-                        
-                                if self.on_property:
-                                    self.on_property(row)
-                        
-                                self.current_property_count = property_idx
-                                self.current_property_count = property_idx
-                                self.emit_progress()
-                                
-                                # Loop heartbeat - kept silent unless debug is needed
-                                # self.log("DEBUG", f"Finished loop for {property_idx}")
+                                if _worker_tasks:
+                                    # Workers activos: delegar scraping de detalle a la cola
+                                    await _scrape_queue.put(href)
+                                    self.log("INFO", f"({property_idx}/{self.total_properties_expected}) → Cola de scraping: {key}")
+                                    self.current_property_count = property_idx
+                                    self.emit_progress()
+                                else:
+                                    # Sin workers: browser visible scrapea directamente
+                                    await self._interruptible_sleep(random.uniform(*card_delay))
+                                    row = await self._scrape_property_detail(page, href)
+                                    if row is not None:
+                                        additions.append(row)
+                                        self.scraped_properties.append(row)
+                                        self._processed.add(key)
+                                        new_scraped += 1
+                                        self._profile_stats[self._active_profile_name] = self._profile_stats.get(self._active_profile_name, 0) + 1
+                                        self._real_changes_for_checkpoint += 1
+                                        if self._real_changes_for_checkpoint >= self._checkpoint_interval:
+                                            self._real_changes_for_checkpoint = 0
+                                            t_start_save = time.time()
+                                            await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
+                                            self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_start_save:.2f}s")
+                                        await self.simulate_reading_time(row.get("Descripción"))
+                                        await self.simulate_mouse_movement(page)
+                                        self.log("OK", f"({property_idx}/{self.total_properties_expected}) Scraped: {key}")
+                                        if self.on_property:
+                                            self.on_property(row)
+                                    else:
+                                        self._processed.add(key)
+                                    self.current_property_count = property_idx
+                                    self.emit_progress()
                         
                             except BrowserClosedException:
                                 # Save state for resume before exiting
@@ -3823,25 +3736,86 @@ class ScraperController:
                         page_num += 1
                         self._pages_scraped += 1
                 
-                    # After phase 1 loop completes successfully
-                    # === TARGETED DEACTIVATION CHECKS (SMART ENRICHMENT) ===
-                    if scraping_finished and not self._should_stop:
-                        # Mark that we are in the enrichment phase so restarts resume here
-                        self._in_enrichment = True
+                    # After phase 1 loop completes
+                    # === Cerrar cola y detener workers si se paró manualmente ===
+                    if self._should_stop and _worker_tasks:
+                        _scrape_queue.close()
+                        self.log("INFO", f"⏹ Stop detectado. Cerrando cola y esperando {len(_worker_tasks)} workers...")
+                        await asyncio.gather(*_worker_tasks, return_exceptions=True)
+                        for _ctx, _name in [(_worker_webkit_ctx, "WebKit"), (_worker_opera_ctx, "Opera")]:
+                            if _ctx:
+                                try:
+                                    await _ctx.close()
+                                except Exception:
+                                    pass
 
-                        # Wait for early headless workers (launched before Phase 1) to finish
-                        if _early_tasks:
-                            self.log("INFO", f"⏳ Esperando que {len(_early_tasks)} workers headless tempranos completen la cola...")
-                            await asyncio.gather(*_early_tasks, return_exceptions=True)
-                            if _early_counters["checked"] > 0:
-                                self.log("OK", f"✅ Workers tempranos verificaron {_early_counters['checked']} URLs del Excel antes de Phase 3.")
-                            for _ctx, _name in [(_early_webkit_ctx, "WebKit early"), (_early_opera_ctx, "Opera early")]:
-                                if _ctx:
-                                    try:
-                                        await _ctx.close()
-                                        self.log("INFO", f"✅ {_name} worker cerrado")
-                                    except Exception as e:
-                                        self.log("WARN", f"Error cerrando {_name} worker: {e}")
+                    # === DRAIN SCRAPING QUEUE + WAIT FOR WORKERS ===
+                    if scraping_finished and not self._should_stop:
+                        # Cerrar la cola: no se añadirán más URLs
+                        _scrape_queue.close()
+
+                        # Browser visible ayuda a drenar URLs pendientes en la cola
+                        _main_drain_count = 0
+                        while not self._should_stop:
+                            _drain_url = await _scrape_queue.claim()
+                            if _drain_url is None:
+                                break
+                            _drain_key = canonical_listing_url(_drain_url)
+                            if _drain_key in self._processed:
+                                continue
+                            try:
+                                _, card_delay, _ = self.get_delays()
+                                await self._interruptible_sleep(random.uniform(*card_delay))
+                                row = await self._scrape_property_detail(page, _drain_url)
+                                if row is not None:
+                                    additions.append(row)
+                                    self.scraped_properties.append(row)
+                                    self._processed.add(_drain_key)
+                                    new_scraped += 1
+                                    _main_drain_count += 1
+                                    self._real_changes_for_checkpoint += 1
+                                    if self._real_changes_for_checkpoint >= self._checkpoint_interval:
+                                        self._real_changes_for_checkpoint = 0
+                                        t_save = time.time()
+                                        await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
+                                        self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_save:.2f}s")
+                                    await self.simulate_reading_time(row.get("Descripción"))
+                                    await self.simulate_mouse_movement(page)
+                                    self.log("OK", f"(drain) Scraped: {_drain_key}")
+                                    if self.on_property:
+                                        self.on_property(row)
+                                else:
+                                    self._processed.add(_drain_key)
+                            except (BlockedException, BrowserClosedException):
+                                await _scrape_queue.release(_drain_url)
+                                break
+                            except StopException:
+                                break
+                            except Exception as e:
+                                if "CAPTCHA_BLOCK_DETECTED" in str(e):
+                                    await _scrape_queue.release(_drain_url)
+                                    break
+                                self.log("ERR", f"Error draining {_drain_url}: {e}")
+                                self._processed.add(_drain_key)
+
+                        # Esperar a que los workers headless terminen
+                        if _worker_tasks:
+                            self.log("INFO", f"⏳ Esperando que {len(_worker_tasks)} workers headless completen sus URLs...")
+                            await asyncio.gather(*_worker_tasks, return_exceptions=True)
+                            if _worker_counters["scraped"] > 0 or _worker_counters["real_changes"] > 0:
+                                self.log("OK", f"✅ Workers scrapearon {_worker_counters['real_changes']} propiedades.")
+                        for _ctx, _name in [(_worker_webkit_ctx, "WebKit"), (_worker_opera_ctx, "Opera")]:
+                            if _ctx:
+                                try:
+                                    await _ctx.close()
+                                    self.log("INFO", f"✅ {_name} worker cerrado")
+                                except Exception as e:
+                                    self.log("WARN", f"Error cerrando {_name} worker: {e}")
+
+                        if _main_drain_count > 0:
+                            self.log("INFO", f"Browser visible scrapeó {_main_drain_count} propiedades adicionales de la cola.")
+
+                        self._in_enrichment = True
 
                         # Compute missing_urls: use saved list if resuming, otherwise compute fresh
                         if self._enrichment_missing_urls:
