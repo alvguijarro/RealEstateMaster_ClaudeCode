@@ -3105,67 +3105,144 @@ class ScraperController:
                     _worker_opera_page = None
                     if self.parallel_enrichment and not self._in_enrichment:
 
-                        async def _detail_scrape_worker(worker_page, worker_label: str, use_proxy: bool = True):
+                        async def _detail_scrape_worker(
+                            initial_page, worker_label: str,
+                            engine: str, channel, profile_slot: int,
+                            proxy=None, use_proxy: bool = True,
+                        ):
                             nonlocal new_scraped
+                            nonlocal _worker_webkit_ctx, _worker_webkit_page
+                            nonlocal _worker_opera_ctx, _worker_opera_page
+
+                            _WORKER_MAX_RECOVERY = 3
+                            _WORKER_RECOVERY_COOLDOWN = 45  # segundos entre intentos de recuperación
+
+                            current_page = initial_page
                             _w_scraped = 0
-                            while not self._should_stop:
-                                m_url = await _scrape_queue.claim()
-                                if m_url is None:
-                                    break
-                                key = canonical_listing_url(m_url)
-                                if key in self._processed:
-                                    continue
+                            _recovery_count = 0
+
+                            while not self._should_stop and _recovery_count <= _WORKER_MAX_RECOVERY:
+                                _blocked_url = None
                                 try:
-                                    await self._interruptible_sleep(random.uniform(3, 8))
-                                    if self._should_stop:
-                                        await _scrape_queue.release(m_url)
-                                        break
-                                    self.log("INFO", f"[{worker_label}] Scraping ({_w_scraped+1}): {m_url}")
-                                    row = await self._scrape_property_detail(
-                                        worker_page, m_url, label=worker_label, use_proxy=use_proxy
-                                    )
-                                    if row is not None:
-                                        additions.append(row)
-                                        self.scraped_properties.append(row)
-                                        self._processed.add(key)
-                                        _w_scraped += 1
-                                        new_scraped += 1
-                                        self.log("OK", f"[{worker_label}] Scraped: {key}")
-                                        if self.on_property:
-                                            self.on_property(row)
-                                        # Checkpoint cada N cambios reales
-                                        _worker_counters["real_changes"] += 1
-                                        real_since = _worker_counters["real_changes"] - _worker_counters["last_checkpoint_real_changes"]
-                                        if real_since >= self._checkpoint_interval:
-                                            async with _worker_checkpoint_lock:
+                                    # ── Bucle interno de consumo de cola ──────────────────
+                                    while not self._should_stop:
+                                        m_url = await _scrape_queue.claim()
+                                        if m_url is None:
+                                            return  # Cola cerrada y vacía — fin normal
+                                        key = canonical_listing_url(m_url)
+                                        if key in self._processed:
+                                            continue
+                                        _blocked_url = m_url  # por si hay excepción antes de completar
+                                        try:
+                                            await self._interruptible_sleep(random.uniform(3, 8))
+                                            if self._should_stop:
+                                                await _scrape_queue.release(m_url)
+                                                return
+                                            self.log("INFO", f"[{worker_label}] Scraping ({_w_scraped+1}): {m_url}")
+                                            row = await self._scrape_property_detail(
+                                                current_page, m_url, label=worker_label, use_proxy=use_proxy
+                                            )
+                                            _blocked_url = None  # completado con éxito
+                                            if row is not None:
+                                                additions.append(row)
+                                                self.scraped_properties.append(row)
+                                                self._processed.add(key)
+                                                _w_scraped += 1
+                                                new_scraped += 1
+                                                self.log("OK", f"[{worker_label}] Scraped: {key}")
+                                                if self.on_property:
+                                                    self.on_property(row)
+                                                _worker_counters["real_changes"] += 1
                                                 real_since = _worker_counters["real_changes"] - _worker_counters["last_checkpoint_real_changes"]
                                                 if real_since >= self._checkpoint_interval:
-                                                    t_cp = time.time()
-                                                    await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
-                                                    _worker_counters["last_checkpoint_real_changes"] = _worker_counters["real_changes"]
-                                                    self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_cp:.2f}s")
-                                    else:
-                                        # Propiedad dada de baja / no disponible
-                                        self._processed.add(key)
-                                except BlockedException as e:
-                                    self.log("WARN", f"[{worker_label}] 🚫 BlockedException. Devolviendo {m_url} a cola. Detalle: {e}")
-                                    await _scrape_queue.release(m_url)
-                                    break
-                                except BrowserClosedException as e:
-                                    self.log("WARN", f"[{worker_label}] 💀 BrowserClosedException. Devolviendo {m_url} a cola. Detalle: {e}")
-                                    await _scrape_queue.release(m_url)
-                                    break
-                                except StopException:
-                                    self.log("INFO", f"[{worker_label}] Stop solicitado.")
-                                    break
-                                except Exception as e:
-                                    if "CAPTCHA_BLOCK_DETECTED" in str(e):
-                                        self.log("WARN", f"[{worker_label}] CAPTCHA_BLOCK_DETECTED. Devolviendo {m_url} a cola.")
-                                        await _scrape_queue.release(m_url)
+                                                    async with _worker_checkpoint_lock:
+                                                        real_since = _worker_counters["real_changes"] - _worker_counters["last_checkpoint_real_changes"]
+                                                        if real_since >= self._checkpoint_interval:
+                                                            t_cp = time.time()
+                                                            await self._save_checkpoint(additions, target_file, existing_df, carry_cols=set())
+                                                            _worker_counters["last_checkpoint_real_changes"] = _worker_counters["real_changes"]
+                                                            self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_cp:.2f}s")
+                                            else:
+                                                self._processed.add(key)
+                                        except (BlockedException, BrowserClosedException):
+                                            raise  # propagar al bucle de recuperación externo
+                                        except StopException:
+                                            return
+                                        except Exception as e:
+                                            if "CAPTCHA_BLOCK_DETECTED" in str(e):
+                                                raise BlockedException(str(e))  # tratar como bloqueo → recuperación
+                                            self.log("WARN", f"[{worker_label}] Error scraping {m_url}: {e}")
+                                            self._processed.add(key)
+                                            _blocked_url = None
+                                            continue
+
+                                    break  # salida normal del bucle externo (cola agotada)
+
+                                except (BlockedException, BrowserClosedException) as block_exc:
+                                    if _blocked_url:
+                                        await _scrape_queue.release(_blocked_url)
+                                        _blocked_url = None
+
+                                    if _recovery_count >= _WORKER_MAX_RECOVERY:
+                                        self.log("WARN", f"[{worker_label}] ⛔ Max recuperaciones ({_WORKER_MAX_RECOVERY}) alcanzadas. Deteniendo worker.")
                                         break
-                                    self.log("WARN", f"[{worker_label}] Error scraping {m_url}: {e}")
-                                    self._processed.add(key)
-                                    continue
+
+                                    _recovery_count += 1
+                                    self.log("WARN", f"[{worker_label}] 🔄 Bloqueo detectado ({block_exc}). "
+                                                     f"Recuperación {_recovery_count}/{_WORKER_MAX_RECOVERY} — "
+                                                     f"cooldown {_WORKER_RECOVERY_COOLDOWN}s...")
+
+                                    # Cerrar contexto bloqueado
+                                    _old_ctx = _worker_webkit_ctx if worker_label == "webkit" else _worker_opera_ctx
+                                    try:
+                                        if _old_ctx:
+                                            await _old_ctx.close()
+                                    except Exception:
+                                        pass
+
+                                    # Esperar cooldown (cancelable si se solicita stop)
+                                    for _ in range(_WORKER_RECOVERY_COOLDOWN):
+                                        if self._should_stop:
+                                            return
+                                        await asyncio.sleep(1)
+
+                                    # Re-lanzar con UA fresco
+                                    if worker_label == "webkit":
+                                        _new_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
+                                    else:
+                                        _new_ua_pool = [ua for ua in USER_AGENTS if 'OPR' in ua]
+                                    _new_ua = random.choice(_new_ua_pool) if _new_ua_pool else random.choice(USER_AGENTS)
+
+                                    try:
+                                        _new_ctx = await _launch_headless_worker(
+                                            pw, engine, channel, profile_slot,
+                                            proxy=proxy, user_agent=_new_ua
+                                        )
+                                    except Exception as launch_err:
+                                        self.log("WARN", f"[{worker_label}] Error re-lanzando worker: {launch_err}. Deteniendo.")
+                                        break
+
+                                    if not _new_ctx:
+                                        self.log("WARN", f"[{worker_label}] No se pudo re-lanzar (ejecutable no disponible). Deteniendo.")
+                                        break
+
+                                    try:
+                                        await _new_ctx.add_init_script(generate_stealth_script())
+                                        current_page = _new_ctx.pages[0] if _new_ctx.pages else await _new_ctx.new_page()
+                                    except Exception as page_err:
+                                        self.log("WARN", f"[{worker_label}] Error creando página tras re-lanzamiento: {page_err}. Deteniendo.")
+                                        break
+
+                                    # Actualizar referencias externas para que Phase 2 use el nuevo contexto
+                                    if worker_label == "webkit":
+                                        _worker_webkit_ctx = _new_ctx
+                                        _worker_webkit_page = current_page
+                                    else:
+                                        _worker_opera_ctx = _new_ctx
+                                        _worker_opera_page = current_page
+
+                                    self.log("OK", f"[{worker_label}] ✅ Worker recuperado con nueva identidad. Continuando scraping...")
+
                             self.log("INFO", f"[{worker_label}] Worker finalizado. Scrapeadas: {_w_scraped} propiedades.")
 
                         # Launch WebKit (slot 98) — no proxy (Windows limitation)
@@ -3176,7 +3253,11 @@ class ScraperController:
                             if _worker_webkit_ctx:
                                 await _worker_webkit_ctx.add_init_script(generate_stealth_script())
                                 _worker_webkit_page = _worker_webkit_ctx.pages[0] if _worker_webkit_ctx.pages else await _worker_webkit_ctx.new_page()
-                                _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(_worker_webkit_page, "webkit", use_proxy=False)))
+                                _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(
+                                    _worker_webkit_page, "webkit",
+                                    engine="webkit", channel=None, profile_slot=98,
+                                    proxy=None, use_proxy=False,
+                                )))
                                 self.log("INFO", "✅ WebKit scraping worker lanzado (slot 98, sin proxy)")
                         except Exception as e:
                             self.log("WARN", f"⚠️ WebKit scraping worker no pudo lanzar: {e}")
@@ -3189,7 +3270,11 @@ class ScraperController:
                             if _worker_opera_ctx:
                                 await _worker_opera_ctx.add_init_script(generate_stealth_script())
                                 _worker_opera_page = _worker_opera_ctx.pages[0] if _worker_opera_ctx.pages else await _worker_opera_ctx.new_page()
-                                _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(_worker_opera_page, "opera", use_proxy=True)))
+                                _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(
+                                    _worker_opera_page, "opera",
+                                    engine="chromium", channel="opera", profile_slot=96,
+                                    proxy=_browser_proxy, use_proxy=True,
+                                )))
                                 self.log("INFO", "✅ Opera scraping worker lanzado (slot 96, con proxy)")
                             else:
                                 self.log("INFO", "ℹ️ Opera portable no disponible para scraping worker.")
