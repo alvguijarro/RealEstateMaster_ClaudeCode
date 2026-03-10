@@ -2960,13 +2960,14 @@ class ScraperController:
                     _early_checkpoint_lock = asyncio.Lock()
                     _early_webkit_ctx = None
                     _early_opera_ctx = None
-                    if (self.parallel_enrichment and self.smart_enrichment
+                    # Early workers deshabilitados: la verificación de URLs del Excel se hace
+                    # en Phase 2 (enrich workers), una vez completado el scraping de todos los
+                    # listados de la URL semilla y todos los órdenes de búsqueda. Lanzarlos antes
+                    # de que Phase 1 termine es redundante: las URLs que aparezcan en Phase 1
+                    # son procesadas por el browser principal, y las que no aparezcan las gestiona
+                    # Phase 2 en el momento correcto, sin desperdiciar navegaciones ni créditos.
+                    if False and (self.parallel_enrichment and self.smart_enrichment
                             and self._all_existing_urls and not self._in_enrichment):
-                        # Los early workers solo deben revisar URLs que NO estén ya enriquecidas.
-                        # Las URLs ya enriquecidas serán: (a) saltadas por SMART SKIP en Phase 1
-                        # si aparecen en resultados, o (b) verificadas por los enrich workers de
-                        # Phase 2 tras completar el scraping de listados. Verificarlas aquí sería
-                        # redundante y desperdiciaría recursos (igual que el SMART SKIP del browser visible).
                         early_urls = [u for u in self._all_existing_urls.keys()
                                       if u not in self._enrichment_done_urls
                                       and u not in self._enriched_urls]
