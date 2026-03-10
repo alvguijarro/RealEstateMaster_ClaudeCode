@@ -1947,28 +1947,6 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
             except Exception:
                 pass
 
-        # Fix RC-2: Intentar slider in-browser para DataDome ANTES de solvers de pago.
-        # La cookie se genera con el fingerprint real del browser → no hay mismatch de UA/IP.
-        # Coste: cero. Si falla, continuar con CapSolver/2Captcha como antes.
-        _captcha_inc("Slider local DataDome|intentos")
-        l("INFO", "🎰 Intentando slider in-browser para DataDome (antes de solvers de pago)...")
-        try:
-            if await solve_slider_captcha(page):
-                await asyncio.sleep(2)
-                _dd_check = await page.evaluate(
-                    "() => !document.querySelector('iframe[src*=\"captcha-delivery.com\"]')"
-                )
-                if _dd_check:
-                    l("OK", "✅ Slider in-browser resolvió DataDome (sin coste).")
-                    _captcha_inc("Slider local DataDome|resueltos")
-                    _reset_tbv_counter()
-                    return True
-                l("INFO", "Slider ejecutado pero DataDome persiste. Pasando a solvers de pago...")
-            else:
-                l("INFO", "Slider in-browser no encontró handle DataDome. Pasando a solvers de pago...")
-        except Exception as _slider_err:
-            l("WARN", f"Error en slider in-browser DataDome: {_slider_err}. Continuando con solvers de pago...")
-
         _last_was_tbv = False
         for attempt, (solver_name, solver_fn) in enumerate(solvers, 1):
             # Fast-fail: si el último intento fue t=bv (IP bloqueada), la misma sesión de proxy
