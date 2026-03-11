@@ -85,7 +85,7 @@ else:
         # ── Bright Data Residential Proxy (residential_proxy1) ──
         'host': 'brd.superproxy.io',
         'port': 33335,
-        'login': 'brd-customer-hl_e2c01f5d-zone-residential_proxy1-country-es',  # -country-es fuerza IPs españolas
+        'login': 'brd-customer-hl_e2c01f5d-zone-residential_proxy1',
         'password': 'utd291dsjrds',
         # ── Sticky session support ──
         'sticky_session_id': _generate_session_id(),
@@ -96,7 +96,7 @@ PROXY_CONFIG_GLOBAL = {
     # Sin -country-es: usa IPs de cualquier país del pool residencial de Bright Data.
     # Útil cuando el pool español está masivamente bloqueado por DataDome para Idealista.
     # Browser y solver 2Captcha usan el mismo proxy (misma IP no española) → sin IP mismatch.
-    'login': PROXY_CONFIG['login'].replace('-country-es', ''),
+    'login': PROXY_CONFIG['login'],
 }
 
 
