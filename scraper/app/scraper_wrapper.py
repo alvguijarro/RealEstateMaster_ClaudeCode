@@ -72,7 +72,7 @@ from idealista_scraper.config import (
     EXTRA_STEALTH_READING_TIME_PER_100_CHARS, USER_AGENTS, VIEWPORT_SIZES,
     BROWSER_ROTATION_POOL, MAX_PROFILE_POOL_SIZE, PROFILE_COOLDOWN_MINUTES
 )
-from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_captcha_advanced, cleanup_stealth_profiles, reset_captcha_stats, get_captcha_stats
+from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_captcha_advanced, cleanup_stealth_profiles, reset_captcha_stats, get_captcha_stats, get_tbv_count, reset_tbv_counter
 
 try:
     from app.shared_url_queue import SharedURLQueue
@@ -2965,25 +2965,44 @@ class ScraperController:
                             
                             # This function handles sequential overflow
                             next_config, wait_time = rotate_identity()
-                            
+
+                            # Circuit breaker: si hay muchos t=bv acumulados, pausar AQUÍ donde
+                            # _interruptible_sleep no está limitado por el wait_for(timeout=180s)
+                            try:
+                                from idealista_scraper.config import TBV_CIRCUIT_BREAKER_THRESHOLD, TBV_CIRCUIT_BREAKER_PAUSE_MIN
+                            except ImportError:
+                                TBV_CIRCUIT_BREAKER_THRESHOLD, TBV_CIRCUIT_BREAKER_PAUSE_MIN = 8, 30
+                            _cb_count = get_tbv_count()
+                            if _cb_count >= TBV_CIRCUIT_BREAKER_THRESHOLD:
+                                reset_tbv_counter()
+                                self.log("WARN", f"🚨 CIRCUIT BREAKER [{_cb_count} t=bv]: pausa de {TBV_CIRCUIT_BREAKER_PAUSE_MIN} min para enfriar IPs...")
+                                if self.on_status:
+                                    self.on_status("blocked", message=f"Circuit breaker: pausa {TBV_CIRCUIT_BREAKER_PAUSE_MIN} min...")
+                                try:
+                                    await self._interruptible_sleep(TBV_CIRCUIT_BREAKER_PAUSE_MIN * 60)
+                                except StopException:
+                                    break
+                                self.log("INFO", "Circuit breaker expirado. Reanudando con nueva identidad...")
+                                wait_time = 0  # ya esperamos suficiente, no añadir cooldown adicional
+
                             self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
                             if wait_time > 0:
                                 self.log("INFO", f"⏳ Profile is in cooldown ({int(wait_time)}s). Waiting...")
                             self.log("INFO", f"Restarting in {int(wait_time) + 5} seconds with fresh identity...")
-                            
+
                             if self.on_status:
                                 self.on_status("blocked", message=f"Rotando a Perfil {next_config['index']}...")
-                            
+
                             # Wait cooldown
                             try:
                                 await self._interruptible_sleep(wait_time + 5.0)
                             except StopException:
                                 self.log("INFO", "Rollover wait cancelled by stop event.")
                                 break
-                            
+
                             if self._should_stop:
                                 break
-                                
+
                             continue  # Loop back to restart with new browser identity
 
             
@@ -3008,7 +3027,9 @@ class ScraperController:
                     # Set totals and emit progress
                     self.total_properties_expected = total_count
                     self.total_pages_expected = (total_count + 29) // 30 if total_count > 0 else 0
-            
+                    if total_count > 0:
+                        reset_tbv_counter()  # scrape exitoso: limpiar contador t=bv para evitar falsos positivos del circuit breaker
+
                     self.log("INFO", f"Total: {self.total_properties_expected} properties, {self.total_pages_expected} pages")
                     self.emit_progress()  # Send to UI immediately
             
@@ -3209,8 +3230,8 @@ class ScraperController:
                                     # Re-lanzar con UA fresco
                                     if worker_label == "webkit":
                                         _new_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
-                                    else:
-                                        _new_ua_pool = [ua for ua in USER_AGENTS if 'OPR' in ua]
+                                    else:  # opera — Chrome UA para compatibilidad con CapSolver (OPR excluido)
+                                        _new_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
                                     _new_ua = random.choice(_new_ua_pool) if _new_ua_pool else random.choice(USER_AGENTS)
 
                                     try:
@@ -3264,7 +3285,7 @@ class ScraperController:
 
                         # Launch Opera/chromium (slot 96) — with proxy
                         try:
-                            _opr_ua_pool = [ua for ua in USER_AGENTS if 'OPR' in ua]
+                            _opr_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
                             _opr_ua = random.choice(_opr_ua_pool) if _opr_ua_pool else random.choice(USER_AGENTS)
                             _worker_opera_ctx = await _launch_headless_worker(pw, "chromium", "opera", 96, proxy=_browser_proxy, user_agent=_opr_ua)
                             if _worker_opera_ctx:
@@ -4366,19 +4387,37 @@ class ScraperController:
                 
                 # ROTATION LOGIC (2026): Strict Sequential with Cooldown
                 mark_current_profile_blocked()
-                
+
                 # This function calculates next profile
                 next_config, wait_time = rotate_identity()
-                
+
+                # Circuit breaker: si hay muchos t=bv acumulados, pausar aquí
+                try:
+                    from idealista_scraper.config import TBV_CIRCUIT_BREAKER_THRESHOLD, TBV_CIRCUIT_BREAKER_PAUSE_MIN
+                except ImportError:
+                    TBV_CIRCUIT_BREAKER_THRESHOLD, TBV_CIRCUIT_BREAKER_PAUSE_MIN = 8, 30
+                _cb_count = get_tbv_count()
+                if _cb_count >= TBV_CIRCUIT_BREAKER_THRESHOLD:
+                    reset_tbv_counter()
+                    self.log("WARN", f"🚨 CIRCUIT BREAKER [{_cb_count} t=bv]: pausa de {TBV_CIRCUIT_BREAKER_PAUSE_MIN} min para enfriar IPs...")
+                    if self.on_status:
+                        self.on_status("blocked", error=f"Circuit breaker: pausa {TBV_CIRCUIT_BREAKER_PAUSE_MIN} min...")
+                    try:
+                        await self._interruptible_sleep(TBV_CIRCUIT_BREAKER_PAUSE_MIN * 60)
+                    except StopException:
+                        break
+                    self.log("INFO", "Circuit breaker expirado. Reanudando con nueva identidad...")
+                    wait_time = 0
+
                 self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
                 if wait_time > 0:
                     self.log("INFO", f"⏳ Profile is in cooldown ({int(wait_time)}s). Waiting...")
                 self.log("INFO", f"Restarting in {int(wait_time) + 5} seconds with fresh identity...")
                 wait_time += 5.0
-                
+
                 if self.on_status:
                     self.on_status("blocked", error=f"Bloqueado. Rotando a Perfil {next_config['index']}...")
-                
+
                 # Close browser and delete profile dir immediately
                 try:
                     if 'mouse_jitter_task' in dir() and mouse_jitter_task:
@@ -4429,6 +4468,24 @@ class ScraperController:
                     current_profile_idx = profile_index
                     mark_current_profile_blocked()
                     next_config, wait_time = rotate_identity()
+
+                    # Circuit breaker: si hay muchos t=bv acumulados, pausar aquí
+                    try:
+                        from idealista_scraper.config import TBV_CIRCUIT_BREAKER_THRESHOLD, TBV_CIRCUIT_BREAKER_PAUSE_MIN
+                    except ImportError:
+                        TBV_CIRCUIT_BREAKER_THRESHOLD, TBV_CIRCUIT_BREAKER_PAUSE_MIN = 8, 30
+                    _cb_count = get_tbv_count()
+                    if _cb_count >= TBV_CIRCUIT_BREAKER_THRESHOLD:
+                        reset_tbv_counter()
+                        self.log("WARN", f"🚨 CIRCUIT BREAKER [{_cb_count} t=bv]: pausa de {TBV_CIRCUIT_BREAKER_PAUSE_MIN} min para enfriar IPs...")
+                        if self.on_status:
+                            self.on_status("blocked", error=f"Circuit breaker: pausa {TBV_CIRCUIT_BREAKER_PAUSE_MIN} min...")
+                        try:
+                            await self._interruptible_sleep(TBV_CIRCUIT_BREAKER_PAUSE_MIN * 60)
+                        except StopException:
+                            break
+                        self.log("INFO", "Circuit breaker expirado. Reanudando con nueva identidad...")
+                        wait_time = 0
 
                     self.log("WARN", f"🔄 ROLLING OVER to Profile {next_config['index']} ({next_config['name']})...")
                     if wait_time > 0:

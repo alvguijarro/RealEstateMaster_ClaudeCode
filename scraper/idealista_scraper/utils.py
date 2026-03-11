@@ -168,6 +168,18 @@ def _reset_tbv_counter() -> None:
         except Exception:
             pass
 
+
+# Wrappers públicos para uso externo (scraper_wrapper.py no puede acceder a privadas con _)
+def get_tbv_count() -> int:
+    """Wrapper público de _get_tbv_count(). Retorna el contador de t=bv consecutivos."""
+    return _get_tbv_count()
+
+
+def reset_tbv_counter() -> None:
+    """Wrapper público de _reset_tbv_counter(). Resetea el contador de t=bv."""
+    _reset_tbv_counter()
+
+
 # =============================================================================
 # Canonical captcha/block detection — single source of truth para todos los módulos
 # =============================================================================
@@ -1796,18 +1808,12 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
                 TBV_CIRCUIT_BREAKER_PAUSE_MIN = 30
         _tbv_now = _get_tbv_count()
         if _tbv_now >= TBV_CIRCUIT_BREAKER_THRESHOLD:
-            l("WARN", f"🚨 CIRCUIT BREAKER: {_tbv_now} t=bv consecutivos. Pausa de {TBV_CIRCUIT_BREAKER_PAUSE_MIN} min para enfriar IPs del pool español...")
-            _cb_total_s = TBV_CIRCUIT_BREAKER_PAUSE_MIN * 60
-            _cb_step_s = 60  # intervalos cortos para que la tarea sea cancelable (Ctrl+Stop)
-            _cb_elapsed = 0
-            while _cb_elapsed < _cb_total_s:
-                await asyncio.sleep(min(_cb_step_s, _cb_total_s - _cb_elapsed))
-                _cb_elapsed += _cb_step_s
-                _cb_remaining = max(0, (_cb_total_s - _cb_elapsed) // 60)
-                if _cb_elapsed % 300 == 0 and _cb_remaining > 0:
-                    l("INFO", f"⏳ Circuit breaker activo: {_cb_remaining} min restantes para reanudar...")
-            _reset_tbv_counter()
-            l("INFO", "Circuit breaker expirado. Reanudando...")
+            # NOTA: No dormir aquí — este código corre dentro de asyncio.wait_for(..., timeout=180s)
+            # en scraper_wrapper.py, por lo que cualquier sleep > 3 min es cancelado por TimeoutError
+            # antes de que el circuit breaker pueda tener efecto. La pausa larga se gestiona en
+            # scraper_wrapper.py directamente, donde _interruptible_sleep no tiene esa limitación.
+            l("WARN", f"🚨 CIRCUIT BREAKER [{_tbv_now} t=bv]: el wrapper aplicará la pausa de {TBV_CIRCUIT_BREAKER_PAUSE_MIN} min al rotar identidad.")
+            return False
 
         # Sin proxy: los solvers de pago producirían IP mismatch (cookie vinculada a IP de BrightData,
         # pero el browser navega con IP directa). Solo intentar recarga rápida, sin coste.
@@ -1922,6 +1928,7 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
                 return True
             if '/interstitial/' in quick_check:
                 l("WARN", "⛔ URL /interstitial/ detectada tras recarga (IP bloqueada). Abortando.")
+                _increment_tbv_counter()  # contar bloqueo permanente para circuit breaker
                 return False
             # DataDome persists — update captcha_url for solver loop
             l("INFO", "DataDome persiste tras recarga rápida. Continuando con solvers de pago...")
@@ -1992,6 +1999,7 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
                     return True
                 if '/interstitial/' in fresh_data:
                     l("WARN", f"Intento {attempt}/{total}: URL /interstitial/ detectada (IP bloqueada). Abortando reintentos...")
+                    _increment_tbv_counter()  # contar bloqueo permanente para circuit breaker
                     break
                 captcha_url = fresh_data
             else:
