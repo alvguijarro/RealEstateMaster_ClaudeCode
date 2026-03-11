@@ -40,7 +40,7 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
 
-from shared.proxy_config import PROXY_CONFIG
+from shared.proxy_config import PROXY_CONFIG, PROXY_LABEL
 from idealista_scraper.scraper import _goto_with_retry
 from idealista_scraper.extractors import extract_detail_fields, missing_fields
 from idealista_scraper.utils import log, play_captcha_alert, simulate_human_interaction, solve_captcha_advanced, detect_captcha_or_block
@@ -615,7 +615,7 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
             os.makedirs(profile_dir, exist_ok=True)
             
             async with async_playwright() as pw:
-                emit_to_ui('INFO', f'Launching persistent browser with profile: {profile_config["name"]}...')
+                emit_to_ui('INFO', f'{PROXY_LABEL} Launching persistent browser with profile: {profile_config["name"]}...')
                 
                 browser_args = [
                     "--start-maximized",
@@ -979,14 +979,14 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
                             baja_date = parse_relative_date(baja_raw)
                             
                             if is_inactive:
-                                emit_to_ui('WARN', f'({i}/{len(urls)}) [baja] {url}')
+                                emit_to_ui('WARN', f'{PROXY_LABEL} ({i}/{len(urls)}) [baja] {url}')
                                 inactive_count += 1
                                 # Inactive: Preserve original data, update status only
                                 final_row['Anuncio activo'] = 'No'
                                 if baja_date:
                                     final_row['Baja anuncio'] = baja_date
                             else:
-                                emit_to_ui('OK', f'({i}/{len(urls)}) [activo] {url}')
+                                emit_to_ui('OK', f'{PROXY_LABEL} ({i}/{len(urls)}) [activo] {url}')
                                 active_count += 1
                                 
                                 # Active: OVERWRITE MODE (Prioritize fresh data)

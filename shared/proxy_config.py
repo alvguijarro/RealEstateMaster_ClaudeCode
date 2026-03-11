@@ -76,6 +76,10 @@ if _PROXY_POOL:
 
 
 # ── PROXY_CONFIG: proxy activo para este proceso ──────────────────────────────
+# Etiqueta legible para logs: [Proxy #1], [Proxy #2], etc.
+_worker_id_str = os.environ.get('SCRAPER_WORKER_ID', '1')
+PROXY_LABEL = f"[Proxy #{_worker_id_str}]"
+
 if _selected_proxy:
     PROXY_CONFIG = _selected_proxy
 else:

@@ -43,7 +43,7 @@ from browser_utils import get_browser_executable_path, generate_stealth_script
 from idealista_scraper.config import VIEWPORT_SIZES, USER_AGENTS, BROWSER_ROTATION_POOL
 from idealista_scraper.utils import solve_captcha_advanced, simulate_human_interaction, detect_captcha_or_block
 from identity_manager import rotate_identity, mark_current_profile_blocked, get_profile_dir
-from shared.proxy_config import PROXY_CONFIG
+from shared.proxy_config import PROXY_CONFIG, PROXY_LABEL
 
 def init_db():
     """Inicializa/migra la base de datos SQLite añadiendo la columna subzone si no existe."""
@@ -640,7 +640,7 @@ async def run_tracker(resume=False, headless=False, force_date=None):
 
                     province, zone, url, operation, level = urls_data[scan_idx]
                     level_label = "🏙️ Provincia" if level == 'province' else "🗺️ Zona"
-                    print(f"[{scan_idx+1}/{urls_len}] {level_label} {province} ({zone}) - {operation.upper()}...")
+                    print(f"{PROXY_LABEL} [{scan_idx+1}/{urls_len}] {level_label} {province} ({zone}) - {operation.upper()}...")
 
                     # Deduplication Check (daily) — solo para el registro principal (subzone='')
                     if await record_exists_for_day(date_formatted, province, zone, operation, subzone=''):

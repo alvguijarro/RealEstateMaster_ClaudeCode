@@ -24,6 +24,7 @@ PAUSE_FLAG = SCRIPT_DIR / "BATCH_PAUSE.flag"
 
 # Import profile management from scraper
 sys.path.insert(0, str(SCRIPT_DIR / "app"))
+sys.path.insert(0, str(SCRIPT_DIR.parent))
 try:
     from scraper_wrapper import (
         get_current_profile_config, BROWSER_ENGINES, PROFILE_COOLDOWN_MINUTES
@@ -32,6 +33,11 @@ try:
 except ImportError:
     HAS_PROFILE_MGMT = False
     print("[WARN] Could not import profile management. Multi-browser rotation will be handled by the server.")
+
+try:
+    from shared.proxy_config import PROXY_LABEL
+except ImportError:
+    PROXY_LABEL = "[Proxy #?]"
 
 # Config
 DELAY_BETWEEN = (15, 35)  # seconds between successful provinces
@@ -82,7 +88,7 @@ def extract_province_name(url: str) -> str:
         pass
     return "Unknown"
 
-def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_enrichment: bool = False, target_file: str = None) -> bool:
+def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_enrichment: bool = False, parallel_enrichment: bool = False, target_file: str = None) -> bool:
     target_prov = extract_province_name(url)
 
     check_signals()
@@ -108,8 +114,9 @@ def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_
         "seed_url": url,
         "mode": mode,
         "max_pages": 4000, # High limit for batch
-        "browser_engine": browser_engine, 
+        "browser_engine": browser_engine,
         "smart_enrichment": smart_enrichment,
+        "parallel_enrichment": parallel_enrichment,
         "target_file": target_file
     }
     
@@ -169,6 +176,7 @@ def main():
             urls = data.get('urls', [])
             mode = data.get('mode', 'fast')
             smart_enrichment = data.get('smart_enrichment', False)
+            parallel_enrichment = data.get('parallel_enrichment', False)
             target_file = data.get('target_file')
     except Exception as e:
         log(f"[ERR] Failed to read queue: {e}")
@@ -187,7 +195,7 @@ def main():
             
         target_prov = extract_province_name(url)
         
-        log(f"🚀 [{i}/{len(urls)}] Processing: {target_prov} ({url})")
+        log(f"{PROXY_LABEL} 🚀 [{i}/{len(urls)}] Processing: {target_prov} ({url})")
         
         success = False
         retries = 0
@@ -196,7 +204,7 @@ def main():
             if retries > 0:
                 log(f"🔄 Retry {retries}/{RETRY_LIMIT_PER_URL} for {target_prov}...", "INFO")
                 
-            success = run_single_url(url, mode, "auto", smart_enrichment, target_file)
+            success = run_single_url(url, mode, "auto", smart_enrichment, parallel_enrichment, target_file)
             
             if not success:
                 retries += 1

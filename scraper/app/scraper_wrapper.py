@@ -61,6 +61,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Silence Mozilla Remote Settings DevTools warnings during automation
 os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
 
+from shared.proxy_config import PROXY_LABEL
+
 from idealista_scraper.config import (
     HARVEST_DEBOUNCE_SECONDS, PAGE_WAIT_MS, RETRY_MAX_ATTEMPTS, RETRY_BASE_DELAY,
     GOTO_WAIT_UNTIL, SCROLL_STEPS, LISTING_LINKS_PER_PAGE_MAX,
@@ -1968,7 +1970,7 @@ class ScraperController:
                 raise StopException("Navegación interrumpida por el usuario")
             try:
                 t_nav_start = time.time()
-                self.log("INFO", f"{_pfx}Navigating to {url} (Attempt {attempt})...")
+                self.log("INFO", f"{PROXY_LABEL} {_pfx}Navigating to {url} (Attempt {attempt})...")
                 
                 # Global guard to prevent silent hangs (120s max for any navigation)
                 try:
@@ -2738,7 +2740,7 @@ class ScraperController:
                             target_url = build_paginated_url(self.seed_url, self.current_page)
                             self.log("INFO", f"⏭️ Resuming directly from Page {self.current_page}...")
 
-                        self.log("INFO", f"Navigating to: {target_url}")
+                        self.log("INFO", f"{PROXY_LABEL} Navigating to: {target_url}")
                         await page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
                         await asyncio.sleep(3.0)
                         self.log("OK", "Page opened successfully")
@@ -3332,7 +3334,7 @@ class ScraperController:
                             if is_already_on_target and page_num == self.current_page:
                                 self.log("INFO", f"Already on Page {page_num} listing. Skipping redundant navigation.")
                             else:
-                                self.log("INFO", f"Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
+                                self.log("INFO", f"{PROXY_LABEL} Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
                                 await self._goto_with_retry(page, list_url)
                                 self._force_navigate = False  # Clear flag after successful navigation
 
@@ -4251,7 +4253,7 @@ class ScraperController:
                                 break
                         
                             list_url = build_paginated_url(self.seed_url, page_num)
-                            self.log("INFO", f"Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
+                            self.log("INFO", f"{PROXY_LABEL} Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
                         
                             try:
                                 await self._goto_with_retry(page, list_url)
