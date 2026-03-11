@@ -2027,8 +2027,12 @@ class ScraperController:
 
                         # Automatic/Manual solver logic...
                         self.log("INFO", f"{_pfx}Attempting automatic captcha solver...")
+                        # Wrap logger to prepend worker label so messages route to correct UI panel
+                        _solver_logger = self.log
+                        if label:
+                            _solver_logger = lambda lvl, msg, _l=label, _orig=self.log: _orig(lvl, f"[{_l}] {msg}")
                         try:
-                            solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=self.log, use_proxy=use_proxy), timeout=180.0)
+                            solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=_solver_logger, use_proxy=use_proxy), timeout=180.0)
                             if solved:
                                 self.log("OK", f"{_pfx}CAPTCHA solved automatically!")
                                 return
@@ -2036,6 +2040,12 @@ class ScraperController:
                             self.log("WARN", f"{_pfx}Automatic solver timed out (180s).")
                         except Exception as e:
                             self.log("WARN", f"{_pfx}Automatic solver error: {e}")
+
+                        # Workers headless no pueden resolver captchas manualmente → error inmediato
+                        if label:
+                            self.log("ERR", f"{_pfx}CAPTCHA no resuelto automáticamente en worker headless. Triggering auto-restart.")
+                            mark_current_profile_blocked()
+                            raise Exception("CAPTCHA_TIMEOUT")
 
                         self.log("WARN", f"{_pfx}>>> PLEASE SOLVE THE CAPTCHA MANUALLY IN THE BROWSER <<<")
                         if self.on_status: self.on_status("captcha")

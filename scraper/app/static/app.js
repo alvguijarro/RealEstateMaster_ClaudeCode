@@ -807,7 +807,8 @@ function initializeSocket() {
         // Dynamic Province Name Detection
         // Match Pattern: 🚀 [1/52] Madrid (0-EU-ES-28) ...
         // Match Pattern: 🚀 [1/52] Processing: Madrid (sale/rent) ...
-        const provinceMatch = data.message.match(/🚀\s\[\d+\/\d+\]\s(?:Processing:\s)?(.*?)(?:\s\(.*\)|$)/);
+        const provinceMatch = data.message.match(/🚀\s\[\d+\/\d+\]\s(?:Processing:\s)?(.*?)(?:\s\(.*\)|$)/) ||
+            data.message.match(/\[Proxy #\d+\]\s*🚀\s\[\d+\/\d+\]\s(?:Processing:\s)?(.*?)(?:\s\(.*\)|$)/);
         if (provinceMatch && provinceMatch[1]) {
             const provinceBadge = document.getElementById('currentProvince');
             if (provinceBadge) {
@@ -1037,7 +1038,7 @@ function buildTableHeader() {
 }
 
 function addLog(level, message) {
-    const isHeadless = /^\s*\[(webkit|opera)\]/i.test(message);
+    const isHeadless = /^\s*\[(webkit|opera|chromium-w\d+)\]/i.test(message);
     const container = isHeadless ? headlessLogsContainer : logsContainer;
     if (!container) return;
 
