@@ -16,11 +16,16 @@ import random
 import json
 from pathlib import Path
 
+# Worker ID para ejecución paralela (cada worker usa un proxy distinto)
+_worker_id   = int(os.environ.get('SCRAPER_WORKER_ID',   '1'))
+_num_workers = int(os.environ.get('SCRAPER_NUM_WORKERS', '1'))
+
 # Pause flag file
 PAUSE_FLAG_FILE = "update_paused.flag"
 STOP_FLAG_FILE = "update_stop.flag"
 STEALTH_FLAG_FILE = "update_stealth.flag"
-JOURNAL_FILE = "update_progress.jsonl"
+_sfx = f"_w{_worker_id}" if _num_workers > 1 else ""
+JOURNAL_FILE = f"update_progress{_sfx}.jsonl"
 ENRICHED_HISTORY_FILE = "enriched_history.json" # Local cache of enriched data
 STEALTH_PROFILE_DIR = str(Path(__file__).parent.parent / "stealth_profile")
 
@@ -468,7 +473,8 @@ async def save_checkpoint(excel_file, updated_rows, url_to_sheet, dfs):
     """Save the current progress to the Excel file (always as _partial)."""
     # Normalize base filename (strip any existing _updated or _updated_partial suffix)
     base = excel_file.replace('_updated_partial.xlsx', '.xlsx').replace('_updated.xlsx', '.xlsx')
-    output_xlsx = base.replace('.xlsx', '_updated_partial.xlsx')
+    _w_sfx = f"_w{_worker_id}" if _num_workers > 1 else ""
+    output_xlsx = base.replace('.xlsx', f'_updated_partial{_w_sfx}.xlsx')
     
     emit_to_ui('INFO', f'Creating checkpoint: {os.path.basename(output_xlsx)} ...')
     
@@ -553,6 +559,9 @@ async def update_urls(excel_file: str, selected_sheets: list = None, resume: boo
     
     # Use the keys from our map as the master list
     urls = list(url_to_row.keys())
+    if _num_workers > 1:
+        urls = [u for i, u in enumerate(urls) if i % _num_workers == _worker_id - 1]
+        emit_to_ui('INFO', f'🔀 Worker {_worker_id}/{_num_workers}: {len(urls)} URLs asignadas')
     emit_to_ui('INFO', f'Found {len(urls)} URLs to check in selected sheets')
     
     # Check resume state

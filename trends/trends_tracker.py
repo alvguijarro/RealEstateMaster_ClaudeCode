@@ -10,15 +10,20 @@ import argparse
 import csv
 from pathlib import Path
 
+# Worker ID para ejecución paralela (cada worker usa un proxy distinto)
+_worker_id   = int(os.environ.get('SCRAPER_WORKER_ID',   '1'))
+_num_workers = int(os.environ.get('SCRAPER_NUM_WORKERS', '1'))
+
 # Setup paths
 BASE_DIR = Path(__file__).parent
 PROJECT_ROOT = BASE_DIR.parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "market_trends.db"
-CHECKPOINT_FILE = DATA_DIR / "checkpoint.json"
+_sfx = f"_w{_worker_id}" if _num_workers > 1 else ""
+CHECKPOINT_FILE = DATA_DIR / f"checkpoint{_sfx}.json"
 STOP_FLAG_FILE = DATA_DIR / "TRACKER_STOP.flag"
 LOG_FILE = DATA_DIR / "execution_log.jsonl"
-RESUME_POINT_FILE = DATA_DIR / "resume_point.json"
+RESUME_POINT_FILE = DATA_DIR / f"resume_point{_sfx}.json"
 DEBUG_DIR = DATA_DIR / "debug"
 MAPPING_FILE = PROJECT_ROOT / "scraper" / "documentation" / "province_urls_mapping.md"
 SUBZONES_FILE = PROJECT_ROOT / "scraper" / "documentation" / "subzones_complete.json"
@@ -42,7 +47,8 @@ from shared.proxy_config import PROXY_CONFIG
 
 def init_db():
     """Inicializa/migra la base de datos SQLite añadiendo la columna subzone si no existe."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
 
     # Crear tabla si no existe (instalaciones nuevas)
@@ -284,7 +290,7 @@ async def wait_for_verification(page, max_attempts=3):
     
 async def save_to_db(date_record, iso_year, iso_week, province, zone, operation, total, subzone=''):
     """Saves the extracted total to the SQLite database."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     cursor = conn.cursor()
     try:
         cursor.execute('''
@@ -300,7 +306,7 @@ async def save_to_db(date_record, iso_year, iso_week, province, zone, operation,
 
 async def record_exists_for_day(date_record, province, zone, operation, subzone=''):
     """Checks if a record already exists for today to avoid double scraping."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     cursor = conn.cursor()
     try:
         cursor.execute('''
@@ -481,6 +487,10 @@ async def run_tracker(resume=False, headless=False, force_date=None):
     if not urls_data:
         print("Warning: No URLs found in mapping file.")
         return
+
+    if _num_workers > 1:
+        urls_data = [u for i, u in enumerate(urls_data) if i % _num_workers == _worker_id - 1]
+        print(f"🔀 Worker {_worker_id}/{_num_workers}: {len(urls_data)} URLs asignadas")
 
     leaf_zones_count = sum(1 for _, _, _, _, lvl in urls_data if lvl == 'province')
     zone_visits_count = sum(1 for _, _, _, _, lvl in urls_data if lvl == 'zone')
