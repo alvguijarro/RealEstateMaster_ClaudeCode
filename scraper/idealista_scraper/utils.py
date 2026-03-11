@@ -1002,7 +1002,7 @@ async def solve_geetest_2captcha(page, logger=None):
 
     return False
 
-async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None):
+async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None, proxy_config=None):
     """Solve DataDome CAPTCHA using 2Captcha DataDomeSliderTask."""
     l = logger or log
     if not TWOCAPTCHA_API_KEY:
@@ -1043,20 +1043,23 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None
             _captcha_inc("DataDome 2Captcha|interstitial")
             return False
 
-        # 2. Prepare proxy config
-        try:
-            from shared.proxy_config import PROXY_CONFIG
-        except ImportError:
-            PROXY_CONFIG = None
+        # 2. Prepare proxy config — usar proxy_config explícito si se proporcionó (workers headless)
+        _PC = proxy_config
+        if not _PC:
+            try:
+                from shared.proxy_config import PROXY_CONFIG
+                _PC = PROXY_CONFIG
+            except ImportError:
+                _PC = None
 
-        if not PROXY_CONFIG:
+        if not _PC:
             l("ERR", "No se ha encontrado PROXY_CONFIG. DataDomeSliderTask exige proxy residencial.")
             return False
 
         import httpx
         # Build proxy login with sticky session ID so 2Captcha uses the same IP as the browser
-        proxy_login = PROXY_CONFIG.get('login', '')
-        sticky_sid = PROXY_CONFIG.get('sticky_session_id')
+        proxy_login = _PC.get('login', '')
+        sticky_sid = _PC.get('sticky_session_id')
         if sticky_sid:
             proxy_login = f"{proxy_login}-session-{sticky_sid}"
             l("INFO", f"Proxy session ID: {sticky_sid}")
@@ -1065,7 +1068,7 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None
         # (sin flag one-shot: así detectamos si las sesiones realmente rotan IPs distintas)
         proxy_exit_ip = "unknown"
         try:
-            proxy_url_check = f"http://{proxy_login}:{PROXY_CONFIG.get('password', '')}@{PROXY_CONFIG.get('host')}:{PROXY_CONFIG.get('port')}"
+            proxy_url_check = f"http://{proxy_login}:{_PC.get('password', '')}@{_PC.get('host')}:{_PC.get('port')}"
             async with httpx.AsyncClient(proxy=proxy_url_check, timeout=10, verify=False) as _ipc:
                 _ip_resp = await _ipc.get("https://api.ipify.org?format=json")
                 proxy_exit_ip = _ip_resp.json().get("ip", "unknown")
@@ -1090,11 +1093,11 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None
                 "websiteURL": page_url,
                 "captchaUrl": captcha_url,
                 "userAgent": user_agent,
-                "proxyType": PROXY_CONFIG.get('type', 'http').lower(),
-                "proxyAddress": PROXY_CONFIG.get('host'),
-                "proxyPort": PROXY_CONFIG.get('port'),
+                "proxyType": _PC.get('type', 'http').lower(),
+                "proxyAddress": _PC.get('host'),
+                "proxyPort": _PC.get('port'),
                 "proxyLogin": proxy_login,
-                "proxyPassword": PROXY_CONFIG.get('password')
+                "proxyPassword": _PC.get('password')
             }
         }
 
@@ -1287,7 +1290,7 @@ def _sanitize_ua_for_capsolver(ua: str, logger=None) -> str:
     return ua
 
 
-async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=None):
+async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=None, proxy_config=None):
     """Fallback DataDome solver using CapSolver's DatadomeSliderTask API."""
     l = logger or log
     if not CAPSOLVER_API_KEY:
@@ -1327,25 +1330,29 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
             _captcha_inc("DataDome CapSolver|interstitial")
             return False
 
-        try:
-            from shared.proxy_config import PROXY_CONFIG
-        except ImportError:
-            PROXY_CONFIG = None
+        # Usar proxy_config explícito si se proporcionó (workers headless)
+        _PC = proxy_config
+        if not _PC:
+            try:
+                from shared.proxy_config import PROXY_CONFIG
+                _PC = PROXY_CONFIG
+            except ImportError:
+                _PC = None
 
-        if not PROXY_CONFIG:
+        if not _PC:
             l("ERR", "No se ha encontrado PROXY_CONFIG para CapSolver.")
             return False
 
         import httpx
-        proxy_login = PROXY_CONFIG.get('login', '')
-        sticky_sid = PROXY_CONFIG.get('sticky_session_id')
+        proxy_login = _PC.get('login', '')
+        sticky_sid = _PC.get('sticky_session_id')
         if sticky_sid:
             proxy_login = f"{proxy_login}-session-{sticky_sid}"
 
         # Pre-flight proxy IP check — misma lógica que 2Captcha para diagnóstico de IP mismatch (S-2)
         proxy_exit_ip = "unknown"
         try:
-            _proxy_url_check = f"http://{proxy_login}:{PROXY_CONFIG.get('password', '')}@{PROXY_CONFIG.get('host')}:{PROXY_CONFIG.get('port')}"
+            _proxy_url_check = f"http://{proxy_login}:{_PC.get('password', '')}@{_PC.get('host')}:{_PC.get('port')}"
             async with httpx.AsyncClient(proxy=_proxy_url_check, timeout=10, verify=False) as _ipc:
                 _ip_resp = await _ipc.get("https://api.ipify.org?format=json")
                 proxy_exit_ip = _ip_resp.json().get("ip", "unknown")
@@ -1368,7 +1375,7 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
                 "websiteURL": page_url,
                 "captchaUrl": captcha_url,
                 "userAgent": user_agent,
-                "proxy": f"http://{proxy_login}:{PROXY_CONFIG.get('password', '')}@{PROXY_CONFIG.get('host')}:{PROXY_CONFIG.get('port')}"
+                "proxy": f"http://{proxy_login}:{_PC.get('password', '')}@{_PC.get('host')}:{_PC.get('port')}"
             }
         }
 
@@ -1391,11 +1398,16 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
                 _proxy_retry_ok = False
                 if _cap_err_ct in _proxy_error_codes:
                     try:
-                        from shared.proxy_config import regenerate_session
-                        _new_sid = regenerate_session()
+                        if proxy_config:
+                            from shared.proxy_config import _generate_session_id
+                            _new_sid = _generate_session_id()
+                            proxy_config['sticky_session_id'] = _new_sid
+                        else:
+                            from shared.proxy_config import regenerate_session
+                            _new_sid = regenerate_session()
                         _base_login = proxy_login.split('-session-')[0]
                         _new_login = f"{_base_login}-session-{_new_sid}"
-                        _new_proxy_str = f"http://{_new_login}:{PROXY_CONFIG.get('password', '')}@{PROXY_CONFIG.get('host')}:{PROXY_CONFIG.get('port')}"
+                        _new_proxy_str = f"http://{_new_login}:{_PC.get('password', '')}@{_PC.get('host')}:{_PC.get('port')}"
                         l("WARN", f"🔄 {_cap_err_ct} — rotando sesión proxy ({_new_sid}) y reintentando createTask...")
                         _retry_payload = {**task_payload, "task": {**task_payload["task"], "proxy": _new_proxy_str}}
                         _resp2 = await client.post("https://api.capsolver.com/createTask", json=_retry_payload, timeout=30)
@@ -1767,12 +1779,14 @@ async def solve_slider_2captcha(page, logger=None):
 
 
 
-async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
+async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True, proxy_config=None):
     """Orchestrator: DataDome (alternating 2Captcha/CapSolver) -> Local Slider -> 2Captcha (GeeTest/Coords).
 
     use_proxy: False cuando el browser no usa proxy (ej. WebKit sin proxy). En ese caso los solvers
     de pago se omiten porque la cookie de DataDome estaría vinculada a la IP del solver (BrightData)
     y no a la IP directa del browser → IP mismatch garantizado.
+    proxy_config: dict con host/port/login/password/sticky_session_id del proxy del worker.
+    Si None, se usa el PROXY_CONFIG global del proceso.
     """
     l = logger or log
 
@@ -2008,7 +2022,7 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
             _solver_ctx = {'fail_reason': ''}  # contexto local: evita race condition entre workers paralelos
             _captcha_inc(f"DataDome {solver_name}|intentos")
             l("INFO", f"{solver_name} intento {attempt}/{total}...")
-            if await solver_fn(page, captcha_url=captcha_url, logger=l, _ctx=_solver_ctx):
+            if await solver_fn(page, captcha_url=captcha_url, logger=l, _ctx=_solver_ctx, proxy_config=proxy_config):
                 l("OK", f"DataDome resuelto via {solver_name} en intento {attempt}/{total}.")
                 _captcha_inc(f"DataDome {solver_name}|resueltos")
                 _reset_tbv_counter()
@@ -2020,8 +2034,14 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True):
         # DataDome: coordinates are useless (server-side validation)
         # Rotar sticky session para que la próxima rotación de identidad use IP fresca
         try:
-            from shared.proxy_config import regenerate_session
-            new_sid = regenerate_session()
+            if proxy_config:
+                # Worker headless: rotar session del proxy específico del worker
+                from shared.proxy_config import _generate_session_id
+                new_sid = _generate_session_id()
+                proxy_config['sticky_session_id'] = new_sid
+            else:
+                from shared.proxy_config import regenerate_session
+                new_sid = regenerate_session()
             l("INFO", f"🔑 Proxy session rotada tras fallo total de solvers DataDome (nueva: {new_sid})")
         except Exception as proxy_err:
             l("WARN", f"Error rotando proxy session: {proxy_err}")

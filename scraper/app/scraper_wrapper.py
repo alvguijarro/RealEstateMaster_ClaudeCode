@@ -124,18 +124,19 @@ async def _launch_headless_worker(pw, engine: str, channel, profile_slot: int, p
             kwargs_wk["user_agent"] = user_agent
         return await pw.webkit.launch_persistent_context(**kwargs_wk)
     else:  # chromium (opera, etc.)
-        executable_path = get_browser_executable_path(channel)
-        if not executable_path:
+        executable_path = get_browser_executable_path(channel) if channel else None
+        if channel and not executable_path:
             return None  # Ejecutable no encontrado — omitir este worker
         kwargs = dict(
             user_data_dir=profile_dir,
             headless=True,
             viewport={"width": 1280, "height": 800},
-            executable_path=executable_path,
-            channel=None,  # channel=None cuando se usa executable_path
             timeout=60000,
             ignore_https_errors=True,
         )
+        if executable_path:
+            kwargs["executable_path"] = executable_path
+            kwargs["channel"] = None  # channel=None cuando se usa executable_path
         if user_agent:
             kwargs["user_agent"] = user_agent
         if proxy:
@@ -1813,7 +1814,7 @@ class ScraperController:
         except Exception as e:
             self.log("WARN", f"Checkpoint failed: {e}")
     
-    async def _scrape_property_detail(self, page, url: str, *, label: str = "", use_proxy: bool = True, proxy_label: str = ""):
+    async def _scrape_property_detail(self, page, url: str, *, label: str = "", use_proxy: bool = True, proxy_label: str = "", proxy_config=None):
         """Navega a una página de detalle de propiedad, extrae datos y resuelve captchas.
 
         Returns:
@@ -1826,7 +1827,7 @@ class ScraperController:
         key = canonical_listing_url(url)
 
         # 1) Navegar a la propiedad
-        await self._goto_with_retry(page, url, use_proxy=use_proxy, label=label, proxy_label=proxy_label)
+        await self._goto_with_retry(page, url, use_proxy=use_proxy, label=label, proxy_label=proxy_label, proxy_config=proxy_config)
         if self._should_stop:
             raise StopException("Scraping interrumpido por el usuario")
 
@@ -1887,7 +1888,7 @@ class ScraperController:
             # 6a) Auto-solve
             try:
                 solved = await asyncio.wait_for(
-                    solve_captcha_advanced(page, logger=self.log, use_proxy=use_proxy), timeout=180.0
+                    solve_captcha_advanced(page, logger=self.log, use_proxy=use_proxy, proxy_config=proxy_config), timeout=180.0
                 )
                 if solved:
                     self.log("OK", f"{_pfx}✅ CAPTCHA resuelto automáticamente")
@@ -1954,13 +1955,14 @@ class ScraperController:
         row = mark_as_enriched(row)
         return row
 
-    async def _goto_with_retry(self, page, url: str, use_proxy: bool = True, label: str = "", proxy_label: str = "") -> None:
+    async def _goto_with_retry(self, page, url: str, use_proxy: bool = True, label: str = "", proxy_label: str = "", proxy_config=None) -> None:
         """Navigate to URL with retry logic. Detects browser close with 120s guard.
 
         use_proxy: False para workers lanzados sin proxy (ej. WebKit). Se pasa a solve_captcha_advanced
         para que omita los solvers de pago que producirían IP mismatch.
         label: Prefijo para logs (ej. 'chromium-w2', 'opera') para distinguir workers headless del browser principal.
         proxy_label: Etiqueta de proxy (ej. '[Proxy #2]'). Si vacío, usa el global PROXY_LABEL.
+        proxy_config: dict raw del proxy del worker (host/port/login/password/sticky_session_id).
         """
         _plbl = proxy_label or PROXY_LABEL
         _pfx = f"[{label}] " if label else ""
@@ -2034,7 +2036,7 @@ class ScraperController:
                         if label:
                             _solver_logger = lambda lvl, msg, _l=label, _orig=self.log: _orig(lvl, f"[{_l}] {msg}")
                         try:
-                            solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=_solver_logger, use_proxy=use_proxy), timeout=180.0)
+                            solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=_solver_logger, use_proxy=use_proxy, proxy_config=proxy_config), timeout=180.0)
                             if solved:
                                 self.log("OK", f"{_pfx}CAPTCHA solved automatically!")
                                 return
@@ -3144,6 +3146,7 @@ class ScraperController:
                             engine: str, channel, profile_slot: int,
                             proxy=None, use_proxy: bool = True,
                             proxy_label: str = "",
+                            proxy_config=None,
                         ):
                             nonlocal new_scraped
                             nonlocal _worker_webkit_ctx, _worker_webkit_page
@@ -3175,7 +3178,7 @@ class ScraperController:
                                                 return
                                             self.log("INFO", f"[{worker_label}] Scraping ({_w_scraped+1}): {m_url}")
                                             row = await self._scrape_property_detail(
-                                                current_page, m_url, label=worker_label, use_proxy=use_proxy, proxy_label=proxy_label
+                                                current_page, m_url, label=worker_label, use_proxy=use_proxy, proxy_label=proxy_label, proxy_config=proxy_config
                                             )
                                             _blocked_url = None  # completado con éxito
                                             if row is not None:
@@ -3303,6 +3306,7 @@ class ScraperController:
                                     engine="chromium", channel=None, profile_slot=98,
                                     proxy=_worker2_proxy, use_proxy=True,
                                     proxy_label=f"[{_w2_label}]",
+                                    proxy_config=_proxy_pool[1] if len(_proxy_pool) > 1 else None,
                                 )))
                                 self.log("INFO", f"✅ [{_w2_label}] Chromium scraping worker lanzado (slot 98)")
                         except Exception as e:
@@ -3321,6 +3325,7 @@ class ScraperController:
                                     engine="chromium", channel="opera", profile_slot=96,
                                     proxy=_worker3_proxy, use_proxy=True,
                                     proxy_label=f"[{_w3_label}]",
+                                    proxy_config=_proxy_pool[2] if len(_proxy_pool) > 2 else None,
                                 )))
                                 self.log("INFO", f"✅ [{_w3_label}] Opera scraping worker lanzado (slot 96)")
                             else:
@@ -3990,7 +3995,7 @@ class ScraperController:
                             parallel_stop_evt = asyncio.Event()
                             url_queue = SharedURLQueue(missing_urls)
 
-                            async def _enrich_worker(worker_page, worker_label: str, is_secondary: bool = False, use_proxy: bool = True, proxy_label: str = ""):
+                            async def _enrich_worker(worker_page, worker_label: str, is_secondary: bool = False, use_proxy: bool = True, proxy_label: str = "", proxy_config=None):
                                 nonlocal deactivated_count
                                 while not self._should_stop and not parallel_stop_evt.is_set():
                                     m_url = await url_queue.claim()
@@ -4006,7 +4011,7 @@ class ScraperController:
                                     self.log("INFO", f"[{worker_label}] Checking missing property status ({counters['checked']+1}/{len(missing_urls)}): {m_url}")
                                     try:
                                         await self._interruptible_sleep(random.uniform(5, 10))
-                                        await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy, label=worker_label, proxy_label=proxy_label)
+                                        await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy, label=worker_label, proxy_label=proxy_label, proxy_config=proxy_config)
 
                                         try:
                                             await worker_page.wait_for_selector("body", timeout=5000)
@@ -4107,10 +4112,10 @@ class ScraperController:
                                     # Construir lista de workers: siempre el main, secundarios según disponibilidad
                                     worker_coros = [_enrich_worker(page, "main")]
                                     if _worker_webkit_page is not None:
-                                        worker_coros.append(_enrich_worker(_worker_webkit_page, "chromium-w2", is_secondary=True, use_proxy=True, proxy_label=f"[{_w2_label}]"))
+                                        worker_coros.append(_enrich_worker(_worker_webkit_page, "chromium-w2", is_secondary=True, use_proxy=True, proxy_label=f"[{_w2_label}]", proxy_config=_proxy_pool[1] if len(_proxy_pool) > 1 else None))
                                         self.log("INFO", f"✅ [{_w2_label}] Chromium-w2 worker reutilizado para Phase 2")
                                     if _worker_opera_page is not None:
-                                        worker_coros.append(_enrich_worker(_worker_opera_page, "opera", is_secondary=True, use_proxy=True, proxy_label=f"[{_w3_label}]"))
+                                        worker_coros.append(_enrich_worker(_worker_opera_page, "opera", is_secondary=True, use_proxy=True, proxy_label=f"[{_w3_label}]", proxy_config=_proxy_pool[2] if len(_proxy_pool) > 2 else None))
                                         self.log("INFO", f"✅ [{_w3_label}] Opera worker reutilizado para Phase 2")
 
                                     if len(worker_coros) > 1:
