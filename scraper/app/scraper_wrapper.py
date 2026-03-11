@@ -61,7 +61,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Silence Mozilla Remote Settings DevTools warnings during automation
 os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
 
-from shared.proxy_config import PROXY_LABEL
+from shared.proxy_config import PROXY_LABEL, get_proxy_pool, build_playwright_proxy
 
 from idealista_scraper.config import (
     HARVEST_DEBOUNCE_SECONDS, PAGE_WAIT_MS, RETRY_MAX_ATTEMPTS, RETRY_BASE_DELAY,
@@ -105,8 +105,7 @@ _browser_proxy = _build_browser_proxy()
 async def _launch_headless_worker(pw, engine: str, channel, profile_slot: int, proxy=None, user_agent=None):
     """Lanza un contexto Playwright headless para workers paralelos de enriquecimiento.
 
-    Si se proporciona proxy (dict con server/username/password), se aplica al contexto
-    chromium. WebKit en Windows no admite proxies autenticados y se lanza sin proxy.
+    Si se proporciona proxy (dict con server/username/password), se aplica al contexto.
     Devuelve el contexto lanzado, o None si el ejecutable no está disponible.
     user_agent: UA explícito para evitar HeadlessChrome en el UA del worker (Fix RC-3).
     """
@@ -3268,41 +3267,51 @@ class ScraperController:
 
                             self.log("INFO", f"[{worker_label}] Worker finalizado. Scrapeadas: {_w_scraped} propiedades.")
 
-                        # Launch WebKit (slot 98) — no proxy (Windows limitation)
+                        # ── Asignar proxies a los workers secundarios ──
+                        # El browser principal usa proxy pool[0] (Proxy #1).
+                        # Workers 2 y 3 usan pool[1] y pool[2] si están disponibles.
+                        _proxy_pool = get_proxy_pool()
+                        _worker2_proxy = build_playwright_proxy(_proxy_pool[1]) if len(_proxy_pool) > 1 else _browser_proxy
+                        _worker3_proxy = build_playwright_proxy(_proxy_pool[2]) if len(_proxy_pool) > 2 else _browser_proxy
+                        _w2_label = f"Proxy #{2 if len(_proxy_pool) > 1 else 1}"
+                        _w3_label = f"Proxy #{3 if len(_proxy_pool) > 2 else 1}"
+
+                        # Launch Chromium worker (slot 98) — con Proxy #2
+                        # (antes era WebKit sin proxy; WebKit no soporta auth proxies en Windows)
                         try:
                             _wk_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
                             _wk_ua = random.choice(_wk_ua_pool) if _wk_ua_pool else random.choice(USER_AGENTS)
-                            _worker_webkit_ctx = await _launch_headless_worker(pw, "webkit", None, 98, user_agent=_wk_ua)
+                            _worker_webkit_ctx = await _launch_headless_worker(pw, "chromium", None, 98, proxy=_worker2_proxy, user_agent=_wk_ua)
                             if _worker_webkit_ctx:
                                 await _worker_webkit_ctx.add_init_script(generate_stealth_script())
                                 _worker_webkit_page = _worker_webkit_ctx.pages[0] if _worker_webkit_ctx.pages else await _worker_webkit_ctx.new_page()
                                 _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(
-                                    _worker_webkit_page, "webkit",
-                                    engine="webkit", channel=None, profile_slot=98,
-                                    proxy=None, use_proxy=False,
+                                    _worker_webkit_page, "chromium-w2",
+                                    engine="chromium", channel=None, profile_slot=98,
+                                    proxy=_worker2_proxy, use_proxy=True,
                                 )))
-                                self.log("INFO", "✅ WebKit scraping worker lanzado (slot 98, sin proxy)")
+                                self.log("INFO", f"✅ [{_w2_label}] Chromium scraping worker lanzado (slot 98)")
                         except Exception as e:
-                            self.log("WARN", f"⚠️ WebKit scraping worker no pudo lanzar: {e}")
+                            self.log("WARN", f"⚠️ Chromium worker (slot 98) no pudo lanzar: {e}")
 
-                        # Launch Opera/chromium (slot 96) — with proxy
+                        # Launch Opera/chromium (slot 96) — con Proxy #3
                         try:
                             _opr_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
                             _opr_ua = random.choice(_opr_ua_pool) if _opr_ua_pool else random.choice(USER_AGENTS)
-                            _worker_opera_ctx = await _launch_headless_worker(pw, "chromium", "opera", 96, proxy=_browser_proxy, user_agent=_opr_ua)
+                            _worker_opera_ctx = await _launch_headless_worker(pw, "chromium", "opera", 96, proxy=_worker3_proxy, user_agent=_opr_ua)
                             if _worker_opera_ctx:
                                 await _worker_opera_ctx.add_init_script(generate_stealth_script())
                                 _worker_opera_page = _worker_opera_ctx.pages[0] if _worker_opera_ctx.pages else await _worker_opera_ctx.new_page()
                                 _worker_tasks.append(asyncio.create_task(_detail_scrape_worker(
                                     _worker_opera_page, "opera",
                                     engine="chromium", channel="opera", profile_slot=96,
-                                    proxy=_browser_proxy, use_proxy=True,
+                                    proxy=_worker3_proxy, use_proxy=True,
                                 )))
-                                self.log("INFO", "✅ Opera scraping worker lanzado (slot 96, con proxy)")
+                                self.log("INFO", f"✅ [{_w3_label}] Opera scraping worker lanzado (slot 96)")
                             else:
                                 self.log("INFO", "ℹ️ Opera portable no disponible para scraping worker.")
                         except Exception as e:
-                            self.log("WARN", f"⚠️ Opera scraping worker no pudo lanzar: {e}")
+                            self.log("WARN", f"⚠️ Opera worker (slot 96) no pudo lanzar: {e}")
 
                     scraping_finished = False  # Track clean completion
                     # Skip main listing loop if resuming an interrupted enrichment phase

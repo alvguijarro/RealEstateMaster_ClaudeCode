@@ -104,6 +104,24 @@ PROXY_CONFIG_GLOBAL = {
 }
 
 
+def get_proxy_pool():
+    """Returns the full list of proxy configs (one per zone in .env.proxy)."""
+    return list(_PROXY_POOL) if _PROXY_POOL else [PROXY_CONFIG]
+
+
+def build_playwright_proxy(proxy_cfg):
+    """Build a Playwright-compatible proxy dict from a proxy config entry."""
+    login = proxy_cfg['login']
+    sid = proxy_cfg.get('sticky_session_id')
+    if sid:
+        login = f"{login}-session-{sid}"
+    return {
+        "server": f"http://{proxy_cfg['host']}:{proxy_cfg['port']}",
+        "username": login,
+        "password": proxy_cfg['password'],
+    }
+
+
 def regenerate_session():
     """Generate a new sticky session ID (new Bright Data exit IP)."""
     new_id = _generate_session_id()
