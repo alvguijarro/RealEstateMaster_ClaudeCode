@@ -1246,6 +1246,19 @@ async def run_tracker(resume=True, headless=False, force_date=None):
     print("Initiating automatic database backup to CSV...", flush=True)
     auto_export_csv()
 
+    # Limpiar perfiles de navegador temporales (stealth_profile_*)
+    import shutil
+    _cleaned = 0
+    for _p in BASE_DIR.glob("stealth_profile_*"):
+        if _p.is_dir():
+            try:
+                shutil.rmtree(_p)
+                _cleaned += 1
+            except Exception:
+                pass
+    if _cleaned:
+        print(f"🧹 {_cleaned} perfiles de navegador temporales eliminados.")
+
 if __name__ == "__main__":
     # Timestamps automáticos en todos los prints: "(HH:MM:SS) mensaje"
     import builtins
