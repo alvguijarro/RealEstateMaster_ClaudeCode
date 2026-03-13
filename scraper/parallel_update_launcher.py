@@ -61,7 +61,7 @@ def merge_partial_excels(excel_file: str, num_workers: int):
 def main():
     p = argparse.ArgumentParser(description="Lanzador paralelo para update_urls.py")
     p.add_argument("excel_file", help="Ruta al archivo Excel con las URLs")
-    p.add_argument("--workers", type=int, default=3, help="Número de workers paralelos (default: 3)")
+    p.add_argument("--workers", type=int, default=5, help="Número de workers paralelos (default: 5)")
     p.add_argument("--mode", default="fast", choices=["fast", "stealth", "extra-stealth"],
                    help="Modo de scraping (default: fast)")
     p.add_argument("--resume", action="store_true", help="Reanudar desde journal existente")

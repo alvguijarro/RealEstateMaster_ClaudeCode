@@ -29,11 +29,35 @@ set "GOOGLE_API_KEY=AIzaSyB5g2kv8fP4HEnPdhc8megfWQM4TFIp8Oc"
 set "TWOCAPTCHA_API_KEY=f49b4e9ed2e2b36add9c6ef3af3e6e4c"
 set "CAPSOLVER_API_KEY=CAP-80466E39600EB27CBE3C64207EF3702BEE5F7662B71FCF0323FD4045AA753463"
 
+REM ── Configurar 5 proxies residenciales (Bright Data) ───────────────────────
+REM Cada worker paralelo usa un proxy distinto (SCRAPER_WORKER_ID=1..5)
+set "PROXY_1_HOST=brd.superproxy.io"
+set "PROXY_1_PORT=33335"
+set "PROXY_1_LOGIN=brd-customer-hl_e2c01f5d-zone-residential_proxy1"
+set "PROXY_1_PASS=utd291dsjrds"
+set "PROXY_2_HOST=brd.superproxy.io"
+set "PROXY_2_PORT=33335"
+set "PROXY_2_LOGIN=brd-customer-hl_e2c01f5d-zone-residential_proxy2"
+set "PROXY_2_PASS=6ege14l7t3rv"
+set "PROXY_3_HOST=brd.superproxy.io"
+set "PROXY_3_PORT=33335"
+set "PROXY_3_LOGIN=brd-customer-hl_e2c01f5d-zone-residential_proxy3"
+set "PROXY_3_PASS=kaev4d9gj0rr"
+set "PROXY_4_HOST=brd.superproxy.io"
+set "PROXY_4_PORT=33335"
+set "PROXY_4_LOGIN=brd-customer-hl_e2c01f5d-zone-residential_proxy4"
+set "PROXY_4_PASS=k0czpbx9mjke"
+set "PROXY_5_HOST=brd.superproxy.io"
+set "PROXY_5_PORT=33335"
+set "PROXY_5_LOGIN=brd-customer-hl_e2c01f5d-zone-residential_proxy5"
+set "PROXY_5_PASS=uu4x0isj6okq"
+
 REM ── Cambiar al directorio raiz del proyecto ──────────────────────────────────
-cd /d "%~dp0.."
+set "PROJECT_ROOT=%~dp0.."
+cd /d "%PROJECT_ROOT%"
 
 REM ── Lanzar el dashboard principal ───────────────────────────────────────────
 echo [+] Iniciando RealEstateMaster Dashboard...
 echo [i] Si el scraper no abre navegador, revisa los errores en: logs\scraper_server.log
-"%~dp0python.exe" "main.py"
+"%~dp0python.exe" "%PROJECT_ROOT%\main.py"
 pause

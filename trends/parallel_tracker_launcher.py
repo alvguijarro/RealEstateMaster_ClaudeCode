@@ -13,7 +13,7 @@ TRACKER = PROJECT_ROOT / "trends" / "trends_tracker.py"
 def main():
     import argparse
     p = argparse.ArgumentParser(description="Lanzador paralelo para trends_tracker.py")
-    p.add_argument("--workers", type=int, default=3, help="Número de workers paralelos (default: 3)")
+    p.add_argument("--workers", type=int, default=5, help="Número de workers paralelos (default: 5)")
     p.add_argument("--headless", action="store_true", default=True, help="Ejecutar en modo headless")
     p.add_argument("--resume", action="store_true", default=True, help="Reanudar desde checkpoint")
     args = p.parse_args()

@@ -1,9 +1,6 @@
 @echo off
 setlocal
-title RealEstateMaster - Ciclo Paralelo de Scraping
-
-REM ── Configurar numero de workers (editar aqui si se desea cambiar) ─────────
-set NUM_WORKERS=5
+title RealEstateMaster - Ciclo de Scraping Automatico
 
 REM ── Configurar PLAYWRIGHT_BROWSERS_PATH ─────────────────────────────────────
 if exist "%~dp0browsers" (
@@ -44,6 +41,6 @@ set "PROXY_5_PASS=uu4x0isj6okq"
 REM ── Cambiar al directorio raiz del proyecto ──────────────────────────────────
 cd /d "%~dp0.."
 
-echo [+] Iniciando ciclo paralelo de scraping con %NUM_WORKERS% workers...
-"%~dp0python.exe" "scripts\parallel_worker_launcher.py" --workers %NUM_WORKERS%
+echo [+] Iniciando ciclo automatico de scraping (todas las provincias, 14 dias)...
+"%~dp0python.exe" "scripts\automated_cycle.py"
 pause

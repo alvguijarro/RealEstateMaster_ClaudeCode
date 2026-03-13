@@ -14,6 +14,8 @@ Multi-worker support:
     SCRAPER_WORKER_ID=1  →  PROXY_1_*
     SCRAPER_WORKER_ID=2  →  PROXY_2_*
     SCRAPER_WORKER_ID=3  →  PROXY_3_*
+    SCRAPER_WORKER_ID=4  →  PROXY_4_*
+    SCRAPER_WORKER_ID=5  →  PROXY_5_*
   If .env.proxy does not exist, falls back to the hardcoded credentials below.
 """
 import os
