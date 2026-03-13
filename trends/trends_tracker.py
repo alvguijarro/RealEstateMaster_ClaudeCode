@@ -28,6 +28,8 @@ DEBUG_DIR = DATA_DIR / "debug"
 MAPPING_FILE = PROJECT_ROOT / "scraper" / "documentation" / "province_urls_mapping.md"
 SUBZONES_FILE = PROJECT_ROOT / "scraper" / "documentation" / "subzones_complete.json"
 
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
     
@@ -997,7 +999,7 @@ async def _trends_worker(
     print(f"{tag} Worker finalizado. Recuperaciones: {recovery_count}/{MAX_RECOVERY}")
 
 
-async def run_tracker(resume=False, headless=False, force_date=None):
+async def run_tracker(resume=True, headless=False, force_date=None):
     print(f"Starting Parallel Market Trends Tracker (Resume: {resume}, Headless: {headless})...", flush=True)
     os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -1066,7 +1068,7 @@ async def run_tracker(resume=False, headless=False, force_date=None):
     urls_len = len(urls_data)
 
     if queued == 0:
-        print(f"✅ Todas las {urls_len} URLs ya completadas para {date_formatted}. Nada que hacer.")
+        print(f"✅ El scraping del día {date_formatted} ya ha sido ejecutado.")
         clear_resume_point()
         auto_export_csv()
         return
@@ -1246,9 +1248,21 @@ async def run_tracker(resume=False, headless=False, force_date=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--resume", action="store_true", help="Resume from last checkpoint")
+    parser.add_argument("--resume", action="store_true", default=True,
+                        help="Resume from last checkpoint (activado por defecto)")
     parser.add_argument("--headless", action="store_true", help="Run browser in headless mode")
     parser.add_argument("--date", type=str, default=None, help="Forzar fecha del registro (formato DD-MM-YYYY)")
     args = parser.parse_args()
 
-    asyncio.run(run_tracker(resume=args.resume, headless=args.headless, force_date=args.date))
+    asyncio.run(run_tracker(resume=True, headless=args.headless, force_date=args.date))
+
+    # Esperar tecla antes de cerrar la ventana para que el usuario vea el resultado
+    print("\nPulsa cualquier tecla para cerrar...")
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+            msvcrt.getch()
+        else:
+            input()
+    except (EOFError, KeyboardInterrupt):
+        pass
