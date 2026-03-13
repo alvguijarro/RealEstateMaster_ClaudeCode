@@ -1247,6 +1247,14 @@ async def run_tracker(resume=True, headless=False, force_date=None):
     auto_export_csv()
 
 if __name__ == "__main__":
+    # Timestamps automáticos en todos los prints: "(HH:MM:SS) mensaje"
+    import builtins
+    _original_print = builtins.print
+    def _timestamped_print(*args, **kwargs):
+        ts = datetime.datetime.now().strftime("(%H:%M:%S)")
+        _original_print(ts, *args, **kwargs)
+    builtins.print = _timestamped_print
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--resume", action="store_true", default=True,
                         help="Resume from last checkpoint (activado por defecto)")

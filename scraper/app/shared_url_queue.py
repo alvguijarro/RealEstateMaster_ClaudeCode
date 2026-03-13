@@ -7,10 +7,13 @@ Soporta dos modos:
      Cuando el productor ha terminado, llama a close().
 
 Cada URL solo la reclama un worker. Segura para asyncio (hilo único).
+URLs liberadas con release() se reinsertan al FRENTE de la cola para
+mantener el orden original (ej. todas las de alquiler antes que las de venta).
 """
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from typing import Optional
 
 
@@ -18,19 +21,20 @@ class SharedURLQueue:
     """Cola de URLs compartida entre múltiples coroutines asyncio."""
 
     def __init__(self, urls: list = None) -> None:
-        self._pending: asyncio.Queue = asyncio.Queue()
+        self._pending: deque = deque()
         self._claimed: set = set()
         self._lock: asyncio.Lock = asyncio.Lock()
         self._total: int = 0
         self._closed: bool = False
         if urls:
             for u in urls:
-                self._pending.put_nowait(u)
+                self._pending.append(u)
                 self._total += 1
+            self._closed = True  # Lista fija: no habrá productor, cerrar para que claim() no espere infinitamente
 
     async def put(self, url: str) -> None:
-        """Añade una URL a la cola (lado productor)."""
-        self._pending.put_nowait(url)
+        """Añade una URL al final de la cola (lado productor)."""
+        self._pending.append(url)
         self._total += 1
 
     def close(self) -> None:
@@ -52,8 +56,8 @@ class SharedURLQueue:
         """
         while True:
             async with self._lock:
-                if not self._pending.empty():
-                    url = self._pending.get_nowait()
+                if self._pending:
+                    url = self._pending.popleft()
                     self._claimed.add(url)
                     return url
                 if self._closed:
@@ -68,7 +72,7 @@ class SharedURLQueue:
 
     def remaining(self) -> int:
         """Número de URLs pendientes todavía sin reclamar."""
-        return self._pending.qsize()
+        return len(self._pending)
 
     def claimed_count(self) -> int:
         """Número de URLs ya reclamadas (en proceso o completadas)."""
@@ -76,11 +80,11 @@ class SharedURLQueue:
 
     def pending_count(self) -> int:
         """Número de URLs pendientes todavía en la cola (sin reclamar)."""
-        return self._pending.qsize()
+        return len(self._pending)
 
     async def release(self, url: str) -> None:
-        """Devuelve a la cola una URL reclamada pero no completada."""
+        """Devuelve una URL reclamada al FRENTE de la cola (mantiene orden original)."""
         async with self._lock:
             if url in self._claimed:
                 self._claimed.discard(url)
-                await self._pending.put(url)
+                self._pending.appendleft(url)

@@ -1034,9 +1034,8 @@ async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None
         _parsed_captcha = _urlparse(captcha_url)
         _qs_params = _parse_qs(_parsed_captcha.query)
         _t_param = _qs_params.get('t', [''])[0]
-        # Log completo (sin truncar) para diagnóstico
-        l("INFO", f"DataDome captchaUrl completa: {captcha_url}")
-        l("INFO", f"DataDome params: t={_t_param!r} | {_qs_params}")
+        # Log breve del parámetro t= (fe=solvable, bv=IP bloqueada)
+        l("INFO", f"DataDome t={_t_param!r}")
 
         if '/interstitial/' in _parsed_captcha.path:
             l("WARN", "URL tipo /interstitial/ detectada (no es slider). DataDomeSliderTask no puede resolver este tipo. Rotando...")
