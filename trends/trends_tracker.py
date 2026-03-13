@@ -1129,14 +1129,34 @@ async def run_tracker(resume=False, headless=False, force_date=None):
                 )
             ))
 
-        # Monitor de stop flag como tarea aparte
+        # Monitor de stop flag + tecla "s" como tarea aparte
         async def _stop_watcher():
+            # Importar msvcrt para detección de teclas en Windows (no-bloqueante)
+            _kbhit = None
+            _getch = None
+            if sys.platform == "win32":
+                try:
+                    import msvcrt
+                    _kbhit = msvcrt.kbhit
+                    _getch = msvcrt.getch
+                    print("ℹ️  Pulsa 's' en cualquier momento para detener el tracker (se guarda todo el progreso).")
+                except ImportError:
+                    pass
+
             while not shared_state["stopped"]:
+                # Check file-based stop flag
                 if STOP_FLAG_FILE.exists():
                     print("🔴 Stop flag detected. Señalando parada a todos los workers...")
                     shared_state["stopped"] = True
                     return
-                await asyncio.sleep(5)
+                # Check keyboard "s" key (Windows only, non-blocking)
+                if _kbhit and _kbhit():
+                    key = _getch()
+                    if key in (b's', b'S'):
+                        print("\n🛑 Tecla 's' pulsada. Deteniendo tracker tras completar URLs en curso...")
+                        shared_state["stopped"] = True
+                        return
+                await asyncio.sleep(0.3)
         tasks.append(asyncio.create_task(_stop_watcher()))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
