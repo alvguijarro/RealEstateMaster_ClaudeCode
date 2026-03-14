@@ -302,10 +302,10 @@
         <div class="content-grid" style="display: flex; flex-direction: column; gap: 20px; padding: 20px;">
 
             <!-- Fila 1: Dos logs en paralelo -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; min-width: 0; width: 100%; overflow: hidden;">
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; width: 100%; overflow: hidden;">
 
                 <!-- Log visible (navegador principal con proxy) -->
-                <section class="panel logs-panel" style="min-width: 0; overflow: hidden;">
+                <section class="panel logs-panel" style="min-width: 0; max-width: 100%; overflow: hidden;">
                     <div class="panel-header">
                         <h2>📋 Log en vivo (visible)</h2>
                         <div style="display: flex; gap: 8px;">
@@ -314,21 +314,21 @@
                         </div>
                     </div>
                     <div class="logs-container" id="logsContainer"
-                        style="height: 400px; overflow-x: hidden; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 11px; padding: 10px; background: #000; color: #0f0; border-radius: 8px; word-break: break-all;">
+                        style="height: 400px; overflow-x: hidden; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 11px; padding: 10px; background: #000; color: #0f0; border-radius: 8px; word-break: break-all; overflow-wrap: anywhere; max-width: 100%;">
                     </div>
                 </section>
 
-                <!-- Log headless (workers WebKit / Opera sin proxy) -->
-                <section class="panel logs-panel" style="min-width: 0; overflow: hidden;">
+                <!-- Log headless (workers Chrome/Edge/Opera/Iron) -->
+                <section class="panel logs-panel" style="min-width: 0; max-width: 100%; overflow: hidden;">
                     <div class="panel-header">
-                        <h2>📋 Log en vivo (headless)</h2>
+                        <h2>📋 Workers Headless (Chrome/Edge/Opera/Iron)</h2>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn-icon-only" id="pauseHeadlessLogBtn" title="Pausar desplazamiento">⏸</button>
                             <button class="btn-icon-only" id="clearHeadlessLogsBtn" title="Limpiar logs headless">🗑️</button>
                         </div>
                     </div>
                     <div class="logs-container" id="headlessLogsContainer"
-                        style="height: 400px; overflow-x: hidden; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 11px; padding: 10px; background: #000; color: #0f0; border-radius: 8px; word-break: break-all;">
+                        style="height: 400px; overflow-x: hidden; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 11px; padding: 10px; background: #000; color: #0f0; border-radius: 8px; word-break: break-all; overflow-wrap: anywhere; max-width: 100%;">
                     </div>
                 </section>
 

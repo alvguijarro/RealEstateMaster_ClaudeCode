@@ -11,7 +11,6 @@ services:
       - .:/app           # Todo el proyecto montado (datos, perfiles, docs, shared)
     # environment:  # Descomentar para sobreescribir claves de API
       # Claves de API (si no están hardcodeadas en shared/config.py):
-      # - TWOCAPTCHA_API_KEY=tu_clave
       # - CAPSOLVER_API_KEY=tu_clave
       # - GEMINI_API_KEY=tu_clave
       # SMTP para notificaciones de fallo:

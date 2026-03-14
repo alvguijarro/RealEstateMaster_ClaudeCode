@@ -1,0 +1,123 @@
+# Real Estate Master - Version Portable
+
+Este directorio contiene el entorno de ejecucion (Python 3.12) y los scripts de lanzamiento
+necesarios para que la herramienta funcione en cualquier PC sin necesidad de instalar nada.
+Las API keys, credenciales y proxies ya estan embebidos en los scripts.
+
+
+=== ESTRUCTURA DE ARCHIVOS ===
+
+Para que los programas funcionen, la carpeta python_portable DEBE estar dentro de la carpeta
+raiz del proyecto (RealEstateMaster). No es una aplicacion independiente, sino el motor.
+
+RealEstateMaster/                     <- Carpeta raiz (copiar TODO esto)
+|-- main.py                           <- Lanzador unificado
+|-- scraper/                          <- Scraper Idealista
+|-- analyzer/                         <- Analizador de inversiones
+|-- merger/                           <- Fusion de Excels
+|-- dashboard/                        <- Metricas de mercado (KPIs)
+|-- trends/                           <- Seguimiento temporal de precios
+|-- scripts/                          <- Scripts de automatizacion
+|-- shared/                           <- Configuracion compartida (API keys, proxies)
+|-- python_portable/                  <- ESTA CARPETA
+    |-- SETUP.bat                     <- Ejecutar la PRIMERA VEZ en un PC nuevo
+    |-- START_PORTABLE.bat            <- Iniciar el dashboard principal (puerto 5000)
+    |-- STOP_PORTABLE.bat             <- Cerrar todos los servicios
+    |-- RESTART_ALL_PORTABLE.bat      <- Reiniciar todos los servicios
+    |-- LAUNCH_AUTO_CYCLE_PORTABLE.bat         <- Ciclo automatico secuencial (14 dias)
+    |-- LAUNCH_PARALLEL_CYCLE_PORTABLE.bat     <- Ciclo paralelo con 5 workers (mas rapido)
+    |-- LAUNCH_PARALLEL_TRENDS_PORTABLE.bat    <- Trends paralelo con 5 workers
+    |-- UNINSTALL_PORTABLE.bat        <- Reset de paquetes instalados
+    |-- browsers/                     <- Se descargan automaticamente durante SETUP
+
+
+=== INSTALACION EN OTRO PC ===
+
+1. Copia la carpeta COMPLETA RealEstateMaster al nuevo PC.
+   RECOMENDADO: copiar al disco local (Escritorio o C:\) para mejor rendimiento.
+   Evita unidades de red o USB para el uso habitual.
+
+   NOTA: La carpeta para transferencia por USB es muy ligera (~30 MB).
+   Los paquetes y navegadores se descargan automaticamente en el paso 2.
+
+2. Entra en python_portable/ y ejecuta SETUP.bat.
+   Este script:
+   - Verifica Python 3.12 portable
+   - Instala/actualiza todos los paquetes Python necesarios
+   - Descarga navegadores: Chromium (principal) + Chrome (rotacion) + Opera (opcional)
+   - Limpia navegadores obsoletos de instalaciones anteriores
+   Se necesita conexion a internet. Descarga aproximadamente 800 MB.
+
+3. Una vez completado el SETUP, ejecuta START_PORTABLE.bat para empezar.
+   El dashboard se abrira automaticamente en el navegador.
+
+
+=== SERVICIOS DISPONIBLES ===
+
+Puerto 5000 - Dashboard principal (START_PORTABLE.bat lo abre automaticamente)
+Puerto 5001 - Analizador Pro (venta vs alquiler, rentabilidades, ranking zonas)
+Puerto 5002 - Fusion de Excels
+Puerto 5003 - Scraper Idealista (con soporte anti-bot y resolucion de captchas)
+Puerto 5004 - Metricas de mercado (KPIs)
+Puerto 5005 - Seguimiento de tendencias de precios
+
+
+=== DONDE SE GUARDAN LOS ARCHIVOS ===
+
+Excels generados:   RealEstateMaster/scraper/salidas/
+Base de datos:      RealEstateMaster/trends/data/market_trends.db
+Estado del ciclo:   RealEstateMaster/scraper/cycle_state.json
+
+
+=== USO HABITUAL ===
+
+Scraping manual de una provincia:
+  1. Abre START_PORTABLE.bat
+  2. En el dashboard, selecciona la provincia y tipo (Venta/Alquiler)
+  3. Pulsa "Iniciar Scraping"
+
+Ciclo automatico SECUENCIAL de todas las provincias (14 dias):
+  1. Ejecuta LAUNCH_AUTO_CYCLE_PORTABLE.bat
+  2. El proceso corre en segundo plano y puede tardar varios dias
+  3. Scraping una provincia a la vez (1 proxy)
+
+Ciclo PARALELO de todas las provincias (mas rapido):
+  1. Ejecuta LAUNCH_PARALLEL_CYCLE_PORTABLE.bat
+  2. Lanza 5 workers simultaneos, cada uno con su propio proxy
+  3. Cada worker scrapea una provincia distinta a la vez
+  4. El numero de workers se puede editar abriendo el .bat con un editor de texto
+
+Seguimiento de tendencias de precios (paralelo):
+  1. Ejecuta LAUNCH_PARALLEL_TRENDS_PORTABLE.bat
+  2. Lanza 5 workers para actualizar los precios historicos
+  3. Funciona en modo headless (sin ventana de navegador visible)
+
+Analisis de inversiones:
+  1. Abre START_PORTABLE.bat
+  2. Accede al Analizador Pro desde el menu lateral
+
+
+=== SISTEMA ANTI-BLOQUEO ===
+
+El scraper incluye multiples capas de proteccion contra bloqueos de Idealista:
+
+- 5 proxies residenciales simultaneos (Bright Data): cada worker usa un proxy distinto
+- Rotacion de perfiles de navegador: alterna entre Chromium, Chrome y Opera
+- Resolucion automatica de captchas: CapSolver (DataDome)
+- Soporte DataDome y captchas slider locales
+- Stealth profundo: spoofing de GPU, WebGL, Canvas, WebRTC y fingerprint
+- Deteccion de bloqueo permanente (t=bv): pausa automatica de 30 min
+
+Las credenciales de los proxies estan embebidas en cada .bat de lanzamiento.
+No es necesario configurar shared/.env.proxy manualmente.
+
+
+=== API KEYS EMBEBIDAS ===
+
+Las siguientes credenciales ya estan configuradas en el codigo:
+- RapidAPI (Idealista)
+- Google Gemini AI
+- CapSolver (resolucion automatica de captchas DataDome)
+- Bright Data proxy residencial espanol x5 (para evitar bloqueos de Idealista)
+
+No es necesario configurar nada manualmente.

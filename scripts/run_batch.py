@@ -88,7 +88,7 @@ def extract_province_name(url: str) -> str:
         pass
     return "Unknown"
 
-def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_enrichment: bool = False, parallel_enrichment: bool = False, target_file: str = None) -> bool:
+def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_enrichment: bool = False, target_file: str = None) -> bool:
     target_prov = extract_province_name(url)
 
     check_signals()
@@ -116,7 +116,6 @@ def run_single_url(url: str, mode: str, browser_engine: str = "chromium", smart_
         "max_pages": 4000, # High limit for batch
         "browser_engine": browser_engine,
         "smart_enrichment": smart_enrichment,
-        "parallel_enrichment": parallel_enrichment,
         "target_file": target_file
     }
     
@@ -176,7 +175,6 @@ def main():
             urls = data.get('urls', [])
             mode = data.get('mode', 'fast')
             smart_enrichment = data.get('smart_enrichment', False)
-            parallel_enrichment = data.get('parallel_enrichment', False)
             target_file = data.get('target_file')
     except Exception as e:
         log(f"[ERR] Failed to read queue: {e}")
@@ -204,7 +202,7 @@ def main():
             if retries > 0:
                 log(f"🔄 Retry {retries}/{RETRY_LIMIT_PER_URL} for {target_prov}...", "INFO")
                 
-            success = run_single_url(url, mode, "auto", smart_enrichment, parallel_enrichment, target_file)
+            success = run_single_url(url, mode, "auto", smart_enrichment, target_file)
             
             if not success:
                 retries += 1

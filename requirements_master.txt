@@ -11,8 +11,8 @@ playwright>=1.40.0
 playwright-stealth
 requests
 python-socketio
-eventlet  # Recommended for Flask-SocketIO threading
-2captcha-python
+# eventlet: incompatible con Python 3.12+ en Windows; el servidor usa async_mode='threading'
+httpx
 joblib>=1.2.0
 google-cloud-bigquery
 pyarrow

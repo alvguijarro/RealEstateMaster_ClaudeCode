@@ -15,6 +15,10 @@ PAGE_WAIT_MS: int = 250
 RETRY_MAX_ATTEMPTS: int = 3
 RETRY_BASE_DELAY: float = 0.75
 GOTO_WAIT_UNTIL: str = "domcontentloaded"
+
+# Estabilización post-carga: tiempo mínimo para que la página se asiente
+# antes de evaluar si hay captcha, bloqueo, o contenido
+PAGE_LOAD_STABILIZATION_SECONDS: float = 15.0
 SCROLL_STEPS: int = 3
 LISTING_LINKS_PER_PAGE_MAX: int = 30
 
@@ -81,20 +85,20 @@ SCROLL_PAUSE_RANGE: Tuple[float, float] = STEALTH_SCROLL_PAUSE_RANGE
 MAX_PROFILE_POOL_SIZE: int = 5
 PROFILE_COOLDOWN_MINUTES: int = 10
 
-# Browser Rotation Sequence (Strict Sequential)
-# Firefox excluded: Juggler hang issues on Windows (~10 min wasted per cycle).
-# WebKit and Opera excluded from main pool: no soportan proxies autenticados en Windows.
-# Se lanzan como workers paralelos sin proxy en Phase 3 (ver PROXY_FREE_PARALLEL_BROWSERS).
-BROWSER_ROTATION_POOL: List[dict] = [
-    {"index": 1, "engine": "chromium", "channel": None,     "name": "Chromium (Default)"},
-    {"index": 2, "engine": "chromium", "channel": "chrome", "name": "Google Chrome"},
-    {"index": 3, "engine": "chromium", "channel": "msedge", "name": "Microsoft Edge"},
+# Pool de 5 workers paralelos — reemplaza BROWSER_ROTATION_POOL + PROXY_FREE_PARALLEL_BROWSERS.
+# Worker 1 es visible (productor de listado + consumidor), Workers 2-5 son headless (solo consumidores).
+# Todos usan proxy residencial (cada uno con sticky session diferente).
+WORKER_POOL: List[dict] = [
+    {"id": 1, "engine": "chromium", "channel": None,     "name": "Chromium",  "headless": False, "slot": 1},
+    {"id": 2, "engine": "chromium", "channel": "chrome",  "name": "Chrome",    "headless": True,  "slot": 2},
+    {"id": 3, "engine": "chromium", "channel": "msedge",  "name": "Edge",      "headless": True,  "slot": 3},
+    {"id": 4, "engine": "chromium", "channel": "opera",   "name": "Opera",     "headless": True,  "slot": 4},
+    {"id": 5, "engine": "chromium", "channel": "iron",    "name": "Iron",      "headless": True,  "slot": 5},
 ]
 
-# Browsers que NO soportan proxy autenticado en Windows; se lanzan como workers
-# paralelos sin proxy durante Phase 3 (enriquecimiento) cuando parallel_enrichment=True.
-# Slots de perfil reservados: WebKit=99, Opera=97.
-PROXY_FREE_PARALLEL_BROWSERS: List[dict] = [
-    {"engine": "webkit",   "channel": None,    "name": "WebKit", "headless": True,  "slot": 99},
-    {"engine": "chromium", "channel": "opera", "name": "Opera",  "headless": True,  "slot": 97},
+# Mantener BROWSER_ROTATION_POOL como alias para compatibilidad con código legacy
+# (update_urls.py, trends_tracker.py, rotate_identity, etc.)
+BROWSER_ROTATION_POOL: List[dict] = [
+    {"index": w["id"], "engine": w["engine"], "channel": w["channel"], "name": w["name"]}
+    for w in WORKER_POOL[:3]  # Solo los 3 primeros para rotación de identidad del browser principal
 ]

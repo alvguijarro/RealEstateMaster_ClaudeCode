@@ -1037,16 +1037,38 @@ function buildTableHeader() {
     ).join('');
 }
 
+// Worker color map for headless panel (Workers 2-5)
+const WORKER_COLORS = {
+    'Chrome':  '#4fc3f7',  // Light blue
+    'Edge':    '#81c784',  // Green
+    'Opera':   '#ffb74d',  // Orange
+    'Iron':    '#ce93d8',  // Purple
+};
+
 function addLog(level, message) {
-    const isHeadless = /^\s*\[(webkit|opera|chromium-w\d+)\]/i.test(message);
+    // Route to headless panel: Workers 2-5 (Chrome/Edge/Opera/Iron headless) OR any Proxy #2+
+    const isHeadless = /\[(Chrome|Edge|Opera|Iron)\//i.test(message) || /\/Proxy #[2-9]\d*\]/.test(message);
     const container = isHeadless ? headlessLogsContainer : logsContainer;
     if (!container) return;
 
     const now = new Date();
     const time = now.toLocaleTimeString('es-ES', { hour12: false });
 
+    // Detect worker name for color coding in headless panel
+    let workerColor = '';
+    if (isHeadless) {
+        const wMatch = message.match(/\[(Chrome|Edge|Opera|Iron)\//i);
+        if (wMatch) {
+            const wName = wMatch[1].charAt(0).toUpperCase() + wMatch[1].slice(1).toLowerCase();
+            workerColor = WORKER_COLORS[wName] || '';
+        }
+    }
+
     const entry = document.createElement('div');
     entry.className = `log-entry log-${level.toLowerCase()}`;
+    if (workerColor) {
+        entry.style.color = workerColor;
+    }
     entry.innerHTML = `
         <span class="log-time">${time}</span>
         <span class="log-message">${escapeHtml(message)}</span>
@@ -1396,8 +1418,7 @@ async function startScraping(isDualMode = false) {
                 mode: currentMode,
                 dual_mode: isDualMode,
                 use_vpn: useVpnToggle ? useVpnToggle.checked : false,
-                smart_enrichment: true,
-                parallel_enrichment: true
+                smart_enrichment: true
             })
         });
 
@@ -3026,7 +3047,6 @@ window.startBatchFromProvinces = async function (type) {
                 mode: 'fast',
                 expand: false,
                 smart_enrichment: true,
-                parallel_enrichment: true,
                 target_file: targetFile,
                 province_name: urls.length === 1 ? 'SingleProvince' : 'MultiProvince', // Naive, server can handle
                 operation_type: type

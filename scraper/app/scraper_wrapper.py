@@ -20,7 +20,7 @@ import threading
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlsplit, urlunsplit
 
 # from playwright.async_api import async_playwright # MOVED TO _import_libs
@@ -61,7 +61,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Silence Mozilla Remote Settings DevTools warnings during automation
 os.environ["MOZ_REMOTE_SETTINGS_DEVTOOLS"] = "1"
 
-from shared.proxy_config import PROXY_LABEL, get_proxy_pool, build_playwright_proxy
+from shared.proxy_config import PROXY_LABEL, get_proxy_pool, build_playwright_proxy, _generate_session_id
 
 from idealista_scraper.config import (
     HARVEST_DEBOUNCE_SECONDS, PAGE_WAIT_MS, RETRY_MAX_ATTEMPTS, RETRY_BASE_DELAY,
@@ -72,9 +72,10 @@ from idealista_scraper.config import (
     EXTRA_STEALTH_SESSION_LIMIT, EXTRA_STEALTH_REST_DURATION_RANGE,
     EXTRA_STEALTH_COFFEE_BREAK_RANGE, EXTRA_STEALTH_COFFEE_BREAK_FREQUENCY,
     EXTRA_STEALTH_READING_TIME_PER_100_CHARS, USER_AGENTS, VIEWPORT_SIZES,
-    BROWSER_ROTATION_POOL, MAX_PROFILE_POOL_SIZE, PROFILE_COOLDOWN_MINUTES
+    BROWSER_ROTATION_POOL, WORKER_POOL, MAX_PROFILE_POOL_SIZE, PROFILE_COOLDOWN_MINUTES,
+    PAGE_LOAD_STABILIZATION_SECONDS
 )
-from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_captcha_advanced, cleanup_stealth_profiles, reset_captcha_stats, get_captcha_stats, get_tbv_count, reset_tbv_counter
+from idealista_scraper.utils import same_domain, canonical_listing_url, is_listing_url, sanitize_filename_part, play_captcha_alert, play_blocked_alert, simulate_human_interaction, solve_captcha_advanced, handle_captcha_v2, CaptchaCooldownError, cleanup_stealth_profiles, reset_captcha_stats, get_captcha_stats, get_tbv_count, reset_tbv_counter
 
 try:
     from app.shared_url_queue import SharedURLQueue
@@ -82,7 +83,7 @@ except ImportError:
     from shared_url_queue import SharedURLQueue
 
 # Proxy para el browser: necesario para que la IP del browser coincida con la IP
-# que usa 2Captcha al resolver DataDome (de lo contrario DataDome rechaza la cookie).
+# que usa CapSolver al resolver DataDome (de lo contrario DataDome rechaza la cookie).
 def _build_browser_proxy():
     """Build fresh Playwright proxy dict using current sticky session ID."""
     try:
@@ -152,14 +153,16 @@ from idealista_scraper.excel_writer import (
 try:
     from app.province_mapping import (
         get_output_file_for_url, load_enriched_urls, load_all_urls_from_excel,
-        mark_as_enriched, detect_province_and_operation, DEFAULT_OUTPUT_DIR as PROVINCE_OUTPUT_DIR
+        mark_as_enriched, detect_province_and_operation, DEFAULT_OUTPUT_DIR as PROVINCE_OUTPUT_DIR,
+        build_navigation_chain
     )
 except ImportError:
     # Fallback for when running directly from app directory or different context
     try:
         from province_mapping import (
             get_output_file_for_url, load_enriched_urls, load_all_urls_from_excel,
-            mark_as_enriched, detect_province_and_operation, DEFAULT_OUTPUT_DIR as PROVINCE_OUTPUT_DIR
+            mark_as_enriched, detect_province_and_operation, DEFAULT_OUTPUT_DIR as PROVINCE_OUTPUT_DIR,
+            build_navigation_chain
         )
     except ImportError:
         print("WARNING: Could not import province_mapping module. Smart enrichment will be disabled.")
@@ -170,6 +173,7 @@ except ImportError:
         def load_all_urls_from_excel(*args): return {}
         def mark_as_enriched(row): return row
         def detect_province_and_operation(*args): return None, None
+        def build_navigation_chain(seed_url): return [seed_url]
 
 
 def build_paginated_url(seed_url: str, page_number: int) -> str:
@@ -211,6 +215,7 @@ _WORKER_PREFIX = f"worker_{_WORKER_ID}_" if _WORKER_ID else ""
 
 # Resume state file path
 RESUME_STATE_FILE = str(Path(__file__).parent / f"{_WORKER_PREFIX}resume_state.json")
+CHECKPOINT_STATE_FILE = str(Path(__file__).parent / f"{_WORKER_PREFIX}checkpoint_state.json")
 
 # Scrape history registry file path
 SCRAPE_HISTORY_FILE = str(Path(DEFAULT_OUTPUT_DIR) / "scrape_history.json")
@@ -1059,6 +1064,22 @@ class StopException(Exception):
     pass
 
 
+@dataclass
+class WorkerState:
+    """Estado de un worker paralelo."""
+    id: int
+    name: str
+    engine: str
+    channel: Optional[str]
+    headless: bool
+    slot: int
+    proxy_cfg: Optional[dict] = None
+    context: Optional[Any] = None
+    page: Optional[Any] = None
+    scraped_count: int = 0
+    in_cooldown: bool = False
+    active: bool = True
+
 
 @dataclass
 class ScraperController:
@@ -1074,7 +1095,6 @@ class ScraperController:
     
     # Smart Enrichment Mode
     smart_enrichment: bool = False  # If True, use province-file mapping and skip already enriched URLs
-    parallel_enrichment: bool = False  # If True, Phase 3 runs two concurrent workers (proxy + WebKit sin proxy)
     province_name: Optional[str] = None  # Province name for file lookup (e.g., "Toledo")
     operation_type: Optional[str] = None  # "venta" or "alquiler"
     forced_target_file: Optional[str] = None  # Manually selected target file to override auto-detection
@@ -1190,6 +1210,41 @@ class ScraperController:
         if self.forced_target_file:
             self.output_file = self.forced_target_file
     
+    # Short display names for browser profiles (main browser)
+    _PROFILE_SHORT_NAMES = {
+        "chromium (default)": "Chromium",
+        "google chrome": "Chrome",
+        "microsoft edge": "Edge",
+        "webkit": "WebKit",
+        "opera": "Opera",
+    }
+
+    # Display names for headless worker labels
+    _WORKER_DISPLAY_NAMES = {
+        "chromium-w2": "Chromium",
+        "opera": "Opera",
+        "webkit": "WebKit",
+        "main": "Main",
+    }
+
+    @property
+    def _browser_prefix(self) -> str:
+        """Return unified log prefix [Engine/Proxy #N] for the main browser.
+        Example: '[Chrome/Proxy #1] '
+        """
+        name = getattr(self, '_active_profile_name', None) or self.browser_engine or 'chromium'
+        short = self._PROFILE_SHORT_NAMES.get(name.lower(), name.split('(')[0].strip()) if name else 'Chromium'
+        proxy_id = PROXY_LABEL.strip("[] ")
+        return f"[{short}/{proxy_id}] "
+
+    def _worker_prefix(self, label: str, proxy_label: str = "") -> str:
+        """Return unified log prefix [Engine/Proxy #N] for a headless worker.
+        Example: '[Opera/Proxy #2] '
+        """
+        display = self._WORKER_DISPLAY_NAMES.get(label, label.title())
+        proxy_id = (proxy_label or PROXY_LABEL).strip("[] ")
+        return f"[{display}/{proxy_id}] "
+
     def log(self, level: str, message: str):
         """Log a message and send to callback if set."""
         self._last_log_time = time.time()
@@ -1599,18 +1654,30 @@ class ScraperController:
 
     async def _heartbeat_monitor(self):
         """Background task to log activity periodically and detect hangs."""
-        self.log("INFO", "💓 Heartbeat monitor started (60s check, 300s alarm)")
+        self.log("INFO", "💓 Heartbeat monitor started (60s check, 300s alarm, 600s kill)")
         while not self._should_stop:
             await asyncio.sleep(60)
             idle_time = time.time() - self._last_log_time
-            if idle_time > 300: # 5 minutes of silence
+            if idle_time > 600:  # 10 minutes — forzar parada
+                self.log("ERR", f"💀 Heartbeat: {idle_time/60:.0f}min sin actividad. Forzando parada del scraper.")
+                self.log("INFO", f"💓 Status: {self.status}, Page: {self.current_page}, Property: {self.current_property_count}/{self.total_properties_expected}")
+                self._should_stop = True
+                # Cerrar el context del browser para romper cualquier await Playwright colgado
+                # (no cancelamos tareas para no saltar el cleanup de run())
+                try:
+                    if self._context:
+                        await self._context.close()
+                except Exception:
+                    pass
+                break
+            elif idle_time > 300:  # 5 minutes of silence
                 self.log("WARN", f"💓 Heartbeat: No activity for {idle_time/60:.0f}m. Scraper might be hanging or waiting silently.")
                 self.log("INFO", f"💓 Status: {self.status}, Page: {self.current_page}, Property: {self.current_property_count}/{self.total_properties_expected}")
                 # Dump stack traces to debug the hang
                 await self._dump_async_stack_trace()
             elif idle_time > 60:
                 # Normal heartbeat log at DEBUG level (not seen by user unless verbose)
-                pass 
+                pass
 
     async def _dump_async_stack_trace(self):
         """Dump stack traces of all running async tasks to log."""
@@ -1757,6 +1824,52 @@ class ScraperController:
         except Exception:
             pass
 
+    def save_checkpoint(self, scrape_queue=None, enrichment_queue=None):
+        """Guarda checkpoint completo para resume (Fase 4)."""
+        try:
+            checkpoint = {
+                "seed_url": self.seed_url,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "processed_urls": list(self._processed),
+                "seen_in_search": list(self._seen_in_search),
+                "current_listing_page": self.current_page,
+                "detected_sheet": self._detected_sheet,
+                "target_file": self._target_file or self.output_file,
+                "phase": "enrichment" if self._in_enrichment else "scraping",
+            }
+            if scrape_queue:
+                checkpoint["scrape_queue"] = scrape_queue.snapshot()
+            if enrichment_queue:
+                checkpoint["enrichment_queue"] = enrichment_queue.snapshot()
+            # Escritura atómica: .tmp → rename
+            tmp_path = CHECKPOINT_STATE_FILE + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(checkpoint, f, ensure_ascii=False)
+            os.replace(tmp_path, CHECKPOINT_STATE_FILE)
+        except Exception as e:
+            self.log("WARN", f"Error guardando checkpoint: {e}")
+
+    def load_checkpoint(self):
+        """Carga checkpoint si existe y coincide con la seed_url actual."""
+        try:
+            if os.path.exists(CHECKPOINT_STATE_FILE):
+                with open(CHECKPOINT_STATE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if data.get("seed_url") == self.seed_url:
+                    return data
+        except Exception:
+            pass
+        return None
+
+    def clear_checkpoint(self):
+        """Borra el checkpoint al completar naturalmente."""
+        try:
+            if os.path.exists(CHECKPOINT_STATE_FILE):
+                os.remove(CHECKPOINT_STATE_FILE)
+                self.log("INFO", "Checkpoint borrado (completado naturalmente).")
+        except Exception:
+            pass
+
     def handle_blocked_profile(self):
         """Delete the current profile if it has been blocked/poisoned to ensure next run is fresh."""
         import shutil
@@ -1823,7 +1936,7 @@ class ScraperController:
         Raises:
             BlockedException, StopException, Exception("CAPTCHA_BLOCK_DETECTED").
         """
-        _pfx = f"[{label}] " if label else ""
+        _pfx = self._worker_prefix(label, proxy_label) if label else self._browser_prefix
         key = canonical_listing_url(url)
 
         # 1) Navegar a la propiedad
@@ -1908,13 +2021,13 @@ class ScraperController:
             except Exception as solve_err:
                 self.log("WARN", f"{_pfx}Auto-solver error: {solve_err}")
 
-            # 6b) Espera pasiva 30 s
+            # 6b) Espera pasiva 10s
             if miss:
-                self.log("WARN", f"{_pfx}Auto-solve insuficiente. Esperando 30s por resolución pasiva...")
-                for _ in range(3):
+                self.log("WARN", f"{_pfx}Auto-solve insuficiente. Esperando 10s por resolución pasiva...")
+                for _ in range(2):
                     if self._should_stop:
                         break
-                    await asyncio.sleep(10.0)
+                    await asyncio.sleep(5.0)
                     try:
                         d = await asyncio.wait_for(
                             extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode),
@@ -1955,7 +2068,7 @@ class ScraperController:
         row = mark_as_enriched(row)
         return row
 
-    async def _goto_with_retry(self, page, url: str, use_proxy: bool = True, label: str = "", proxy_label: str = "", proxy_config=None) -> None:
+    async def _goto_with_retry(self, page, url: str, use_proxy: bool = True, label: str = "", proxy_label: str = "", proxy_config=None, initial_load: bool = False) -> None:
         """Navigate to URL with retry logic. Detects browser close with 120s guard.
 
         use_proxy: False para workers lanzados sin proxy (ej. WebKit). Se pasa a solve_captcha_advanced
@@ -1964,8 +2077,8 @@ class ScraperController:
         proxy_label: Etiqueta de proxy (ej. '[Proxy #2]'). Si vacío, usa el global PROXY_LABEL.
         proxy_config: dict raw del proxy del worker (host/port/login/password/sticky_session_id).
         """
-        _plbl = proxy_label or PROXY_LABEL
-        _pfx = f"[{label}] " if label else ""
+        # Unified [Engine/Proxy #N] prefix for all log messages
+        _pfx = self._worker_prefix(label, proxy_label) if label else self._browser_prefix
         delay = RETRY_BASE_DELAY
         last_err: Optional[Exception] = None
         for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
@@ -1973,7 +2086,7 @@ class ScraperController:
                 raise StopException("Navegación interrumpida por el usuario")
             try:
                 t_nav_start = time.time()
-                self.log("INFO", f"{_plbl} {_pfx}Navigating to {url} (Attempt {attempt})...")
+                self.log("INFO", f"{_pfx}Navigating to {url} (Attempt {attempt})...")
                 
                 # Global guard to prevent silent hangs (120s max for any navigation)
                 try:
@@ -1998,6 +2111,11 @@ class ScraperController:
                     if not isinstance(e, asyncio.TimeoutError):
                         self.log("WARN", f"{_pfx}⚠️ Human interaction failed: {e}")
                     pass
+
+                # Estabilización post-navegación: esperar antes de evaluar bloqueos
+                if initial_load:
+                    self.log("INFO", f"{_pfx}⏳ Estabilización post-navegación: esperando {PAGE_LOAD_STABILIZATION_SECONDS}s...")
+                    await self._interruptible_sleep(PAGE_LOAD_STABILIZATION_SECONDS)
 
                 # Check for CAPTCHA/Bot protection using unified helper
                 try:
@@ -2034,7 +2152,8 @@ class ScraperController:
                         # Wrap logger to prepend worker label so messages route to correct UI panel
                         _solver_logger = self.log
                         if label:
-                            _solver_logger = lambda lvl, msg, _l=label, _orig=self.log: _orig(lvl, f"[{_l}] {msg}")
+                            _spfx = _pfx  # capture current prefix for closure
+                            _solver_logger = lambda lvl, msg, _p=_spfx, _orig=self.log: _orig(lvl, f"{_p}{msg}")
                         try:
                             solved = await asyncio.wait_for(solve_captcha_advanced(page, logger=_solver_logger, use_proxy=use_proxy, proxy_config=proxy_config), timeout=180.0)
                             if solved:
@@ -2112,12 +2231,17 @@ class ScraperController:
                     if self._should_stop:
                         self.log("INFO", f"{_pfx}Browser closed during stop sequence.")
                     else:
-                        # Otherwise, it's an unexpected close/crash, so pause and notify
-                        self.log("WARN", f"{_pfx}Browser was closed or crashed unexpectedly. Pausing scraper...")
-                        self._browser_closed = True
-                        self.pause()  # Pause instead of stop
-                        if self.on_browser_closed:
-                            self.on_browser_closed()
+                        # Solo pausar si es el browser principal (label vacío o "main").
+                        # Workers secundarios (chromium-w2, opera) no deben pausar todo el scraper.
+                        _is_main = label in ("", "main")
+                        if _is_main:
+                            self.log("WARN", f"{_pfx}Browser was closed or crashed unexpectedly. Pausing scraper...")
+                            self._browser_closed = True
+                            self.pause()  # Pause instead of stop
+                            if self.on_browser_closed:
+                                self.on_browser_closed()
+                        else:
+                            self.log("WARN", f"{_pfx}Worker browser closed/crashed. Worker se detendrá sin afectar al scraper principal.")
                     raise BrowserClosedException("Browser was closed")
 
                 last_err = e
@@ -2149,6 +2273,149 @@ class ScraperController:
                 
             self.log("INFO", "▶️ Scraper resumed.")
 
+    async def _dismiss_cookie_banner(self, page) -> None:
+        """Intenta cerrar banners de cookies que puedan bloquear contenido."""
+        try:
+            await page.evaluate(r"""() => {
+                // Click common accept buttons for cookie consent
+                const acceptBtns = document.querySelectorAll(
+                    '[id*="accept"], [class*="accept"], [id*="cookie"] button, ' +
+                    '[class*="cookie"] button, [data-testid*="accept"], ' +
+                    '.didomi-continue-without-agreeing, #didomi-notice-agree-button, ' +
+                    '.onetrust-accept-btn, #onetrust-accept-btn-handler'
+                );
+                for (const btn of acceptBtns) {
+                    if (btn.offsetParent !== null) { // visible
+                        btn.click();
+                        return true;
+                    }
+                }
+                return false;
+            }""")
+            await asyncio.sleep(1.0)
+        except Exception:
+            pass
+
+    async def _navigate_hierarchically(self, page) -> bool:
+        """
+        Navegación jerárquica natural: homepage → provincia → zona → subzona → seed URL.
+        Solo se usa en la primera carga (current_page == 1).
+        Devuelve True si se completó con éxito, False si hay que hacer fallback a navegación directa.
+        """
+        try:
+            chain = build_navigation_chain(self.seed_url)
+        except Exception as e:
+            self.log("WARN", f"⚠️ Error construyendo cadena de navegación: {e}")
+            return False
+
+        if len(chain) <= 1:
+            return False
+
+        self.log("STEALTH", f"🔗 Navegación jerárquica ({len(chain)} pasos): {' → '.join(c.split('/')[-2] or c.split('/')[-3] for c in chain)}")
+
+        # Delays entre pasos (index del paso intermedio → rango de delay)
+        step_delays = [
+            (2.0, 4.0),   # homepage → provincia
+            (1.5, 3.0),   # provincia → zona
+            (1.5, 3.0),   # zona → subzona
+            (1.0, 2.0),   # subzona → seed URL
+        ]
+
+        # Navegar pasos intermedios (todos excepto el último = seed URL)
+        for i, url in enumerate(chain[:-1]):
+            try:
+                self.log("STEALTH", f"🔗 Paso {i+1}/{len(chain)}: {url}")
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+
+                # Tras la homepage, cerrar banner de cookies y simular navegación humana
+                if i == 0:
+                    await self._dismiss_cookie_banner(page)
+
+                    # === PRE-CHECK: detectar bloqueo/captcha ANTES del warmup ===
+                    if '/interstitial/' in page.url:
+                        self.log("WARN", "⛔ Homepage redirigió a /interstitial/ (IP bloqueada)")
+                        return False
+
+                    homepage_block = await self._check_for_blocks(page)
+                    if homepage_block == "block":
+                        self.log("WARN", "🛑 Homepage cargó con bloqueo. Abortando navegación jerárquica.")
+                        raise BlockedException("Bloqueo en homepage")
+                    elif homepage_block == "captcha":
+                        self.log("WARN", "⚠️ Captcha detectado en homepage antes de warmup. Intentando resolver...")
+                        try:
+                            solved = await asyncio.wait_for(
+                                solve_captcha_advanced(page, logger=self.log), timeout=120.0
+                            )
+                            if not solved:
+                                self.log("WARN", "❌ No se pudo resolver captcha en homepage")
+                                return False
+                        except (asyncio.TimeoutError, Exception) as e:
+                            self.log("WARN", f"❌ Fallo resolviendo captcha en homepage: {e}")
+                            return False
+
+                    # === WARMUP RÁPIDO EN HOMEPAGE ===
+                    try:
+                        async def _do_warmup():
+                            # Scroll + movimiento de ratón breve
+                            for _ in range(random.randint(1, 2)):
+                                await page.mouse.move(random.randint(200, 900), random.randint(200, 500), steps=random.randint(5, 10))
+                                await page.mouse.wheel(0, random.randint(150, 300))
+                                await asyncio.sleep(random.uniform(0.3, 0.8))
+
+                        await asyncio.wait_for(_do_warmup(), timeout=5.0)
+                    except (asyncio.TimeoutError, Exception):
+                        pass  # No bloquear por warmup
+
+                # Delay humano entre pasos
+                delay_idx = min(i, len(step_delays) - 1)
+                delay = random.uniform(*step_delays[delay_idx])
+                await asyncio.sleep(delay)
+
+                # Chequeo ligero de DataDome / bloqueo
+                has_captcha = await page.evaluate("""() => {
+                    return !!(document.querySelector('iframe[src*="captcha-delivery.com"]') ||
+                             document.querySelector('script[src*="captcha-delivery.com"]'));
+                }""")
+                if has_captcha:
+                    self.log("WARN", f"⚠️ Captcha detectado en paso intermedio ({url}). Intentando resolver...")
+                    try:
+                        solved = await asyncio.wait_for(
+                            solve_captcha_advanced(page, logger=self.log), timeout=120.0
+                        )
+                        if not solved:
+                            self.log("WARN", "❌ No se pudo resolver captcha en paso intermedio")
+                            return False
+                    except Exception as ce:
+                        self.log("WARN", f"❌ Error resolviendo captcha intermedio: {ce}")
+                        return False
+
+                # Chequeo de bloqueo duro
+                body_text = await page.evaluate("() => document.body ? document.body.innerText : ''")
+                text_lower = (body_text or "").lower()
+                if "el acceso se ha bloqueado" in text_lower:
+                    self.log("WARN", "🚫 Bloqueo duro detectado en paso intermedio")
+                    raise BlockedException("Bloqueo en navegación jerárquica")
+
+            except BlockedException:
+                raise
+            except Exception as e:
+                self.log("WARN", f"⚠️ Fallo en paso intermedio {i+1} ({url}): {e}. Fallback a navegación directa.")
+                return False
+
+        # Navegar al destino final (seed URL)
+        final_url = chain[-1]
+        try:
+            self.log("STEALTH", f"🔗 Paso final: {final_url}")
+            await page.goto(final_url, wait_until="domcontentloaded", timeout=60000)
+            await asyncio.sleep(3.0)
+            await self._dismiss_cookie_banner(page)
+            return True
+        except BlockedException:
+            raise
+        except Exception as e:
+            self.log("WARN", f"⚠️ Fallo navegando a URL final ({final_url}): {e}")
+            return False
+
     async def _interruptible_sleep(self, duration: float):
         """Sleep for duration, but wake up immediately if stopped."""
         if duration <= 0:
@@ -2169,16 +2436,20 @@ class ScraperController:
             self._last_log_time = time.time()
 
     
-    def _export_to_excel(self, additions: List[dict], target_file: Optional[str], expired_urls: List[str]):
-        """Export scraped data to Excel file."""
+    def _export_to_excel(self, additions: List[dict], target_file: Optional[str], expired_urls: List[str], force: bool = False):
+        """Export scraped data to Excel file.
+
+        Args:
+            force: Si True, ignora check_stop para garantizar guardado (ej. al detener).
+        """
         if not additions:
             self.log("INFO", "No new properties to export.")
             return
-        
+
         self.log("INFO", "Exporting data to Excel...")
-        
-        # Guard for PermissionError hangs
-        check_stop = lambda: self._should_stop
+
+        # Guard for PermissionError hangs (desactivado si force=True para guardado al detener)
+        check_stop = None if force else lambda: self._should_stop
         
         # Use filename from registry if available, otherwise build it
         if target_file:
@@ -2249,7 +2520,8 @@ class ScraperController:
         self.start_time = time.time()
         self._pause_evt.set()
         reset_captcha_stats()
-        
+        reset_tbv_counter()  # Limpiar contador t=bv de sesiones anteriores para no disparar circuit breaker al arrancar
+
         # Start heartbeat monitor
         heartbeat_task = asyncio.create_task(self._heartbeat_monitor())
         
@@ -2426,15 +2698,6 @@ class ScraperController:
                     new_sid = regenerate_session()
                     _browser_proxy = _build_browser_proxy()
                     self.log("INFO", f"🔑 New proxy session: {new_sid}")
-                    # Reset IP-logged flag so new exit IP gets logged
-                    try:
-                        solve_datadome_2captcha = getattr(
-                            __import__('idealista_scraper.utils', fromlist=['solve_datadome_2captcha']),
-                            'solve_datadome_2captcha'
-                        )
-                        solve_datadome_2captcha._proxy_ip_logged = False
-                    except Exception:
-                        pass
 
                     # ========== ADVANCED IDENTITY ROTATION (2026) ==========
                     # Motores incompatibles con proxy autenticado en Windows — nunca deben
@@ -2744,22 +3007,41 @@ class ScraperController:
 
                         self.log("ERR", f"Could not launch browser: {e}")
             
-                    # Navigate to seed URL (or direct page resume)
+                    # Navigate to seed URL (hierarchical or direct)
                     seed_nav_failed = False
                     page_loaded_ok = False
                     try:
-                        target_url = self.seed_url
-                        if self.current_page > 1:
+                        # En enrichment el loop de listado se salta, así que no navegar
+                        # a una página paginada absurda (ej: pagina-108). Usar jerarquía.
+                        if self.current_page > 1 and not self._in_enrichment:
+                            # Reanudación de listado: browser ya caliente, ir directo
                             target_url = build_paginated_url(self.seed_url, self.current_page)
-                            self.log("INFO", f"⏭️ Resuming directly from Page {self.current_page}...")
+                            self.log("INFO", f"⏭️ Reanudando desde página {self.current_page}...")
+                            await page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
+                            await asyncio.sleep(3.0)
+                            await self._dismiss_cookie_banner(page)
+                        else:
+                            # Primera página o enrichment: navegación jerárquica natural (timeout 180s)
+                            try:
+                                hierarchy_ok = await asyncio.wait_for(
+                                    self._navigate_hierarchically(page), timeout=180.0
+                                )
+                            except asyncio.TimeoutError:
+                                self.log("ERR", "⏰ Navegación jerárquica timeout total (180s). Fallback a navegación directa.")
+                                hierarchy_ok = False
+                            if not hierarchy_ok:
+                                # Fallback a navegación directa
+                                self.log("INFO", f"{self._browser_prefix}Navegación directa a: {self.seed_url}")
+                                await page.goto(self.seed_url, wait_until="domcontentloaded", timeout=60000)
+                                await asyncio.sleep(3.0)
+                                await self._dismiss_cookie_banner(page)
 
-                        self.log("INFO", f"{PROXY_LABEL} Navigating to: {target_url}")
-                        await page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
-                        await asyncio.sleep(3.0)
-                        self.log("OK", "Page opened successfully")
+                        self.log("OK", "Página cargada correctamente")
                         page_loaded_ok = True
+                    except BlockedException:
+                        raise
                     except Exception as e:
-                        self.log("ERR", f"Could not open seed URL: {e}")
+                        self.log("ERR", f"No se pudo abrir la URL semilla: {e}")
                         seed_nav_failed = True
 
                     # --- Seed navigation failed (engine issue, not a block) → rotate without cooldown ---
@@ -2776,34 +3058,14 @@ class ScraperController:
                         await self._interruptible_sleep(3)
                         continue
             
-                    # Try to dismiss cookie consent banners that might block content
-                    try:
-                        await page.evaluate(r"""() => {
-                            // Click common accept buttons for cookie consent
-                            const acceptBtns = document.querySelectorAll(
-                                '[id*="accept"], [class*="accept"], [id*="cookie"] button, ' +
-                                '[class*="cookie"] button, [data-testid*="accept"], ' +
-                                '.didomi-continue-without-agreeing, #didomi-notice-agree-button, ' +
-                                '.onetrust-accept-btn, #onetrust-accept-btn-handler'
-                            );
-                            for (const btn of acceptBtns) {
-                                if (btn.offsetParent !== null) { // visible
-                                    btn.click();
-                                    return true;
-                                }
-                            }
-                            return false;
-                        }""")
-                        await asyncio.sleep(1.0)
-                    except Exception:
-                        pass
-            
                     # =============================================================================
                     # PRIORITY BLOCK DETECTION (Moved before property count extraction)
                     # =============================================================================
                     try:
-                        # minimal wait for body to stand chance of having text
-                        await asyncio.sleep(2.0)
+                        # Estabilización post-carga: dar tiempo a que JS, DataDome, y el contenido
+                        # se carguen completamente antes de evaluar el estado de la página
+                        self.log("INFO", f"⏳ Estabilización post-carga: esperando {PAGE_LOAD_STABILIZATION_SECONDS}s...")
+                        await self._interruptible_sleep(PAGE_LOAD_STABILIZATION_SECONDS)
                         
                         # 1. Early check (Simplified: check title only if needed or skip as per request)
                         # Page title checks are removed to strictly follow the text-based keywords requested.
@@ -2844,6 +3106,10 @@ class ScraperController:
                     # =============================================================================
                     # END PRIORITY DETECTION
                     # =============================================================================
+
+                    # Segunda estabilización: espera adicional antes de evaluar contenido/captcha
+                    self.log("INFO", f"⏳ Esperando {PAGE_LOAD_STABILIZATION_SECONDS}s adicionales antes de evaluar contenido...")
+                    await self._interruptible_sleep(PAGE_LOAD_STABILIZATION_SECONDS)
 
                     # Detect sheet name and total properties from page
                     self.log("INFO", "Waiting for page to load property count...")
@@ -2910,7 +3176,7 @@ class ScraperController:
                                 match = re.search(r'(\d{1,3}(?:\.\d{3})*)\s*(?:vivienda|pisos?|casas?|inmuebles?|anuncios?|habitaci[oó]n|habitaciones)', h1txt, re.IGNORECASE)
                                 if match:
                                     total_count = int(match.group(1).replace('.', ''))
-                                    self.log("INFO", f"Extracted count from h1: {total_count}")
+                                    self.log("INFO", f"{self._browser_prefix}Extracted count from h1: {total_count}")
                                     break  # Success, exit retry loop
                                 # H1 found but no count - continue retrying
                             else:
@@ -3045,7 +3311,7 @@ class ScraperController:
                     if total_count > 0:
                         reset_tbv_counter()  # scrape exitoso: limpiar contador t=bv para evitar falsos positivos del circuit breaker
 
-                    self.log("INFO", f"Total: {self.total_properties_expected} properties, {self.total_pages_expected} pages")
+                    self.log("INFO", f"{self._browser_prefix}Total: {self.total_properties_expected} properties, {self.total_pages_expected} pages")
                     self.emit_progress()  # Send to UI immediately
             
                     if self._detected_sheet:
@@ -3067,7 +3333,7 @@ class ScraperController:
                             self.log("WARN", "Could not detect category (alquiler/venta)")
             
                     # ===== SINGLE-PASS SCRAPING: Page by page, scrape immediately =====
-                    self.log("INFO", "Starting page-by-page scraping...")
+                    self.log("INFO", f"{self._browser_prefix}Starting page-by-page scraping...")
             
                     # Override target_file if category detection differs from registry
                     # This ensures 'alquiler-habitaciones' URLs get the correct filename
@@ -3133,13 +3399,14 @@ class ScraperController:
                     # ===== HEADLESS WORKERS: Scraping paralelo de detalle de propiedades =====
                     _scrape_queue = SharedURLQueue()  # Cola productor-consumidor vacía
                     _worker_tasks = []
+                    _logged_dead_workers = set()  # IDs de workers ya reportados como muertos
                     _worker_counters = {"scraped": 0, "real_changes": 0, "last_checkpoint_real_changes": 0}
                     _worker_checkpoint_lock = asyncio.Lock()
                     _worker_webkit_ctx = None
                     _worker_opera_ctx = None
                     _worker_webkit_page = None
                     _worker_opera_page = None
-                    if self.parallel_enrichment and not self._in_enrichment:
+                    if not self._in_enrichment:  # Workers paralelos siempre activos
 
                         async def _detail_scrape_worker(
                             initial_page, worker_label: str,
@@ -3155,11 +3422,20 @@ class ScraperController:
                             _WORKER_MAX_RECOVERY = 3
                             _WORKER_RECOVERY_COOLDOWN = 45  # segundos entre intentos de recuperación
 
+                            _MAX_IDENTITY_BURNS = 5          # Quemaduras totales antes de rendirse definitivamente
+                            _IDENTITY_BURN_COOLDOWN = 150    # 2.5 min cooldown tras identidad quemada
+
                             current_page = initial_page
+                            _wpfx = self._worker_prefix(worker_label, proxy_label)
                             _w_scraped = 0
                             _recovery_count = 0
+                            _identity_burns = 0
+                            _consecutive_block_failures = 0   # URLs DISTINTAS que fallan seguidas
+                            _successes_since_last_block = 0   # Éxitos desde último bloqueo
+                            _CONSECUTIVE_FAIL_LIMIT = 3       # N URLs distintas seguidas → identidad quemada
+                            _SUCCESS_RESET_THRESHOLD = 5      # N éxitos → resetear _recovery_count
 
-                            while not self._should_stop and _recovery_count <= _WORKER_MAX_RECOVERY:
+                            while not self._should_stop:
                                 _blocked_url = None
                                 try:
                                     # ── Bucle interno de consumo de cola ──────────────────
@@ -3169,6 +3445,7 @@ class ScraperController:
                                             return  # Cola cerrada y vacía — fin normal
                                         key = canonical_listing_url(m_url)
                                         if key in self._processed:
+                                            self.log("INFO", f"{_wpfx}({new_scraped}/{self.total_properties_expected}) Skipping already scraped: {key}")
                                             continue
                                         _blocked_url = m_url  # por si hay excepción antes de completar
                                         try:
@@ -3176,7 +3453,7 @@ class ScraperController:
                                             if self._should_stop:
                                                 await _scrape_queue.release(m_url)
                                                 return
-                                            self.log("INFO", f"[{worker_label}] Scraping ({_w_scraped+1}): {m_url}")
+                                            self.log("INFO", f"{_wpfx}({new_scraped+1}/{self.total_properties_expected}) Scraping: {key}")
                                             row = await self._scrape_property_detail(
                                                 current_page, m_url, label=worker_label, use_proxy=use_proxy, proxy_label=proxy_label, proxy_config=proxy_config
                                             )
@@ -3187,7 +3464,13 @@ class ScraperController:
                                                 self._processed.add(key)
                                                 _w_scraped += 1
                                                 new_scraped += 1
-                                                self.log("OK", f"[{worker_label}] Scraped: {key}")
+                                                self.log("OK", f"{_wpfx}({new_scraped}/{self.total_properties_expected}) Scraped: {key}")
+                                                _consecutive_block_failures = 0
+                                                _successes_since_last_block += 1
+                                                if _successes_since_last_block >= _SUCCESS_RESET_THRESHOLD and _recovery_count > 0:
+                                                    self.log("INFO", f"{_wpfx}🔄 {_SUCCESS_RESET_THRESHOLD} scrapes exitosos — recovery count reset ({_recovery_count} → 0)")
+                                                    _recovery_count = 0
+                                                    _successes_since_last_block = 0
                                                 if self.on_property:
                                                     self.on_property(row)
                                                 _worker_counters["real_changes"] += 1
@@ -3202,6 +3485,12 @@ class ScraperController:
                                                             self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_cp:.2f}s")
                                             else:
                                                 self._processed.add(key)
+                                                self.log("INFO", f"{_wpfx}({new_scraped}/{self.total_properties_expected}) No disponible: {key}")
+                                                _consecutive_block_failures = 0
+                                                _successes_since_last_block += 1
+                                                if _successes_since_last_block >= _SUCCESS_RESET_THRESHOLD and _recovery_count > 0:
+                                                    _recovery_count = 0
+                                                    _successes_since_last_block = 0
                                         except (BlockedException, BrowserClosedException):
                                             raise  # propagar al bucle de recuperación externo
                                         except StopException:
@@ -3209,7 +3498,7 @@ class ScraperController:
                                         except Exception as e:
                                             if "CAPTCHA_BLOCK_DETECTED" in str(e):
                                                 raise BlockedException(str(e))  # tratar como bloqueo → recuperación
-                                            self.log("WARN", f"[{worker_label}] Error scraping {m_url}: {e}")
+                                            self.log("WARN", f"{_wpfx}({new_scraped}/{self.total_properties_expected}) Error: {key} — {e}")
                                             self._processed.add(key)
                                             _blocked_url = None
                                             continue
@@ -3218,15 +3507,112 @@ class ScraperController:
 
                                 except (BlockedException, BrowserClosedException) as block_exc:
                                     if _blocked_url:
-                                        await _scrape_queue.release(_blocked_url)
+                                        _blocked_key = canonical_listing_url(_blocked_url)
+                                        self._processed.add(_blocked_key)
+                                        self.log("WARN", f"{_wpfx}⏭️ URL bloqueada descartada: {_blocked_key}")
                                         _blocked_url = None
 
+                                    _consecutive_block_failures += 1
+                                    _successes_since_last_block = 0
+
+                                    # Múltiples URLs distintas fallan seguidas → identidad quemada
+                                    if _consecutive_block_failures >= _CONSECUTIVE_FAIL_LIMIT:
+                                        _identity_burns += 1
+                                        self.log("WARN", f"{_wpfx}⛔ {_consecutive_block_failures} URLs distintas bloqueadas consecutivamente. "
+                                                         f"Identidad quemada ({_identity_burns}/{_MAX_IDENTITY_BURNS}).")
+
+                                        if _identity_burns >= _MAX_IDENTITY_BURNS:
+                                            self.log("WARN", f"{_wpfx}💀 Máximo quemaduras alcanzado. Worker finalizado definitivamente.")
+                                            if worker_label == "chromium-w2":
+                                                _worker_webkit_ctx = None; _worker_webkit_page = None
+                                            else:
+                                                _worker_opera_ctx = None; _worker_opera_page = None
+                                            break
+
+                                        # Cerrar contexto quemado
+                                        _old_burn_ctx = _worker_webkit_ctx if worker_label == "chromium-w2" else _worker_opera_ctx
+                                        try:
+                                            if _old_burn_ctx:
+                                                await _old_burn_ctx.close()
+                                        except Exception:
+                                            pass
+
+                                        # Cooldown extendido interruptible
+                                        self.log("INFO", f"{_wpfx}⏳ Cooldown extendido {_IDENTITY_BURN_COOLDOWN}s tras identidad quemada...")
+                                        for _ in range(_IDENTITY_BURN_COOLDOWN):
+                                            if self._should_stop:
+                                                return
+                                            await asyncio.sleep(1)
+
+                                        # Rotar proxy session (nueva IP)
+                                        if proxy_config:
+                                            proxy_config['sticky_session_id'] = _generate_session_id()
+                                            proxy = build_playwright_proxy(proxy_config)
+                                            self.log("INFO", f"{_wpfx}🔑 Nueva sesión proxy tras identidad quemada.")
+
+                                        # Resetear contadores
+                                        _consecutive_block_failures = 0
+                                        _recovery_count = 0
+                                        _successes_since_last_block = 0
+
+                                        # Re-lanzar browser con nueva identidad
+                                        if worker_label == "chromium-w2":
+                                            _new_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
+                                        else:
+                                            _new_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
+                                        _new_ua = random.choice(_new_ua_pool) if _new_ua_pool else random.choice(USER_AGENTS)
+
+                                        try:
+                                            _new_ctx = await _launch_headless_worker(
+                                                pw, engine, channel, profile_slot,
+                                                proxy=proxy, user_agent=_new_ua
+                                            )
+                                        except Exception as launch_err:
+                                            self.log("WARN", f"{_wpfx}Error re-lanzando worker tras burn: {launch_err}. Deteniendo.")
+                                            if worker_label == "chromium-w2":
+                                                _worker_webkit_ctx = None; _worker_webkit_page = None
+                                            else:
+                                                _worker_opera_ctx = None; _worker_opera_page = None
+                                            break
+
+                                        if not _new_ctx:
+                                            self.log("WARN", f"{_wpfx}No se pudo re-lanzar tras burn. Deteniendo.")
+                                            if worker_label == "chromium-w2":
+                                                _worker_webkit_ctx = None; _worker_webkit_page = None
+                                            else:
+                                                _worker_opera_ctx = None; _worker_opera_page = None
+                                            break
+
+                                        try:
+                                            await _new_ctx.add_init_script(generate_stealth_script())
+                                            current_page = _new_ctx.pages[0] if _new_ctx.pages else await _new_ctx.new_page()
+                                        except Exception as page_err:
+                                            self.log("WARN", f"{_wpfx}Error creando página tras burn: {page_err}. Deteniendo.")
+                                            if worker_label == "chromium-w2":
+                                                _worker_webkit_ctx = None; _worker_webkit_page = None
+                                            else:
+                                                _worker_opera_ctx = None; _worker_opera_page = None
+                                            break
+
+                                        if worker_label == "chromium-w2":
+                                            _worker_webkit_ctx = _new_ctx
+                                            _worker_webkit_page = current_page
+                                        else:
+                                            _worker_opera_ctx = _new_ctx
+                                            _worker_opera_page = current_page
+
+                                        self.log("OK", f"{_wpfx}✅ Worker recuperado tras identity burn con nueva IP. Continuando...")
+                                        continue
+
                                     if _recovery_count >= _WORKER_MAX_RECOVERY:
-                                        self.log("WARN", f"[{worker_label}] ⛔ Max recuperaciones ({_WORKER_MAX_RECOVERY}) alcanzadas. Deteniendo worker.")
-                                        break
+                                        # Max recuperaciones pero puede ser mala suerte con URLs individuales
+                                        self.log("WARN", f"{_wpfx}⚠️ Max recuperaciones ({_WORKER_MAX_RECOVERY}) alcanzadas, "
+                                                         f"pero solo {_consecutive_block_failures}/{_CONSECUTIVE_FAIL_LIMIT} fallos consecutivos. "
+                                                         f"Reseteando recovery count y continuando...")
+                                        _recovery_count = 0
 
                                     _recovery_count += 1
-                                    self.log("WARN", f"[{worker_label}] 🔄 Bloqueo detectado ({block_exc}). "
+                                    self.log("WARN", f"{_wpfx}🔄 Bloqueo detectado ({block_exc}). "
                                                      f"Recuperación {_recovery_count}/{_WORKER_MAX_RECOVERY} — "
                                                      f"cooldown {_WORKER_RECOVERY_COOLDOWN}s...")
 
@@ -3244,6 +3630,12 @@ class ScraperController:
                                             return
                                         await asyncio.sleep(1)
 
+                                    # Rotar proxy session (nueva IP) para recuperación normal
+                                    if proxy_config:
+                                        proxy_config['sticky_session_id'] = _generate_session_id()
+                                        proxy = build_playwright_proxy(proxy_config)
+                                        self.log("INFO", f"{_wpfx}🔑 Nueva sesión proxy para recuperación.")
+
                                     # Re-lanzar con UA fresco
                                     if worker_label == "chromium-w2":
                                         _new_ua_pool = [ua for ua in USER_AGENTS if 'OPR' not in ua and 'Edg' not in ua]
@@ -3257,18 +3649,31 @@ class ScraperController:
                                             proxy=proxy, user_agent=_new_ua
                                         )
                                     except Exception as launch_err:
-                                        self.log("WARN", f"[{worker_label}] Error re-lanzando worker: {launch_err}. Deteniendo.")
+                                        self.log("WARN", f"{_wpfx}Error re-lanzando worker: {launch_err}. Deteniendo.")
+                                        # Invalidar referencia para que Phase 2 no reutilice página muerta
+                                        if worker_label == "chromium-w2":
+                                            _worker_webkit_ctx = None; _worker_webkit_page = None
+                                        else:
+                                            _worker_opera_ctx = None; _worker_opera_page = None
                                         break
 
                                     if not _new_ctx:
-                                        self.log("WARN", f"[{worker_label}] No se pudo re-lanzar (ejecutable no disponible). Deteniendo.")
+                                        self.log("WARN", f"{_wpfx}No se pudo re-lanzar (ejecutable no disponible). Deteniendo.")
+                                        if worker_label == "chromium-w2":
+                                            _worker_webkit_ctx = None; _worker_webkit_page = None
+                                        else:
+                                            _worker_opera_ctx = None; _worker_opera_page = None
                                         break
 
                                     try:
                                         await _new_ctx.add_init_script(generate_stealth_script())
                                         current_page = _new_ctx.pages[0] if _new_ctx.pages else await _new_ctx.new_page()
                                     except Exception as page_err:
-                                        self.log("WARN", f"[{worker_label}] Error creando página tras re-lanzamiento: {page_err}. Deteniendo.")
+                                        self.log("WARN", f"{_wpfx}Error creando página tras re-lanzamiento: {page_err}. Deteniendo.")
+                                        if worker_label == "chromium-w2":
+                                            _worker_webkit_ctx = None; _worker_webkit_page = None
+                                        else:
+                                            _worker_opera_ctx = None; _worker_opera_page = None
                                         break
 
                                     # Actualizar referencias externas para que Phase 2 use el nuevo contexto
@@ -3279,9 +3684,9 @@ class ScraperController:
                                         _worker_opera_ctx = _new_ctx
                                         _worker_opera_page = current_page
 
-                                    self.log("OK", f"[{worker_label}] ✅ Worker recuperado con nueva identidad. Continuando scraping...")
+                                    self.log("OK", f"{_wpfx}✅ Worker recuperado con nueva identidad. Continuando scraping...")
 
-                            self.log("INFO", f"[{worker_label}] Worker finalizado. Scrapeadas: {_w_scraped} propiedades.")
+                            self.log("INFO", f"{_wpfx}Worker finalizado. Scrapeadas: {_w_scraped} propiedades.")
 
                         # ── Asignar proxies a los workers secundarios ──
                         # El browser principal usa proxy pool[0] (Proxy #1).
@@ -3308,9 +3713,9 @@ class ScraperController:
                                     proxy_label=f"[{_w2_label}]",
                                     proxy_config=_proxy_pool[1] if len(_proxy_pool) > 1 else None,
                                 )))
-                                self.log("INFO", f"✅ [{_w2_label}] Chromium scraping worker lanzado (slot 98)")
+                                self.log("INFO", f"[Chromium/{_w2_label}] ✅ Chromium scraping worker lanzado (slot 98)")
                         except Exception as e:
-                            self.log("WARN", f"⚠️ Chromium worker (slot 98) no pudo lanzar: {e}")
+                            self.log("WARN", f"[Chromium/{_w2_label}] ⚠️ Chromium worker (slot 98) no pudo lanzar: {e}")
 
                         # Launch Opera/chromium (slot 96) — con Proxy #3
                         try:
@@ -3327,11 +3732,18 @@ class ScraperController:
                                     proxy_label=f"[{_w3_label}]",
                                     proxy_config=_proxy_pool[2] if len(_proxy_pool) > 2 else None,
                                 )))
-                                self.log("INFO", f"✅ [{_w3_label}] Opera scraping worker lanzado (slot 96)")
+                                self.log("INFO", f"[Opera/{_w3_label}] ✅ Opera scraping worker lanzado (slot 96)")
                             else:
-                                self.log("INFO", "ℹ️ Opera portable no disponible para scraping worker.")
+                                self.log("INFO", f"[Opera/{_w3_label}] ℹ️ Opera portable no disponible para scraping worker.")
                         except Exception as e:
-                            self.log("WARN", f"⚠️ Opera worker (slot 96) no pudo lanzar: {e}")
+                            self.log("WARN", f"[Opera/{_w3_label}] ⚠️ Opera worker (slot 96) no pudo lanzar: {e}")
+
+                    # Log summary for headless panel when workers status is resolved
+                    if not self._in_enrichment:  # Workers paralelos siempre activos
+                        if _worker_tasks:
+                            self.log("INFO", f"[Chromium/{_w2_label}] {len(_worker_tasks)} worker(s) headless activo(s)")
+                        else:
+                            self.log("WARN", f"[Chromium/{_w2_label}] Sin workers headless activos — el browser visible scrapea solo")
 
                     scraping_finished = False  # Track clean completion
                     # Skip main listing loop if resuming an interrupted enrichment phase
@@ -3361,10 +3773,10 @@ class ScraperController:
 
                         try:
                             if is_already_on_target and page_num == self.current_page:
-                                self.log("INFO", f"Already on Page {page_num} listing. Skipping redundant navigation.")
+                                self.log("INFO", f"{self._browser_prefix}Already on Page {page_num} listing. Skipping redundant navigation.")
                             else:
-                                self.log("INFO", f"{PROXY_LABEL} Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
-                                await self._goto_with_retry(page, list_url)
+                                self.log("INFO", f"{self._browser_prefix}Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
+                                await self._goto_with_retry(page, list_url, initial_load=True)
                                 self._force_navigate = False  # Clear flag after successful navigation
 
                             # Verify we are on the correct page (Idealista might redirect to previous page if blocked or bugged)
@@ -3471,8 +3883,8 @@ class ScraperController:
                                             mark_current_profile_blocked()
                                             raise BlockedException("Deep block detection")
                                         
-                                        self.log("WARN", "Keeping browser open 30s for manual inspection...")
-                                        await asyncio.sleep(30)
+                                        self.log("WARN", "Esperando 5s antes de continuar...")
+                                        await asyncio.sleep(5)
                                 
                                 except BlockedException as be:
                                     self.log("ERR", f"🛑 BLOCK in loop: {be}")
@@ -3498,7 +3910,7 @@ class ScraperController:
                                     mark_current_profile_blocked()
                                     raise BlockedException("Silent block: zero links on intermediate page")
                 
-                        self.log("INFO", f"Page {page_num}: Found {len(hrefs)} properties to check")
+                        self.log("INFO", f"{self._browser_prefix}Page {page_num}: Found {len(hrefs)} properties to check")
                 
                         # === VERBOSE SKIP: Check each URL individually to log skips ===
                         original_count = len(hrefs)
@@ -3531,13 +3943,15 @@ class ScraperController:
                                 break
                     
                             property_idx += 1
+                            # Evitar que el contador supere el total esperado en logs
+                            _display_idx = min(property_idx, self.total_properties_expected) if self.total_properties_expected > 0 else property_idx
                             key = canonical_listing_url(href)
                             self._seen_in_search.add(key) # Mark as active (seen in search)
                             
                             # --- GLOBAL DEACTIVATION SKIP: Always skip properties already marked as inactive ---
                             orig_row = self._all_existing_urls.get(key, {})
                             if orig_row.get('is_inactive'):
-                                self.log("INFO", f"({property_idx}/{self.total_properties_expected}) [SKIP] Already deactivated: {key}")
+                                self.log("INFO", f"({_display_idx}/{self.total_properties_expected}) [SKIP] Already deactivated: {key}")
                                 self._processed.add(key)
                                 skipped += 1
                                 self.current_property_count = property_idx
@@ -3553,7 +3967,7 @@ class ScraperController:
                             # Smart Enrichment Optimization: Skip detail visit if already enriched & active
                             if self.smart_enrichment and key in self._enriched_urls and key not in self._processed:
 
-                                self.log("INFO", f"({property_idx}/{self.total_properties_expected}) [SMART SKIP] Active & already enriched: {key}")
+                                self.log("INFO", f"({_display_idx}/{self.total_properties_expected}) [SMART SKIP] Active & already enriched: {key}")
                                 
                                 from datetime import datetime
                                 # Update last seen date
@@ -3590,7 +4004,7 @@ class ScraperController:
                     
                             # Double-check (should not happen after filtering, but safety net)
                             if key in self._processed:
-                                self.log("INFO", f"({property_idx}/{self.total_properties_expected}) Skipping already scraped: {key}")
+                                self.log("INFO", f"({_display_idx}/{self.total_properties_expected}) Skipping already scraped: {key}")
                                 skipped_on_page += 1
                                 skipped += 1
                                 self.current_property_count = property_idx
@@ -3604,15 +4018,15 @@ class ScraperController:
                                 continue
                     
                             try:
-                                await self._interruptible_sleep(random.uniform(*card_delay))
-                                await self._goto_with_retry(page, href)
-                                
-                                # CRITICAL: Check for stop immediately after navigation
-                                if self._should_stop:
-                                    break
-                        
-                                # If this is the first property, determine target file
+                                # === PRIMERA PROPIEDAD: necesita navegación para determinar fichero ===
                                 if target_file is None:
+                                    await self._interruptible_sleep(random.uniform(*card_delay))
+                                    await self._goto_with_retry(page, href)
+
+                                    # CRITICAL: Check for stop immediately after navigation
+                                    if self._should_stop:
+                                        break
+
                                     await page.wait_for_timeout(PAGE_WAIT_MS)
                                     d = await extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode)
                                     if d.get("isBlocked"):
@@ -3620,7 +4034,7 @@ class ScraperController:
                                          mark_current_profile_blocked()
                                          raise BlockedException("Acceso bloqueado en primera propiedad")
                                     row = {"URL": key, **d}
-                            
+
                                     # Build target filename only if not already forced or detected from province
                                     # Priority: User selection > automatic detection
                                     if self.forced_target_file:
@@ -3628,7 +4042,7 @@ class ScraperController:
                                     else:
                                         ciudad = row.get("Ciudad") or self._detected_city
                                         category = self._detected_sheet or "unknown"
-                                
+
                                         if ciudad:
                                             ciudad_clean = sanitize_filename_part(ciudad)
                                             target_file = f"idealista_{ciudad_clean}_{category}.xlsx"
@@ -3636,12 +4050,11 @@ class ScraperController:
                                             target_file = f"idealista_{category}.xlsx"
                                     # Update persistent reference
                                     self.output_file = target_file
-                            
+
                                     target_path = os.path.join(self.output_dir, target_file)
                                     self.log("INFO", f"Target Excel file: {target_path}")
-                            
+
                                     # Load existing URLs from this file
-                                    # import time  <-- REMOVED to fix UnboundLocalError
                                     t_start_load = time.time()
                                     url_meta = load_all_urls_from_excel(target_path)
                                     # Copy metadata to state (no sobreescribir entradas ya presentes)
@@ -3650,16 +4063,16 @@ class ScraperController:
                                             self._all_existing_urls[u] = meta
                                     t_end_load = time.time()
                                     self.log("INFO", f"Loaded {len(url_meta)} existing URLs from file in {t_end_load - t_start_load:.2f}s")
-                            
+
                                     # CRITICAL FIX: Add existing URLs to processed set immediately
                                     # This prevents re-scraping subsequent properties in this loop that are already in the file
                                     if url_meta:
                                         self._processed.update(url_meta.keys())
-                            
+
                                     # Process first property - check for missing fields (CAPTCHA)
                                     miss = missing_fields(row, is_room_mode=self._is_room_mode)
                                     if miss:
-                                        self.log("WARN", f"({property_idx}/{self.total_properties_expected}) CAPTCHA detectado en primera propiedad. Intentando resolución automática...")
+                                        self.log("WARN", f"({_display_idx}/{self.total_properties_expected}) CAPTCHA detectado en primera propiedad. Intentando resolución automática...")
 
                                         if self.on_status:
                                             self.on_status("captcha")
@@ -3671,7 +4084,7 @@ class ScraperController:
                                                 timeout=180.0
                                             )
                                             if solved:
-                                                self.log("OK", f"({property_idx}/{self.total_properties_expected}) ✅ CAPTCHA resuelto automáticamente en primera propiedad")
+                                                self.log("OK", f"({_display_idx}/{self.total_properties_expected}) ✅ CAPTCHA resuelto automáticamente en primera propiedad")
                                                 # Re-extraer datos tras resolver
                                                 try:
                                                     d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
@@ -3680,19 +4093,19 @@ class ScraperController:
                                                 except Exception as re_ex:
                                                     self.log("WARN", f"Re-extracción tras auto-solve falló: {re_ex}")
                                         except asyncio.TimeoutError:
-                                            self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solver timeout (180s) en primera propiedad")
+                                            self.log("WARN", f"({_display_idx}/{self.total_properties_expected}) Auto-solver timeout (180s) en primera propiedad")
                                         except BlockedException:
                                             raise
                                         except Exception as solve_err:
-                                            self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solver error: {solve_err}")
+                                            self.log("WARN", f"({_display_idx}/{self.total_properties_expected}) Auto-solver error: {solve_err}")
 
                                         # 2) Si auto-solve no funcionó, espera pasiva 30s como fallback
                                         if miss:
-                                            self.log("WARN", f"({property_idx}/{self.total_properties_expected}) Auto-solve insuficiente. Esperando 30s por resolución pasiva/manual...")
-                                            for i in range(3): # 3 * 10s = 30s
+                                            self.log("WARN", f"({_display_idx}/{self.total_properties_expected}) Auto-solve insuficiente. Esperando 10s...")
+                                            for i in range(2): # 2 * 5s = 10s
                                                 if self._should_stop: break
-                                                self.log("INFO", f"Espera CAPTCHA pasiva ({i+1}/3)...")
-                                                await asyncio.sleep(10.0)
+                                                self.log("INFO", f"Espera CAPTCHA pasiva ({i+1}/2)...")
+                                                await asyncio.sleep(5.0)
                                                 try:
                                                     d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
                                                     if d.get("isBlocked"):
@@ -3722,24 +4135,24 @@ class ScraperController:
                                             except Exception:
                                                 pass
                                             raise Exception("CAPTCHA_BLOCK_DETECTED")
-                                        
+
                                         # CAPTCHA cleared - resume normal operation
                                         if self.on_status: self.on_status("running")
-                                    
+
                                         if self._should_stop:
                                             self.log("WARN", f"First property CAPTCHA - stopped by user: {key}")
                                             continue
-                            
+
                                     # First property scraped successfully (or CAPTCHA cleared)
                                     # Add scraping date
                                     from datetime import datetime
                                     row["Fecha Scraping"] = datetime.now().strftime("%d/%m/%Y")
-                                    
+
                                     # Merge with existing data if available (Smart Enrichment)
                                     if key in self._all_existing_urls:
                                         existing_data = self._all_existing_urls[key].get('full_row', {})
                                         if existing_data:
-                                            # Merge: new scraped data takes precedence for non-empty values, 
+                                            # Merge: new scraped data takes precedence for non-empty values,
                                             # but existing data fills holes and preserves additional columns.
                                             for k, v in existing_data.items():
                                                 if k not in row or row[k] in [None, "", "NaN", "nan"]:
@@ -3752,29 +4165,52 @@ class ScraperController:
                                     self.scraped_properties.append(row)
                                     self.consecutive_skips = 0
                                     new_scraped += 1
-                                    
+
                                     # Update profile efficacy stats
                                     self._profile_stats[self._active_profile_name] = self._profile_stats.get(self._active_profile_name, 0) + 1
-                                    
-                                    self.log("OK", f"({property_idx}/{self.total_properties_expected}) Scraped: {key}")
+
+                                    self.log("OK", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) Scraped: {key}")
                                     if self.on_property:
                                         self.on_property(row)
-                            
+
                                     self._processed.add(key)
                                     self.current_property_count = property_idx
                                     self.emit_progress()
                                     continue
-                        
-                                # === URL nueva — enviar a la cola para scraping paralelo ===
+
+                                # === URL nueva — decidir si encolar o scrapear directamente ===
                                 self.consecutive_skips = 0
-                                if _worker_tasks:
-                                    # Workers activos: delegar scraping de detalle a la cola
+
+                                # Health check: filtrar workers que siguen vivos
+                                _active_workers = [t for t in _worker_tasks if not t.done()]
+
+                                # Log workers muertos (una sola vez por worker)
+                                for _wt in _worker_tasks:
+                                    if _wt.done() and id(_wt) not in _logged_dead_workers:
+                                        _logged_dead_workers.add(id(_wt))
+                                        try:
+                                            _wt_exc = _wt.exception() if not _wt.cancelled() else None
+                                        except Exception:
+                                            _wt_exc = None
+                                        if _wt_exc:
+                                            self.log("WARN", f"[HEALTH] Worker muerto con error: {_wt_exc}")
+                                        else:
+                                            self.log("INFO", f"[HEALTH] Worker finalizó normalmente.")
+
+                                if _active_workers:
+                                    # WORKERS VIVOS: encolar directamente SIN navegar
+                                    # (los workers ejecutan _scrape_property_detail que incluye _goto_with_retry)
                                     await _scrape_queue.put(href)
-                                    self.log("INFO", f"({property_idx}/{self.total_properties_expected}) → Cola de scraping: {key}")
+                                    self.log("INFO", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) → Cola de scraping: {key}")
                                     self.current_property_count = property_idx
                                     self.emit_progress()
+                                    # Delay mínimo anti-detección (simula pasar por la lista sin hacer clic)
+                                    await self._interruptible_sleep(random.uniform(0.3, 0.8))
                                 else:
-                                    # Sin workers: browser visible scrapea directamente
+                                    # SIN WORKERS VIVOS: browser visible scrapea directamente
+                                    if _worker_tasks:
+                                        self.log("WARN", "⚠️ Todos los workers han finalizado. Browser visible scrapea solo.")
+                                        _worker_tasks.clear()
                                     await self._interruptible_sleep(random.uniform(*card_delay))
                                     row = await self._scrape_property_detail(page, href)
                                     if row is not None:
@@ -3791,11 +4227,12 @@ class ScraperController:
                                             self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_start_save:.2f}s")
                                         await self.simulate_reading_time(row.get("Descripción"))
                                         await self.simulate_mouse_movement(page)
-                                        self.log("OK", f"({property_idx}/{self.total_properties_expected}) Scraped: {key}")
+                                        self.log("OK", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) Scraped: {key}")
                                         if self.on_property:
                                             self.on_property(row)
                                     else:
                                         self._processed.add(key)
+                                        self.log("INFO", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) No disponible: {key}")
                                     self.current_property_count = property_idx
                                     self.emit_progress()
                         
@@ -3818,7 +4255,7 @@ class ScraperController:
                                     self.log("WARN", "Saving resume state due to CAPTCHA block")
                                     self.save_state(page_num, target_file)
                                     raise e
-                                self.log("ERR", f"({property_idx}/{self.total_properties_expected}) {key} -> {e}")
+                                self.log("ERR", f"({_display_idx}/{self.total_properties_expected}) {key} -> {e}")
                                 self._processed.add(key)
                 
                 
@@ -3960,7 +4397,10 @@ class ScraperController:
                         # Esperar a que los workers headless terminen la cola de Phase 1
                         if _worker_tasks:
                             self.log("INFO", f"⏳ Esperando que {len(_worker_tasks)} workers headless completen sus URLs de Phase 1...")
-                            await asyncio.gather(*_worker_tasks, return_exceptions=True)
+                            _phase1_results = await asyncio.gather(*_worker_tasks, return_exceptions=True)
+                            for _wi, _wr in enumerate(_phase1_results):
+                                if isinstance(_wr, Exception):
+                                    self.log("WARN", f"⚠️ Worker headless #{_wi+1} terminó con error: {_wr}")
                             if _worker_counters["scraped"] > 0 or _worker_counters["real_changes"] > 0:
                                 self.log("OK", f"✅ Workers scrapearon {_worker_counters['real_changes']} propiedades en Phase 1.")
                             # Limpiar tasks completados para reutilizar workers en Phase 2
@@ -3997,6 +4437,7 @@ class ScraperController:
 
                             async def _enrich_worker(worker_page, worker_label: str, is_secondary: bool = False, use_proxy: bool = True, proxy_label: str = "", proxy_config=None):
                                 nonlocal deactivated_count
+                                _wpfx = self._browser_prefix if worker_label == "main" else self._worker_prefix(worker_label, proxy_label)
                                 while not self._should_stop and not parallel_stop_evt.is_set():
                                     m_url = await url_queue.claim()
                                     if m_url is None:
@@ -4008,7 +4449,20 @@ class ScraperController:
                                         self._enrichment_done_urls.add(m_url)
                                         continue
 
-                                    self.log("INFO", f"[{worker_label}] Checking missing property status ({counters['checked']+1}/{len(missing_urls)}): {m_url}")
+                                    # Skip if scraped less than 14 days ago — no need to re-check
+                                    from datetime import datetime
+                                    fecha_str = orig_row.get("full_row", {}).get("Fecha Scraping", "")
+                                    if fecha_str:
+                                        try:
+                                            fecha_dt = datetime.strptime(str(fecha_str).strip(), "%d/%m/%Y")
+                                            if (datetime.now() - fecha_dt).days < 14:
+                                                self.log("INFO", f"{_wpfx}[SKIP <14d] {m_url}")
+                                                self._enrichment_done_urls.add(m_url)
+                                                continue
+                                        except (ValueError, TypeError):
+                                            pass
+
+                                    self.log("INFO", f"{_wpfx}Checking missing property status ({counters['checked']+1}/{len(missing_urls)}): {m_url}")
                                     try:
                                         await self._interruptible_sleep(random.uniform(5, 10))
                                         await self._goto_with_retry(worker_page, m_url, use_proxy=use_proxy, label=worker_label, proxy_label=proxy_label, proxy_config=proxy_config)
@@ -4022,7 +4476,7 @@ class ScraperController:
 
                                         # CRITICAL: Verify we are NOT looking at a block page
                                         if any(kw in body_lower for kw in ["uso indebido", "bloqueado", "acceso bloqueado", "forbidden"]):
-                                            self.log("ERR", f"🚫 [{worker_label}] INTERNAL BLOCK detected during enrichment for {m_url}")
+                                            self.log("ERR", f"{_wpfx}🚫 INTERNAL BLOCK detected during enrichment for {m_url}")
                                             if not is_secondary:
                                                 # El worker principal se bloquea: para todo y rota identidad
                                                 parallel_stop_evt.set()
@@ -4030,7 +4484,7 @@ class ScraperController:
                                                 raise BlockedException("Block detected during enrichment check")
                                             else:
                                                 # Worker secundario bloqueado: devuelve la URL y sale sin interrumpir al principal
-                                                self.log("WARN", f"[{worker_label}] Bloqueado. Devolviendo URL a la cola para que otro worker la procese.")
+                                                self.log("WARN", f"{_wpfx}Bloqueado. Devolviendo URL a la cola para que otro worker la procese.")
                                                 await url_queue.release(m_url)
                                                 break
 
@@ -4042,7 +4496,7 @@ class ScraperController:
 
                                         was_active = orig_row.get("full_row", {}).get("Anuncio activo", "Sí") == "Sí"
                                         if is_gone:
-                                            self.log("WARN", f"[{worker_label}] Confirmed: Property deactivated -> {m_url}")
+                                            self.log("WARN", f"{_wpfx}Confirmed: Property deactivated -> {m_url}")
                                             row_to_save = orig_row.get("full_row", {}).copy()
                                             if not row_to_save:
                                                 row_to_save = {"URL": m_url}
@@ -4055,7 +4509,7 @@ class ScraperController:
                                             deactivated_count += 1
                                             counters["real_changes"] += 1  # baja = cambio real
                                         else:
-                                            self.log("INFO", f"[{worker_label}] Property still active (not in search): {m_url}")
+                                            self.log("INFO", f"{_wpfx}Property still active (not in search): {m_url}")
                                             row_to_save = orig_row.get("full_row", {}).copy()
                                             if not row_to_save:
                                                 row_to_save = {"URL": m_url}
@@ -4091,20 +4545,17 @@ class ScraperController:
                                             raise
                                         else:
                                             # Worker secundario bloqueado: devuelve la URL en vuelo y sale sin afectar al principal
-                                            self.log("WARN", f"[{worker_label}] Bloqueado/cerrado inesperadamente. Devolviendo URL a la cola y saliendo.")
+                                            self.log("WARN", f"{_wpfx}Bloqueado/cerrado inesperadamente. Devolviendo URL a la cola y saliendo.")
                                             await url_queue.release(m_url)
                                             break
                                     except StopException:
-                                        self.log("INFO", f"[{worker_label}] Stop requested during missing property checks. Saving progress...")
+                                        self.log("INFO", f"{_wpfx}Stop requested during missing property checks. Saving progress...")
                                         break
                                     except Exception as e:
-                                        self.log("WARN", f"[{worker_label}] Could not verify {m_url}: {e}")
+                                        self.log("WARN", f"{_wpfx}Could not verify {m_url}: {e}")
                                         continue
 
-                            if not self.parallel_enrichment:
-                                # Sequential mode (existing behavior, no secondary browser)
-                                await _enrich_worker(page, "main")
-                            else:
+                            if True:  # Workers paralelos siempre activos
                                 # Parallel mode: reutilizar workers headless de Phase 1
                                 self.log("INFO", "🔀 Iniciando Phase 2 paralela: reutilizando workers de Phase 1")
 
@@ -4113,10 +4564,10 @@ class ScraperController:
                                     worker_coros = [_enrich_worker(page, "main")]
                                     if _worker_webkit_page is not None:
                                         worker_coros.append(_enrich_worker(_worker_webkit_page, "chromium-w2", is_secondary=True, use_proxy=True, proxy_label=f"[{_w2_label}]", proxy_config=_proxy_pool[1] if len(_proxy_pool) > 1 else None))
-                                        self.log("INFO", f"✅ [{_w2_label}] Chromium-w2 worker reutilizado para Phase 2")
+                                        self.log("INFO", f"[Chromium/{_w2_label}] ✅ Chromium-w2 worker reutilizado para Phase 2")
                                     if _worker_opera_page is not None:
                                         worker_coros.append(_enrich_worker(_worker_opera_page, "opera", is_secondary=True, use_proxy=True, proxy_label=f"[{_w3_label}]", proxy_config=_proxy_pool[2] if len(_proxy_pool) > 2 else None))
-                                        self.log("INFO", f"✅ [{_w3_label}] Opera worker reutilizado para Phase 2")
+                                        self.log("INFO", f"[Opera/{_w3_label}] ✅ Opera worker reutilizado para Phase 2")
 
                                     if len(worker_coros) > 1:
                                         results = await asyncio.gather(*worker_coros, return_exceptions=True)
@@ -4124,6 +4575,10 @@ class ScraperController:
                                         main_exc = results[0]
                                         if isinstance(main_exc, (BlockedException, BrowserClosedException, StopException)):
                                             raise main_exc
+                                        # Log errores de workers secundarios
+                                        for _si, _sr in enumerate(results[1:], start=2):
+                                            if isinstance(_sr, Exception):
+                                                self.log("WARN", f"⚠️ Worker secundario #{_si} (Phase 2) terminó con error: {_sr}")
                                     else:
                                         # Fallback secuencial si ningún worker secundario arrancó
                                         await _enrich_worker(page, "main")
@@ -4147,7 +4602,7 @@ class ScraperController:
                             except Exception as e:
                                 self.log("WARN", f"Error cerrando {_name} worker: {e}")
 
-                    self.log("INFO", f"Summary: {new_scraped} new, {deactivated_count} deactivated, {smart_skipped} smart-skipped, {skipped} regular-skipped")
+                    self.log("INFO", f"{self._browser_prefix}Summary: {new_scraped} new, {deactivated_count} deactivated, {smart_skipped} smart-skipped, {skipped} regular-skipped")
                     self._export_to_excel(additions, target_file, expired_urls)
 
                     # CRITICAL FIX: If we finished cleanly (last page or max page), STOP the outer recovery loop
@@ -4228,7 +4683,7 @@ class ScraperController:
                                     match = re.search(r'(\d{1,3}(?:\.\d{3})*)\s*(?:vivienda|pisos?|casas?|inmuebles?|anuncios?|habitaci[oó]n|habitaciones)', h1txt, re.IGNORECASE)
                                     if match:
                                         total_count = int(match.group(1).replace('.', ''))
-                                        self.log("INFO", f"Extracted count from h1: {total_count}")
+                                        self.log("INFO", f"{self._browser_prefix}Extracted count from h1: {total_count}")
                                         break
                             except Exception as e:
                                 if attempt < 3:
@@ -4282,16 +4737,16 @@ class ScraperController:
                                 break
                         
                             list_url = build_paginated_url(self.seed_url, page_num)
-                            self.log("INFO", f"{PROXY_LABEL} Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
+                            self.log("INFO", f"{self._browser_prefix}Opening listing page {page_num}/{self.total_pages_expected}: {list_url}")
                         
                             try:
-                                await self._goto_with_retry(page, list_url)
+                                await self._goto_with_retry(page, list_url, initial_load=True)
                             except BrowserClosedException:
                                 break
                             except Exception as e:
                                 self.log("ERR", f"Failed to open listing page: {e}")
                                 break
-                        
+
                             try:
                                 await page.wait_for_selector("article, .item, [data-element-id]", timeout=10000, state="visible")
                                 await asyncio.sleep(2.0)
@@ -4373,7 +4828,7 @@ class ScraperController:
                                 
                                     self.current_property_count += 1
                                     self.emit_progress()
-                                    self.log("OK", f"({self.current_property_count}/{self.total_properties_expected}) Scraped: {key}")
+                                    self.log("OK", f"{self._browser_prefix}({self.current_property_count}/{self.total_properties_expected}) Scraped: {key}")
                                 
                                     if self.on_property:
                                         self.on_property(row)
@@ -4404,7 +4859,7 @@ class ScraperController:
                                 break
                             page_num += 1
                     
-                        self.log("INFO", f"Phase 2 Summary: {new_scraped} new properties")
+                        self.log("INFO", f"{self._browser_prefix}Phase 2 Summary: {new_scraped} new properties")
                         self._export_to_excel(additions, target_file, expired_urls)
                     
                         # Successfully finished phase 2
@@ -4573,6 +5028,15 @@ class ScraperController:
         
                 # Reset self.is_running = False etc will happen at the very end of run()
             
+            # Guardado final de seguridad: si el scraper se detuvo y quedan
+            # propiedades sin exportar (stop durante navegación, cooldown, etc.)
+            if self._should_stop and additions:
+                self.log("INFO", f"💾 Guardando {len(additions)} propiedades antes de cerrar...")
+                try:
+                    self._export_to_excel(additions, target_file, expired_urls, force=True)
+                except Exception as save_err:
+                    self.log("WARN", f"Error guardando Excel al detener: {save_err}")
+
             self.log("INFO", "Scraping finished.")
             # Close browser/context properly based on mode (if not already closed)
             try:
@@ -4610,11 +5074,8 @@ class ScraperController:
         # Determine methods that were actually encountered
         all_methods = [
             ("Recarga rápida",       None),
-            ("DataDome 2Captcha",    ["ip_bloqueada", "interstitial", "timeout", "error_api", "irresoluble", "sin_cookie", "error_inyeccion", "cookie_rechazada"]),
             ("DataDome CapSolver",   ["ip_bloqueada", "interstitial", "timeout", "error_api", "sin_cookie", "error_inyeccion", "cookie_rechazada"]),
             ("Slider local",         None),
-            ("2Captcha GeeTest",     None),
-            ("2Captcha Coordenadas", None),
         ]
         active_methods = [m for m, _ in all_methods if captcha_stats.get(f"{m}|intentos", 0) > 0]
         if active_methods:

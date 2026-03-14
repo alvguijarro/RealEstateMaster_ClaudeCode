@@ -52,8 +52,9 @@ update_process = None
 last_task_mode = None  # To track if update_process is 'update_urls' or 'enrichment'
 session_start_time: float | None = None # Global start time for the current session/batch
 
-# Scrape history storage
-HISTORY_FILE = Path(__file__).parent.parent / "scrape_history.json"
+# Scrape history storage (isolated per worker)
+_wp = f"worker_{os.environ.get('SCRAPER_WORKER_ID', '')}_" if os.environ.get('SCRAPER_WORKER_ID') else ""
+HISTORY_FILE = Path(__file__).parent.parent / f"{_wp}scrape_history.json"
 scrape_history: list = []
 
 # Caches for Excel file listing
@@ -184,24 +185,24 @@ def start_scraping():
     output_dir = data.get('output_dir', '').strip() or DEFAULT_OUTPUT_DIR
     browser_engine = data.get('browser_engine', 'chromium')  # Multi-browser rotation
     smart_enrichment = data.get('smart_enrichment', False)  # Smart enrichment mode
-    
+
     # Validate browser_engine
     if browser_engine not in ['chromium', 'firefox']:
         browser_engine = 'chromium'
-    
+
     if not seed_url:
         return jsonify({'error': 'Seed URL is required'}), 400
-    
+
     if not seed_url.startswith('http'):
         seed_url = 'https://' + seed_url
-    
+
     if 'idealista.com' not in seed_url:
         return jsonify({'error': 'URL must be from idealista.com'}), 400
-    
+
     # Stop any existing scraper
     if scraper_controller and scraper_controller.is_running:
         scraper_controller.stop()
-    
+
     # For DUAL MODE: Calculate the second URL now
     dual_mode_url = None
     if dual_mode:
@@ -209,7 +210,7 @@ def start_scraping():
             dual_mode_url = seed_url.replace('/alquiler-viviendas/', '/venta-viviendas/')
         elif '/venta-viviendas/' in seed_url:
             dual_mode_url = seed_url.replace('/venta-viviendas/', '/alquiler-viviendas/')
-    
+
     # Create controller with dual_mode_url if applicable
     scraper_controller = ScraperController(
         seed_url=seed_url,
@@ -836,14 +837,26 @@ def get_provinces_list():
         if zones_path.exists():
             with open(zones_path, 'r', encoding='utf-8') as f:
                 zones_map = json.load(f)
-        
-        # 3. Merge zones into provinces list
+
+        # 3. Load subzones mapping
+        subzones_path = Path(__file__).parent.parent / "documentation" / "subzones_complete.json"
+        subzones_map = {}
+        if subzones_path.exists():
+            with open(subzones_path, 'r', encoding='utf-8') as f:
+                subzones_map = json.load(f)
+
+        # 4. Merge zones + subzones into provinces list
         for p in provinces:
             # Match by Name (e.g. "A Coruña")
             p_name = p.get('name')
             if p_name and p_name in zones_map:
-                # Add zones
-                p['zones'] = zones_map[p_name].get('zones', [])
+                zones = zones_map[p_name].get('zones', [])
+                prov_subzones = subzones_map.get(p_name, {})
+                for zone in zones:
+                    zone_name = zone.get('name', '')
+                    zone_data = prov_subzones.get(zone_name, {})
+                    zone['subzones'] = zone_data.get('subzones', [])
+                p['zones'] = zones
             else:
                 p['zones'] = []
 
@@ -986,17 +999,17 @@ def start_batch_scraping():
     target_file = data.get('target_file')
     province_name = data.get('province_name')
     operation_type = data.get('operation_type')
-    
+
     # Auto-resolve target_file if missing but province/operation are provided
     if not target_file and province_name and operation_type:
         target_file = get_province_output_file(province_name, operation_type)
         if target_file:
             print(f"Auto-resolved target file for {province_name} ({operation_type}): {target_file}")
-    
+
     with open(queue_file, 'w', encoding='utf-8') as f:
         json.dump({
-            'urls': urls, 
-            'mode': mode, 
+            'urls': urls,
+            'mode': mode,
             'smart_enrichment': smart_enrichment,
             'target_file': target_file
         }, f)
@@ -1358,10 +1371,12 @@ def handle_relay_property(data):
     socketio.emit('property_scraped', data)
 
 
-def run_server(host='127.0.0.1', port=5003):
+def run_server(host='127.0.0.1', port=None):
     """Run the Flask-SocketIO server."""
-    print(f"Starting Scraper Server on port 5003...")
-    socketio.run(app, host='127.0.0.1', port=5003, debug=False, allow_unsafe_werkzeug=True)
+    if port is None:
+        port = int(os.environ.get("SCRAPER_PORT", 5003))
+    print(f"Starting Scraper Server on port {port}...")
+    socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
 
 
 
@@ -1374,14 +1389,14 @@ def get_salidas_files():
     """Optimized file listing for scraper/salidas using scandir for maximum performance."""
     try:
         limit = request.args.get('limit', default=200, type=int)
-        
+
         # Resolve scraper/salidas relative to this server file
         current_dir = Path(__file__).parent.parent
         salidas_dir = (current_dir / "salidas").resolve()
-        
+
         if not salidas_dir.exists():
             return jsonify({'files': []})
-        
+
         files = []
         # scandir is significantly faster for directories with many files
         with os.scandir(salidas_dir) as it:
@@ -1392,13 +1407,31 @@ def get_salidas_files():
                         'path': entry.path,
                         'mtime': entry.stat().st_mtime
                     })
-        
+
         # Sort by modification time (newest first)
         files.sort(key=lambda x: x['mtime'], reverse=True)
-        
+
         # Apply limit
         files = files[:limit]
-        
+
+        # Count total rows across all sheets per file
+        try:
+            from openpyxl import load_workbook
+            for f in files:
+                try:
+                    wb = load_workbook(f['path'], read_only=True, data_only=True)
+                    total = 0
+                    for ws in wb.worksheets:
+                        rows = ws.max_row
+                        if rows and rows > 1:
+                            total += rows - 1  # subtract header
+                    wb.close()
+                    f['count'] = total
+                except Exception:
+                    f['count'] = None
+        except ImportError:
+            pass
+
         return jsonify({'files': files})
     except Exception as e:
         print(f"Error in get_salidas_files: {e}")
@@ -1597,4 +1630,4 @@ def save_to_bigquery():
         return jsonify({'error': 'No files were successfully uploaded. Check logs.'}), 500
 
 if __name__ == '__main__':
-    run_server(port=5003)
+    run_server()

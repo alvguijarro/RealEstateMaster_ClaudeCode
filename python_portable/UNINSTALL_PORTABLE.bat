@@ -1,87 +1,134 @@
 @echo off
 setlocal enabledelayedexpansion
-title Real Estate Master - Uninstall Portable Tools
+title Real Estate Master - Desinstalar
 
 echo ============================================
-echo   Real Estate Master - Uninstall Portable Tools
+echo   Real Estate Master - Desinstalar / Reset
 echo ============================================
 echo.
-echo This script will perform a FACTORY RESET of the portable environment.
+echo Que tipo de desinstalacion quieres?
 echo.
-echo It will remove:
-echo  1. All installed setup markers (.setup_complete)
-echo  2. The local 'browsers' folder (Playwright)
+echo   1. RESET   - Elimina paquetes y marcadores. Puedes volver a ejecutar SETUP.bat
+echo   2. LIMPIEZA TOTAL - Elimina TODO lo que SETUP.bat instalo (paquetes + navegadores).
+echo                        Deja el PC como estaba antes de ejecutar SETUP.bat.
+echo                        Solo quedan: python.exe, DLLs, .bat y LEEME.
+echo   3. Cancelar
 echo.
+set /p "OPCION=Elige opcion (1/2/3): "
 
-REM Check if we are in a position to do a Full Factory Reset (Source exists)
-set "CAN_FACTORY_RESET=0"
-if exist "..\scraper\python\python.exe" (
-    set "CAN_FACTORY_RESET=1"
-    echo  3. The ENTIRE embedded Python environment (python.exe, Lib, Scripts)
-    echo     (Because a backup was found in ..\scraper\python)
-) else (
-    echo  3. Installed Python libraries (flask, pandas, etc.)
-    echo     (SAFE MODE: python.exe is kept because no backup source was found)
-)
-
-echo.
-set /p "CONFIRM=Are you sure you want to proceed? (Y/N): "
-if /i not "%CONFIRM%"=="Y" exit /b
+if "!OPCION!"=="3" exit /b
+if "!OPCION!"=="" exit /b
 
 set "SCRIPT_DIR=%~dp0"
 cd /d "%SCRIPT_DIR%"
 set "PYTHON=%SCRIPT_DIR%python.exe"
 
+if "!OPCION!"=="2" goto :LIMPIEZA_TOTAL
+
+REM ═════════════════════════════════════════════════════════════════════════════
+REM  OPCION 1: RESET (desinstalar paquetes pip, conservar Lib/Scripts/browsers)
+REM ═════════════════════════════════════════════════════════════════════════════
+
 echo.
-if "%CAN_FACTORY_RESET%"=="1" (
-    echo [1/3] Performing Factory Reset (Deleting Python)...
-    
-    if exist "python.exe" del /f /q "python.exe" 2>nul
-    if exist "pythonw.exe" del /f /q "pythonw.exe" 2>nul
-    if exist "python3.dll" del /f /q "python3.dll" 2>nul
-    if exist "python312.dll" del /f /q "python312.dll" 2>nul
-    
-    REM Remove directories
-    if exist "Lib" rmdir /s /q "Lib" 2>nul
-    if exist "Scripts" rmdir /s /q "Scripts" 2>nul
-    if exist "Include" rmdir /s /q "Include" 2>nul
-    if exist "tcl" rmdir /s /q "tcl" 2>nul
-    if exist "__pycache__" rmdir /s /q "__pycache__" 2>nul
-    
-    REM Clean up remaining DLLs and PYDs
-    del /q *.dll 2>nul
-    del /q *.pyd 2>nul
-    del /q *.cat 2>nul
-    del /q *.zip 2>nul
-    del /q ._pth 2>nul
-    
-    echo Python environment removed.
+echo [1/3] Desinstalando paquetes Python...
+if exist "%PYTHON%" (
+    "%PYTHON%" -m pip uninstall -y flask flask-socketio pandas openpyxl xlsxwriter numpy scikit-learn google-generativeai playwright playwright-stealth simple-websocket python-socketio python-engineio httpx google-cloud-bigquery pyarrow joblib requests
+    echo Paquetes desinstalados.
 ) else (
-    echo [1/3] Safe Mode: Uninstalling packages...
-    if exist "%PYTHON%" (
-        "%PYTHON%" -m pip uninstall -y flask flask-socketio pandas openpyxl xlsxwriter numpy scikit-learn google-generativeai playwright playwright-stealth simple-websocket python-socketio python-engineio
-    ) else (
-        echo Python not found, skipping package uninstall.
-    )
+    echo Python no encontrado, saltando desinstalacion.
 )
 
 echo.
-echo [2/3] Removing Playwright browsers...
-if exist "browsers" (
-    rmdir /s /q "browsers"
-    echo Browsers removed.
-) else (
-    echo Browsers directory not found.
-)
-
-echo.
-echo [3/3] Removing setup markers...
+echo [2/3] Eliminando marcadores de setup...
 if exist ".setup_complete" del ".setup_complete"
 if exist ".deps_installed" del ".deps_installed"
+echo Marcadores eliminados.
 
 echo.
+echo [3/3] Reset completado.
+echo Para reinstalar todo, ejecuta SETUP.bat.
+echo.
+pause
+exit /b
+
+REM ═════════════════════════════════════════════════════════════════════════════
+REM  OPCION 2: LIMPIEZA TOTAL (dejar el PC como antes de SETUP.bat)
+REM ═════════════════════════════════════════════════════════════════════════════
+:LIMPIEZA_TOTAL
+
+echo.
+echo ATENCION: Esto eliminara COMPLETAMENTE:
+echo   - Lib\          (paquetes Python instalados)
+echo   - Scripts\      (pip y herramientas)
+echo   - Include\
+echo   - browsers\     (Chromium, Chrome, OperaPortable)
+echo   - __pycache__\
+echo   - .setup_complete, .deps_installed
+echo.
+echo Se CONSERVARA:
+echo   - python.exe, DLLs y runtime Python
+echo   - Todos los .bat (SETUP, START, STOP, etc.)
+echo   - LEEME_INSTRUCCIONES.txt
+echo.
+echo El PC quedara exactamente como antes de ejecutar SETUP.bat.
+echo Para volver a usar el programa, solo ejecuta SETUP.bat de nuevo.
+echo.
+
+set /p "CONFIRM=Continuar con limpieza total? (S/N): "
+if /i not "!CONFIRM!"=="S" (
+    echo Cancelado.
+    pause
+    exit /b
+)
+
+echo.
+echo [1/4] Eliminando paquetes Python (Lib, Scripts, Include)...
+if exist "%SCRIPT_DIR%Lib" (
+    echo   Eliminando Lib\...
+    rmdir /s /q "%SCRIPT_DIR%Lib" 2>nul
+)
+if exist "%SCRIPT_DIR%Scripts" (
+    echo   Eliminando Scripts\...
+    rmdir /s /q "%SCRIPT_DIR%Scripts" 2>nul
+)
+if exist "%SCRIPT_DIR%Include" (
+    echo   Eliminando Include\...
+    rmdir /s /q "%SCRIPT_DIR%Include" 2>nul
+)
+if exist "%SCRIPT_DIR%__pycache__" (
+    echo   Eliminando __pycache__\...
+    rmdir /s /q "%SCRIPT_DIR%__pycache__" 2>nul
+)
+echo Paquetes eliminados.
+
+echo.
+echo [2/4] Eliminando navegadores...
+if exist "%SCRIPT_DIR%browsers" (
+    for /d %%D in ("%SCRIPT_DIR%browsers\*") do (
+        echo   Eliminando %%~nxD...
+        rmdir /s /q "%%D" 2>nul
+    )
+    for %%F in ("%SCRIPT_DIR%browsers\*") do (
+        del "%%F" 2>nul
+    )
+    echo Navegadores eliminados.
+) else (
+    echo Carpeta browsers\ no encontrada.
+)
+
+echo.
+echo [3/4] Eliminando marcadores...
+if exist ".setup_complete" del ".setup_complete"
+if exist ".deps_installed" del ".deps_installed"
+echo Marcadores eliminados.
+
+echo.
+echo [4/4] Limpieza total completada.
+echo.
 echo ============================================
-echo   Uninstallation Complete!
+echo   PC limpio. Solo queda el runtime Python.
 echo ============================================
+echo.
+echo Para volver a instalar todo: ejecuta SETUP.bat
 echo.
 pause

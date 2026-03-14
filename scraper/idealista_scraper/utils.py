@@ -15,55 +15,13 @@ from urllib.parse import urlparse
 import asyncio
 import os
 import sys
-import tempfile
 from pathlib import Path
 # Add project root to sys.path to import shared config
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 try:
-    from shared.config import TWOCAPTCHA_API_KEY, CAPSOLVER_API_KEY
+    from shared.config import CAPSOLVER_API_KEY
 except ImportError:
-    TWOCAPTCHA_API_KEY = None
     CAPSOLVER_API_KEY = ""
-
-try:
-    from shared.proxy_config import get_2captcha_proxy_dict
-except ImportError:
-    get_2captcha_proxy_dict = lambda: {}
-
-# Fallback: ensure key is always available even if config import failed
-if not TWOCAPTCHA_API_KEY:
-    TWOCAPTCHA_API_KEY = os.environ.get("TWOCAPTCHA_API_KEY", "f49b4e9ed2e2b36add9c6ef3af3e6e4c")
-
-# Sync solver (TwoCaptcha) — used for screenshots/coordinates
-try:
-    from twocaptcha import TwoCaptcha
-    # Timeout corto (60s) para fallar rápido si el worker tarda demasiado en coordenadas
-    SOLVER = TwoCaptcha(TWOCAPTCHA_API_KEY, defaultTimeout=60, pollingInterval=5) if TWOCAPTCHA_API_KEY else None
-except Exception as _e:
-    TwoCaptcha = None
-    SOLVER = None
-
-# Async solver (AsyncTwoCaptcha) — used for DataDome / GeeTest
-try:
-    from twocaptcha.async_solver import AsyncTwoCaptcha
-    # Timeout de 90s para DataDome: si tarda más, el challenge de Idealista habrá caducado ("REINTENTAR")
-    ASYNC_SOLVER = AsyncTwoCaptcha(TWOCAPTCHA_API_KEY, defaultTimeout=90, pollingInterval=5) if TWOCAPTCHA_API_KEY else None
-except Exception as _e:
-    AsyncTwoCaptcha = None
-    ASYNC_SOLVER = None
-
-# --- Startup diagnostics ---
-if SOLVER:
-    _key_tail = TWOCAPTCHA_API_KEY[-4:] if TWOCAPTCHA_API_KEY else '????'
-    print(f"[2Captcha] ✅ SOLVER sync listo (key: ...{_key_tail})")
-else:
-    print("[2Captcha] ⚠️  SOLVER sync NO disponible (import fallida o key inválida)")
-
-if ASYNC_SOLVER:
-    _key_tail = TWOCAPTCHA_API_KEY[-4:] if TWOCAPTCHA_API_KEY else '????'
-    print(f"[2Captcha] ✅ ASYNC_SOLVER listo (key: ...{_key_tail})")
-else:
-    print("[2Captcha] ⚠️  ASYNC_SOLVER NO disponible (import fallida o key inválida)")
 
 
 
@@ -89,17 +47,6 @@ def _captcha_inc(key: str) -> None:
 # =============================================================================
 # Solver error codes — mensajes legibles para diagnóstico rápido
 # =============================================================================
-
-_TWOCAPTCHA_ERROR_CODES: dict = {
-    "ERROR_PROXY_NOT_AUTHORISED": "Credenciales proxy incorrectas — verificar PROXY_CONFIG.login/password",
-    "ERROR_BAD_PROXY": "Proxy no responde — verificar host/port en PROXY_CONFIG",
-    "ERROR_PROXY_TIMEOUT": "Proxy lento/caído — el solver no pudo conectar a través de él",
-    "ERROR_CAPTCHA_UNSOLVABLE": "CAPTCHA irresoluble para los trabajadores de 2Captcha",
-    "ERROR_INVALID_TASK_DATA": "Datos de tarea inválidos — UA incorrecto o parámetros malformados",
-    "ERROR_ZERO_BALANCE": "Saldo 2Captcha agotado — recargar cuenta en 2captcha.com",
-    "ERROR_IP_NOT_ALLOWED": "IP no autorizada para esta API key",
-    "ERROR_KEY_DOES_NOT_EXIST": "API key 2Captcha inválida o expirada",
-}
 
 _CAPSOLVER_ERROR_CODES: dict = {
     "ERROR_PROXY_NOT_AUTHORISED": "Credenciales proxy incorrectas — verificar PROXY_CONFIG.login/password",
@@ -919,347 +866,6 @@ async def solve_slider_captcha(page):
         log("WARN", f"Slider solver attempt failed: {e}")
         return False
 
-async def solve_geetest_2captcha(page, logger=None):
-    """Solve GeeTest CAPTCHA using 2Captcha service."""
-    l = logger or log
-    if not ASYNC_SOLVER:
-        l("WARN", "2Captcha ASYNC_SOLVER not initialized (check API Key).")
-        return False
-        
-    try:
-        _captcha_inc("geetest_attempts")
-        l("INFO", "🌀 Detecting GeeTest parameters...")
-        # Idealista usually puts GeeTest params in a specific script or object
-        # We try to extract gt and challenge
-        params = await page.evaluate("""() => {
-            const scripts = Array.from(document.querySelectorAll('script'));
-            for (const s of scripts) {
-                if (s.textContent.includes('gt') && s.textContent.includes('challenge')) {
-                    const gtMatch = s.textContent.match(/gt\\s*:\\s*['"]([^'"]+)['"]/);
-                    const challengeMatch = s.textContent.match(/challenge\\s*:\\s*['"]([^'"]+)['"]/);
-                    if (gtMatch && challengeMatch) {
-                        return { gt: gtMatch[1], challenge: challengeMatch[1] };
-                    }
-                }
-            }
-            // Fallback: search in window object if possible
-            if (window.initGeetest) return { type: 'dynamic' };
-            return null;
-        }""")
-
-        if not params:
-            l("WARN", "Could not find GeeTest parameters automatically.")
-            return False
-
-        l("INFO", f"📦 GeeTest params found. Sending to 2Captcha... (gt: {params.get('gt', 'detected')})")
-
-        proxy_dict = get_2captcha_proxy_dict()
-
-        result = await ASYNC_SOLVER.geetest(
-            gt=params['gt'],
-            challenge=params['challenge'],
-            url=page.url,
-            proxy=proxy_dict
-        )
-
-        # Normalize response: 2captcha-python can return str or dict
-        code = None
-        if isinstance(result, str) and result:
-            code = result
-        elif isinstance(result, dict) and result.get('code'):
-            code = result['code']
-
-        if code:
-            l("OK", "✅ 2Captcha returned solution. Injecting into page...")
-            
-            # Inject the solution
-            await page.evaluate(f"""(code) => {{
-                // Standard GeeTest callback
-                if (window.geetest_callback) {{
-                    window.geetest_callback(code);
-                }} else {{
-                    // Try to find the hidden inputs and fill them
-                    const validate = document.querySelector('input[name="geetest_validate"]');
-                    const challenge = document.querySelector('input[name="geetest_challenge"]');
-                    const seccode = document.querySelector('input[name="geetest_seccode"]');
-                    
-                    if (validate) validate.value = code;
-                    if (seccode) seccode.value = code + '|jordan';
-                    
-                    // Submit form if present
-                    const form = validate ? validate.form : null;
-                    if (form) form.submit();
-                }}
-            }}""", code)
-            
-            await asyncio.sleep(3)
-            _captcha_inc("geetest_solved")
-            return True
-
-    except Exception as e:
-        _captcha_inc("geetest_errors")
-        l("ERR", f"2Captcha GeeTest solver failed: {e}")
-
-    return False
-
-async def solve_datadome_2captcha(page, captcha_url=None, logger=None, _ctx=None, proxy_config=None):
-    """Solve DataDome CAPTCHA using 2Captcha DataDomeSliderTask."""
-    l = logger or log
-    if not TWOCAPTCHA_API_KEY:
-        l("WARN", "2Captcha API key no configurada.")
-        return False
-
-    try:
-        l("INFO", "Desplegando solución DataDome dedicada (DataDomeSliderTask)...")
-
-        # 1. Prepare parameters
-        page_url = page.url
-        user_agent = await page.evaluate("navigator.userAgent")
-
-        if not captcha_url:
-            l("INFO", "Buscando captchaUrl de DataDome...")
-            captcha_url = await page.evaluate("""() => {
-                const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
-                return iframe ? iframe.src : null;
-            }""")
-
-        if not captcha_url:
-            l("WARN", "No se pudo encontrar captchaUrl para DataDome.")
-            return False
-
-        # ── Validate t= parameter in captchaUrl ─────────────────────────
-        # t=fe → IP in good standing, challenge can be solved
-        # t=bv → IP permanently blocked by DataDome, any cookie will be rejected
-        from urllib.parse import urlparse as _urlparse, parse_qs as _parse_qs
-        _parsed_captcha = _urlparse(captcha_url)
-        _qs_params = _parse_qs(_parsed_captcha.query)
-        _t_param = _qs_params.get('t', [''])[0]
-        # Log breve del parámetro t= (fe=solvable, bv=IP bloqueada)
-        l("INFO", f"DataDome t={_t_param!r}")
-
-        if '/interstitial/' in _parsed_captcha.path:
-            l("WARN", "URL tipo /interstitial/ detectada (no es slider). DataDomeSliderTask no puede resolver este tipo. Rotando...")
-            _captcha_inc("DataDome 2Captcha|interstitial")
-            return False
-
-        # 2. Prepare proxy config — usar proxy_config explícito si se proporcionó (workers headless)
-        _PC = proxy_config
-        if not _PC:
-            try:
-                from shared.proxy_config import PROXY_CONFIG
-                _PC = PROXY_CONFIG
-            except ImportError:
-                _PC = None
-
-        if not _PC:
-            l("ERR", "No se ha encontrado PROXY_CONFIG. DataDomeSliderTask exige proxy residencial.")
-            return False
-
-        import httpx
-        # Build proxy login with sticky session ID so 2Captcha uses the same IP as the browser
-        proxy_login = _PC.get('login', '')
-        sticky_sid = _PC.get('sticky_session_id')
-        if sticky_sid:
-            proxy_login = f"{proxy_login}-session-{sticky_sid}"
-            l("INFO", f"Proxy session ID: {sticky_sid}")
-
-        # 3. Pre-flight proxy IP check — ANTES del check t=bv para loguear IP real en cada llamada
-        # (sin flag one-shot: así detectamos si las sesiones realmente rotan IPs distintas)
-        proxy_exit_ip = "unknown"
-        try:
-            proxy_url_check = f"http://{proxy_login}:{_PC.get('password', '')}@{_PC.get('host')}:{_PC.get('port')}"
-            async with httpx.AsyncClient(proxy=proxy_url_check, timeout=10, verify=False) as _ipc:
-                _ip_resp = await _ipc.get("https://api.ipify.org?format=json")
-                proxy_exit_ip = _ip_resp.json().get("ip", "unknown")
-                l("INFO", f"🌐 Proxy exit IP (session {sticky_sid}): {proxy_exit_ip}")
-        except Exception as ip_err:
-            l("WARN", f"No se pudo verificar IP del proxy: {ip_err}")
-
-        # 4. Ahora check t=bv — con IP ya logueada para diagnóstico
-        if _t_param == 'bv':
-            tbv_count = _increment_tbv_counter(proxy_exit_ip)
-            l("WARN", f"t=bv #{tbv_count}: IP {proxy_exit_ip} bloqueada permanentemente por DataDome. Rotando identidad...")
-            _captcha_inc("DataDome 2Captcha|ip_bloqueada")
-            if _ctx is not None:
-                _ctx['fail_reason'] = 'tbv'
-            return False
-
-        # 4. Build and send task payload
-        task_payload = {
-            "clientKey": TWOCAPTCHA_API_KEY,
-            "task": {
-                "type": "DataDomeSliderTask",
-                "websiteURL": page_url,
-                "captchaUrl": captcha_url,
-                "userAgent": user_agent,
-                "proxyType": _PC.get('type', 'http').lower(),
-                "proxyAddress": _PC.get('host'),
-                "proxyPort": _PC.get('port'),
-                "proxyLogin": proxy_login,
-                "proxyPassword": _PC.get('password')
-            }
-        }
-
-        # Log sanitized payload (hide password)
-        safe_payload = {**task_payload, "task": {**task_payload["task"], "proxyPassword": "***", "proxyLogin": proxy_login[:10] + "..."}}
-        safe_payload["clientKey"] = "..." + TWOCAPTCHA_API_KEY[-4:]
-        l("INFO", f"Payload (sanitized): {safe_payload}")
-
-        async with httpx.AsyncClient(timeout=30) as client:
-            l("INFO", "Enviando createTask a api.2captcha.com...")
-            try:
-                resp = await client.post("https://api.2captcha.com/createTask", json=task_payload, timeout=30)
-            except httpx.ReadTimeout:
-                l("ERR", "Timeout al enviar createTask a 2Captcha.")
-                _captcha_inc("DataDome 2Captcha|error_api")
-                return False
-            resp_data = resp.json()
-
-            if resp_data.get("errorId") != 0:
-                l("ERR", f"Error 2Captcha createTask: {resp_data}")
-                _captcha_inc("DataDome 2Captcha|error_api")
-                return False
-
-            task_id = resp_data.get("taskId")
-            l("INFO", f"Tarea {task_id} creada. Primer poll en 10s, luego cada 5s (DataDome suele tardar 10-20s)...")
-
-            max_wait = 65
-            start_time = time.time()
-            code = None
-            poll_count = 0
-            poll_interval = 10  # primer poll tardío para evitar peticiones innecesarias (S-5)
-
-            while time.time() - start_time < max_wait:
-                await asyncio.sleep(poll_interval)
-                poll_interval = 5  # segundo poll en adelante cada 5s
-                poll_count += 1
-                elapsed = int(time.time() - start_time)
-                try:
-                    res = await client.post("https://api.2captcha.com/getTaskResult", json={
-                        "clientKey": TWOCAPTCHA_API_KEY,
-                        "taskId": task_id
-                    }, timeout=30)
-                except httpx.ReadTimeout:
-                    l("WARN", f"ReadTimeout en getTaskResult (poll #{poll_count}, {elapsed}s), reintentando...")
-                    continue
-
-                res_data = res.json()
-                if res_data.get("errorId") != 0:
-                    error_code = res_data.get("errorCode", "unknown")
-                    _desc = _TWOCAPTCHA_ERROR_CODES.get(error_code, f"código desconocido: {error_code}")
-                    if error_code == "ERROR_CAPTCHA_UNSOLVABLE":
-                        l("WARN", f"2Captcha: {_desc} (tras {elapsed}s)")
-                        _captcha_inc("DataDome 2Captcha|irresoluble")
-                    else:
-                        l("ERR", f"2Captcha getTaskResult [{error_code}]: {_desc} | raw: {res_data}")
-                        _captcha_inc(f"DataDome 2Captcha|{error_code}" if error_code != "unknown" else "DataDome 2Captcha|error_api")
-                    break
-
-                status = res_data.get("status")
-                if status == "ready":
-                    solution = res_data.get("solution", {})
-                    l("INFO", f"Solución recibida en {elapsed}s. Keys: {list(solution.keys())}")
-                    # Robust cookie extraction: try multiple known keys
-                    code = solution.get("cookie") or solution.get("datadome") or solution.get("token")
-                    if not code:
-                        # Fallback: find any string value >20 chars (likely the cookie)
-                        for v in solution.values():
-                            if isinstance(v, str) and len(v) > 20:
-                                code = v
-                                l("INFO", f"Cookie extracted from fallback key (len={len(v)})")
-                                break
-                    break
-                elif status == "processing":
-                    # Progress log every 30s
-                    if elapsed % 30 < 6:
-                        l("INFO", f"Polling... {elapsed}s/{max_wait}s (poll #{poll_count})")
-                    continue
-                else:
-                    l("WARN", f"Estado de tarea 2Captcha desconocido: {status}")
-                    break
-
-            if not code:
-                elapsed = int(time.time() - start_time)
-                if elapsed >= max_wait:
-                    l("WARN", f"2Captcha TIMEOUT: tarea sigue 'processing' tras {elapsed}s (URL captcha probablemente expirada)")
-                    _captcha_inc("DataDome 2Captcha|timeout")
-                else:
-                    l("WARN", f"2Captcha: tarea finalizada sin cookie tras {elapsed}s")
-                    _captcha_inc("DataDome 2Captcha|sin_cookie")
-                return False
-
-            l("INFO", f"Cookie datadome obtenida (len={len(code)}): ...{code[-20:]}")
-
-            # 5. Inject the cookie via Playwright's native API
-            try:
-                domain = ".idealista.com"
-                # Strip 'datadome=' prefix if present
-                if 'datadome=' in code:
-                    m = re.search(r'datadome=([^;]+)', code)
-                    code = m.group(1).strip() if m else code
-
-                await page.context.add_cookies([{
-                    'name': 'datadome',
-                    'value': code.strip(),
-                    'domain': domain,
-                    'path': '/',
-                    'secure': True,
-                    'sameSite': 'Lax'
-                }])
-                l("OK", f"Cookie 'datadome' inyectada en {domain}")
-            except Exception as cookie_err:
-                l("ERR", f"Error inyectando cookie DataDome: {cookie_err}")
-                _captcha_inc("DataDome 2Captcha|error_inyeccion")
-                return False
-
-            # 6. Reload and verify (two-pass: handles slow page loads)
-            l("INFO", f"Recargando página: {page_url[:60]}...")
-            try:
-                await page.goto(page_url, wait_until='domcontentloaded', timeout=30000)
-            except Exception as nav_err:
-                l("WARN", f"Error al recargar tras inyección: {nav_err}")
-                return False
-
-            for pass_num in (1, 2):
-                await asyncio.sleep(5)
-                is_still_blocked = await page.evaluate(r"""() => {
-                    const hasDataDomeIframe = !!document.querySelector('iframe[src*="captcha-delivery.com"]');
-                    const hasWarningText = document.body && document.body.innerText.toLowerCase().includes('estamos recibiendo muchas peticiones');
-                    return !!(hasDataDomeIframe || hasWarningText);
-                }""")
-
-                if not is_still_blocked:
-                    l("OK", f"DataDome resuelto (pass {pass_num}): CAPTCHA desapareció.")
-                    return True
-
-                if pass_num == 1:
-                    l("INFO", "CAPTCHA aún presente tras 5s, esperando 5s más (pass 2)...")
-
-            # Diagnosticar motivo del rechazo: extraer t= del nuevo captcha
-            try:
-                _new_iframe_src = await page.evaluate("""() => {
-                    const f = document.querySelector('iframe[src*="captcha-delivery.com"]');
-                    return f ? f.src : null;
-                }""")
-                if _new_iframe_src:
-                    from urllib.parse import urlparse as _up2, parse_qs as _pq2
-                    _new_t = _pq2(_up2(_new_iframe_src).query).get('t', ['?'])[0]
-                    l("WARN", f"Cookie rechazada — nuevo captcha URL tiene t={_new_t}")
-                    if _new_t == 'bv':
-                        _increment_tbv_counter()
-            except Exception:
-                pass
-            l("WARN", "Cookie inyectada pero el CAPTCHA persiste tras dos verificaciones.")
-            _captcha_inc("DataDome 2Captcha|cookie_rechazada")
-            return False
-
-    except Exception as e:
-        l("ERR", f"Error en solver DataDome 2Captcha: {type(e).__name__}: {e}")
-
-    l("WARN", "DataDome no resuelto via 2Captcha.")
-    return False
-
-
 def _sanitize_ua_for_capsolver(ua: str, logger=None) -> str:
     """Sanitiza un User-Agent para que sea compatible con CapSolver DatadomeSliderTask.
 
@@ -1348,7 +954,7 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
         if sticky_sid:
             proxy_login = f"{proxy_login}-session-{sticky_sid}"
 
-        # Pre-flight proxy IP check — misma lógica que 2Captcha para diagnóstico de IP mismatch (S-2)
+        # Pre-flight proxy IP check — diagnóstico de IP mismatch (S-2)
         proxy_exit_ip = "unknown"
         try:
             _proxy_url_check = f"http://{proxy_login}:{_PC.get('password', '')}@{_PC.get('host')}:{_PC.get('port')}"
@@ -1546,243 +1152,11 @@ async def solve_datadome_capsolver(page, captcha_url=None, logger=None, _ctx=Non
     return False
 
 
-async def solve_slider_2captcha(page, logger=None):
-    """Solve simple slider captchas using 2Captcha Coordinates method (Refined version)."""
-    l = logger or log
-    if not SOLVER:
-        return False
-
-    _captcha_inc("2Captcha Coordenadas|intentos")
-    try:
-        # Get Device Pixel Ratio for coordinate scaling
-        pixel_ratio = await page.evaluate("window.devicePixelRatio || 1.0")
-        l("INFO", f"📐 Detection Scale (DPI): {pixel_ratio}")
-
-        # 1. Detect any slider-like containers with expanded selectors
-        selectors = [
-            ".px-captcha-container", 
-            "#captcha-container",
-            "#challenge-container",
-            ".geetest_holder",
-            ".nc-container",
-            "div[class*='captcha']",
-            "div[id*='captcha']",
-            "iframe[title*='captcha']",
-            "iframe[src*='captcha']",
-            ".captcha-box"
-        ]
-        
-        container = None
-        for sel in selectors:
-            try:
-                elem = await page.query_selector(sel)
-                if elem and await elem.is_visible():
-                    container = elem
-                    # Ensure it's in view for a good screenshot
-                    await elem.scroll_into_view_if_needed()
-                    break
-            except: continue
-            
-        if not container:
-            l("INFO", "No explicit captcha container found. Using body fallback.")
-            container = await page.query_selector("body")
-            
-        if not container: return False
-
-        l("INFO", "📸 Capturando screenshot del captcha para 2Captcha...")
-        # Precise screenshot
-        fd, img_path = tempfile.mkstemp(suffix=".png", prefix="captcha_")
-        os.close(fd)
-        
-        await container.screenshot(path=img_path)
-        
-        # 3. Request Coordinates from 2Captcha
-        l("INFO", "📤 Enviando coordenadas a 2Captcha (Slider)...")
-        # Updated instructions to be more precise
-        instructions = "Haz clic en el PUNTO DESTINO (extremo derecho) donde debe llegar el botón deslizante. / Click on the DESTINATION point (far right) where the slider button should end."
-        
-        try:
-            result = await asyncio.to_thread(
-                SOLVER.coordinates,
-                file=img_path,
-                textinstructions=instructions
-            )
-        except Exception as e:
-            l("ERR", f"2Captcha API call failed: {type(e).__name__}: {e}")
-            result = None
-        
-        # Cleanup image
-        if os.path.exists(img_path):
-            try: os.remove(img_path)
-            except: pass
-            
-        # Type-safe parsing of 2Captcha coordinates result to prevent KeyError
-        # result for coordinates can be a list or a dict {'captchaId': '...', 'code': 'coordinates:x=614,y=390'}
-        # or {'0': {'x': '20', 'y': '30'}}
-        if result:
-            tx, ty = 0.0, 0.0
-            parsed_successfully = False
-            
-            if isinstance(result, list) and len(result) > 0:
-                target = result[0]
-                tx = float(target.get('x', 0))
-                ty = float(target.get('y', 0))
-                parsed_successfully = True
-            elif isinstance(result, dict):
-                code = result.get('code')
-                if code and isinstance(code, str) and 'coordinates:' in code:
-                    # Example: 'coordinates:x=614,y=390' OR 'coordinates:x=244,y=80;x=474,y=558'
-                    # We only care about the first point
-                    first_coord = code.split(';')[0].replace('coordinates:', '') # 'x=614,y=390'
-                    parts = dict(kv.split('=') for kv in first_coord.split(','))
-                    tx = float(parts.get('x', 0))
-                    ty = float(parts.get('y', 0))
-                    parsed_successfully = True
-                elif '0' in result:
-                    target = result['0']
-                    tx = float(target.get('x', 0))
-                    ty = float(target.get('y', 0))
-                    parsed_successfully = True
-                    
-            if not parsed_successfully:
-                l("ERR", f"Unexpected result format from 2Captcha coordinates: {result}")
-                return False
-            
-            box = await container.bounding_box()
-            if not box: return False
-            
-            # Map image-relative coords to page-relative
-            # IMPORTANT: Screenshot is in physical pixels, but Playwright mouse moves in CSS pixels.
-            # We MUST divide by pixel_ratio for correct alignment.
-            dest_x = box['x'] + (tx / pixel_ratio)
-            dest_y = box['y'] + (ty / pixel_ratio)
-            
-            l("INFO", f"🎯 Target mapped: {int(dest_x)},{int(dest_y)} (Original: {tx},{ty} @ {pixel_ratio}x)")
-            
-            # 4. Find the slider handle with expanded selectors
-            handle_selectors = [
-                 ".px-captcha-slider-button", 
-                 ".geetest_slider_button", 
-                 ".nc_iconfont.btn_slide", 
-                 "#nc_1_n1z", 
-                 ".slid_btn",
-                 "div[role='button'][aria-label*='Desliza']",
-                 "div[role='button'][aria-label*='Slide']",
-                 "div[class*='slider-handle']",
-                 "div[class*='captcha-slider-handle']",
-                 "span:has-text('→')",
-                 "div:has-text('→')",
-                 ".arrow-right",
-                 "div[aria-label*='Slide to right']",
-                 "div[aria-label*='Desliza hacia la derecha']",
-                 "button[aria-label*='Slide']",
-                 "button[aria-label*='Desliza']"
-            ]
-            
-            handle = None
-            is_iframe = await container.evaluate("el => el.tagName.toLowerCase() === 'iframe'")
-            query_root = page
-            if is_iframe:
-                frame = await container.content_frame()
-                if frame:
-                    query_root = frame
-                    l("INFO", "🔍 Buscando slider handle dentro del iframe...")
-            
-            for hs in handle_selectors:
-                try:
-                    h = await query_root.query_selector(hs)
-                    if h and await h.is_visible():
-                        handle = h
-                        break
-                except: continue
-                
-            if not handle:
-                # If no handle, try to find the FIRST visible role='button' inside the container
-                try:
-                    handle = await query_root.query_selector("div[role='button'], button")
-                except: pass
-
-            if not handle:
-                l("WARN", "Slider handle not found. Attempting a simple click at target...")
-                await page.mouse.click(dest_x, dest_y)
-                return True
-                
-            h_box = await handle.bounding_box()
-            if not h_box: return False
-            
-            start_x = h_box['x'] + h_box['width'] / 2
-            start_y = h_box['y'] + h_box['height'] / 2
-            
-            if is_iframe:
-                start_x += box['x']
-                start_y += box['y']
-            
-            l("INFO", f"🖱️ Dragging handle from {start_x:.0f} to target {dest_x:.0f} (Organic)...")
-            
-            # Move to handle
-            await page.mouse.move(start_x, start_y, steps=5)
-            await asyncio.sleep(random.uniform(0.1, 0.3))
-            
-            # Simple wiggle to simulate human touch
-            await page.mouse.move(start_x + random.randint(-2, 2), start_y + random.randint(-2, 2))
-            await asyncio.sleep(random.uniform(0.1, 0.2))
-            
-            await page.mouse.down()
-            await asyncio.sleep(random.uniform(0.3, 0.6))
-            
-            # Organic drag movement (faster in middle, slower at ends)
-            steps = random.randint(40, 60)
-            for i in range(1, steps + 1):
-                # Ease-in-out curve
-                t = i / steps
-                # Quadratic ease in out: t < 0.5 ? 2*t*t : -1 + (4-2*t)*t
-                ease_t = 2*t*t if t < 0.5 else -1 + (4-2*t)*t
-                
-                curr_x = start_x + (dest_x - start_x) * ease_t
-                # Small vertical jitter
-                curr_y = start_y + (dest_y - start_y) * ease_t + random.uniform(-1, 1)
-                
-                await page.mouse.move(curr_x, curr_y)
-                # Small variable sleep to simulate human inconsistency
-                await asyncio.sleep(random.uniform(0.01, 0.04))
-            
-            # Hold at destination for a moment
-            await asyncio.sleep(random.uniform(0.3, 0.7))
-            await page.mouse.up()
-            
-            # 5. Verification: Check if captcha container is still present/visible
-            await asyncio.sleep(3)
-            still_there = False
-            # Update trailing log logic to verify the DOM more robustly
-            is_still_blocked = await page.evaluate(r"""() => {
-                const hasCaptchaContainer = document.querySelector(".px-captcha-container, #captcha-container, #challenge-container, .geetest_holder, .nc-container, div[class*='captcha'], div[id*='captcha'], iframe[title*='captcha'], iframe[src*='captcha'], .captcha-box");
-                const hasWarningText = document.body && document.body.innerText.toLowerCase().includes('estamos recibiendo muchas peticiones');
-                return !!(hasCaptchaContainer && hasCaptchaContainer.offsetParent !== null || hasWarningText);
-            }""")
-            
-            if is_still_blocked:
-                l("WARN", "⚠️ El slider se movió pero el captcha sigue visible o la página sigue bloqueada.")
-                return False
-                
-            l("OK", "✅ 2Captcha Coordinates solved!")
-            _captcha_inc("2Captcha Coordenadas|resueltos")
-            return True
-
-    except Exception as e:
-        l("ERR", f"2Captcha Slider solver error: {type(e).__name__}: {e}")
-        _captcha_inc("2Captcha Coordenadas|errores")
-
-    l("WARN", "❌ Falló la resolución del CAPTCHA después de todos los intentos.")
-    _captcha_inc("2Captcha Coordenadas|errores")
-    return False
-
-
-
 async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True, proxy_config=None):
-    """Orchestrator: DataDome (alternating 2Captcha/CapSolver) -> Local Slider -> 2Captcha (GeeTest/Coords).
+    """Orchestrator: DataDome (CapSolver×3) -> Local Slider.
 
-    use_proxy: False cuando el browser no usa proxy (ej. WebKit sin proxy). En ese caso los solvers
-    de pago se omiten porque la cookie de DataDome estaría vinculada a la IP del solver (BrightData)
+    use_proxy: False cuando el browser no usa proxy. En ese caso CapSolver
+    se omite porque la cookie de DataDome estaría vinculada a la IP del solver (BrightData)
     y no a la IP directa del browser → IP mismatch garantizado.
     proxy_config: dict con host/port/login/password/sticky_session_id del proxy del worker.
     Si None, se usa el PROXY_CONFIG global del proceso.
@@ -1880,29 +1254,26 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True, prox
                 except Exception:
                     pass
 
-        # Build solver sequence: CapSolver×3 (Fix RC-5: 2Captcha siempre hace timeout para DataDome,
-        # el token expira ~60s y 2Captcha tarda ~65-70s → desperdicio de créditos garantizado)
-        if CAPSOLVER_API_KEY and capsolver_compatible:
-            solvers = [
-                ("CapSolver", solve_datadome_capsolver),
-                ("CapSolver", solve_datadome_capsolver),
-                ("CapSolver", solve_datadome_capsolver),
-            ]
-        else:
-            if CAPSOLVER_API_KEY and not capsolver_compatible:
-                l("INFO", f"CapSolver excluido: UA no compatible ({current_ua.split()[-1] if current_ua else 'unknown'})")
-            solvers = [
-                ("2Captcha", solve_datadome_2captcha),
-                ("2Captcha", solve_datadome_2captcha),
-                ("2Captcha", solve_datadome_2captcha),
-            ]
+        # Build solver sequence: CapSolver×3
+        if not CAPSOLVER_API_KEY:
+            l("WARN", "CapSolver API key no configurada. No se puede resolver DataDome automáticamente.")
+            return False
+        if not capsolver_compatible:
+            l("INFO", f"CapSolver excluido: UA no compatible ({current_ua.split()[-1] if current_ua else 'unknown'})")
+            return False
+
+        solvers = [
+            ("CapSolver", solve_datadome_capsolver),
+            ("CapSolver", solve_datadome_capsolver),
+            ("CapSolver", solve_datadome_capsolver),
+        ]
         total = len(solvers)
 
-        l("INFO", f"DataDome CAPTCHA detectado. Secuencia de resolución: {' → '.join(s[0] for s in solvers)} ({total} intentos)...")
+        l("INFO", f"DataDome CAPTCHA detectado. CapSolver×{total}...")
 
         # ── Quick reload attempt BEFORE paid solvers ─────────────────────────
         # DataDome often clears itself after a homepage→target reload cycle.
-        # This saves ~65s per 2Captcha call when it works (frequent case).
+        # This saves ~65s per CapSolver call when it works (frequent case).
         _captcha_inc("Recarga rápida|intentos")
         l("INFO", "🔄 Intentando recarga rápida (homepage → URL) antes de solvers de pago...")
         try:
@@ -1936,7 +1307,7 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True, prox
                     quick_check = datadome_data.get('captcha_url')  # fallback: asumir captcha persiste
 
             if not quick_check:
-                l("OK", "✅ DataDome desapareció tras recarga rápida. Página libre (sin coste 2Captcha).")
+                l("OK", "✅ DataDome desapareció tras recarga rápida. Página libre (sin coste CapSolver).")
                 _captcha_inc("Recarga rápida|resueltos")
                 return True
             if '/interstitial/' in quick_check:
@@ -1953,14 +1324,14 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True, prox
                 await asyncio.sleep(2)
                 # Comprobar si DataDome desapareció tras la navegación de recuperación.
                 # Es posible que la recarga homepage→URL sí funcionara pero el evaluate()
-                # fallara por contexto destruido — en ese caso evitamos llamar a 2Captcha.
+                # fallara por contexto destruido — en ese caso evitamos llamar a CapSolver.
                 try:
                     recovery_check = await page.evaluate("""() => {
                         const iframe = document.querySelector('iframe[src*="captcha-delivery.com"]');
                         return iframe ? iframe.src : null;
                     }""")
                     if not recovery_check:
-                        l("OK", "✅ DataDome desapareció tras navegación de recuperación. Página libre (sin coste 2Captcha).")
+                        l("OK", "✅ DataDome desapareció tras navegación de recuperación. Página libre (sin coste CapSolver).")
                         _captcha_inc("Recarga rápida|resueltos")
                         return True
                 except Exception:
@@ -2047,7 +1418,7 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True, prox
         l("WARN", "DataDome no resuelto tras todos los intentos. Rotando identidad.")
         return False
 
-    # ── 2. Non-DataDome: try local slider first (fast, free) ───────────────
+    # ── 2. Non-DataDome: try local slider (fast, free) ─────────────────────
     _captcha_inc("Slider local|intentos")
     l("INFO", "Intentando resolución local (Slider)...")
     if await solve_slider_captcha(page):
@@ -2059,33 +1430,66 @@ async def solve_captcha_advanced(page, logger=None, use_proxy: bool = True, prox
             return True
         l("WARN", "Slider local falló o el bloqueo persiste.")
 
-    # ── 3. Non-DataDome: 2Captcha paid solvers ─────────────────────────────
-    if SOLVER:
-        # A. GeeTest
-        is_geetest = await page.evaluate("() => !!(window.initGeetest || document.querySelector('.geetest_holder'))")
-        if is_geetest:
-            _captcha_inc("2Captcha GeeTest|intentos")
-            l("INFO", "Iniciando solver 2Captcha para GeeTest...")
-            if await solve_geetest_2captcha(page, logger=l):
-                await asyncio.sleep(3)
-                title = (await page.title()).lower()
-                if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                    l("OK", "2Captcha GeeTest solved!")
-                    _captcha_inc("2Captcha GeeTest|resueltos")
-                    return True
-
-        # B. Coordinate-based slider
-        _captcha_inc("2Captcha Coordenadas|intentos")
-        l("INFO", "Iniciando solver 2Captcha por Coordenadas (Screenshot)...")
-        if await solve_slider_2captcha(page, logger=l):
-            await asyncio.sleep(4)
-            title = (await page.title()).lower()
-            if "idealista" in title and not any(kw in title for kw in ["captcha", "attention", "robot", "challenge", "verification"]):
-                l("OK", "2Captcha Coordinates solved!")
-                _captcha_inc("2Captcha Coordenadas|resueltos")
-                return True
-    else:
-        l("WARN", "2Captcha no disponible (import fallida o API Key inválida).")
-
     l("WARN", "Falló la resolución del CAPTCHA después de todos los intentos.")
     return False
+
+
+class CaptchaCooldownError(Exception):
+    """Señala que el worker debe entrar en cooldown (cerrar browser, esperar 15min, relanzar)."""
+    pass
+
+
+async def handle_captcha_v2(page, logger=None, proxy_config=None, nav_chain=None):
+    """Nuevo pipeline de CAPTCHA: navegación jerárquica → CapSolver → cooldown.
+
+    Retorna: "solved" | "cooldown"
+
+    Pasos:
+      1. Navegación jerárquica (3 pasos, 10s entre cada uno) usando nav_chain.
+         Si el CAPTCHA desaparece tras la navegación → "solved".
+      2. CapSolver (3 intentos via solve_captcha_advanced).
+         Si resuelto → "solved".
+      3. Si falla → "cooldown" (el caller cierra browser, espera 15min, relanza).
+    """
+    l = logger or log
+
+    # ── 1. Navegación jerárquica ──────────────────────────────────────────────
+    if nav_chain and len(nav_chain) > 1:
+        target_url = page.url
+        l("INFO", f"🧭 Navegación jerárquica ({len(nav_chain)} pasos) para esquivar CAPTCHA...")
+
+        for i, step_url in enumerate(nav_chain[:-1]):
+            if page.is_closed():
+                return "cooldown"
+            l("INFO", f"  Paso {i+1}/{len(nav_chain)-1}: {step_url[:60]}...")
+            try:
+                await page.goto(step_url, wait_until='domcontentloaded', timeout=20000)
+                await asyncio.sleep(10)
+            except Exception as nav_err:
+                l("WARN", f"  Error en paso {i+1}: {nav_err}")
+                break
+
+        # Volver a la URL objetivo
+        try:
+            l("INFO", f"  Volviendo a URL objetivo: {target_url[:60]}...")
+            await page.goto(target_url, wait_until='domcontentloaded', timeout=30000)
+            await asyncio.sleep(8)
+        except Exception:
+            pass
+
+        # Comprobar si el CAPTCHA desapareció
+        check = await detect_captcha_or_block(page, log_func=l)
+        if check is None:
+            l("OK", "✅ CAPTCHA desapareció tras navegación jerárquica.")
+            _reset_tbv_counter()
+            return "solved"
+        l("INFO", "CAPTCHA persiste tras navegación jerárquica. Intentando CapSolver...")
+
+    # ── 2. CapSolver (via solve_captcha_advanced) ─────────────────────────────
+    solved = await solve_captcha_advanced(page, logger=l, use_proxy=True, proxy_config=proxy_config)
+    if solved:
+        return "solved"
+
+    # ── 3. Fallo total → cooldown ────────────────────────────────────────────
+    l("WARN", "🛑 CAPTCHA no resuelto. Worker entrará en cooldown (15min).")
+    return "cooldown"

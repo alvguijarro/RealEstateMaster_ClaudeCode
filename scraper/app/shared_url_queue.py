@@ -88,3 +88,20 @@ class SharedURLQueue:
             if url in self._claimed:
                 self._claimed.discard(url)
                 self._pending.appendleft(url)
+
+    def snapshot(self) -> dict:
+        """Retorna un dict serializable con el estado actual de la cola para checkpoint."""
+        return {
+            "pending": list(self._pending),
+            "total": self._total,
+            "closed": self._closed,
+        }
+
+    @classmethod
+    def from_snapshot(cls, data: dict) -> "SharedURLQueue":
+        """Reconstruye una cola desde un snapshot (checkpoint)."""
+        q = cls()
+        q._pending = deque(data.get("pending", []))
+        q._total = data.get("total", len(q._pending))
+        q._closed = data.get("closed", False)
+        return q

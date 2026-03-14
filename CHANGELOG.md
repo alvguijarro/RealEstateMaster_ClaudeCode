@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.0.0] - 2026-03-15
+### Changed
+- **Paralelización total**: El scraper ahora lanza siempre 5 workers paralelos (Chromium visible + Chrome/Edge/Opera/Iron headless). Antes la paralelización era condicional (`parallel_enrichment=True`).
+- **Solo CapSolver**: Eliminado todo el código de 2Captcha (~600 líneas). El pipeline de resolución de CAPTCHAs ahora es: navegación jerárquica → CapSolver ×3 → cooldown 15min.
+- **Nuevo pipeline CAPTCHA (`handle_captcha_v2`)**: Antes de llamar a CapSolver, se intenta esquivar el CAPTCHA con navegación jerárquica (home → provincia → zona → URL objetivo). Si CapSolver falla, el worker entra en cooldown (cierra browser, espera 15min, regenera proxy, relanza).
+- **WORKER_POOL**: Nuevo pool de 5 workers en `config.py` que reemplaza `BROWSER_ROTATION_POOL` + `PROXY_FREE_PARALLEL_BROWSERS`.
+- **Checkpoint robusto**: Sistema de checkpoint (`checkpoint_state.json`) con snapshot de colas, URLs procesadas, y fase actual. Se borra al completar naturalmente.
+- **SharedURLQueue**: Añadidos métodos `snapshot()` y `from_snapshot()` para serialización/reconstrucción de colas.
+- **WorkerState**: Nuevo dataclass para gestionar el estado de cada worker paralelo.
+- **Logs UI**: Panel headless actualizado a "Workers Headless (Chrome/Edge/Opera/Iron)" con colores distintos por worker.
+
+### Removed
+- Dependencia `2captcha-python` eliminada de `requirements_master.txt`, SETUP.bat, UNINSTALL_PORTABLE.bat
+- `TWOCAPTCHA_API_KEY` eliminada de `shared/config.py`, todos los .bat y `docker-compose.yml`
+- Funciones `solve_geetest_2captcha()`, `solve_datadome_2captcha()`, `solve_slider_2captcha()` de `utils.py`
+- Funciones `get_2captcha_proxy_dict()`, `get_2captcha_proxy_params()` de `proxy_config.py`
+- Parámetro `parallel_enrichment` de ScraperController, server.py, app.js y run_batch.py
+- Constante `PROXY_FREE_PARALLEL_BROWSERS` de config.py
+
 ## [2.9.37] - 2026-03-10
 ### Added
 - **Log JSONL de ejecuciones (`trends/data/execution_log.jsonl`)**: Registro histórico append-only de todos los eventos del Trends Tracker (session_start, url_ok, url_fail, url_skip, session_end). Cada línea es JSON atómico; sobrevive a crashes.

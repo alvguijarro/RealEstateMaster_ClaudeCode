@@ -1,12 +1,10 @@
-"""Proxy configuration for 2Captcha and Scraper.
+"""Proxy configuration for CapSolver and Scraper.
 
 IMPORTANT: Replace the placeholder values below with your residential proxy credentials.
 The proxy MUST support sticky sessions (same IP for several minutes) so that the browser
-and 2Captcha solver use the same IP — otherwise DataDome rejects the cookie.
+and CapSolver use the same IP — otherwise DataDome rejects the cookie.
 
 Recommended providers: Bright Data, IPRoyal, SmartProxy (residential, sticky 10-30 min).
-The old 2Captcha rotating proxy (eu.proxy.2captcha.com:2333) does NOT work because it
-rotates IPs between connections, causing IP mismatch between browser and solver.
 
 Multi-worker support:
   Copy shared/.env.proxy.example → shared/.env.proxy and fill in credentials.
@@ -101,7 +99,6 @@ PROXY_CONFIG_GLOBAL = {
     **PROXY_CONFIG,
     # Sin -country-es: usa IPs de cualquier país del pool residencial de Bright Data.
     # Útil cuando el pool español está masivamente bloqueado por DataDome para Idealista.
-    # Browser y solver 2Captcha usan el mismo proxy (misma IP no española) → sin IP mismatch.
     'login': PROXY_CONFIG['login'],
 }
 
@@ -144,24 +141,3 @@ def get_proxy_uri():
     return f"{login}:{PROXY_CONFIG['password']}@{PROXY_CONFIG['host']}:{PROXY_CONFIG['port']}"
 
 
-def get_2captcha_proxy_dict():
-    """Returns proxy dictionary as expected by some 2Captcha SDK methods."""
-    return {
-        'type': PROXY_CONFIG['type'],
-        'uri': get_proxy_uri()
-    }
-
-
-def get_2captcha_proxy_params():
-    """Returns proxy parameters formatted for 2Captcha SDK as kwargs."""
-    login = PROXY_CONFIG['login']
-    sid = PROXY_CONFIG.get('sticky_session_id')
-    if sid:
-        login = f"{login}-session-{sid}"
-    return {
-        'proxytype': PROXY_CONFIG['type'],
-        'proxyaddress': PROXY_CONFIG['host'],
-        'proxyport': PROXY_CONFIG['port'],
-        'proxylogin': login,
-        'proxypassword': PROXY_CONFIG['password']
-    }
