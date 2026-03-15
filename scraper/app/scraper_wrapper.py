@@ -3918,7 +3918,7 @@ class ScraperController:
                 
                         # If ALL URLs on this page are already in our set, skip to next page
                         if not hrefs:
-                            self.log("OK", f"Page {page_num}: All {original_count} properties already scraped → skipping to next page")
+                            self.log("OK", f"{self._browser_prefix}Page {page_num}: All {original_count} properties already scraped → skipping to next page")
                             skipped += original_count
                             property_idx += original_count  # Update counter for UI
                             self.current_property_count = property_idx
@@ -3951,7 +3951,7 @@ class ScraperController:
                             # --- GLOBAL DEACTIVATION SKIP: Always skip properties already marked as inactive ---
                             orig_row = self._all_existing_urls.get(key, {})
                             if orig_row.get('is_inactive'):
-                                self.log("INFO", f"({_display_idx}/{self.total_properties_expected}) [SKIP] Already deactivated: {key}")
+                                self.log("INFO", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) [SKIP] Already deactivated: {key}")
                                 self._processed.add(key)
                                 skipped += 1
                                 self.current_property_count = property_idx
@@ -3967,7 +3967,7 @@ class ScraperController:
                             # Smart Enrichment Optimization: Skip detail visit if already enriched & active
                             if self.smart_enrichment and key in self._enriched_urls and key not in self._processed:
 
-                                self.log("INFO", f"({_display_idx}/{self.total_properties_expected}) [SMART SKIP] Active & already enriched: {key}")
+                                self.log("INFO", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) [SMART SKIP] Active & already enriched: {key}")
                                 
                                 from datetime import datetime
                                 # Update last seen date
@@ -4004,7 +4004,7 @@ class ScraperController:
                     
                             # Double-check (should not happen after filtering, but safety net)
                             if key in self._processed:
-                                self.log("INFO", f"({_display_idx}/{self.total_properties_expected}) Skipping already scraped: {key}")
+                                self.log("INFO", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) Skipping already scraped: {key}")
                                 skipped_on_page += 1
                                 skipped += 1
                                 self.current_property_count = property_idx
@@ -4072,7 +4072,7 @@ class ScraperController:
                                     # Process first property - check for missing fields (CAPTCHA)
                                     miss = missing_fields(row, is_room_mode=self._is_room_mode)
                                     if miss:
-                                        self.log("WARN", f"({_display_idx}/{self.total_properties_expected}) CAPTCHA detectado en primera propiedad. Intentando resolución automática...")
+                                        self.log("WARN", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) CAPTCHA detectado en primera propiedad. Intentando resolución automática...")
 
                                         if self.on_status:
                                             self.on_status("captcha")
@@ -4084,7 +4084,7 @@ class ScraperController:
                                                 timeout=180.0
                                             )
                                             if solved:
-                                                self.log("OK", f"({_display_idx}/{self.total_properties_expected}) ✅ CAPTCHA resuelto automáticamente en primera propiedad")
+                                                self.log("OK", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) ✅ CAPTCHA resuelto automáticamente en primera propiedad")
                                                 # Re-extraer datos tras resolver
                                                 try:
                                                     d = await asyncio.wait_for(extract_detail_fields(page, debug_items=False, is_room_mode=self._is_room_mode), timeout=20.0)
@@ -4093,15 +4093,15 @@ class ScraperController:
                                                 except Exception as re_ex:
                                                     self.log("WARN", f"Re-extracción tras auto-solve falló: {re_ex}")
                                         except asyncio.TimeoutError:
-                                            self.log("WARN", f"({_display_idx}/{self.total_properties_expected}) Auto-solver timeout (180s) en primera propiedad")
+                                            self.log("WARN", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) Auto-solver timeout (180s) en primera propiedad")
                                         except BlockedException:
                                             raise
                                         except Exception as solve_err:
-                                            self.log("WARN", f"({_display_idx}/{self.total_properties_expected}) Auto-solver error: {solve_err}")
+                                            self.log("WARN", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) Auto-solver error: {solve_err}")
 
                                         # 2) Si auto-solve no funcionó, espera pasiva 30s como fallback
                                         if miss:
-                                            self.log("WARN", f"({_display_idx}/{self.total_properties_expected}) Auto-solve insuficiente. Esperando 10s...")
+                                            self.log("WARN", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) Auto-solve insuficiente. Esperando 10s...")
                                             for i in range(2): # 2 * 5s = 10s
                                                 if self._should_stop: break
                                                 self.log("INFO", f"Espera CAPTCHA pasiva ({i+1}/2)...")
@@ -4255,7 +4255,7 @@ class ScraperController:
                                     self.log("WARN", "Saving resume state due to CAPTCHA block")
                                     self.save_state(page_num, target_file)
                                     raise e
-                                self.log("ERR", f"({_display_idx}/{self.total_properties_expected}) {key} -> {e}")
+                                self.log("ERR", f"{self._browser_prefix}({_display_idx}/{self.total_properties_expected}) Error: {key} — {e}")
                                 self._processed.add(key)
                 
                 
@@ -4267,7 +4267,7 @@ class ScraperController:
                     
                         # Case 1: Less links than max = Last Page
                         if original_count < LISTING_LINKS_PER_PAGE_MAX:
-                            self.log("INFO", f"Last page reached (found {original_count} links < {LISTING_LINKS_PER_PAGE_MAX}).")
+                            self.log("INFO", f"{self._browser_prefix}Last page reached (found {original_count} links < {LISTING_LINKS_PER_PAGE_MAX}).")
                             self.clear_state()
                             scraping_finished = True
                             break
@@ -4377,7 +4377,7 @@ class ScraperController:
                                         self.log("INFO", f"Saved periodic checkpoint in {time.time() - t_save:.2f}s")
                                     await self.simulate_reading_time(row.get("Descripción"))
                                     await self.simulate_mouse_movement(page)
-                                    self.log("OK", f"(drain) Scraped: {_drain_key}")
+                                    self.log("OK", f"{self._browser_prefix}(drain) Scraped: {_drain_key}")
                                     if self.on_property:
                                         self.on_property(row)
                                 else:
@@ -4777,11 +4777,11 @@ class ScraperController:
                             hrefs = [h for h in hrefs if canonical_listing_url(h) not in self._processed]
                         
                             if not hrefs:
-                                self.log("OK", f"Page {page_num}: All {original_count} properties already scraped")
+                                self.log("OK", f"{self._browser_prefix}Page {page_num}: All {original_count} properties already scraped")
                                 page_num += 1
                                 continue
                         
-                            self.log("INFO", f"Page {page_num}: {len(hrefs)} new properties to scrape")
+                            self.log("INFO", f"{self._browser_prefix}Page {page_num}: {len(hrefs)} new properties to scrape")
                             self.current_page = page_num
                             self.emit_progress()
                         
@@ -4846,13 +4846,13 @@ class ScraperController:
                                 except (StopException, BlockedException):
                                     raise
                                 except Exception as e:
-                                    self.log("ERR", f"({self.current_property_count}/{self.total_properties_expected}) {key} -> {e}")
+                                    self.log("ERR", f"{self._browser_prefix}({self.current_property_count}/{self.total_properties_expected}) Error: {key} — {e}")
                                     self._processed.add(key)
                         
                             if self._should_stop:
                                 break
                             if original_count < LISTING_LINKS_PER_PAGE_MAX:
-                                self.log("INFO", f"Last page reached.")
+                                self.log("INFO", f"{self._browser_prefix}Last page reached.")
                                 break
                             if page_num >= 60:
                                 self.log("INFO", f"Reached page limit (60).")
